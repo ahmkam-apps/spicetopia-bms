@@ -217,6 +217,7 @@ tr:hover td { background: var(--surface-2); }
 .badge-paid    { background: var(--cardamom-pale); color: var(--cardamom); }
 .badge-partial { background: var(--cinnamon-pale); color: var(--cinnamon); }
 .badge-unpaid  { background: var(--chili-pale);    color: var(--chili); }
+.badge-void    { background: #f3f4f6;              color: #6b7280; text-decoration: line-through; }
 .badge-draft   { background: var(--surface-3);     color: var(--text-3); }
 .badge-ok      { background: var(--cardamom-pale); color: var(--cardamom); }
 .badge-low     { background: var(--cinnamon-pale); color: var(--cinnamon); }
@@ -414,7 +415,6 @@ input[type="radio"]    { accent-color: var(--saffron); }
 <!-- ── LOGIN SCREEN ──────────────────────────────────────────────────── -->
 <div id="login-screen" style="display:none">
   <div class="login-box">
-    <img src="/img/spicetopia-logo.svg" alt="Spicetopia" style="width:240px;margin-bottom:20px;display:block;margin-left:auto;margin-right:auto">
     <p style="font-size:11px;color:rgba(0,0,0,0.35);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:20px">Business Management System</p>
     <p>Sign in to continue</p>
     <div id="login-msg"></div>
@@ -427,7 +427,6 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <input id="l-pass" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <button class="btn btn-primary" style="width:100%;margin-top:8px;padding:10px" onclick="doLogin()">Sign In</button>
-    <div class="login-hint">Default: admin / admin123</div>
   </div>
 </div>
 
@@ -493,6 +492,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('payroll')" id="nav-payroll"><span class="icon">💵</span> Payroll</div>
 
       <div class="nav-section">Reports</div>
+      <div class="nav-item" onclick="nav('pl-report')" id="nav-pl-report"><span class="icon">📊</span> P&amp;L Report</div>
       <div class="nav-item" onclick="nav('margins')" id="nav-margins"><span class="icon">📈</span> Margins</div>
       <div class="nav-item" onclick="nav('rep-performance')" id="nav-rep-performance"><span class="icon">🏆</span> Rep Performance</div>
       <div class="nav-item" onclick="nav('audit')" id="nav-audit"><span class="icon">🔍</span> Audit Log</div>
@@ -500,6 +500,9 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-section" id="nav-section-admin">Admin</div>
       <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><span class="icon">🔐</span> Users</div>
       <div class="nav-item" onclick="nav('price-master')" id="nav-price-master" style="display:none"><span class="icon">🏷️</span> Price Master</div>
+      <div class="nav-item" onclick="nav('master-data')" id="nav-master-data" style="display:none"><span class="icon">📥</span> Master Data</div>
+      <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon">🔒</span> Ingredients</div>
+      <div class="nav-item" onclick="nav('system')" id="nav-system" style="display:none"><span class="icon">🖥️</span> System</div>
     </nav>
     <div class="sidebar-footer">Spicetopia BMS © 2026</div>
   </div>
@@ -532,6 +535,7 @@ const ALL_MODULES = [
   { id:'production',  label:'Production',     section:'Operations' },
   { id:'products',    label:'Products & SKUs',section:'Catalog' },
   { id:'prices',      label:'Prices',         section:'Catalog' },
+  { id:'pl-report',   label:'P&L Report',     section:'Reports' },
   { id:'margins',     label:'Margin Report',  section:'Reports' },
   { id:'audit',       label:'Audit Log',      section:'Reports' },
 ];
@@ -572,9 +576,11 @@ function setTopbarUser(u) {
 function canAccess(pageId) {
   const u = state.currentUser;
   if (!u) return false;
-  if (u.role === 'admin') return true;          // admin always has full access
-  if (pageId === 'users') return false;         // admin-only
-  if (pageId === 'price-master') return false;  // admin-only
+  if (u.role === 'admin') return true;           // admin always has full access
+  if (pageId === 'users') return false;          // admin-only
+  if (pageId === 'price-master') return false;   // admin-only
+  if (pageId === 'master-data') return false;    // admin-only
+  if (pageId === 'pl-report') return u.role === 'accountant'; // admin + accountant only
   // Unified screens: check any of their constituent permissions
   const aliasMap = {
     'orders-invoices':  ['customer-orders', 'sales', 'invoices', 'orders-invoices'],
@@ -591,12 +597,18 @@ function applyRoleUI(role) {
   const isAdmin = role === 'admin';
 
   // Admin-only items
-  const usersNav      = document.getElementById('nav-users');
-  const priceMasterNav = document.getElementById('nav-price-master');
-  const adminSec      = document.getElementById('nav-section-admin');
-  if (usersNav)       usersNav.style.display       = isAdmin ? '' : 'none';
-  if (priceMasterNav) priceMasterNav.style.display = isAdmin ? '' : 'none';
-  if (adminSec)       adminSec.style.display       = isAdmin ? '' : 'none';
+  const usersNav           = document.getElementById('nav-users');
+  const priceMasterNav     = document.getElementById('nav-price-master');
+  const masterDataNav      = document.getElementById('nav-master-data');
+  const ingredientsAdminNav= document.getElementById('nav-ingredients-admin');
+  const systemNav          = document.getElementById('nav-system');
+  const adminSec           = document.getElementById('nav-section-admin');
+  if (usersNav)            usersNav.style.display            = isAdmin ? '' : 'none';
+  if (priceMasterNav)      priceMasterNav.style.display      = isAdmin ? '' : 'none';
+  if (masterDataNav)       masterDataNav.style.display       = isAdmin ? '' : 'none';
+  if (ingredientsAdminNav) ingredientsAdminNav.style.display = isAdmin ? '' : 'none';
+  if (systemNav)           systemNav.style.display           = isAdmin ? '' : 'none';
+  if (adminSec)            adminSec.style.display            = isAdmin ? '' : 'none';
 
   // Per-module nav items — hide if user doesn't have permission
   ALL_MODULES.forEach(m => {
@@ -604,6 +616,9 @@ function applyRoleUI(role) {
     if (!el) return;
     el.style.display = (isAdmin || perms.includes(m.id)) ? '' : 'none';
   });
+  // P&L report: admin + accountant only
+  const plNav = document.getElementById('nav-pl-report');
+  if (plNav) plNav.style.display = (isAdmin || role === 'accountant') ? '' : 'none';
 }
 
 async function doLogin() {
@@ -630,99 +645,59 @@ async function doLogin() {
 }
 
 function showWelcomeModal(user) {
-  // Remove any existing modal
   const existing = document.getElementById('welcome-modal-overlay');
   if (existing) existing.remove();
 
-  const hour = new Date().getHours();
+  const now = new Date();
+  const hour = now.getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-  const displayName = user.displayName || user.username || 'Fahad Baba';
+  const displayName = user.displayName || user.username || 'Welcome';
+  const timeStr = now.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = now.toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   const overlay = document.createElement('div');
   overlay.id = 'welcome-modal-overlay';
   overlay.style.cssText = `
     position:fixed;inset:0;z-index:9999;
     display:flex;align-items:center;justify-content:center;
-    background:rgba(28,14,4,0.72);
-    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    background:rgba(28,14,4,0.75);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
     animation:fadeIn .3s ease both;
   `;
   overlay.innerHTML = `
     <style>
-      @keyframes popIn { from{opacity:0;transform:scale(.85) translateY(24px)} to{opacity:1;transform:scale(1) translateY(0)} }
+      @keyframes popIn { from{opacity:0;transform:scale(.88) translateY(20px)} to{opacity:1;transform:scale(1) translateY(0)} }
       @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-      #welcome-card { animation: popIn .45s cubic-bezier(.34,1.56,.64,1) both; }
+      #welcome-card { animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both; }
     </style>
     <div id="welcome-card" style="
-      background:rgba(255,255,255,0.07);
+      background:rgba(255,255,255,0.06);
       backdrop-filter:blur(32px);-webkit-backdrop-filter:blur(32px);
-      border:1px solid rgba(255,255,255,0.14);
-      border-radius:24px;padding:48px 52px;
+      border:1px solid rgba(255,255,255,0.13);
+      border-radius:24px;padding:52px 56px;
       text-align:center;max-width:400px;width:90%;
-      box-shadow:0 32px 80px rgba(0,0,0,.55);
+      box-shadow:0 32px 80px rgba(0,0,0,.6);
       color:#fff;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;
     ">
-      <div id="wm-photo-wrap" style="margin-bottom:22px">
-        <img src="/img/fk_baba.jpeg"
-          id="wm-photo"
-          alt="${displayName}"
-          style="width:108px;height:108px;border-radius:50%;object-fit:cover;
-                 border:3px solid #E8901A;
-                 box-shadow:0 0 0 6px rgba(232,144,26,.22),0 8px 32px rgba(0,0,0,.4);"
-          onerror="this.style.display='none';document.getElementById('wm-fallback').style.display='flex';"
-        />
-        <div id="wm-fallback" style="
-          display:none;width:108px;height:108px;border-radius:50%;
-          background:rgba(232,144,26,.18);border:3px solid #E8901A;
-          font-size:48px;align-items:center;justify-content:center;margin:0 auto;
-        ">🌶</div>
-      </div>
-      <div style="font-size:12px;color:#E8901A;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:6px">${greeting}</div>
-      <div style="font-size:30px;font-weight:700;letter-spacing:-.5px;margin-bottom:8px">${displayName}</div>
-      <img src="/img/spicetopia-logo-white.svg" alt="Spicetopia" style="width:200px;margin-bottom:16px;display:block;margin-left:auto;margin-right:auto;opacity:0.9">
-      <div style="font-size:22px;font-weight:600;letter-spacing:1px;margin-bottom:4px">${new Date().toLocaleTimeString('en-PK',{hour:'2-digit',minute:'2-digit'})}</div>
-      <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:18px">${new Date().toLocaleDateString('en-PK',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
-      <div style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:20px;line-height:1.6">
-        Are you fully awake and Ready to Go? 😄
-      </div>
-      <div style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:14px 18px;margin-bottom:28px;font-size:13px;color:rgba(255,255,255,.75)">
-        ☕ Would you like <strong>Tea</strong> or <strong>Coffee</strong> before we begin?
-        <div style="display:flex;gap:10px;margin-top:12px;justify-content:center">
-          <button onclick="handleDrink('Tea')" style="flex:1;padding:8px 0;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:13px;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.18)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">🍵 Tea</button>
-          <button onclick="handleDrink('Coffee')" style="flex:1;padding:8px 0;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:13px;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.18)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">☕ Coffee</button>
-          <button onclick="handleDrink('Neither')" style="flex:1;padding:8px 0;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:13px;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.18)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">🚀 Let's go!</button>
-        </div>
-        <div id="drink-response" style="margin-top:10px;font-size:12px;color:#E8901A;min-height:16px;font-weight:600"></div>
-      </div>
+      <img src="/img/spicetopia-logo-white.svg" alt="Spicetopia"
+        style="width:180px;margin-bottom:32px;display:block;margin-left:auto;margin-right:auto;opacity:0.85">
+      <div style="font-size:11px;color:#E8901A;letter-spacing:2.5px;text-transform:uppercase;font-weight:600;margin-bottom:10px">${greeting}</div>
+      <div style="font-size:28px;font-weight:700;letter-spacing:-.5px;margin-bottom:28px">${displayName}</div>
+      <div style="font-size:42px;font-weight:300;letter-spacing:2px;margin-bottom:6px;color:#fff">${timeStr}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:36px;letter-spacing:.3px">${dateStr}</div>
       <button onclick="document.getElementById('welcome-modal-overlay').remove()"
-        style="background:#E8901A;color:#1C0E04;font-weight:700;font-size:15px;
-               padding:12px 40px;border-radius:12px;border:none;cursor:pointer;
-               box-shadow:0 4px 20px rgba(232,144,26,.4);
-               transition:transform .15s,box-shadow .15s;"
-        onmouseover="this.style.transform='scale(1.04)'"
-        onmouseout="this.style.transform='scale(1)'"
-      >Let's Go! 🌶</button>
+        style="background:#E8901A;color:#1C0E04;font-weight:700;font-size:14px;
+               padding:12px 48px;border-radius:10px;border:none;cursor:pointer;
+               box-shadow:0 4px 20px rgba(232,144,26,.35);
+               transition:opacity .15s;"
+        onmouseover="this.style.opacity='.85'"
+        onmouseout="this.style.opacity='1'"
+      >Continue</button>
     </div>
   `;
 
-  // Click backdrop to dismiss
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
-}
-
-function handleDrink(choice) {
-  const responses = {
-    Tea:     '🍵 Great choice, Fahad Baba! Chai coming right up ☕',
-    Coffee:  '☕ Perfect! Strong coffee for a productive day ahead!',
-    Neither: '🚀 Straight to business — that\'s the spirit, Fahad Baba!',
-  };
-  const el = document.getElementById('drink-response');
-  if (el) el.textContent = responses[choice] || '';
-  // Auto-dismiss after a short pause so they can read the response
-  setTimeout(() => {
-    const overlay = document.getElementById('welcome-modal-overlay');
-    if (overlay) overlay.remove();
-  }, 2000);
 }
 
 
@@ -745,6 +720,13 @@ async function api(method, path, body) {
   const res = await fetch(path, opts);
   if (res.status === 401) { showLoginScreen(); throw new Error('Session expired — please sign in again'); }
   const data = await res.json();
+  if (res.status === 422 && data.fields) {
+    // Build a readable field-level error message
+    const lines = Object.entries(data.fields).map(([f, msg]) => `• ${msg}`).join('\n');
+    const err = new Error(`Validation failed:\n${lines}`);
+    err.validationFields = data.fields;
+    throw err;
+  }
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
@@ -768,8 +750,9 @@ function setStatus(msg, col='var(--text-3)') {
 // ═══════════════════════════════════════════════════════════════
 //  NAVIGATION
 // ═══════════════════════════════════════════════════════════════
-function nav(page) {
+function nav(page, arg) {
   state.page = page;
+  state.navArg = arg || null;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   // Map legacy page names to new nav IDs
   const navMap = {
@@ -791,14 +774,14 @@ function nav(page) {
     'review-queue':'Review Queue',
     inventory:'Inventory', production:'Production',
     products:'Products & SKUs', prices:'Price Management',
-    margins:'Margin Report', audit:'Audit Log',
+    'pl-report':'P&L Report', margins:'Margin Report', audit:'Audit Log',
     users:'User Management', 'price-master':'Price Master',
   };
   document.getElementById('page-title').textContent = titles[page] || page;
-  render(page);
+  render(page, arg);
 }
 
-async function render(page) {
+async function render(page, arg) {
   const c = document.getElementById('content');
   // Access guard
   if (!canAccess(page)) {
@@ -831,16 +814,20 @@ async function render(page) {
       case 'production':  c.innerHTML = await renderProduction();  break;
       case 'products':    c.innerHTML = await renderProducts();    break;
       case 'prices':      c.innerHTML = await renderPrices();       break;
+      case 'pl-report':       c.innerHTML = await renderPLReport(arg);    break;
       case 'margins':         c.innerHTML = await renderMargins();         break;
       case 'rep-performance': c.innerHTML = await renderRepPerformance(); break;
       case 'review-queue':    await renderReviewQueue(); break;
       case 'audit':           c.innerHTML = await renderAudit();          break;
       case 'users':         c.innerHTML = await renderUsers();        break;
       case 'price-master':  c.innerHTML = await renderPriceMaster();  break;
+      case 'master-data':   c.innerHTML = renderMasterData();         break;
+      case 'ingredients-admin': c.innerHTML = await renderIngredientsAdmin(); break;
       case 'sales-reps':    c.innerHTML = await renderSalesReps();    break;
       case 'zones-routes':  c.innerHTML = await renderZonesRoutes();  break;
       case 'field-orders':  c.innerHTML = await renderFieldOrders();  break;
       case 'payroll':       c.innerHTML = await renderPayroll();       break;
+      case 'system':        c.innerHTML = await renderSystem();        break;
       default: c.innerHTML = '<p>Page not found</p>';
     }
   } catch(e) {
@@ -914,6 +901,48 @@ async function renderDashboard() {
     </tr>`;
   });
 
+  // ── Payment alert banners ──────────────────────────────────────
+  const oAR = dash.overdueAR || {};
+  const apO  = dash.apOverdue  || {};
+  const apDS = dash.apDueSoon  || {};
+  let alertBanners = '';
+
+  if (oAR.count > 0) {
+    const daysText = oAR.maxDaysOverdue > 0
+      ? ` — oldest ${oAR.maxDaysOverdue} day${oAR.maxDaysOverdue === 1 ? '' : 's'} overdue`
+      : '';
+    alertBanners += `<div style="display:flex;align-items:center;gap:10px;background:#fef2f2;border:1px solid #fca5a5;border-left:4px solid var(--chili);border-radius:6px;padding:10px 14px;margin-bottom:8px">
+      <span style="font-size:18px">🔴</span>
+      <div>
+        <strong style="color:#b91c1c">${oAR.count} invoice${oAR.count === 1 ? '' : 's'} overdue</strong>
+        <span style="color:#7f1d1d;margin-left:6px">${fmtPKR(oAR.amount)} outstanding${daysText}</span>
+      </div>
+      <button onclick="nav('invoices')" style="margin-left:auto;background:#b91c1c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Invoices →</button>
+    </div>`;
+  }
+
+  if (apO.count > 0) {
+    alertBanners += `<div style="display:flex;align-items:center;gap:10px;background:#fff7ed;border:1px solid #fdba74;border-left:4px solid #f97316;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+      <span style="font-size:18px">🟠</span>
+      <div>
+        <strong style="color:#c2410c">${apO.count} supplier bill${apO.count === 1 ? '' : 's'} overdue</strong>
+        <span style="color:#7c2d12;margin-left:6px">${fmtPKR(apO.amount)} outstanding</span>
+      </div>
+      <button onclick="nav('supplier-bills')" style="margin-left:auto;background:#c2410c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
+    </div>`;
+  }
+
+  if (apDS.count > 0) {
+    alertBanners += `<div style="display:flex;align-items:center;gap:10px;background:#fefce8;border:1px solid #fde047;border-left:4px solid #ca8a04;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+      <span style="font-size:18px">🟡</span>
+      <div>
+        <strong style="color:#a16207">${apDS.count} bill${apDS.count === 1 ? '' : 's'} due within 7 days</strong>
+        <span style="color:#713f12;margin-left:6px">${fmtPKR(apDS.amount)} payable</span>
+      </div>
+      <button onclick="nav('supplier-bills')" style="margin-left:auto;background:#ca8a04;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
+    </div>`;
+  }
+
   return `
   <!-- ── KPI Tiles ────────────────────────────────────────────── -->
   <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:22px">
@@ -957,6 +986,9 @@ async function renderDashboard() {
 
   </div>
 
+  <!-- ── Payment Alert Banners ──────────────────────────────────── -->
+  ${alertBanners}
+
   <div class="grid-3">
     <div class="card">
       <div class="section-header"><h2>Finished Goods Stock</h2></div>
@@ -994,13 +1026,13 @@ async function renderCustomers() {
   const custs = await GET('/api/customers?all=1');
   state.allCustomers = custs;
 
-  // Fetch all balances in parallel
+  // Fetch all balances in parallel (keyed by integer id)
   _custBalances = {};
   await Promise.all(custs.map(async c => {
     try {
-      const b = await GET('/api/customers/' + c.code + '/balance');
-      _custBalances[c.code] = b.balanceDue || 0;
-    } catch(e) { _custBalances[c.code] = 0; }
+      const b = await GET('/api/customers/' + c.id + '/balance');
+      _custBalances[c.id] = b.balanceDue || 0;
+    } catch(e) { _custBalances[c.id] = 0; }
   }));
 
   const activeCount   = custs.filter(c => c.active).length;
@@ -1025,7 +1057,7 @@ async function renderCustomers() {
   <!-- Filter bar -->
   <div class="card mb-16" style="padding:12px 16px">
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
-      <input id="cf-search" type="text" placeholder="🔍  Search name or code…"
+      <input id="cf-search" type="text" placeholder="🔍  Search name, account # or code…"
         style="flex:1;min-width:180px;padding:6px 10px;border:1px solid var(--border);border-radius:4px"
         oninput="applyCustomerFilters()">
       <select id="cf-type" style="padding:6px 8px;border:1px solid var(--border);border-radius:4px" onchange="applyCustomerFilters()">
@@ -1058,7 +1090,7 @@ async function renderCustomers() {
       <table id="customers-table">
         <thead>
           <tr>
-            <th onclick="sortCustomers('code')"    style="cursor:pointer;user-select:none">Code <span id="cs-code"></span></th>
+            <th onclick="sortCustomers('account_number')" style="cursor:pointer;user-select:none">Account # <span id="cs-account_number"></span></th>
             <th onclick="sortCustomers('name')"    style="cursor:pointer;user-select:none">Name <span id="cs-name">▲</span></th>
             <th>Type</th>
             <th onclick="sortCustomers('category')" style="cursor:pointer;user-select:none">Category <span id="cs-category"></span></th>
@@ -1079,15 +1111,16 @@ async function renderCustomers() {
 function _buildCustomerRows(custs) {
   if (!custs.length) return '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-3)">No customers match the current filters</td></tr>';
   return custs.map(c => {
-    const bal       = _custBalances[c.code] || 0;
+    const bal       = _custBalances[c.id] || 0;
     const isInactive = !c.active;
     const balColor  = bal > 0 ? 'color:var(--chili);font-weight:600' : 'color:var(--text-3)';
     const rowStyle  = isInactive ? 'opacity:0.55;background:var(--surface-2)' : '';
+    const accNum    = c.account_number || c.code;
     return `
-    <tr id="cust-row-${c.code}" style="${rowStyle}">
-      <td><strong>${c.code}</strong></td>
+    <tr id="cust-row-${c.id}" style="${rowStyle}">
+      <td><strong style="color:var(--mac-blue);letter-spacing:.3px">${accNum}</strong></td>
       <td>
-        <a href="#" onclick="viewCustomerHistory('${c.code}',${c.id});return false;"
+        <a href="#" onclick="viewCustomerHistory(${c.id});return false;"
            style="color:var(--mac-blue);text-decoration:none;font-weight:500">${c.name}</a>
         ${isInactive ? '<span style="font-size:10px;color:var(--text-3);background:var(--border);padding:1px 5px;border-radius:3px;margin-left:4px">INACTIVE</span>' : ''}
       </td>
@@ -1099,10 +1132,13 @@ function _buildCustomerRows(custs) {
       <td>${c.payment_terms_days||30}d</td>
       <td class="num text-right" style="${balColor}">${bal > 0 ? fmtPKR(bal) : '—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-outline btn-xs" onclick="viewCustomerHistory('${c.code}',${c.id})">📋 Profile</button>
-        <button class="btn btn-outline btn-xs" style="margin-left:3px" onclick="viewCustomerStatement('${c.code}','${c.name.replace(/'/g,"\\'")}')">📄 Statement</button>
-        <button class="btn btn-outline btn-xs" style="margin-left:3px" onclick="editCustomer('${c.code}')">Edit</button>
-        ${bal > 0 && c.active ? `<button class="btn btn-primary btn-xs" style="margin-left:3px" onclick="quickPay('${c.code}',${c.id},'${c.name.replace(/'/g,'&#39;')}',${bal})">💰 Pay</button>` : ''}
+        <button class="btn btn-outline btn-xs" onclick="viewCustomerHistory(${c.id})">📋 Profile</button>
+        <button class="btn btn-outline btn-xs" style="margin-left:3px" onclick="viewCustomerStatement(${c.id},'${c.name.replace(/'/g,"\\'")}')">📄 Statement</button>
+        <button class="btn btn-outline btn-xs" style="margin-left:3px" onclick="editCustomer(${c.id})">Edit</button>
+        ${bal > 0 && c.active ? `<button class="btn btn-primary btn-xs" style="margin-left:3px" onclick="quickPay(${c.id},'${c.name.replace(/'/g,'&#39;')}',${bal})">💰 Pay</button>` : ''}
+        ${state.currentUser?.role === 'admin' ? (c.active
+          ? `<button class="btn btn-xs" style="margin-left:3px;background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili)" onclick="toggleCustomerActive(${c.id},'${c.name.replace(/'/g,"\\'")}',false)">Deactivate</button>`
+          : `<button class="btn btn-xs" style="margin-left:3px;background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="toggleCustomerActive(${c.id},'${c.name.replace(/'/g,"\\'")}',true)">Activate</button>`) : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1120,11 +1156,11 @@ function applyCustomerFilters() {
     if (status === 'inactive' &&  c.active)  return false;
     if (type && c.customer_type !== type)    return false;
     if (cat  && c.category !== cat)          return false;
-    const bal = _custBalances[c.code] || 0;
+    const bal = _custBalances[c.id] || 0;
     if (balance === 'outstanding' && bal <= 0) return false;
     if (balance === 'clear'       && bal >  0) return false;
     if (search) {
-      const haystack = (c.name + ' ' + c.code + ' ' + (c.city||'')).toLowerCase();
+      const haystack = (c.name + ' ' + (c.account_number||'') + ' ' + c.code + ' ' + (c.city||'')).toLowerCase();
       if (!haystack.includes(search)) return false;
     }
     return true;
@@ -1158,7 +1194,7 @@ function sortCustomers(col) {
     _custSortDir = 1;
   }
   // Update header arrows
-  ['code','name','category','city','payment_terms_days','balance'].forEach(c => {
+  ['account_number','name','category','city','payment_terms_days','balance'].forEach(c => {
     const el = document.getElementById('cs-' + c);
     if (el) el.textContent = c === _custSortCol ? (_custSortDir === 1 ? '▲' : '▼') : '';
   });
@@ -1188,18 +1224,18 @@ const CUSTOMER_CATEGORIES = [
   'Hotel / Catering', 'Export', 'Corporate', 'Direct Consumer', 'Other'
 ];
 
-function editCustomer(code) {
-  // Look up from ALL customers (state.ref only has active; fetch from rendered list or do direct lookup)
-  // We keep a local cache of all customers populated during renderCustomers
-  const cust = (state.allCustomers||state.ref.customers||[]).find(c => c.code === code);
+function editCustomer(custId) {
+  const cust = (state.allCustomers||state.ref.customers||[]).find(c => c.id === custId);
   if (!cust) return;
   const area = document.getElementById('customer-form-area');
   const catOptions = CUSTOMER_CATEGORIES.map(cat =>
     `<option value="${cat}" ${(cust.category||'')=== cat?'selected':''}>${cat}</option>`
   ).join('');
+  const accNum = cust.account_number || cust.code;
   area.innerHTML = `
   <div class="card mb-16" style="border-top:3px solid var(--mac-blue)">
-    <h3 style="margin-bottom:14px">Edit Customer — ${cust.code}</h3>
+    <h3 style="margin-bottom:4px">Edit Customer — ${cust.name}</h3>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:14px">Account: <strong>${accNum}</strong></div>
     <div id="edit-cust-msg"></div>
     <div class="form-row">
       <div class="form-group"><label>Name *</label><input id="ec-name" value="${cust.name}"></div>
@@ -1215,7 +1251,8 @@ function editCustomer(code) {
           ${catOptions}
         </select>
       </div>
-      <div class="form-group"><label>City</label><input id="ec-city" value="${cust.city||''}"></div>
+      <div class="form-group"><label>City *</label><input id="ec-city" value="${cust.city||''}"></div>
+      <div class="form-group" style="flex:1 1 100%"><label>Full Address *</label><input id="ec-address" value="${(cust.address||'').replace(/"/g,'&quot;')}" placeholder="Street, Area, City"></div>
       <div class="form-group"><label>Phone</label><input id="ec-phone" value="${cust.phone||''}"></div>
       <div class="form-group"><label>Email</label><input id="ec-email" value="${cust.email||''}"></div>
       <div class="form-group"><label>Default Pack</label>
@@ -1224,6 +1261,7 @@ function editCustomer(code) {
         </select>
       </div>
       <div class="form-group"><label>Payment Terms (days)</label><input id="ec-terms" type="number" value="${cust.payment_terms_days}" style="width:80px"></div>
+      <div class="form-group"><label>Credit Limit (PKR)</label><input id="ec-credit" type="number" min="0" step="1000" value="${parseFloat(cust.credit_limit)||0}" placeholder="0 = no limit" title="Set to 0 to disable credit limit checking"></div>
       <div class="form-group"><label>Status</label>
         <select id="ec-active">
           <option value="1" ${cust.active?'selected':''}>Active</option>
@@ -1232,24 +1270,26 @@ function editCustomer(code) {
       </div>
     </div>
     <div style="display:flex;gap:10px">
-      <button class="btn btn-blue" onclick="saveEditCustomer('${code}')">Save Changes</button>
+      <button class="btn btn-blue" onclick="saveEditCustomer(${custId})">Save Changes</button>
       <button class="btn btn-outline" onclick="document.getElementById('customer-form-area').innerHTML=''">Cancel</button>
     </div>
   </div>`;
   area.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-async function saveEditCustomer(code) {
+async function saveEditCustomer(custId) {
   try {
-    await PUT('/api/customers/' + code, {
+    await PUT('/api/customers/' + custId, {
       name:             document.getElementById('ec-name').value.trim(),
       customerType:     document.getElementById('ec-type').value || 'RETAIL',
       category:         document.getElementById('ec-cat').value,
       city:             document.getElementById('ec-city').value,
+      address:          document.getElementById('ec-address').value,
       phone:            document.getElementById('ec-phone').value,
       email:            document.getElementById('ec-email').value,
       defaultPack:      document.getElementById('ec-pack').value,
       paymentTermsDays: parseInt(document.getElementById('ec-terms').value)||30,
+      creditLimit:      parseFloat(document.getElementById('ec-credit').value)||0,
       active:           parseInt(document.getElementById('ec-active').value),
     });
     showMsg('edit-cust-msg', '✓ Customer updated', 'success');
@@ -1258,7 +1298,41 @@ async function saveEditCustomer(code) {
   } catch(e) { showMsg('edit-cust-msg', e.message, 'error'); }
 }
 
-function quickPay(custCode, custId, custName, balanceDue) {
+async function toggleCustomerActive(custId, name, activate) {
+  if (!confirm(`${activate ? 'Reactivate' : 'Deactivate'} customer "${name}"?\n\n${activate ? 'They will appear in dropdowns and can receive new orders.' : 'They will be hidden from dropdowns. Historical data is preserved.'}`)) return;
+  try {
+    if (activate) {
+      await POST('/api/customers/' + custId + '/reactivate', {});
+    } else {
+      const r = await fetch('/api/customers/' + custId, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + authToken() }
+      });
+      if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed'); }
+    }
+    await refreshAll();
+    nav('customers');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function toggleSupplierActive(id, name, activate) {
+  if (!confirm(`${activate ? 'Reactivate' : 'Deactivate'} supplier "${name}"?\n\n${activate ? 'They will appear in dropdowns.' : 'They will be hidden from dropdowns. Historical data is preserved.'}`)) return;
+  try {
+    if (activate) {
+      await POST('/api/suppliers/' + id + '/reactivate', {});
+    } else {
+      const r = await fetch('/api/suppliers/' + id, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + authToken() }
+      });
+      if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed'); }
+    }
+    await refreshAll();
+    nav('suppliers');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function quickPay(custId, custName, balanceDue) {
   const area = document.getElementById('customer-form-area');
   area.innerHTML = `
   <div class="card mb-16" style="border-top:3px solid var(--cardamom)">
@@ -1279,14 +1353,14 @@ function quickPay(custCode, custId, custName, balanceDue) {
       <div class="form-group"><label>Notes</label><input id="qp-notes" placeholder="Optional"></div>
     </div>
     <div style="display:flex;gap:10px">
-      <button class="btn btn-primary" onclick="saveQuickPay(${custId},'${custCode}')">Record Payment</button>
+      <button class="btn btn-primary" onclick="saveQuickPay(${custId})">Record Payment</button>
       <button class="btn btn-outline" onclick="document.getElementById('customer-form-area').innerHTML=''">Cancel</button>
     </div>
   </div>`;
   area.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-async function saveQuickPay(custId, custCode) {
+async function saveQuickPay(custId) {
   const amt = parseFloat(document.getElementById('qp-amt').value);
   if (!amt || amt <= 0) { showMsg('qpay-msg','Enter a valid amount','error'); return; }
   try {
@@ -1329,7 +1403,7 @@ async function saveQuickPay(custId, custCode) {
   } catch(e) { showMsg('qpay-msg', e.message, 'error'); }
 }
 
-async function viewCustomerHistory(custCode, custId) {
+async function viewCustomerHistory(custId) {
   const area = document.getElementById('customer-form-area');
   if (!area) { nav('customers'); return; }
   area.innerHTML = `<div class="card mb-16" style="padding:24px;text-align:center;color:var(--text-3)">
@@ -1337,7 +1411,7 @@ async function viewCustomerHistory(custCode, custId) {
   area.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   try {
-    const rpt = await GET('/api/customers/' + custCode + '/report');
+    const rpt = await GET('/api/customers/' + custId + '/report');
     const cust = rpt.customer || {};
     const s    = rpt.summary  || {};
     const aging = rpt.aging   || {};
@@ -1453,22 +1527,23 @@ async function viewCustomerHistory(custCode, custId) {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
         <div>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-            <h3 style="margin:0">${cust.name||custCode}</h3>
+            <h3 style="margin:0">${cust.name||'—'}</h3>
             ${statusBadge}
           </div>
           <div style="font-size:12px;color:var(--text-3);line-height:1.7">
-            <span style="margin-right:12px">📋 ${custCode}</span>
+            <span style="margin-right:12px;font-weight:600;color:var(--mac-blue)">📋 ${cust.account_number||cust.code}</span>
             ${cust.customer_type ? `<span style="margin-right:12px">🏷 ${cust.customer_type}</span>` : ''}
             ${cust.category ? `<span style="margin-right:12px">📂 ${cust.category}</span>` : ''}
             ${cust.city ? `<span style="margin-right:12px">📍 ${cust.city}</span>` : ''}
+            ${cust.address ? `<span style="margin-right:12px">🏠 ${cust.address}</span>` : ''}
             ${cust.phone ? `<span style="margin-right:12px">📞 ${cust.phone}</span>` : ''}
             ${cust.email ? `<span>✉ ${cust.email}</span>` : ''}
           </div>
           ${creditBar}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;margin-left:16px">
-          <button class="btn btn-outline btn-sm" onclick="editCustomer('${custCode}')">✏ Edit</button>
-          ${s.total_balance>0 ? `<button class="btn btn-primary btn-sm" onclick="quickPay('${custCode}',${cust.id},'${(cust.name||'').replace(/'/g,"\\'")}',${s.total_balance})">💰 Receive Payment</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="editCustomer(${cust.id})">✏ Edit</button>
+          ${s.total_balance>0 ? `<button class="btn btn-primary btn-sm" onclick="quickPay(${cust.id},'${(cust.name||'').replace(/'/g,"\\'")}',${s.total_balance})">💰 Receive Payment</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="document.getElementById('customer-form-area').innerHTML='';document.getElementById('customer-form-area').scrollIntoView()">✕ Close</button>
         </div>
       </div>
@@ -1536,7 +1611,8 @@ function showNewCustomerForm() {
   }).join('');
   document.getElementById('customer-form-area').innerHTML = `
   <div class="card mb-16">
-    <h3 style="margin-bottom:14px">New Customer</h3>
+    <h3 style="margin-bottom:4px">New Customer</h3>
+    <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">Account number will be auto-generated from city (e.g. SPKHI-001)</p>
     <div id="cust-msg"></div>
     <div class="form-row">
       <div class="form-group"><label>Name *</label><input id="cn-name" placeholder="Customer name"></div>
@@ -1549,7 +1625,8 @@ function showNewCustomerForm() {
       <div class="form-group"><label>Category</label>
         <select id="cn-cat"><option value="">— Select —</option></select>
       </div>
-      <div class="form-group"><label>City</label><input id="cn-city" placeholder="City"></div>
+      <div class="form-group"><label>City *</label><input id="cn-city" placeholder="e.g. Karachi"></div>
+      <div class="form-group" style="flex:1 1 100%"><label>Full Address *</label><input id="cn-address" placeholder="Street, Area, City — required for account number"></div>
       <div class="form-group"><label>Phone</label><input id="cn-phone" placeholder="Phone"></div>
       <div class="form-group"><label>Email</label><input id="cn-email" placeholder="Email" type="email"></div>
       <div class="form-group"><label>Default Pack</label>
@@ -1574,29 +1651,32 @@ function showNewCustomerForm() {
 }
 
 async function saveNewCustomer() {
-  const name = document.getElementById('cn-name').value.trim();
-  if (!name) { showMsg('cust-msg','Name is required','error'); return; }
+  const name    = document.getElementById('cn-name').value.trim();
+  const city    = document.getElementById('cn-city').value.trim();
+  const address = document.getElementById('cn-address').value.trim();
+  if (!name)    { showMsg('cust-msg','Customer name is required','error'); return; }
+  if (!city)    { showMsg('cust-msg','City is required (used to generate account number)','error'); return; }
+  if (!address) { showMsg('cust-msg','Full address is required','error'); return; }
   const ctype = document.getElementById('cn-type').value || 'RETAIL';
   try {
     const res = await POST('/api/customers', {
-      name, customerType: ctype,
+      name, city, address, customerType: ctype,
       category: document.getElementById('cn-cat').value,
-      city: document.getElementById('cn-city').value,
       phone: document.getElementById('cn-phone').value,
       email: document.getElementById('cn-email').value,
       defaultPack: document.getElementById('cn-pack').value,
       paymentTermsDays: parseInt(document.getElementById('cn-terms').value)||30,
     });
-    showMsg('cust-msg', `Customer ${res.code} — ${res.name} created`, 'success');
+    showMsg('cust-msg', `✓ Customer created — Account # ${res.account_number||res.code} — ${res.name}`, 'success');
     await refreshAll();
-    setTimeout(() => nav('customers'), 1200);
+    setTimeout(() => nav('customers'), 1400);
   } catch(e) { showMsg('cust-msg', e.message, 'error'); }
 }
 
 // ═══════════════════════════════════════════════════════════════
 //  CUSTOMER STATEMENT
 // ═══════════════════════════════════════════════════════════════
-async function viewCustomerStatement(custCode, custName) {
+async function viewCustomerStatement(custId, custName) {
   const area = document.getElementById('customer-form-area');
   if (!area) { nav('customers'); return; }
   area.innerHTML = `<div class="card mb-16" style="padding:24px;text-align:center;color:var(--text-3)">
@@ -1604,7 +1684,7 @@ async function viewCustomerStatement(custCode, custName) {
   area.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   try {
-    const st   = await GET('/api/customers/' + custCode + '/statement');
+    const st   = await GET('/api/customers/' + custId + '/statement');
     const cust = st.customer || {};
     const sum  = st.summary  || {};
     const lines = st.lines   || [];
@@ -1634,7 +1714,7 @@ async function viewCustomerStatement(custCode, custName) {
     const balColor = (sum.balance_due||0) > 0.001 ? 'var(--chili)' : 'var(--cardamom)';
 
     area.innerHTML = `
-    <div class="card mb-16 print-area" id="stmt-${custCode}">
+    <div class="card mb-16 print-area" id="stmt-${custId}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
         <div>
           <h2 style="margin:0 0 4px">Account Statement</h2>
@@ -1642,7 +1722,8 @@ async function viewCustomerStatement(custCode, custName) {
         </div>
         <div style="text-align:right">
           <div style="font-weight:700;font-size:16px">${cust.name}</div>
-          <div style="font-size:12px;color:var(--text-3)">${cust.code} · ${cust.city||''}</div>
+          <div style="font-size:12px;color:var(--mac-blue);font-weight:600">${cust.account_number||cust.code}</div>
+          <div style="font-size:12px;color:var(--text-3)">${cust.city||''}</div>
           <div style="font-size:12px;color:var(--text-3)">${cust.phone||''}</div>
         </div>
       </div>
@@ -1661,9 +1742,11 @@ async function viewCustomerStatement(custCode, custName) {
           <div style="font-size:11px;color:var(--text-3)">Balance Due</div>
           <div style="font-size:15px;font-weight:700;color:${balColor}">${fmtPKR(sum.balance_due||0)}</div>
         </div>
-        <div class="card" style="padding:10px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px">
-          <button class="btn btn-outline btn-sm no-print" onclick="window.print()">🖨️ Print Statement</button>
-          <button class="btn btn-outline btn-sm no-print" onclick="document.getElementById('customer-form-area').innerHTML=''">✕ Close</button>
+        <div class="card" style="padding:10px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;flex-direction:column">
+          <button class="btn btn-sm no-print" style="background:var(--chili);color:#fff;width:100%"
+            onclick="downloadStatementPDF(${custId})">⬇ Download PDF</button>
+          <button class="btn btn-outline btn-sm no-print" style="width:100%"
+            onclick="document.getElementById('customer-form-area').innerHTML=''">✕ Close</button>
         </div>
       </div>
       <div class="table-wrap">
@@ -2200,19 +2283,23 @@ function _renderOrderDetail(o) {
   }).join('') : '<tr><td colspan="6" style="color:var(--text-3);padding:12px">No work orders yet</td></tr>';
 
   // Invoices table — full detail with inline pay
+  const _isAdminOrAcc = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
   const invRows = o.invoices.length ? o.invoices.map(inv => {
-    const canPay = (inv.status === 'UNPAID' || inv.status === 'PARTIAL') && (inv.balance || 0) > 0;
+    const canPay  = (inv.status === 'UNPAID' || inv.status === 'PARTIAL') && (inv.balance || 0) > 0;
+    const canVoid = _isAdminOrAcc && (inv.status === 'UNPAID' || inv.status === 'PARTIAL');
+    const statusStyle = inv.status === 'VOID' ? 'color:var(--text-3);text-decoration:line-through' : '';
     return `
-    <tr>
-      <td><strong style="cursor:pointer;color:var(--mac-blue)" onclick="showOrderInvDetail(${inv.id},'co-inv-detail-${o.id}')">${inv.invoice_number}</strong></td>
+    <tr style="${inv.status === 'VOID' ? 'opacity:0.55' : ''}">
+      <td><strong style="cursor:pointer;color:var(--mac-blue);${statusStyle}" onclick="showOrderInvDetail(${inv.id},'co-inv-detail-${o.id}')">${inv.invoice_number}</strong></td>
       <td>${fmtDate(inv.invoice_date)}</td>
-      <td class="num">${fmtPKR(inv.total || inv.subtotal)}</td>
-      <td class="num" style="color:var(--cardamom)">${fmtPKR(inv.paid || 0)}</td>
-      <td class="num" style="color:${(inv.balance||0)>0?'var(--chili)':'var(--cardamom);font-weight:700'};font-weight:${(inv.balance||0)>0?'700':'400'}">${fmtPKR(inv.balance || 0)}</td>
+      <td class="num">${inv.status === 'VOID' ? '<span style="color:var(--text-3)">—</span>' : fmtPKR(inv.total || inv.subtotal)}</td>
+      <td class="num" style="color:var(--cardamom)">${inv.status === 'VOID' ? '—' : fmtPKR(inv.paid || 0)}</td>
+      <td class="num" style="color:${(inv.balance||0)>0?'var(--chili)':'var(--cardamom);font-weight:700'};font-weight:${(inv.balance||0)>0?'700':'400'}">${inv.status === 'VOID' ? '—' : fmtPKR(inv.balance || 0)}</td>
       <td><span class="badge badge-${(inv.status||'').toLowerCase()}">${inv.status}</span></td>
       <td style="white-space:nowrap">
         <button class="btn btn-xs btn-outline" onclick="showOrderInvDetail(${inv.id},'co-inv-detail-${o.id}')">View</button>
         ${canPay ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="showOrderInvPayForm(${inv.id},${inv.balance},'co-inv-detail-${o.id}')">💳 Pay</button>` : ''}
+        ${canVoid ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--chili);color:#fff" onclick="voidInvoice(${inv.id},'${inv.invoice_number}')">Void</button>` : ''}
       </td>
     </tr>`; }).join('')
   : '<tr><td colspan="7" style="color:var(--text-3);padding:12px">No invoices yet</td></tr>';
@@ -2662,7 +2749,7 @@ async function renderSales() {
     </tr>`).join('');
 
   const custOptions = (state.ref.customers||[]).map(c =>
-    `<option value="${c.code}">${c.name} (${c.code})</option>`).join('');
+    `<option value="${c.code}">${c.name} (${c.account_number || c.code})</option>`).join('');
 
   return `
   <div class="section-header"><h2>Sales</h2></div>
@@ -2957,10 +3044,13 @@ async function saveSale() {
 // ═══════════════════════════════════════════════════════════════
 //  INVOICES
 // ═══════════════════════════════════════════════════════════════
-async function renderInvoices() {
-  const invs = await GET('/api/invoices');
-  let rows = invs.map(inv => `
-    <tr>
+function _renderInvoiceRows(invs) {
+  const _isAdminAcct = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
+  if (!invs || !invs.length) return '<tr><td colspan="12" style="text-align:center;color:var(--text-3);padding:20px">No invoices match the current filters</td></tr>';
+  return invs.map(inv => {
+    const canVoid = _isAdminAcct && (inv.status === 'UNPAID' || inv.status === 'PARTIAL');
+    return `
+    <tr style="${inv.status === 'VOID' ? 'opacity:0.5' : ''}">
       <td>
         <strong>${inv.invoice_number}</strong>
         ${inv.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="nav('orders-invoices');setTimeout(()=>openOrderDetail(${inv.customer_order_id}),400)">📋 ${inv.customer_order_number}</span>` : ''}
@@ -2969,14 +3059,57 @@ async function renderInvoices() {
       <td>${fmtDate(inv.due_date)}</td>
       <td>${inv.customer_name}<br><small style="color:var(--text-3)">${inv.cust_code}</small></td>
       <td><span class="badge badge-${(inv.customer_type||'retail').toLowerCase()}">${inv.customer_type||''}</span></td>
-      <td class="num text-right">${fmtPKR(inv.subtotal)}</td>
-      <td class="num text-right">${fmtPKR(inv.tax)}</td>
-      <td class="num text-right"><strong>${fmtPKR(inv.total)}</strong></td>
-      <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(inv.paid)}</td>
-      <td class="num text-right" style="color:${inv.balance>0?'var(--chili)':'var(--cardamom)'}"><strong>${fmtPKR(inv.balance)}</strong></td>
+      <td class="num text-right">${inv.status==='VOID'?'<span style="color:var(--text-3)">—</span>':fmtPKR(inv.subtotal)}</td>
+      <td class="num text-right">${inv.status==='VOID'?'—':fmtPKR(inv.tax)}</td>
+      <td class="num text-right"><strong>${inv.status==='VOID'?'<span style="color:var(--text-3)">VOID</span>':fmtPKR(inv.total)}</strong></td>
+      <td class="num text-right" style="color:var(--cardamom)">${inv.status==='VOID'?'—':fmtPKR(inv.paid)}</td>
+      <td class="num text-right" style="color:${inv.balance>0?'var(--chili)':'var(--cardamom)'}"><strong>${inv.status==='VOID'?'—':fmtPKR(inv.balance)}</strong></td>
       <td><span class="badge badge-${inv.status.toLowerCase()}">${inv.status}</span></td>
-      <td><button class="btn btn-xs btn-outline" onclick="showInvoiceDetail(${inv.id})">View</button></td>
-    </tr>`).join('');
+      <td style="white-space:nowrap">
+        <button class="btn btn-xs btn-outline" onclick="showInvoiceDetail(${inv.id})">View</button>
+        ${canVoid ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--chili);color:#fff" onclick="voidInvoice(${inv.id},'${inv.invoice_number}')">Void</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function applyInvoiceFilters() {
+  const from = (document.getElementById('inv-f-from') || {}).value || '';
+  const to   = (document.getElementById('inv-f-to')   || {}).value || '';
+  const cust = ((document.getElementById('inv-f-cust') || {}).value || '').toLowerCase().trim();
+  const stat = (document.getElementById('inv-f-stat') || {}).value || '';
+
+  const all = state._allInvoices || [];
+  const filtered = all.filter(inv => {
+    if (from && inv.invoice_date < from) return false;
+    if (to   && inv.invoice_date > to)   return false;
+    if (cust && !inv.customer_name.toLowerCase().includes(cust)
+             && !(inv.cust_code || '').toLowerCase().includes(cust)) return false;
+    if (stat && inv.status !== stat) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('invoices-tbody');
+  if (tbody) tbody.innerHTML = _renderInvoiceRows(filtered);
+
+  const countEl = document.getElementById('inv-f-count');
+  if (countEl) {
+    const hasFilter = from || to || cust || stat;
+    countEl.textContent = hasFilter ? `${filtered.length} of ${all.length}` : `${all.length}`;
+  }
+}
+
+function clearInvoiceFilters() {
+  ['inv-f-from','inv-f-to','inv-f-cust','inv-f-stat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  applyInvoiceFilters();
+}
+
+async function renderInvoices() {
+  const invs = await GET('/api/invoices');
+  state._allInvoices = invs;
 
   return `
   <div class="section-header"><h2>Invoices (AR)</h2>
@@ -2984,13 +3117,48 @@ async function renderInvoices() {
   </div>
   <div id="invoice-detail-area"></div>
   <div class="card">
+    <!-- ── Filter bar ── -->
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:12px">
+      <label style="font-size:11px;color:var(--text-3);font-weight:600;white-space:nowrap">FILTER:</label>
+      <input type="date" id="inv-f-from" onchange="applyInvoiceFilters()" title="Invoice date from"
+        style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1)">
+      <span style="font-size:11px;color:var(--text-3)">→</span>
+      <input type="date" id="inv-f-to" onchange="applyInvoiceFilters()" title="Invoice date to"
+        style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1)">
+      <input type="text" id="inv-f-cust" oninput="applyInvoiceFilters()" placeholder="Search customer…"
+        style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1);min-width:160px">
+      <select id="inv-f-stat" onchange="applyInvoiceFilters()"
+        style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1)">
+        <option value="">All Statuses</option>
+        <option value="UNPAID">Unpaid</option>
+        <option value="PARTIAL">Partial</option>
+        <option value="PAID">Paid</option>
+        <option value="VOID">Void</option>
+      </select>
+      <button class="btn btn-xs btn-outline" onclick="clearInvoiceFilters()" style="font-size:11px">✕ Clear</button>
+      <span id="inv-f-count" style="margin-left:auto;font-size:11px;color:var(--text-3)">${invs.length}</span>
+    </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Invoice #</th><th>Date</th><th>Due</th><th>Customer</th><th>Type</th><th class="text-right">Subtotal</th><th class="text-right">GST 18%</th><th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th>Status</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="12" style="text-align:center">No invoices</td></tr>'}</tbody>
+        <tbody id="invoices-tbody">${_renderInvoiceRows(invs)}</tbody>
       </table>
     </div>
   </div>`;
+}
+
+async function voidInvoice(invId, invNumber) {
+  const note = prompt(`Void invoice ${invNumber}?\n\nEnter a reason (required):`);
+  if (note === null) return;                      // cancelled
+  if (!note.trim()) { alert('A void reason is required.'); return; }
+  if (!confirm(`This will VOID invoice ${invNumber} and reverse all associated stock movements.\n\nThis cannot be undone. Continue?`)) return;
+  try {
+    const res = await POST('/api/invoices/' + invId + '/void', { note: note.trim() });
+    showMsg(document.getElementById('inv-msg') || document.body, res.message || 'Invoice voided', 'success');
+    nav('invoices');
+  } catch(e) {
+    alert('Error: ' + (e.message || e));
+  }
 }
 
 async function showInvoiceDetail(invId) {
@@ -3132,11 +3300,41 @@ function _renderInvoiceDetail(inv) {
 
     <!-- Actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-outline btn-sm" onclick="printInvoice(${invId})">🖨️ Print</button>
-      <button class="btn btn-outline btn-sm" onclick="emailInvoice(${invId})">✉️ Email</button>
+      <button class="btn btn-sm" style="background:var(--chili);color:#fff"
+        onclick="downloadInvoicePDF(${invId})">⬇ Download PDF</button>
       <button class="btn btn-outline btn-sm" onclick="document.getElementById('invoice-detail-area').innerHTML=''">✕ Close</button>
     </div>
   </div>`;
+}
+
+async function _downloadPDF(url, fallbackName) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'Authorization': 'Bearer ' + state.token }
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      alert('PDF error: ' + (e.error || res.status));
+      return;
+    }
+    const blob = await res.blob();
+    const cd   = res.headers.get('Content-Disposition') || '';
+    const m    = cd.match(/filename="([^"]+)"/);
+    const name = m ? m[1] : fallbackName;
+    const burl = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = burl; a.download = name; document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(burl); a.remove(); }, 2000);
+  } catch(e) { alert('PDF download failed: ' + (e.message || e)); }
+}
+
+function downloadInvoicePDF(invId) {
+  _downloadPDF('/api/invoices/' + invId + '/pdf', 'invoice-' + invId + '.pdf');
+}
+
+function downloadStatementPDF(custId) {
+  _downloadPDF('/api/customers/' + custId + '/statement/pdf', 'statement-' + custId + '.pdf');
 }
 
 function toggleAddInvLine(invId) {
@@ -3394,7 +3592,7 @@ async function renderReceiptsAging(tab) {
     GET('/api/ar/aging'),
   ]);
   const custOptions = (state.ref.customers||[]).map(c =>
-    `<option value="${c.id}">${c.name} (${c.code})</option>`).join('');
+    `<option value="${c.id}">${c.name} (${c.account_number || c.code})</option>`).join('');
 
   // ── Receipts tab content
   const recRows = pays.map(p => `
@@ -3499,7 +3697,7 @@ function switchRaTab(tab) {
 async function renderARPayments() {
   const pays = await GET('/api/customer-payments');
   const custOptions = (state.ref.customers||[]).map(c =>
-    `<option value="${c.id}">${c.name} (${c.code})</option>`).join('');
+    `<option value="${c.id}">${c.name} (${c.account_number || c.code})</option>`).join('');
 
   let rows = pays.map(p => `
     <tr>
@@ -3632,17 +3830,19 @@ async function renderARAging() {
 //  SUPPLIERS
 // ═══════════════════════════════════════════════════════════════
 async function renderSuppliers() {
+  const isAdmin = state.currentUser?.role === 'admin';
   const [sups, zones] = await Promise.all([
-    GET('/api/suppliers'),
+    isAdmin ? GET('/api/admin/suppliers') : GET('/api/suppliers'),
     GET('/api/zones')
   ]);
 
   // Zone dropdown options — blank first for "none"
-  const zoneOpts = (zones||[]).filter(z => z.active)
-    .sort((a,b) => a.name.localeCompare(b.name))
-    .map(z => `<option value="${z.id}">${z.name}</option>`).join('');
-
-  const zoneOptsFull = `<option value="">— No Zone —</option>${zoneOpts}`;
+  const activeZones = (zones||[]).filter(z => z.active).sort((a,b) => a.name.localeCompare(b.name));
+  const zoneOpts = activeZones.map(z => `<option value="${z.id}">${z.name}</option>`).join('');
+  const noZoneMsg = activeZones.length === 0
+    ? `<option value="">— No zones yet (add in Zones &amp; Routes) —</option>`
+    : `<option value="">— No Zone —</option>`;
+  const zoneOptsFull = noZoneMsg + zoneOpts;
   window._supplierZoneOpts = zoneOptsFull;  // store for showNewSupplierForm()
 
   // Helper: zone dropdown for edit rows with current value selected
@@ -3654,8 +3854,8 @@ async function renderSuppliers() {
   };
 
   let rows = sups.map(s => `
-    <tr id="sup-row-${s.id}">
-      <td><strong>${s.code}</strong></td>
+    <tr id="sup-row-${s.id}" ${!s.active_flag ? 'style="opacity:0.5"' : ''}>
+      <td><strong>${s.code}</strong>${!s.active_flag ? ' <span style="font-size:10px;color:var(--chili);font-weight:600">INACTIVE</span>' : ''}</td>
       <td>${s.name}</td>
       <td>${s.contact||'—'}</td>
       <td>${s.zone_name ? `<span style="background:var(--saffron-pale);color:var(--saffron-deep);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${s.zone_name}</span>` : '<span style="color:var(--text-3)">—</span>'}</td>
@@ -3663,8 +3863,11 @@ async function renderSuppliers() {
       <td>${s.phone||'—'}</td>
       <td>${s.email||'—'}</td>
       <td>${s.address||'—'}</td>
-      <td style="text-align:center">
+      <td style="text-align:center;white-space:nowrap">
         <button class="btn btn-sm btn-outline" onclick="editSupplier(${s.id})">Edit</button>
+        ${state.currentUser?.role === 'admin' ? (s.active_flag
+          ? `<button class="btn btn-sm" style="margin-left:4px;background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili)" onclick="toggleSupplierActive(${s.id},'${(s.name||'').replace(/'/g,"\\'")}',false)">Deactivate</button>`
+          : `<button class="btn btn-sm" style="margin-left:4px;background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="toggleSupplierActive(${s.id},'${(s.name||'').replace(/'/g,"\\'")}',true)">Activate</button>`) : ''}
       </td>
     </tr>
     <tr id="sup-edit-${s.id}" style="display:none">
@@ -3793,19 +3996,14 @@ function _billLineDefault() { return { id: _billLinesNextId++, ingId: '', qty: 1
 //  PURCHASE ORDERS
 // ═══════════════════════════════════════════════════════════════
 
-async function renderPurchaseOrders() {
-  const [pos, suppliers, ref] = await Promise.all([
-    GET('/api/purchase-orders'),
-    GET('/api/suppliers'),
-    GET('/api/ref'),
-  ]);
+function _poBadge(s) {
+  const map = { draft:'secondary', sent:'warning', partial:'warning', received:'success', cancelled:'secondary' };
+  return `<span class="badge badge-${map[s]||'secondary'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
+}
 
-  const statusBadge = s => {
-    const map = { draft:'secondary', sent:'warning', partial:'warning', received:'success', cancelled:'secondary' };
-    return `<span class="badge badge-${map[s]||'secondary'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
-  };
-
-  const rows = pos.length ? pos.map(po => `
+function _renderPORows(pos) {
+  if (!pos.length) return `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-3)">No purchase orders match the filters.</td></tr>`;
+  return pos.map(po => `
     <tr>
       <td><strong>${po.po_number}</strong></td>
       <td>${po.supplier_name}</td>
@@ -3813,10 +4011,43 @@ async function renderPurchaseOrders() {
       <td>${po.expected_date ? fmtDate(po.expected_date) : '—'}</td>
       <td>${po.item_count} item${po.item_count===1?'':'s'}</td>
       <td class="text-right">${fmtPKR(po.total_cost)}</td>
-      <td>${statusBadge(po.status)}</td>
+      <td>${_poBadge(po.status)}</td>
       <td><button class="btn btn-xs btn-outline" onclick="openPODetail(${po.id})">View</button></td>
-    </tr>`).join('') :
-    `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-3)">No purchase orders yet. Create your first one above.</td></tr>`;
+    </tr>`).join('');
+}
+
+function applyPOFilters() {
+  const from  = document.getElementById('po-f-from')?.value  || '';
+  const to    = document.getElementById('po-f-to')?.value    || '';
+  const sup   = (document.getElementById('po-f-sup')?.value  || '').toLowerCase().trim();
+  const stat  = document.getElementById('po-f-stat')?.value  || '';
+  let filtered = (state._allPOs || []).filter(po => {
+    if (from && po.po_date < from) return false;
+    if (to   && po.po_date > to)   return false;
+    if (sup  && !po.supplier_name.toLowerCase().includes(sup)) return false;
+    if (stat && po.status !== stat) return false;
+    return true;
+  });
+  const tbody = document.getElementById('po-list-tbody');
+  if (tbody) tbody.innerHTML = _renderPORows(filtered);
+  const cnt = document.getElementById('po-f-count');
+  if (cnt) cnt.textContent = `${filtered.length} of ${(state._allPOs||[]).length}`;
+}
+
+function clearPOFilters() {
+  ['po-f-from','po-f-to','po-f-sup','po-f-stat'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  applyPOFilters();
+}
+
+async function renderPurchaseOrders() {
+  const [pos, suppliers, ref] = await Promise.all([
+    GET('/api/purchase-orders'),
+    GET('/api/suppliers'),
+    GET('/api/ref'),
+  ]);
+  state._allPOs = pos;
 
   const supOptions = suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
   // Flatten variants from nested products — /api/ref nests variants inside each product
@@ -3824,7 +4055,7 @@ async function renderPurchaseOrders() {
   const varOptions = allVariants.map(v =>
     `<option value="${v.id}" data-product="${v.product_name}" data-pack="${v.pack_size||''}">${v.product_name} — ${v.pack_size||''}</option>`
   ).join('');
-  const ingOptions = (ref.ingredients||[]).map(i => `<option value="${i.id}">${i.name} (${i.code})</option>`).join('');
+  const ingOptions = (ref.ingredients||[]).map(i => `<option value="${i.id}">${i.code}</option>`).join('');
 
   return `
   <div class="section-header"><h2>Purchase Orders</h2></div>
@@ -3946,6 +4177,36 @@ async function renderPurchaseOrders() {
     <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">
       Purchase Order History
     </div>
+    <!-- Filter bar -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      <div class="form-group" style="flex:0 0 130px;margin-bottom:0">
+        <label class="form-label" style="font-size:11px">Date From</label>
+        <input type="date" id="po-f-from" class="form-input" style="padding:5px 8px;font-size:12px" oninput="applyPOFilters()">
+      </div>
+      <div class="form-group" style="flex:0 0 130px;margin-bottom:0">
+        <label class="form-label" style="font-size:11px">Date To</label>
+        <input type="date" id="po-f-to" class="form-input" style="padding:5px 8px;font-size:12px" oninput="applyPOFilters()">
+      </div>
+      <div class="form-group" style="flex:1;min-width:130px;margin-bottom:0">
+        <label class="form-label" style="font-size:11px">Supplier</label>
+        <input type="text" id="po-f-sup" class="form-input" placeholder="Filter by supplier…" style="padding:5px 8px;font-size:12px" oninput="applyPOFilters()">
+      </div>
+      <div class="form-group" style="flex:0 0 130px;margin-bottom:0">
+        <label class="form-label" style="font-size:11px">Status</label>
+        <select id="po-f-stat" class="form-input" style="padding:5px 8px;font-size:12px" onchange="applyPOFilters()">
+          <option value="">All</option>
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="partial">Partial</option>
+          <option value="received">Received</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:8px;padding-bottom:1px">
+        <span id="po-f-count" style="font-size:12px;color:var(--text-3);white-space:nowrap">${pos.length} of ${pos.length}</span>
+        <button class="btn btn-outline btn-sm" onclick="clearPOFilters()" style="font-size:11px;padding:4px 10px">Clear</button>
+      </div>
+    </div>
     <table style="width:100%;border-collapse:collapse">
       <thead><tr style="background:var(--surface-2);font-size:12px;color:var(--text-2)">
         <th style="padding:8px 10px;text-align:left">PO #</th>
@@ -3957,7 +4218,7 @@ async function renderPurchaseOrders() {
         <th style="padding:8px 10px;text-align:left">Status</th>
         <th style="padding:8px 10px"></th>
       </tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody id="po-list-tbody">${_renderPORows(pos)}</tbody>
     </table>
   </div>
 
@@ -4003,7 +4264,7 @@ function clearPOCalc() {
 }
 
 // ── Mode A: BOM calculation ───────────────────────────────────
-let _poCalcIngredients = []; // [{ingId, ingName, ingCode, neededKg, availableKg, toOrderKg, sufficient}]
+let _poCalcIngredients = []; // [{ingId, ingCode, neededKg, availableKg, toOrderKg, sufficient}]
 
 async function calcPOIngredients() {
   const varId = document.getElementById('po-variant').value;
@@ -4021,8 +4282,7 @@ async function calcPOIngredients() {
     const rows = res.ingredients.map((ing, idx) => `
       <tr style="border-top:1px solid var(--border);${ing.sufficient?'opacity:0.55':''}">
         <td style="padding:7px 10px">
-          <span style="font-weight:${ing.sufficient?'400':'600'}">${ing.ingName}</span>
-          <span style="font-size:11px;color:var(--text-3)"> (${ing.ingCode})</span>
+          <span style="font-weight:${ing.sufficient?'400':'600'};font-family:monospace">${ing.ingCode}</span>
         </td>
         <td style="padding:7px 10px;text-align:right">${fmt(ing.neededKg,3)} kg</td>
         <td style="padding:7px 10px;text-align:right;color:${ing.availableKg>0?'var(--cardamom)':'var(--text-3)'}">${fmt(ing.availableKg,3)} kg</td>
@@ -4198,6 +4458,16 @@ async function onPOIngChange(lineId) {
     const kg = grams / 1000;
     if (stockEl) stockEl.textContent = `${fmt(kg, 3)} kg`;
   } catch(e) { /* silent */ }
+  // Pre-fill last known unit cost from prior received POs
+  try {
+    const costEl = document.getElementById(`po-ing-cost-${lineId}`);
+    if (costEl && (!costEl.value || parseFloat(costEl.value) === 0)) {
+      const lc = await GET(`/api/ingredients/${ingId}/last-cost`);
+      if (lc && lc.unit_cost_kg > 0) {
+        costEl.value = lc.unit_cost_kg.toFixed(2);
+      }
+    }
+  } catch(e) { /* silent */ }
   updatePOGrandTotal();
 }
 
@@ -4283,8 +4553,8 @@ function _renderPODetail(po) {
 
   const itemRows = po.items.map(item => `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:7px 10px">${item.ing_name}</td>
-      <td style="padding:7px 10px;color:var(--text-3)">${item.ing_code}</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${item.ing_code}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--text-2)">${item.ing_name||''}</td>
       <td style="padding:7px 10px;text-align:right">${fmt(item.quantity_kg,3)} kg</td>
       <td style="padding:7px 10px;text-align:right;color:${item.received_kg>0?'var(--cardamom)':'var(--text-3)'}">
         ${po.status !== 'draft' && po.status !== 'sent'
@@ -4303,7 +4573,7 @@ function _renderPODetail(po) {
   // Receipt form for received items
   const receiptRows = po.items.map(item => `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:7px 10px">${item.ing_name}</td>
+      <td style="padding:7px 10px;font-family:monospace">${item.ing_code}</td>
       <td style="padding:7px 10px;text-align:right">${fmt(item.quantity_kg,3)} kg</td>
       <td style="padding:7px 10px;text-align:right">
         <input type="number" id="rcv-qty-${item.id}" class="form-input"
@@ -4329,7 +4599,7 @@ function _renderPODetail(po) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         <div style="display:flex;gap:6px">
-          <button class="btn btn-outline btn-sm" onclick="printPO(${po.id})" style="font-size:12px">🖨 Print PO</button>
+          <button class="btn btn-outline btn-sm" onclick="downloadPOPDF(${po.id})" style="font-size:12px">⬇ Download PO PDF</button>
           <button class="btn btn-outline btn-sm" id="copy-po-btn-${po.id}" onclick="copyPOText(${po.id})" style="font-size:12px">📋 Copy for WhatsApp</button>
         </div>
         <div style="text-align:right">
@@ -4342,8 +4612,8 @@ function _renderPODetail(po) {
     <!-- Items -->
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
       <thead><tr style="background:var(--surface-2);font-size:12px;color:var(--text-2)">
-        <th style="padding:7px 10px;text-align:left">Ingredient</th>
         <th style="padding:7px 10px;text-align:left">Code</th>
+        <th style="padding:7px 10px;text-align:left">Ingredient</th>
         <th style="padding:7px 10px;text-align:right">Ordered (kg)</th>
         <th style="padding:7px 10px;text-align:right">Received (kg)</th>
         <th style="padding:7px 10px;text-align:right">Unit Cost</th>
@@ -4392,8 +4662,41 @@ function _renderPODetail(po) {
     ${po.status === 'received' ? `
     <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--cardamom);font-weight:600">
       ✓ All goods received · Inventory updated ·
-      ${po.bill_id ? `<a href="#" onclick="nav('bills');return false;" style="color:var(--cardamom)">View Supplier Bill →</a>` : ''}
-    </div>` : ''}
+      ${po.bill_id ? `<a href="#" onclick="openBillFromPO(${po.bill_id});return false;" style="color:var(--cardamom)">View Supplier Bill ${po.bill_number||''} →</a>` : ''}
+    </div>
+    ${po.bill_id ? `
+    <div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">3-Way Match Verification</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface-2)">
+          <th style="padding:6px 10px;text-align:left">Ingredient</th>
+          <th style="padding:6px 10px;text-align:right">Ordered (kg)</th>
+          <th style="padding:6px 10px;text-align:right">Received (kg)</th>
+          <th style="padding:6px 10px;text-align:right">Billed (kg)</th>
+          <th style="padding:6px 10px;text-align:right">Billed Amount</th>
+          <th style="padding:6px 10px;text-align:center">Match</th>
+        </tr></thead>
+        <tbody>
+          ${po.items.map(item => {
+            const billedKg   = parseFloat(item.billed_kg||0);
+            const rcvKg      = parseFloat(item.received_kg||0);
+            const ordKg      = parseFloat(item.quantity_kg||0);
+            const match      = Math.abs(billedKg - rcvKg) < 0.001;
+            const matchBadge = match
+              ? '<span style="color:var(--cardamom);font-weight:700">✓</span>'
+              : '<span style="color:var(--chili);font-weight:700">!</span>';
+            return `<tr style="border-top:1px solid var(--border)">
+              <td style="padding:6px 10px">${item.ing_code} – ${item.ing_name||''}</td>
+              <td style="padding:6px 10px;text-align:right">${fmt(ordKg,3)} kg</td>
+              <td style="padding:6px 10px;text-align:right;color:var(--cardamom)">${fmt(rcvKg,3)} kg</td>
+              <td style="padding:6px 10px;text-align:right">${fmt(billedKg,3)} kg</td>
+              <td style="padding:6px 10px;text-align:right;font-weight:600">${fmtPKR(item.billed_amount||0)}</td>
+              <td style="padding:6px 10px;text-align:center">${matchBadge}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}` : ''}
 
     <div><button class="btn btn-outline btn-sm" onclick="document.getElementById('po-detail-area').innerHTML=''">✕ Close</button></div>
   </div>`;
@@ -4438,8 +4741,8 @@ async function printPO(poId) {
   const po = await GET('/api/purchase-orders/' + poId);
   const rows = po.items.map(i => `
     <tr>
-      <td>${i.ing_name}</td>
-      <td style="text-align:center">${i.ing_code}</td>
+      <td style="font-family:monospace">${i.ing_code}</td>
+      <td style="display:none"></td>
       <td style="text-align:right">${parseFloat(i.quantity_kg).toFixed(3)} kg</td>
       <td style="text-align:right">${i.unit_cost_kg > 0 ? 'PKR '+parseFloat(i.unit_cost_kg).toFixed(2)+'/kg' : '—'}</td>
       <td style="text-align:right;font-weight:600">${i.unit_cost_kg > 0 ? 'PKR '+parseFloat(i.quantity_kg*i.unit_cost_kg).toFixed(2) : '—'}</td>
@@ -4491,10 +4794,30 @@ async function printPO(poId) {
   win.document.close();
 }
 
+async function downloadPOPDF(poId) {
+  await _downloadPDF('/api/purchase-orders/' + poId + '/pdf', 'PO-' + poId + '.pdf');
+}
+
+async function openBillFromPO(billId) {
+  // Navigate to Bills tab and open the bill detail
+  await nav('bills');
+  await new Promise(r => setTimeout(r, 400));
+  const bill = await GET('/api/bills/' + billId);
+  _renderBillDetail(bill);
+}
+
+async function openPOFromBill(poId) {
+  // Navigate to Purchase Orders tab and open the PO detail
+  await nav('purchase-orders');
+  await new Promise(r => setTimeout(r, 400));
+  const po = await GET('/api/purchase-orders/' + poId);
+  _renderPODetail(po);
+}
+
 async function copyPOText(poId) {
   const po = await GET('/api/purchase-orders/' + poId);
   const lines = po.items.map(i =>
-    `  • ${i.ing_name} (${i.ing_code}): ${parseFloat(i.quantity_kg).toFixed(3)} kg${i.unit_cost_kg > 0 ? ' @ PKR '+parseFloat(i.unit_cost_kg).toFixed(2)+'/kg' : ''}`
+    `  • ${i.ing_code}: ${parseFloat(i.quantity_kg).toFixed(3)} kg${i.unit_cost_kg > 0 ? ' @ PKR '+parseFloat(i.unit_cost_kg).toFixed(2)+'/kg' : ''}`
   ).join('\n');
   const text = [
     `🛒 PURCHASE ORDER: ${po.po_number}`,
@@ -4523,8 +4846,66 @@ async function copyPOText(poId) {
   }
 }
 
+function _renderBillRows(bills) {
+  const _isAdminAcctB = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
+  if (!bills || !bills.length) return '<tr><td colspan="10" style="text-align:center;color:var(--text-3);padding:20px">No bills match the current filters</td></tr>';
+  return bills.map(b => {
+    const canVoidBill = _isAdminAcctB && (b.status === 'UNPAID' || b.status === 'PARTIAL');
+    return `
+    <tr style="${b.status === 'VOID' ? 'opacity:0.5' : ''}">
+      <td><strong>${b.bill_number}</strong></td>
+      <td>${b.supplier_name}</td>
+      <td style="font-size:11px;color:var(--text-3)">${b.supplier_ref || '—'}</td>
+      <td>${fmtDate(b.bill_date)}</td>
+      <td>${fmtDate(b.due_date)}</td>
+      <td class="num text-right" style="${b.status==='VOID'?'text-decoration:line-through;color:var(--text-3)':''}">${fmtPKR(b.total)}</td>
+      <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(b.paid)}</td>
+      <td class="num text-right" style="color:${b.balance>0?'var(--chili)':'var(--text-3)'}"><strong>${fmtPKR(b.balance)}</strong></td>
+      <td><span class="badge badge-${b.status.toLowerCase()}">${b.status}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-xs btn-outline" onclick="showBillDetail(${b.id})">View</button>
+        ${canVoidBill ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--chili);color:#fff" onclick="voidBill(${b.id},'${b.bill_number}')">Void</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function applyBillFilters() {
+  const from = (document.getElementById('bill-f-from') || {}).value || '';
+  const to   = (document.getElementById('bill-f-to')   || {}).value || '';
+  const sup  = ((document.getElementById('bill-f-sup') || {}).value || '').toLowerCase().trim();
+  const stat = (document.getElementById('bill-f-stat') || {}).value || '';
+
+  const all = state._allBills || [];
+  const filtered = all.filter(b => {
+    if (from && b.bill_date < from) return false;
+    if (to   && b.bill_date > to)   return false;
+    if (sup  && !b.supplier_name.toLowerCase().includes(sup)) return false;
+    if (stat && b.status !== stat)  return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('bills-tbody');
+  if (tbody) tbody.innerHTML = _renderBillRows(filtered);
+
+  const countEl = document.getElementById('bill-f-count');
+  if (countEl) {
+    const hasFilter = from || to || sup || stat;
+    countEl.textContent = hasFilter ? `${filtered.length} of ${all.length}` : `${all.length}`;
+  }
+}
+
+function clearBillFilters() {
+  ['bill-f-from','bill-f-to','bill-f-sup','bill-f-stat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  applyBillFilters();
+}
+
 async function renderBills() {
   const bills = await GET('/api/bills');
+  state._allBills = bills;
   _billLines = [_billLineDefault()];
   _billLinesNextId = 2;
 
@@ -4532,20 +4913,6 @@ async function renderBills() {
     `<option value="${s.id}">${s.name} (${s.code})</option>`).join('');
 
   const due30 = new Date(Date.now() + 30*86400000).toISOString().slice(0,10);
-
-  let rows = bills.map(b => `
-    <tr>
-      <td><strong>${b.bill_number}</strong></td>
-      <td>${b.supplier_name}</td>
-      <td style="font-size:11px;color:var(--text-3)">${b.supplier_ref || '—'}</td>
-      <td>${fmtDate(b.bill_date)}</td>
-      <td>${fmtDate(b.due_date)}</td>
-      <td class="num text-right">${fmtPKR(b.total)}</td>
-      <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(b.paid)}</td>
-      <td class="num text-right" style="color:${b.balance>0?'var(--chili)':'var(--text-3)'}"><strong>${fmtPKR(b.balance)}</strong></td>
-      <td><span class="badge badge-${b.status.toLowerCase()}">${b.status}</span></td>
-      <td><button class="btn btn-xs btn-outline" onclick="showBillDetail(${b.id})">View</button></td>
-    </tr>`).join('');
 
   return `
   <div class="section-header"><h2>Supplier Bills</h2></div>
@@ -4607,11 +4974,34 @@ async function renderBills() {
 
   <!-- ── BILLS HISTORY ──────────────────────────────────────────── -->
   <div class="card">
-    <h3 style="margin-bottom:12px">Bills History</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="margin:0">Bills History</h3>
+    </div>
+    <!-- Filter bar -->
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:12px">
+      <label style="font-size:11px;color:var(--text-3);font-weight:600;white-space:nowrap">FILTER:</label>
+      <input type="date" id="bill-f-from" onchange="applyBillFilters()" title="Bill date from"
+        style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1)">
+      <span style="font-size:11px;color:var(--text-3)">→</span>
+      <input type="date" id="bill-f-to" onchange="applyBillFilters()" title="Bill date to"
+        style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1)">
+      <input type="text" id="bill-f-sup" oninput="applyBillFilters()" placeholder="Search supplier…"
+        style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1);min-width:160px">
+      <select id="bill-f-stat" onchange="applyBillFilters()"
+        style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1)">
+        <option value="">All Statuses</option>
+        <option value="UNPAID">Unpaid</option>
+        <option value="PARTIAL">Partial</option>
+        <option value="PAID">Paid</option>
+        <option value="VOID">Void</option>
+      </select>
+      <button class="btn btn-xs btn-outline" onclick="clearBillFilters()" style="font-size:11px">✕ Clear</button>
+      <span id="bill-f-count" style="margin-left:auto;font-size:11px;color:var(--text-3)">${bills.length}</span>
+    </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Bill #</th><th>Supplier</th><th>Supplier Ref</th><th>Bill Date</th><th>Due Date</th><th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th>Status</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-3)">No bills yet</td></tr>'}</tbody>
+        <tbody id="bills-tbody">${_renderBillRows(bills)}</tbody>
       </table>
     </div>
   </div>`;
@@ -4732,6 +5122,20 @@ async function saveBill() {
 // Legacy addBillItem kept for safety
 function addBillItem() { addBillLine(); }
 
+async function voidBill(billId, billNumber) {
+  const note = prompt(`Void bill ${billNumber}?\n\nEnter a reason (required):`);
+  if (note === null) return;                      // cancelled
+  if (!note.trim()) { alert('A void reason is required.'); return; }
+  if (!confirm(`This will VOID bill ${billNumber} and reverse all associated inventory receipts.\n\nThis cannot be undone. Continue?`)) return;
+  try {
+    const res = await POST('/api/supplier-bills/' + billId + '/void', { note: note.trim() });
+    showMsg(document.getElementById('bill-msg') || document.body, res.message || 'Bill voided', 'success');
+    nav('bills');
+  } catch(e) {
+    alert('Error: ' + (e.message || e));
+  }
+}
+
 async function showBillDetail(billId) {
   const bill = await GET('/api/bills/' + billId);
   _renderBillDetail(bill);
@@ -4741,8 +5145,8 @@ function _renderBillDetail(bill) {
   const billId = bill.id;
   const itemRows = (bill.items||[]).map(i => `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:7px 10px">${i.ing_name}</td>
-      <td style="padding:7px 10px;color:var(--text-3)">${i.ing_code}</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${i.ing_code}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--text-2)">${i.ing_name||''}</td>
       <td style="padding:7px 10px;text-align:right">${fmt(i.quantity_kg,3)} kg</td>
       <td style="padding:7px 10px;text-align:right">${fmtPKR(i.unit_cost_kg)}/kg</td>
       <td style="padding:7px 10px;text-align:right;font-weight:600">${fmtPKR(i.line_total)}</td>
@@ -4767,6 +5171,7 @@ function _renderBillDetail(bill) {
           <span class="badge badge-${bill.status.toLowerCase()}">${bill.status}</span>
         </div>
         ${bill.supplier_ref ? `<div style="font-size:12px;color:var(--text-2);margin-top:4px">Supplier Ref: <strong>${bill.supplier_ref}</strong></div>` : ''}
+        ${bill.po_link ? `<div style="font-size:12px;color:var(--cardamom);margin-top:4px">From PO: <a href="#" onclick="openPOFromBill(${bill.po_link.id});return false;" style="color:var(--cardamom);font-weight:600">${bill.po_link.po_number} →</a></div>` : ''}
         ${bill.notes ? `<div style="font-size:12px;color:var(--text-3);margin-top:4px">Notes: ${bill.notes}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
@@ -4786,8 +5191,8 @@ function _renderBillDetail(bill) {
     <table style="width:100%;border-collapse:collapse;margin-bottom:14px">
       <thead>
         <tr style="background:var(--surface-2);font-size:12px;color:var(--text-2)">
-          <th style="padding:7px 10px;text-align:left">Ingredient</th>
           <th style="padding:7px 10px;text-align:left">Code</th>
+          <th style="padding:7px 10px;text-align:left">Ingredient</th>
           <th style="padding:7px 10px;text-align:right">Qty (kg)</th>
           <th style="padding:7px 10px;text-align:right">Unit Cost</th>
           <th style="padding:7px 10px;text-align:right">Line Total</th>
@@ -4857,8 +5262,8 @@ async function printBill(billId) {
   const items = (bill.items || []);
   const rows = items.map(i => `
     <tr>
-      <td>${i.ing_name}</td>
-      <td style="text-align:center">${i.ing_code}</td>
+      <td style="font-family:monospace">${i.ing_code}</td>
+      <td style="display:none"></td>
       <td style="text-align:right">${parseFloat(i.quantity_kg).toFixed(3)} kg</td>
       <td style="text-align:right">PKR ${parseFloat(i.unit_cost_kg).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2})}/kg</td>
       <td style="text-align:right;font-weight:600">PKR ${parseFloat(i.line_total).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
@@ -5130,8 +5535,10 @@ async function renderInventory() {
     i.cost_pct_change !== null && i.cost_pct_change !== undefined && i.price_source !== 'initial'
   );
 
+  const isAdmin = state.currentUser?.role === 'admin';
   let rows = ings.map(i => {
-    const pct      = i.reorder_level > 0 ? Math.min(100, Math.round(i.balanceGrams/i.reorder_level*100)) : 100;
+    const available = i.availableGrams ?? i.balanceGrams;
+    const pct      = i.reorder_level > 0 ? Math.min(100, Math.round(available/i.reorder_level*100)) : 100;
     const barColor = i.status === 'OK' ? 'var(--cardamom)' : i.status === 'LOW' ? 'var(--cinnamon)' : 'var(--chili)';
 
     // Cost / price change cells
@@ -5159,10 +5566,41 @@ async function renderInventory() {
       }
     }
 
+    const editRow = isAdmin ? `
+    <tr id="rm-edit-${i.id}" style="display:none">
+      <td colspan="12" style="padding:0">
+        <div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">
+          <div id="rm-edit-msg-${i.id}" style="margin-bottom:6px"></div>
+          <div class="form-row" style="align-items:flex-end;margin-bottom:0">
+            <div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="rm-cost-${i.id}" type="number" min="0" step="0.01" class="form-input" style="width:130px" value="${cost}"></div>
+            <div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="rm-reorder-${i.id}" type="number" min="0" step="1" class="form-input" style="width:130px" value="${i.reorder_level||0}"></div>
+            <div class="form-group"><label style="font-size:12px">Unit</label>
+              <select id="rm-unit-${i.id}" class="form-input" style="width:80px">
+                <option value="kg" ${(i.unit||'kg')==='kg'?'selected':''}>kg</option>
+                <option value="g"  ${(i.unit||'kg')==='g' ?'selected':''}>g</option>
+                <option value="L"  ${(i.unit||'kg')==='L' ?'selected':''}>L</option>
+                <option value="pcs"${(i.unit||'kg')==='pcs'?'selected':''}>pcs</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:0;display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="rmSubmitEdit(${i.id},'${i.code}')">Save</button>
+              <button class="btn btn-outline btn-sm" onclick="rmCancelEdit(${i.id})">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>` : '';
+
+    const reservedCell = i.reservedGrams > 0
+      ? `<span style="color:var(--cinnamon);font-weight:600">${fmt(i.reservedGrams,0)} g</span>`
+      : `<span style="color:var(--text-3)">—</span>`;
+    const availColor = i.status === 'OK' ? 'var(--text-1)' : i.status === 'LOW' ? 'var(--cinnamon)' : 'var(--chili)';
+
     return `<tr>
       <td><strong>${i.code}</strong></td>
-      <td>${i.name}</td>
       <td class="num text-right">${fmt(i.balanceGrams,0)} g</td>
+      <td class="num text-right">${reservedCell}</td>
+      <td class="num text-right" style="font-weight:600;color:${availColor}">${fmt(available,0)} g</td>
       <td class="num text-right">${i.reorder_level > 0 ? fmt(i.reorder_level,0)+'g' : '—'}</td>
       <td>
         <div style="background:var(--border);border-radius:4px;height:8px;width:80px">
@@ -5173,8 +5611,11 @@ async function renderInventory() {
       <td class="num text-right">${costCell}</td>
       <td class="num text-right">${prevCell}</td>
       <td class="num text-right">${chgCell}</td>
-      <td><button class="btn btn-xs btn-outline" onclick="showAdjForm(${i.id},'${i.name}',${i.balanceGrams})">Adjust</button></td>
-    </tr>`;
+      <td style="white-space:nowrap">
+        <button class="btn btn-xs btn-outline" onclick="showAdjForm(${i.id},'${i.code}',${i.balanceGrams})">Adjust</button>
+        ${isAdmin ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="rmShowEdit(${i.id})">Edit</button>` : ''}
+      </td>
+    </tr>${editRow}`;
   }).join('');
 
   // Price change summary banner (only shown if there are recent changes)
@@ -5226,7 +5667,7 @@ async function renderInventory() {
     <span style="font-size:12px;color:var(--text-3);margin-right:auto;padding-left:8px">Raw material prices sync from <code>masters/ingredient_pricing.csv</code></span>
   </div>
   <div class="mod-tabs">
-    <div class="mod-tab active" id="inv-tab-rm" onclick="switchInvTab('rm')">🧂 Raw Materials</div>
+    <div class="mod-tab active" id="inv-tab-rm" onclick="switchInvTab('rm')" style="display:none">🧂 Raw Materials</div>
     <div class="mod-tab" id="inv-tab-fg" onclick="switchInvTab('fg')">📦 Finished Goods</div>
   </div>
 
@@ -5238,9 +5679,12 @@ async function renderInventory() {
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Code</th><th>Ingredient</th>
-            <th class="text-right">Balance</th><th class="text-right">Reorder</th>
-            <th colspan="2">Stock Status</th>
+            <th>Code</th>
+            <th class="text-right">Physical</th>
+            <th class="text-right" title="Grams reserved by planned/in-progress work orders">Reserved (WIPs)</th>
+            <th class="text-right" title="Available = Physical − Reserved">Available</th>
+            <th class="text-right">Reorder</th>
+            <th colspan="2">Status</th>
             <th class="text-right">Current Cost</th>
             <th class="text-right">Prev Cost</th>
             <th class="text-right">Change</th>
@@ -5274,6 +5718,9 @@ async function renderInventory() {
 
 let _invTab = 'rm';
 function switchInvTab(tab) {
+  // Non-admins can only see Finished Goods
+  const role = (window._currentUser && window._currentUser.role) || '';
+  if (tab === 'rm' && role !== 'admin') tab = 'fg';
   _invTab = tab;
   document.querySelectorAll('[id^="inv-tab-"]').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('[id^="inv-pane-"]').forEach(el => el.classList.remove('active'));
@@ -5281,12 +5728,45 @@ function switchInvTab(tab) {
   const p = document.getElementById('inv-pane-' + tab);
   if (t) t.classList.add('active');
   if (p) p.classList.add('active');
+  // Show Raw Materials tab only to admin
+  const rmTab = document.getElementById('inv-tab-rm');
+  if (rmTab) rmTab.style.display = role === 'admin' ? '' : 'none';
 }
 
-function showAdjForm(ingId, ingName, currentBalance) {
+function rmShowEdit(id) {
+  // Close any other open edit rows in this tab
+  document.querySelectorAll('[id^="rm-edit-"]').forEach(el => el.style.display = 'none');
+  const row = document.getElementById('rm-edit-' + id);
+  if (row) {
+    row.style.display = '';
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const costEl = document.getElementById('rm-cost-' + id);
+    if (costEl) costEl.focus();
+  }
+}
+
+function rmCancelEdit(id) {
+  const row = document.getElementById('rm-edit-' + id);
+  if (row) row.style.display = 'none';
+}
+
+async function rmSubmitEdit(id, code) {
+  const cost    = parseFloat(document.getElementById('rm-cost-' + id)?.value || 0);
+  const reorder = parseFloat(document.getElementById('rm-reorder-' + id)?.value || 0);
+  const unit    = document.getElementById('rm-unit-' + id)?.value || 'kg';
+  const msgEl   = 'rm-edit-msg-' + id;
+  if (cost < 0) { showMsg(msgEl, 'Cost cannot be negative', 'error'); return; }
+  try {
+    await PUT('/api/ingredients/' + code, { cost_per_kg: cost, reorder_level: reorder, unit });
+    showMsg(msgEl, `✓ ${code} updated`, 'success');
+    setTimeout(() => nav('inventory'), 600);
+  } catch(e) { showMsg(msgEl, e.message, 'error'); }
+}
+
+function showAdjForm(ingId, ingCode, currentBalance) {
   document.getElementById('adj-form-area').innerHTML = `
   <div class="card mb-16" style="border-left:4px solid var(--saffron)">
-    <h3>Adjust Inventory — ${ingName}</h3>
+    <h3>Adjust Inventory — <span style="font-family:monospace">${ingCode}</span></h3>
     <div style="color:var(--text-3);font-size:12px;margin-bottom:10px">Current balance: ${fmt(currentBalance,0)}g</div>
     <div id="adj-msg"></div>
     <div class="form-row">
@@ -5592,12 +6072,20 @@ async function checkWoFeasibility() {
         : `⚠️ <strong>${res.shortfalls.length} ingredient(s) short</strong> — procurement needed`;
 
       const ingRows = res.requirements.map(r => {
-        const needBuy = !r.ok;
+        const needBuy  = !r.ok;
         const lineCost = (r.neededGrams / 1000) * (r.costPerKg || 0);
+        const physical = r.physicalGrams ?? r.availableGrams ?? 0;
+        const reserved = r.reservedGrams ?? 0;
+        const available = r.availableGrams ?? physical;
+        const resCell  = reserved > 0
+          ? `<span style="color:var(--cinnamon)">${reserved.toFixed(0)}g</span>`
+          : '<span style="color:var(--text-3)">—</span>';
         return `<tr style="${needBuy ? 'background:#fff5f5' : ''}">
-          <td style="padding:5px 8px;font-size:12px">${r.ingName}</td>
+          <td style="padding:5px 8px;font-size:12px;font-family:monospace">${r.ingCode}</td>
           <td style="padding:5px 8px;font-size:12px;text-align:right">${r.neededGrams.toFixed(0)}g</td>
-          <td style="padding:5px 8px;font-size:12px;text-align:right;color:${r.availableGrams>0?'var(--cardamom)':'var(--chili)'}">${r.availableGrams.toFixed(0)}g</td>
+          <td style="padding:5px 8px;font-size:12px;text-align:right;color:var(--text-3)">${physical.toFixed(0)}g</td>
+          <td style="padding:5px 8px;font-size:12px;text-align:right">${resCell}</td>
+          <td style="padding:5px 8px;font-size:12px;text-align:right;color:${available>0?'var(--cardamom)':'var(--chili)'};font-weight:600">${available.toFixed(0)}g</td>
           <td style="padding:5px 8px;font-size:12px;text-align:right;color:${needBuy?'var(--chili)':'var(--cardamom)'};font-weight:${needBuy?700:400}">
             ${needBuy ? `<strong>${r.deficitGrams.toFixed(0)}g short</strong>` : '✓'}
           </td>
@@ -5620,14 +6108,16 @@ async function checkWoFeasibility() {
               <thead><tr style="background:#f5f5f5;font-size:11px;text-transform:uppercase;letter-spacing:0.3px">
                 <th style="padding:5px 8px;text-align:left;color:#888">Ingredient</th>
                 <th style="padding:5px 8px;text-align:right;color:#888">Required</th>
-                <th style="padding:5px 8px;text-align:right;color:#888">In Stock</th>
+                <th style="padding:5px 8px;text-align:right;color:#888">Physical</th>
+                <th style="padding:5px 8px;text-align:right;color:var(--cinnamon)">Reserved</th>
+                <th style="padding:5px 8px;text-align:right;color:#888">Available</th>
                 <th style="padding:5px 8px;text-align:right;color:#888">Status</th>
                 <th style="padding:5px 8px;text-align:right;color:#888">Rate</th>
                 <th style="padding:5px 8px;text-align:right;color:#888">Cost</th>
               </thead>
               <tbody>${ingRows}</tbody>
               <tfoot><tr style="border-top:2px solid #e0e0e0;background:#fafafa">
-                <td colspan="5" style="padding:6px 8px;text-align:right;font-weight:700;font-size:12px">Total Ingredient Cost</td>
+                <td colspan="7" style="padding:6px 8px;text-align:right;font-weight:700;font-size:12px">Total Ingredient Cost</td>
                 <td style="padding:6px 8px;text-align:right;font-weight:800;font-size:13px;color:var(--chili)">${fmtPKR(totalCost)}</td>
               </tr></tfoot>
             </table>
@@ -5835,7 +6325,7 @@ function showShortfallPanel(woId, woNum, requirements) {
 
   const shortRows = short.map(r => `
     <tr style="background:#fff5f5">
-      <td><strong>${r.ingName}</strong></td>
+      <td><strong style="font-family:monospace">${r.ingCode}</strong></td>
       <td class="num">${fmtKg(r.neededGrams)}</td>
       <td class="num" style="color:var(--chili)">${fmtKg(r.availableGrams)}</td>
       <td class="num" style="color:var(--chili);font-weight:700">−${fmtKg(r.deficitGrams)}</td>
@@ -5843,7 +6333,7 @@ function showShortfallPanel(woId, woNum, requirements) {
 
   const okRows = ok.length ? ok.map(r => `
     <tr style="background:#f5fff5">
-      <td>${r.ingName}</td>
+      <td style="font-family:monospace">${r.ingCode}</td>
       <td class="num">${fmtKg(r.neededGrams)}</td>
       <td class="num" style="color:var(--cardamom)">✓ ${fmtKg(r.availableGrams)}</td>
       <td class="num" style="color:var(--text-3)">—</td>
@@ -6406,14 +6896,34 @@ async function renderProducts() {
           onclick="removeVariant(${v.id},'${p.name}','${v.pack_size}')">Remove</button>
       </div>`).join('');
 
+    const firstProdCode = grp.items[0]?.p?.code || '';
+    const firstNameUrdu = grp.items[0]?.p?.name_urdu || '';
+    const isAdmin = state.currentUser?.role === 'admin';
     panels += `
-    <div class="card mb-14">
+    <div class="card mb-14" id="prod-card-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div>
           <span style="font-size:15px;font-weight:700;color:var(--text-1)">${name}</span>
-          ${grp.blendCode ? `<span style="margin-left:10px;font-size:11px;color:var(--text-3);font-style:italic">${grp.blendCode}</span>` : ''}
+          ${firstNameUrdu ? `<span style="margin-left:8px;font-size:14px;color:var(--text-3);font-family:serif">${firstNameUrdu}</span>` : ''}
+          ${grp.blendCode ? `<span style="margin-left:10px;font-size:11px;color:var(--text-3);font-family:monospace;background:var(--surface-2);padding:1px 6px;border-radius:4px">${grp.blendCode}</span>` : ''}
         </div>
-        <span style="font-size:11px;color:var(--text-3)">${grp.items.length} pack size${grp.items.length===1?'':'s'}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--text-3)">${grp.items.length} pack size${grp.items.length===1?'':'s'}</span>
+          ${isAdmin ? `<button class="btn btn-xs btn-outline" onclick="editProductGroup('${firstProdCode}','${(name||'').replace(/'/g,"\\'").replace(/"/g,'\\"')}','${(firstNameUrdu||'').replace(/'/g,"\\'").replace(/"/g,'\\"')}','${(grp.blendCode||'').replace(/'/g,"\\'")}')">✏ Edit</button>` : ''}
+        </div>
+      </div>
+      <div id="prod-edit-inline-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" style="display:none;margin-bottom:12px;padding:12px;background:var(--saffron-pale);border-radius:8px;border:1px solid var(--saffron-lt)">
+        <p style="font-size:12px;font-weight:600;color:var(--saffron-deep);margin:0 0 10px">Edit Product — all pack sizes update together</p>
+        <div id="prod-edit-msg-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" style="margin-bottom:6px"></div>
+        <div class="form-row" style="margin-bottom:10px">
+          <div class="form-group"><label style="font-size:12px">Product Name *</label><input id="pe-name-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" class="form-input" value="${(name||'').replace(/"/g,'&quot;')}"></div>
+          <div class="form-group"><label style="font-size:12px">Urdu Name</label><input id="pe-urdu-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" class="form-input" value="${(firstNameUrdu||'').replace(/"/g,'&quot;')}"></div>
+          <div class="form-group"><label style="font-size:12px">Blend Code</label><input id="pe-blend-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" class="form-input" value="${(grp.blendCode||'').replace(/"/g,'&quot;')}"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="saveProductGroup(${JSON.stringify(grp.items.map(i=>i.p.code))})">Save All Sizes</button>
+          <button class="btn btn-outline btn-sm" onclick="cancelProductEdit('${firstProdCode.replace(/[^a-z0-9]/gi,'_')}')">Cancel</button>
+        </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:7px">${packBadges}</div>
     </div>`;
@@ -6446,8 +6956,19 @@ async function renderProducts() {
         <select id="np-pack">${packOptions}</select>
       </div>
       <div class="form-group">
-        <label>Blend Code</label>
-        <input id="np-blend" type="text" placeholder="e.g. SPCT-BM">
+        <label>Category Prefix <span style="font-size:10px;color:var(--text-3)">(GM, CM, RCP…)</span></label>
+        <input id="np-blend-prefix" type="text" placeholder="GM" maxlength="6"
+               style="text-transform:uppercase;width:80px"
+               oninput="this.value=this.value.toUpperCase()"
+               onblur="previewBlendCode()">
+      </div>
+      <div class="form-group">
+        <label>Blend Code <span style="font-size:10px;color:var(--text-3)">(auto)</span></label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="np-blend" type="text" placeholder="GM-BC-001" style="width:120px" readonly
+                 style="background:var(--surface-2);cursor:default">
+          <button class="btn btn-outline btn-xs" type="button" onclick="previewBlendCode()" title="Refresh preview">↻</button>
+        </div>
       </div>
       <div class="form-group" style="flex:0">
         <label>&nbsp;</label>
@@ -6466,18 +6987,38 @@ async function renderProducts() {
   ${panels || '<div class="card" style="text-align:center;color:var(--text-3);padding:32px">No products yet</div>'}`;
 }
 
+async function previewBlendCode() {
+  const prefix = (document.getElementById('np-blend-prefix')?.value||'').trim().toUpperCase();
+  const blendEl = document.getElementById('np-blend');
+  if (!prefix || !blendEl) return;
+  try {
+    const res = await GET(`/api/products/next-blend-code?prefix=${encodeURIComponent(prefix)}`);
+    blendEl.value = res.code || '';
+  } catch(e) { /* ignore */ }
+}
+
 async function saveNewProduct() {
-  const code      = (document.getElementById('np-code').value||'').trim().toUpperCase();
-  const name      = (document.getElementById('np-name').value||'').trim();
-  const blend     = (document.getElementById('np-blend').value||'').trim();
+  const code       = (document.getElementById('np-code').value||'').trim().toUpperCase();
+  const name       = (document.getElementById('np-name').value||'').trim();
+  const prefix     = (document.getElementById('np-blend-prefix')?.value||'').trim().toUpperCase();
   const packSizeId = parseInt(document.getElementById('np-pack').value);
 
   if (!code || !name || !packSizeId) {
     showMsg('prod-msg', 'Code, Name and Pack Size are all required.', 'error'); return;
   }
+
+  // Generate the real blend code (increments the counter) only if a prefix was given
+  let blendCode = '';
+  if (prefix) {
+    try {
+      const bc = await POST('/api/products/generate-blend-code', { prefix });
+      blendCode = bc.code || '';
+    } catch(e) { /* proceed without blend code */ }
+  }
+
   try {
-    const res = await POST('/api/products', { code, name, blendCode: blend, packSizeId });
-    showMsg('prod-msg', `✓ Added: ${res.name} ${res.packSize} (${res.sku})`, 'success');
+    const res = await POST('/api/products', { code, name, blendCode, packSizeId });
+    showMsg('prod-msg', `✓ Added: ${res.name} ${res.packSize} (${res.sku})${blendCode?' · '+blendCode:''}`, 'success');
     await refreshAll();
     setTimeout(() => nav('products'), 1400);
   } catch(e) { showMsg('prod-msg', e.message, 'error'); }
@@ -6508,6 +7049,40 @@ async function removeProduct(code, name) {
     await refreshAll();
     nav('products');
   } catch(e) { alert('Error: ' + e.message); }
+}
+
+function editProductGroup(firstCode, name, nameUrdu, blendCode) {
+  document.querySelectorAll('[id^="prod-edit-inline-"]').forEach(el => el.style.display = 'none');
+  const key = firstCode.replace(/[^a-z0-9]/gi, '_');
+  const el = document.getElementById('prod-edit-inline-' + key);
+  if (el) {
+    el.style.display = '';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    document.getElementById('pe-name-' + key)?.focus();
+  }
+}
+
+function cancelProductEdit(key) {
+  const el = document.getElementById('prod-edit-inline-' + key);
+  if (el) el.style.display = 'none';
+}
+
+async function saveProductGroup(codes) {
+  if (!codes || !codes.length) return;
+  const key       = codes[0].replace(/[^a-z0-9]/gi, '_');
+  const name      = document.getElementById('pe-name-'  + key)?.value.trim();
+  const nameUrdu  = document.getElementById('pe-urdu-'  + key)?.value.trim();
+  const blendCode = document.getElementById('pe-blend-' + key)?.value.trim();
+  const msgEl     = 'prod-edit-msg-' + key;
+  if (!name) { showMsg(msgEl, 'Product name is required', 'error'); return; }
+  try {
+    for (const code of codes) {
+      await PUT('/api/products/' + code, { name, nameUrdu, blendCode });
+    }
+    showMsg(msgEl, `✓ "${name}" updated for ${codes.length} pack size(s)`, 'success');
+    await refreshAll();
+    setTimeout(() => nav('products'), 800);
+  } catch(e) { showMsg(msgEl, e.message, 'error'); }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -6581,7 +7156,7 @@ async function renderPrices() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div>
           <span style="font-size:15px;font-weight:700;color:var(--text-1)">${name}</span>
-          ${grp.blendCode ? `<span style="margin-left:10px;font-size:11px;color:var(--text-3);font-style:italic">${grp.blendCode}</span>` : ''}
+          ${grp.blendCode ? `<span style="margin-left:10px;font-size:11px;color:var(--text-3);font-family:monospace;background:var(--surface-2);padding:1px 6px;border-radius:4px">${grp.blendCode}</span>` : ''}
         </div>
         <span style="font-size:11px;color:var(--text-3)">${grp.items.length} pack size${grp.items.length===1?'':'s'}</span>
       </div>
@@ -6638,6 +7213,132 @@ async function savePrice() {
     showMsg('price-msg', `✓ Price set: ${res.sku_code} — ${res.price_type_label}: ${fmtPKR(res.price)}`, 'success');
     setTimeout(() => nav('prices'), 1200);
   } catch(e) { showMsg('price-msg', e.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  P&L REPORT
+// ═══════════════════════════════════════════════════════════════
+async function renderPLReport(year) {
+  year = year || new Date().getFullYear().toString();
+  const data = await GET('/api/reports/pl?year=' + year);
+  const ytd  = data.ytd || {};
+  const months = data.months || [];
+  const years  = data.available_years || [year];
+
+  // Year selector options
+  const currentYear = new Date().getFullYear().toString();
+  const allYears = [...new Set([...years, currentYear])].sort((a,b) => b-a);
+  const yearOpts = allYears.map(y =>
+    `<option value="${y}" ${y === year ? 'selected' : ''}>${y}</option>`
+  ).join('');
+
+  // KPI tiles
+  const gpColor  = (ytd.gp_pct||0) >= 20 ? 'var(--cardamom)' : (ytd.gp_pct||0) >= 10 ? 'var(--cinnamon)' : 'var(--chili)';
+  const cashColor = (ytd.net_cash||0) >= 0 ? 'var(--cardamom)' : 'var(--chili)';
+
+  // Month rows
+  const monthRows = months.map(m => {
+    const hasData  = m.tx_count > 0;
+    const gpColor  = m.gp_pct >= 20 ? 'var(--cardamom)' : m.gp_pct >= 10 ? 'var(--cinnamon)' : m.gp_pct > 0 ? 'var(--chili)' : 'var(--text-3)';
+    const cashColor = m.net_cash >= 0 ? 'var(--cardamom)' : 'var(--chili)';
+    const rowStyle = hasData ? '' : 'color:var(--text-3);font-style:italic';
+    return `<tr style="${rowStyle}">
+      <td style="font-weight:${hasData?'600':'400'};white-space:nowrap">${m.short}</td>
+      <td class="num text-right">${hasData ? fmtPKR(m.revenue) : '—'}</td>
+      <td class="num text-right" style="color:var(--text-3)">${hasData ? fmtPKR(m.cogs) : '—'}</td>
+      <td class="num text-right" style="color:${gpColor};font-weight:${hasData?'600':'400'}">${hasData ? fmtPKR(m.gross_profit) : '—'}</td>
+      <td class="num text-right">
+        ${hasData ? `<span style="display:inline-block;min-width:48px;background:${gpColor};color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:700">${m.gp_pct}%</span>` : '—'}
+      </td>
+      <td class="num text-right" style="color:var(--text-3)">${hasData ? m.tx_count : '—'}</td>
+      <td class="num text-right" style="color:var(--mac-blue)">${hasData ? fmtPKR(m.receipts) : '—'}</td>
+      <td class="num text-right" style="color:var(--chili)">${hasData || m.paid_out > 0 ? fmtPKR(m.paid_out) : '—'}</td>
+      <td class="num text-right" style="color:${cashColor};font-weight:600">${hasData || m.net_cash !== 0 ? fmtPKR(m.net_cash) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <div class="section-header">
+    <h2>📊 P&amp;L Report — ${year}</h2>
+    <div style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:12px;color:var(--text-3)">Year:</label>
+      <select onchange="nav('pl-report',this.value)" style="font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1)">
+        ${yearOpts}
+      </select>
+    </div>
+  </div>
+
+  <!-- YTD Summary tiles -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px">
+    <div class="card" style="border-top:3px solid var(--saffron)">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">YTD Revenue</div>
+      <div style="font-size:18px;font-weight:700;color:var(--saffron);margin:6px 0 2px">${fmtPKR(ytd.revenue||0)}</div>
+      <div style="font-size:11px;color:var(--text-3)">${ytd.tx_count||0} sales</div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--text-3)">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">YTD COGS</div>
+      <div style="font-size:18px;font-weight:700;color:var(--text-2);margin:6px 0 2px">${fmtPKR(ytd.cogs||0)}</div>
+      <div style="font-size:11px;color:var(--text-3)">Cost of goods sold</div>
+    </div>
+    <div class="card" style="border-top:3px solid ${gpColor}">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">YTD Gross Profit</div>
+      <div style="font-size:18px;font-weight:700;color:${gpColor};margin:6px 0 2px">${fmtPKR(ytd.gross_profit||0)}</div>
+      <div style="font-size:11px;color:${gpColor};font-weight:600">${ytd.gp_pct||0}% margin</div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--mac-blue)">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">YTD Receipts</div>
+      <div style="font-size:18px;font-weight:700;color:var(--mac-blue);margin:6px 0 2px">${fmtPKR(ytd.receipts||0)}</div>
+      <div style="font-size:11px;color:var(--text-3)">Cash received from customers</div>
+    </div>
+    <div class="card" style="border-top:3px solid ${cashColor}">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Net Cash Position</div>
+      <div style="font-size:18px;font-weight:700;color:${cashColor};margin:6px 0 2px">${fmtPKR(ytd.net_cash||0)}</div>
+      <div style="font-size:11px;color:var(--text-3)">Receipts − Supplier payments</div>
+    </div>
+  </div>
+
+  <!-- Monthly breakdown table -->
+  <div class="card">
+    <h3 style="margin-bottom:14px">Monthly Breakdown — ${year}</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th class="text-right">Revenue</th>
+            <th class="text-right">COGS</th>
+            <th class="text-right">Gross Profit</th>
+            <th class="text-right">GP %</th>
+            <th class="text-right">Sales #</th>
+            <th class="text-right">Receipts</th>
+            <th class="text-right">Sup. Paid</th>
+            <th class="text-right">Net Cash</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${monthRows}
+        </tbody>
+        <tfoot>
+          <tr style="background:var(--surface-2);font-weight:700;border-top:2px solid var(--border)">
+            <td>YTD Total</td>
+            <td class="num text-right">${fmtPKR(ytd.revenue||0)}</td>
+            <td class="num text-right" style="color:var(--text-3)">${fmtPKR(ytd.cogs||0)}</td>
+            <td class="num text-right" style="color:${gpColor}">${fmtPKR(ytd.gross_profit||0)}</td>
+            <td class="num text-right">
+              <span style="display:inline-block;min-width:48px;background:${gpColor};color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:700">${ytd.gp_pct||0}%</span>
+            </td>
+            <td class="num text-right">${ytd.tx_count||0}</td>
+            <td class="num text-right" style="color:var(--mac-blue)">${fmtPKR(ytd.receipts||0)}</td>
+            <td class="num text-right" style="color:var(--chili)">${fmtPKR(ytd.paid_out||0)}</td>
+            <td class="num text-right" style="color:${cashColor}">${fmtPKR(ytd.net_cash||0)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--text-3)">
+      Revenue and COGS are from posted sales. Receipts and Supplier Paid are actual cash movements. GP% = Gross Profit ÷ Revenue.
+    </div>
+  </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -7210,28 +7911,43 @@ async function renderUsers() {
   if (!state.currentUser || state.currentUser.role !== 'admin') {
     return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
   }
+  const ROLE_COLORS = {
+    admin:      {bg:'var(--orange-pale)',  fg:'var(--saffron)'},
+    sales:      {bg:'var(--green-pale)',   fg:'var(--cardamom)'},
+    warehouse:  {bg:'#e8f4ff',            fg:'#1a6bb3'},
+    accountant: {bg:'#f0eaff',            fg:'#6a34c7'},
+    field_rep:  {bg:'#fff3e0',            fg:'#c06400'},
+    user:       {bg:'var(--blue-pale)',    fg:'var(--mac-blue)'},
+  };
+  const ROLE_LABELS = {admin:'Admin',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   const users = await GET('/api/users');
   let rows = users.map(u => {
     let perms = [];
     try { perms = JSON.parse(u.permissions || '[]'); } catch(e) {}
-    const isAdmin = u.role === 'admin';
-    const permSummary = isAdmin
-      ? '<span style="color:var(--cardamom);font-size:12px">All modules</span>'
-      : perms.length === 0
-        ? '<span style="color:var(--chili);font-size:12px">No access</span>'
-        : `<span style="font-size:12px;color:var(--mac-blue)">${perms.length} module${perms.length!==1?'s':''}</span>`;
+    const rc = ROLE_COLORS[u.role] || ROLE_COLORS.user;
+    const rl = ROLE_LABELS[u.role] || u.role;
+    const permSummary = (u.role === 'admin')
+      ? '<span style="color:var(--cardamom);font-size:12px">Full access</span>'
+      : (u.role === 'user')
+        ? (perms.length === 0
+            ? '<span style="color:var(--chili);font-size:12px">No access</span>'
+            : `<span style="font-size:12px;color:var(--mac-blue)">${perms.length} module${perms.length!==1?'s':''}</span>`)
+        : `<span style="font-size:12px;color:var(--cardamom)">Role-based</span>`;
     return `
     <tr>
       <td>${u.id}</td>
       <td><strong>${u.username}</strong></td>
       <td>${u.display_name || '—'}</td>
-      <td><span class="badge" style="background:${isAdmin?'var(--orange-pale)':'var(--blue-pale)'};color:${isAdmin?'var(--saffron)':'var(--mac-blue)'}">${u.role}</span></td>
+      <td><span class="badge" style="background:${rc.bg};color:${rc.fg}">${rl}</span></td>
       <td><span class="badge ${u.active?'badge-paid':'badge-unpaid'}">${u.active?'Active':'Inactive'}</span></td>
       <td>${permSummary}</td>
       <td>${u.created_at ? u.created_at.slice(0,10) : '—'}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-outline btn-xs" onclick="showEditUserForm(${u.id},'${u.username}','${(u.display_name||'').replace(/'/g,'&#39;')}','${u.role}',${u.active},'${(u.permissions||'[]').replace(/'/g,'&apos;')}')">Edit / Permissions</button>
         <button class="btn btn-outline-red btn-xs" style="margin-left:4px" onclick="showChangePassword(${u.id},'${u.username}')">Change PW</button>
+        ${u.active
+          ? `<button class="btn btn-xs" style="margin-left:4px;background:#fff3f3;color:var(--chili);border:1px solid var(--chili)" onclick="toggleUserActive(${u.id},'${u.username}',true)">Deactivate</button>`
+          : `<button class="btn btn-xs" style="margin-left:4px;background:#f0faf4;color:var(--cardamom);border:1px solid var(--cardamom)" onclick="toggleUserActive(${u.id},'${u.username}',false)">Activate</button>`}
       </td>
     </tr>`;
   }).join('');
@@ -7311,9 +8027,13 @@ function showNewUserForm() {
       <div class="form-group"><label>Display Name</label><input id="nu-disp" placeholder="Full name"></div>
       <div class="form-group"><label>Password * (min 6 chars)</label><input id="nu-pw" type="password" placeholder="Password"></div>
       <div class="form-group"><label>Role</label>
-        <select id="nu-role" onchange="document.getElementById('nu-perm-section').style.display=this.value==='admin'?'none':''">
-          <option value="user">User</option>
-          <option value="admin">Admin (full access)</option>
+        <select id="nu-role" onchange="document.getElementById('nu-perm-section').style.display=(this.value==='user')?'':'none'">
+          <option value="user">Viewer (read-only)</option>
+          <option value="sales">Sales</option>
+          <option value="warehouse">Warehouse</option>
+          <option value="accountant">Accountant</option>
+          <option value="field_rep">Field Rep</option>
+          <option value="admin">Administrator (full access)</option>
         </select>
       </div>
     </div>
@@ -7341,7 +8061,8 @@ async function saveNewUser() {
   const password = document.getElementById('nu-pw').value;
   const role     = document.getElementById('nu-role').value;
   if (!username || !password) { showMsg('user-msg','Username and password are required','error'); return; }
-  const perms = role === 'admin' ? [] : getPermGridValues('nu');
+  const perms = role === 'user' ? getPermGridValues('nu') : [];
+  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   try {
     const res = await POST('/api/users', {
       username,
@@ -7350,7 +8071,7 @@ async function saveNewUser() {
       role,
       permissions: perms,
     });
-    showMsg('user-msg', `✓ User "${res.username}" created with ${role==='admin'?'full admin access':perms.length+' module(s)'}`, 'success');
+    showMsg('user-msg', `✓ User "${res.username}" created as ${ROLE_LABELS[role]||role}`, 'success');
     setTimeout(() => nav('users'), 1000);
   } catch(e) { showMsg('user-msg', e.message, 'error'); }
 }
@@ -7365,9 +8086,13 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
     <div class="form-row">
       <div class="form-group"><label>Display Name</label><input id="eu-disp" value="${displayName}"></div>
       <div class="form-group"><label>Role</label>
-        <select id="eu-role" onchange="document.getElementById('eu-perm-section').style.display=this.value==='admin'?'none':''">
-          <option value="user" ${role==='user'?'selected':''}>User</option>
-          <option value="admin" ${role==='admin'?'selected':''}>Admin (full access)</option>
+        <select id="eu-role" onchange="document.getElementById('eu-perm-section').style.display=(this.value==='user')?'':'none'">
+          <option value="user" ${role==='user'?'selected':''}>Viewer (read-only)</option>
+          <option value="sales" ${role==='sales'?'selected':''}>Sales</option>
+          <option value="warehouse" ${role==='warehouse'?'selected':''}>Warehouse</option>
+          <option value="accountant" ${role==='accountant'?'selected':''}>Accountant</option>
+          <option value="field_rep" ${role==='field_rep'?'selected':''}>Field Rep</option>
+          <option value="admin" ${role==='admin'?'selected':''}>Administrator (full access)</option>
         </select>
       </div>
       <div class="form-group"><label>Status</label>
@@ -7377,7 +8102,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
         </select>
       </div>
     </div>
-    <div id="eu-perm-section" ${role==='admin'?'style="display:none"':''}>
+    <div id="eu-perm-section" ${role!=='user'?'style="display:none"':''}>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <strong style="font-size:13px">Module Access</strong>
         <div style="display:flex;gap:8px">
@@ -7399,7 +8124,8 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
 
 async function saveEditUser(id) {
   const role  = document.getElementById('eu-role').value;
-  const perms = role === 'admin' ? [] : getPermGridValues('eu');
+  const perms = role === 'user' ? getPermGridValues('eu') : [];
+  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   try {
     await PUT('/api/users/' + id, {
       displayName: document.getElementById('eu-disp').value.trim(),
@@ -7407,9 +8133,21 @@ async function saveEditUser(id) {
       active:      parseInt(document.getElementById('eu-active').value),
       permissions: perms,
     });
-    showMsg('edit-user-msg', `✓ User updated — ${role==='admin'?'full admin access':perms.length+' module(s) granted'}`, 'success');
+    showMsg('edit-user-msg', `✓ User updated — role set to ${ROLE_LABELS[role]||role}`, 'success');
     setTimeout(() => nav('users'), 900);
   } catch(e) { showMsg('edit-user-msg', e.message, 'error'); }
+}
+
+async function toggleUserActive(id, username, isCurrentlyActive) {
+  const action = isCurrentlyActive ? 'deactivate' : 'activate';
+  const msg    = isCurrentlyActive
+    ? `Deactivate ${username}? They will not be able to log in until reactivated.`
+    : `Activate ${username}? They will be able to log in again.`;
+  if (!confirm(msg)) return;
+  try {
+    await PUT('/api/users/' + id, { active: isCurrentlyActive ? 0 : 1 });
+    await nav('users');
+  } catch(e) { alert('Error: ' + e.message); }
 }
 
 function showChangePassword(id, username) {
@@ -8340,6 +9078,376 @@ async function finalizePayslip(repId, period) {
     loadPayrollPeriod();
   } catch(e) { alert('Error: ' + e.message); }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  INGREDIENTS ADMIN (CRUD — admin only, no names displayed)
+// ═══════════════════════════════════════════════════════════════════
+
+async function renderIngredientsAdmin() {
+  if (!state.currentUser || state.currentUser.role !== 'admin') {
+    return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
+  }
+  const ings = await GET('/api/admin/ingredients');
+  const active   = ings.filter(i => i.active !== 0);
+  const inactive = ings.filter(i => i.active === 0);
+
+  const badgeCls = i => {
+    if (!i.active) return 'badge-out';
+    if (i.status === 'OUT_OF_STOCK') return 'badge-out';
+    if (i.status === 'LOW') return 'badge-low';
+    return 'badge-ok';
+  };
+  const badgeTxt = i => {
+    if (!i.active) return 'Inactive';
+    if (i.status === 'OUT_OF_STOCK') return 'Out';
+    if (i.status === 'LOW') return 'Low';
+    return 'OK';
+  };
+
+  const renderRow = i => `
+  <tr id="ing-row-${i.id}" style="${!i.active ? 'opacity:0.5' : ''}">
+    <td><strong style="font-family:monospace">${i.code}</strong></td>
+    <td class="num text-right">${fmt(i.balanceGrams || 0, 0)}g</td>
+    <td class="num text-right">${fmt(i.reorder_level || 0, 0)}g</td>
+    <td class="num text-right"><strong>${fmtPKR(i.cost_per_kg)}/kg</strong></td>
+    <td>${i.unit || 'kg'}</td>
+    <td><span class="badge ${badgeCls(i)}">${badgeTxt(i)}</span></td>
+    <td style="white-space:nowrap">
+      ${i.active !== 0 ? `
+        <button class="btn btn-xs btn-outline" onclick="ingShowEdit(${i.id},'${i.code}',${i.cost_per_kg||0},${i.reorder_level||0},'${i.unit||'kg'}')">Edit</button>
+        <button class="btn btn-xs" style="margin-left:4px;background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili)" onclick="ingDeactivate('${i.code}','${i.code}')">Deactivate</button>
+      ` : `
+        <button class="btn btn-xs" style="background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="ingReactivate('${i.code}')">Reactivate</button>
+      `}
+    </td>
+  </tr>
+  <tr id="ing-edit-${i.id}" style="display:none">
+    <td colspan="7" style="padding:0">
+      <div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">
+        <div id="ing-edit-msg-${i.id}" style="margin-bottom:6px"></div>
+        <div class="form-row" style="align-items:flex-end;margin-bottom:0">
+          <div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="ie-cost-${i.id}" type="number" min="0" step="0.01" class="form-input" style="width:120px"></div>
+          <div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="ie-reorder-${i.id}" type="number" min="0" step="1" class="form-input" style="width:120px"></div>
+          <div class="form-group"><label style="font-size:12px">Unit</label>
+            <select id="ie-unit-${i.id}" class="form-input" style="width:80px">
+              <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="pcs">pcs</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:0;display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="ingSubmitEdit(${i.id},'${i.code}')">Save</button>
+            <button class="btn btn-outline btn-sm" onclick="ingCancelEdit(${i.id})">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </td>
+  </tr>`;
+
+  return `
+  <div class="section-header">
+    <div>
+      <h2>Ingredient Master</h2>
+      <p style="color:var(--text-3);font-size:13px;margin:0">Admin only · Codes visible, names never stored (IP protection)</p>
+    </div>
+    <button class="btn btn-primary" onclick="ingShowAdd()">+ New Ingredient</button>
+  </div>
+
+  <div id="ing-add-area"></div>
+
+  <div class="card mb-16">
+    <h3 style="margin-bottom:12px">Active Ingredients (${active.length})</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Code</th><th class="text-right">Stock</th><th class="text-right">Reorder</th><th class="text-right">Cost/kg</th><th>Unit</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${active.map(renderRow).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No ingredients yet — add one above</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>
+
+  ${inactive.length > 0 ? `
+  <div class="card">
+    <h3 style="margin-bottom:12px;color:var(--text-3)">Inactive Ingredients (${inactive.length})</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Code</th><th class="text-right">Stock</th><th class="text-right">Reorder</th><th class="text-right">Cost/kg</th><th>Unit</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${inactive.map(renderRow).join('')}</tbody>
+      </table>
+    </div>
+  </div>` : ''}`;
+}
+
+function ingShowAdd() {
+  document.getElementById('ing-add-area').innerHTML = `
+  <div class="card mb-16" style="border-top:3px solid var(--cardamom)">
+    <h3 style="margin-bottom:14px">New Ingredient</h3>
+    <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">⚠ Only the code is stored — no names. Keep your ingredient reference file off-system.</p>
+    <div id="ing-add-msg"></div>
+    <div class="form-row" style="align-items:flex-end">
+      <div class="form-group"><label>Code * <span style="font-size:10px;color:var(--text-3)">(e.g. ING-020SP)</span></label><input id="ia-code" class="form-input" placeholder="ING-020SP" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+      <div class="form-group"><label>Cost/kg (PKR) *</label><input id="ia-cost" type="number" min="0" step="0.01" class="form-input" placeholder="0.00"></div>
+      <div class="form-group"><label>Reorder Level (g)</label><input id="ia-reorder" type="number" min="0" step="1" class="form-input" placeholder="0" value="0"></div>
+      <div class="form-group"><label>Unit</label>
+        <select id="ia-unit" class="form-input">
+          <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="pcs">pcs</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:0;display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="ingSubmitAdd()">Add</button>
+        <button class="btn btn-outline" onclick="document.getElementById('ing-add-area').innerHTML=''">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('ing-add-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('ia-code')?.focus();
+}
+
+async function ingSubmitAdd() {
+  const code    = document.getElementById('ia-code')?.value.trim().toUpperCase();
+  const cost    = parseFloat(document.getElementById('ia-cost')?.value || 0);
+  const reorder = parseFloat(document.getElementById('ia-reorder')?.value || 0);
+  const unit    = document.getElementById('ia-unit')?.value || 'kg';
+  if (!code) { showMsg('ing-add-msg','Code is required','error'); return; }
+  if (cost < 0) { showMsg('ing-add-msg','Cost cannot be negative','error'); return; }
+  try {
+    const res = await POST('/api/ingredients', { code, cost_per_kg: cost, reorder_level: reorder, unit });
+    showMsg('ing-add-msg', `✓ Ingredient ${res.code} added`, 'success');
+    setTimeout(() => nav('ingredients-admin'), 800);
+  } catch(e) { showMsg('ing-add-msg', e.message, 'error'); }
+}
+
+function ingShowEdit(id, code, cost, reorder, unit) {
+  document.querySelectorAll('[id^="ing-edit-"]').forEach(el => el.style.display = 'none');
+  const row = document.getElementById('ing-edit-' + id);
+  if (!row) return;
+  row.style.display = '';
+  const costEl    = document.getElementById('ie-cost-' + id);
+  const reorderEl = document.getElementById('ie-reorder-' + id);
+  const unitEl    = document.getElementById('ie-unit-' + id);
+  if (costEl)    costEl.value    = cost;
+  if (reorderEl) reorderEl.value = reorder;
+  if (unitEl)    unitEl.value    = unit;
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  costEl?.focus();
+}
+
+function ingCancelEdit(id) {
+  const row = document.getElementById('ing-edit-' + id);
+  if (row) row.style.display = 'none';
+}
+
+async function ingSubmitEdit(id, code) {
+  const cost    = parseFloat(document.getElementById('ie-cost-' + id)?.value || 0);
+  const reorder = parseFloat(document.getElementById('ie-reorder-' + id)?.value || 0);
+  const unit    = document.getElementById('ie-unit-' + id)?.value || 'kg';
+  const msgEl   = 'ing-edit-msg-' + id;
+  if (cost < 0) { showMsg(msgEl,'Cost cannot be negative','error'); return; }
+  try {
+    await PUT('/api/ingredients/' + code, { cost_per_kg: cost, reorder_level: reorder, unit });
+    showMsg(msgEl, `✓ ${code} updated`, 'success');
+    setTimeout(() => nav('ingredients-admin'), 600);
+  } catch(e) { showMsg(msgEl, e.message, 'error'); }
+}
+
+async function ingDeactivate(code, displayCode) {
+  if (!confirm(`Deactivate ingredient ${displayCode}?\n\nThis will hide it from all dropdowns and purchase order forms. Any remaining stock must be zero.`)) return;
+  try {
+    const r = await fetch('/api/ingredients/' + code, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + authToken() }
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed'); }
+    nav('ingredients-admin');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function ingReactivate(code) {
+  if (!confirm(`Reactivate ingredient ${code}?`)) return;
+  try {
+    await POST('/api/ingredients/' + code + '/reactivate', {});
+    nav('ingredients-admin');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MASTER DATA IMPORT
+// ═══════════════════════════════════════════════════════════════════
+
+function renderMasterData() {
+  const masters = [
+    { key: 'customers', label: 'Customers', icon: '👥',
+      columns: 'code, name, customer_type (RETAIL/DIRECT), category, city, phone, email, payment_terms_days' },
+    { key: 'suppliers', label: 'Suppliers', icon: '🏭',
+      columns: 'code, name, contact, phone, email, city, address' },
+    { key: 'products', label: 'Products & Variants', icon: '🌶️',
+      columns: 'code, name, name_urdu, blend_code, pack_sizes (comma-separated e.g. "50g,100g,500g")' },
+    { key: 'prices', label: 'Price Master', icon: '🏷️',
+      columns: 'product_code, pack_size, price_type, price, effective_from (YYYY-MM-DD)' },
+    { key: 'ingredients', label: 'Ingredient Costs', icon: '🔒',
+      columns: 'code (e.g. ING-001SP), cost_per_kg, unit (default: kg), reorder_level (optional) — no names stored' },
+  ];
+
+  return `
+    <div style="padding:24px;max-width:900px">
+      <h2 style="margin:0 0 6px;font-size:20px;font-weight:700">Master Data Import</h2>
+      <p style="color:var(--text-3);font-size:13px;margin-bottom:28px">
+        Upload CSV or Excel (.xlsx) files to bulk-load master data. Existing records are matched by code and updated.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        ${masters.map(m => `
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px">
+            <div style="font-size:22px;margin-bottom:8px">${m.icon}</div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:4px">${m.label}</div>
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:14px;line-height:1.5">
+              <strong>Columns:</strong> ${m.columns}
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+              <button onclick="downloadTemplate('${m.key}')"
+                 style="font-size:12px;color:var(--saffron);background:transparent;cursor:pointer;
+                        border:1px solid var(--saffron);padding:4px 10px;border-radius:6px">
+                ↓ Download Template
+              </button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="file" id="file-${m.key}" accept=".csv,.xlsx"
+                     style="flex:1;font-size:12px;color:var(--text-2);background:var(--bg);
+                            border:1px solid var(--border);border-radius:6px;padding:6px">
+              <button class="btn btn-primary" style="font-size:12px;padding:6px 14px;white-space:nowrap"
+                      onclick="uploadMaster('${m.key}')">Upload</button>
+            </div>
+            <div id="result-${m.key}" style="margin-top:10px;font-size:12px;min-height:16px"></div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+}
+
+async function downloadTemplate(type) {
+  try {
+    const r = await fetch(`/api/admin/masters/template/${type}`, {
+      headers: { Authorization: 'Bearer ' + authToken() }
+    });
+    if (!r.ok) { alert('Download failed: ' + r.status); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `template_${type}.csv`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  } catch(e) { alert('Download error: ' + e.message); }
+}
+
+async function uploadMaster(type) {
+  const input = document.getElementById('file-' + type);
+  const resultEl = document.getElementById('result-' + type);
+  if (!input.files.length) { resultEl.innerHTML = '<span style="color:var(--chili)">Please select a file first</span>'; return; }
+  const file = input.files[0];
+  resultEl.innerHTML = '<span style="color:var(--text-3)">Uploading...</span>';
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch(`/api/admin/masters/upload/${type}`, {
+      method: 'POST', body: fd,
+      headers: { Authorization: 'Bearer ' + authToken() }
+    });
+    const d = await r.json();
+    if (d.ok) {
+      const added   = d.imported || 0;
+      const updated = d.updated  || 0;
+      const errs    = d.errors   || [];
+      let html = `<span style="color:#4caf50">✓ ${added} added, ${updated} updated`;
+      if (d.rows_processed) html += ` (${d.rows_processed} rows processed)`;
+      html += '</span>';
+      if (errs.length) html += `<br><span style="color:var(--chili)">${errs.slice(0,3).join('<br>')}${errs.length>3?'<br>...and '+(errs.length-3)+' more':''}</span>`;
+      resultEl.innerHTML = html;
+    } else {
+      resultEl.innerHTML = `<span style="color:var(--chili)">✗ ${d.error}</span>`;
+    }
+  } catch(e) {
+    resultEl.innerHTML = `<span style="color:var(--chili)">✗ ${e.message}</span>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SYSTEM — Admin backup status page (P2.1)
+// ═══════════════════════════════════════════════════════════════════
+
+async function renderSystem() {
+  if (!state.currentUser || state.currentUser.role !== 'admin') {
+    return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
+  }
+
+  let data;
+  try { data = await GET('/api/admin/backup'); }
+  catch(e) { return `<div class="alert alert-error">Failed to load backup status: ${e.message}</div>`; }
+
+  const lastBackup = data.last_backup
+    ? `<span style="color:#4caf50;font-weight:600">${data.last_backup}</span>`
+    : `<span style="color:var(--chili)">No backups found</span>`;
+
+  const backupRows = (data.backups || []).map(b => `
+    <tr>
+      <td style="font-family:monospace;font-size:0.85em">${b.filename}</td>
+      <td style="text-align:right">${b.size_kb.toLocaleString()} KB</td>
+      <td style="color:var(--text-3)">${b.modified}</td>
+    </tr>`).join('');
+
+  const tableSection = data.backups && data.backups.length > 0 ? `
+    <table class="data-table" style="margin-top:16px">
+      <thead><tr><th>File</th><th style="text-align:right">Size</th><th>Timestamp</th></tr></thead>
+      <tbody>${backupRows}</tbody>
+    </table>` : `<p style="color:var(--text-3);margin-top:16px">No backup files on record.</p>`;
+
+  return `
+    <div class="page-header">
+      <h2>🖥️ System</h2>
+    </div>
+
+    <div class="card" style="max-width:720px">
+      <div class="card-header"><b>🗄️ Database Backup</b></div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;line-height:2">
+          <tr><td style="color:var(--text-3);width:180px">Backup folder</td>
+              <td style="font-family:monospace;font-size:0.85em">${data.backup_path || '<em>not configured</em>'}</td></tr>
+          <tr><td style="color:var(--text-3)">Retention</td>
+              <td>${data.backup_keep_days} days</td></tr>
+          <tr><td style="color:var(--text-3)">Backups on disk</td>
+              <td>${data.backup_count} file${data.backup_count !== 1 ? 's' : ''} (${(data.total_size_kb || 0).toLocaleString()} KB total)</td></tr>
+          <tr><td style="color:var(--text-3)">Last backup</td>
+              <td>${lastBackup}</td></tr>
+        </table>
+
+        <div style="margin-top:18px">
+          <button class="btn btn-primary" onclick="runBackupNow(this)">▶ Run Backup Now</button>
+          <span id="backup-run-msg" style="margin-left:12px;font-size:0.9em"></span>
+        </div>
+
+        ${tableSection}
+      </div>
+    </div>`;
+}
+
+async function runBackupNow(btn) {
+  const msgEl = document.getElementById('backup-run-msg');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running…';
+  msgEl.textContent = '';
+  try {
+    const r = await fetch('/api/admin/backup', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + authToken() }
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Backup failed');
+    msgEl.innerHTML = `<span style="color:#4caf50">✓ Backup saved: ${d.filename} (${d.size_kb} KB)</span>`;
+    // Refresh the page to show updated list
+    setTimeout(() => nav('system'), 1200);
+  } catch(e) {
+    msgEl.innerHTML = `<span style="color:var(--chili)">✗ ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Run Backup Now';
+  }
+}
+
 </script>
 </body>
 </html>
