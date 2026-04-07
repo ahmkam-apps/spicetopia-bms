@@ -6217,7 +6217,7 @@ def import_products_master(rows):
                     # Get next SKU number
                     last = c.execute("SELECT last_num FROM id_counters WHERE entity='sku'").fetchone()
                     last_num = (last[0] if last else 0) + 1
-                    c.execute("UPDATE id_counters SET last_num=? WHERE entity='sku'", (last_num,))
+                    c.execute("INSERT OR REPLACE INTO id_counters (entity, last_num) VALUES ('sku', ?)", (last_num,))
                     sku = f"SP-SKU-{last_num:04d}"
                     c.execute("""INSERT OR IGNORE INTO product_variants
                                  (sku_code, product_id, pack_size_id, active_flag)
