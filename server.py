@@ -3772,7 +3772,8 @@ def _enforce_credit_limit(cust_id: int, new_invoice_total: float):
 
     ar_row = qry1("""
         SELECT COALESCE(SUM(
-            i.total - COALESCE((SELECT SUM(amount) FROM payment_allocations WHERE invoice_id=i.id), 0)
+            COALESCE((SELECT SUM(quantity*unit_price) FROM invoice_items WHERE invoice_id=i.id), 0)
+            - COALESCE((SELECT SUM(amount) FROM payment_allocations WHERE invoice_id=i.id), 0)
         ), 0) AS balance
         FROM invoices i
         WHERE i.customer_id=? AND i.status IN ('UNPAID','PARTIAL')
@@ -4296,7 +4297,8 @@ def confirm_customer_order(order_id):
         if credit_limit > 0:
             ar_row = qry1("""
                 SELECT COALESCE(SUM(
-                    i.total - COALESCE((SELECT SUM(amount) FROM payment_allocations WHERE invoice_id=i.id),0)
+                    COALESCE((SELECT SUM(quantity*unit_price) FROM invoice_items WHERE invoice_id=i.id), 0)
+                    - COALESCE((SELECT SUM(amount) FROM payment_allocations WHERE invoice_id=i.id), 0)
                 ), 0) AS balance
                 FROM invoices i
                 WHERE i.customer_id=? AND i.status IN ('UNPAID','PARTIAL')
