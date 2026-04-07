@@ -2453,6 +2453,7 @@ function _renderOrderDetail(o) {
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${canConfirm  ? `<button class="btn btn-primary btn-sm" onclick="doConfirmOrder(${o.id})">✓ Confirm Order</button>` : ''}
         ${canEdit     ? `<button class="btn btn-outline btn-sm" onclick="guardEditOrder(${o.id}, ${productionInProgress})">✏ Edit</button>` : ''}
+        ${linesEditable ? `<button class="btn btn-outline btn-sm" style="color:var(--cardamom)" onclick="showAddItemForm(${o.id})">+ Add Product</button>` : ''}
         ${canInvoice  ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('co-inv-form').style.display='block';document.getElementById('co-edit-form-${o.id}').style.display='none'">🧾 Generate Invoice</button>` : ''}
         ${canCancel   ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="doCancelOrder(${o.id})">✕ Cancel</button>` : ''}
         <button class="btn btn-outline btn-sm" onclick="document.getElementById('co-detail-panel').innerHTML=''">Close</button>
@@ -2497,6 +2498,58 @@ function _renderOrderDetail(o) {
     <!-- Inline invoice detail / payment panel -->
     <div id="co-inv-detail-${o.id}"></div>
   </div>`;
+}
+
+function showAddItemForm(orderId) {
+  // Remove existing form if open (toggle)
+  const existing = document.getElementById(`co-add-item-form-${orderId}`);
+  if (existing) { existing.remove(); return; }
+  // Build product dropdown from ref
+  const prods = (state.ref?.products || []);
+  const opts = prods.map(p =>
+    `<optgroup label="${p.name}">${(p.variants||[]).map(v =>
+      `<option value="${p.code}|||${v.pack_size}">${p.name} — ${v.pack_size} (${v.sku_code})</option>`
+    ).join('')}</optgroup>`
+  ).join('');
+
+  const panel = document.getElementById('co-detail-panel');
+  const insertAfter = panel.querySelector(`[class*="card"]`);
+  const formHtml = `
+  <div id="co-add-item-form-${orderId}" class="card mb-14" style="border-top:3px solid var(--cardamom)">
+    <h4 style="margin-bottom:12px">+ Add Product to Order</h4>
+    <div id="co-add-item-msg-${orderId}"></div>
+    <div class="form-row" style="gap:10px;align-items:flex-end">
+      <div class="form-group" style="flex:2"><label style="font-size:12px">Product *</label>
+        <select id="co-ai-variant-${orderId}">${opts}</select>
+      </div>
+      <div class="form-group"><label style="font-size:12px">Qty *</label>
+        <input type="number" id="co-ai-qty-${orderId}" min="1" step="1" value="1" style="width:80px">
+      </div>
+      <div class="form-group"><label style="font-size:12px">Unit Price (PKR)</label>
+        <input type="number" id="co-ai-price-${orderId}" min="0" step="0.01" value="0" style="width:120px" placeholder="0.00">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="submitAddOrderItem(${orderId})">Add Line</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('co-add-item-form-${orderId}').remove()">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+  panel.insertAdjacentHTML('afterbegin', formHtml);
+}
+
+async function submitAddOrderItem(orderId) {
+  const sel    = document.getElementById(`co-ai-variant-${orderId}`)?.value || '';
+  const [productCode, packSize] = sel.split('|||');
+  const qty    = parseInt(document.getElementById(`co-ai-qty-${orderId}`)?.value || 0);
+  const price  = parseFloat(document.getElementById(`co-ai-price-${orderId}`)?.value || 0);
+  const msgEl  = `co-add-item-msg-${orderId}`;
+  if (!productCode || !packSize) { showMsg(msgEl, 'Select a product', 'error'); return; }
+  if (qty <= 0) { showMsg(msgEl, 'Quantity must be positive', 'error'); return; }
+  try {
+    await POST(`/api/customer-orders/${orderId}/items`, { productCode, packSize, qty, unitPrice: price });
+    document.getElementById(`co-add-item-form-${orderId}`)?.remove();
+    await openOrderDetail(orderId);
+  } catch(e) { showMsg(msgEl, 'Error: ' + e.message, 'error'); }
 }
 
 // Show invoice detail inside order/customer panel by injecting an invoice-detail-area target
@@ -4614,12 +4667,17 @@ function _renderPODetail(po) {
   // Receipt form for received items
   const receiptRows = po.items.map(item => `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:7px 10px;font-family:monospace">${item.ing_code}</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${item.ing_code}${item.ing_name ? `<br><span style="font-family:sans-serif;color:var(--text-2);font-size:11px">${item.ing_name}</span>` : ''}</td>
       <td style="padding:7px 10px;text-align:right">${fmt(item.quantity_kg,3)} kg</td>
       <td style="padding:7px 10px;text-align:right">
         <input type="number" id="rcv-qty-${item.id}" class="form-input"
           style="width:90px;text-align:right;padding:4px 6px"
           value="${fmt(item.quantity_kg,3)}" min="0" step="0.001" max="${fmt(item.quantity_kg,3)}">
+      </td>
+      <td style="padding:7px 10px;text-align:right">
+        <input type="number" id="rcv-cost-${item.id}" class="form-input"
+          style="width:100px;text-align:right;padding:4px 6px"
+          value="${item.unit_cost_kg > 0 ? fmt(item.unit_cost_kg,2) : ''}" min="0" step="0.01" placeholder="0.00">
       </td>
     </tr>`).join('');
 
@@ -4690,9 +4748,11 @@ function _renderPODetail(po) {
           <th style="padding:7px 10px;text-align:left">Ingredient</th>
           <th style="padding:7px 10px;text-align:right">Ordered (kg)</th>
           <th style="padding:7px 10px;text-align:right">Received (kg)</th>
+          <th style="padding:7px 10px;text-align:right">Actual Cost/kg (PKR) *</th>
         </tr></thead>
         <tbody>${receiptRows}</tbody>
       </table>
+      <div style="font-size:11px;color:#166534;margin-bottom:8px">* Enter actual unit cost at time of delivery — this is used to calculate the supplier bill amount.</div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn btn-primary btn-sm" style="background:#16a34a;border-color:#16a34a" onclick="receiveGoodsPO(${po.id})">
           ✓ Confirm Receipt &amp; Update Inventory
@@ -4848,8 +4908,9 @@ async function saveBillEdit(billId) {
 async function receiveGoodsPO(poId) {
   const po = await GET('/api/purchase-orders/' + poId);
   const receivedItems = po.items.map(item => ({
-    id:         item.id,
-    receivedKg: parseFloat(document.getElementById(`rcv-qty-${item.id}`)?.value || 0),
+    id:          item.id,
+    receivedKg:  parseFloat(document.getElementById(`rcv-qty-${item.id}`)?.value || 0),
+    unitCostKg:  parseFloat(document.getElementById(`rcv-cost-${item.id}`)?.value || 0) || null,
   }));
   const hasQty = receivedItems.some(r => r.receivedKg > 0);
   if (!hasQty) { showMsg(`po-action-msg-${poId}`, 'Enter at least one received quantity', 'error'); return; }
@@ -7282,6 +7343,9 @@ async function renderPrices() {
         <td class="num text-right">${priceCell(pm.ex_factory)}</td>
         <td class="num text-right">${priceCell(pm.distributor)}</td>
         <td class="num text-right">${priceCell(pm.retail_mrp)}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn btn-xs btn-outline" onclick="editPrice(${v.id})" style="font-size:11px">✏ Edit</button>
+        </td>
       </tr>`).join('');
 
     panels += `
@@ -7303,6 +7367,7 @@ async function renderPrices() {
             <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Ex-Factory</th>
             <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Distributor</th>
             <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Retail MRP</th>
+            <th style="padding-bottom:7px"></th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -7346,6 +7411,24 @@ async function savePrice() {
     showMsg('price-msg', `✓ Price set: ${res.sku_code} — ${res.price_type_label}: ${fmtPKR(res.price)}`, 'success');
     setTimeout(() => nav('prices'), 1200);
   } catch(e) { showMsg('price-msg', e.message, 'error'); }
+}
+
+function editPrice(variantId) {
+  // Pre-select this variant in the Set Price form and scroll to it
+  const skuSel = document.getElementById('px-sku');
+  if (skuSel) {
+    skuSel.value = variantId;
+    document.getElementById('px-price').value = '';
+    document.getElementById('px-price').focus();
+  }
+  document.querySelector('#price-msg')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Highlight the form briefly
+  const form = document.querySelector('[id="price-msg"]')?.closest('.card');
+  if (form) {
+    form.style.transition = 'box-shadow 0.3s';
+    form.style.boxShadow = '0 0 0 3px var(--mac-blue)';
+    setTimeout(() => { form.style.boxShadow = ''; }, 1500);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -9239,7 +9322,7 @@ async function renderIngredientsAdmin() {
 
   const renderRow = i => `
   <tr id="ing-row-${i.id}" style="${!i.active ? 'opacity:0.5' : ''}">
-    <td><strong style="font-family:monospace">${i.code}</strong></td>
+    <td><strong style="font-family:monospace">${i.code}</strong>${i.name ? `<br><span style="font-size:11px;color:var(--text-2)">${i.name}</span>` : ''}</td>
     <td class="num text-right">${fmt(i.balanceGrams || 0, 0)}g</td>
     <td class="num text-right">${fmt(i.reorder_level || 0, 0)}g</td>
     <td class="num text-right"><strong>${fmtPKR(i.cost_per_kg)}/kg</strong></td>
@@ -9247,7 +9330,7 @@ async function renderIngredientsAdmin() {
     <td><span class="badge ${badgeCls(i)}">${badgeTxt(i)}</span></td>
     <td style="white-space:nowrap">
       ${i.active !== 0 ? `
-        <button class="btn btn-xs btn-outline" onclick="ingShowEdit(${i.id},'${i.code}',${i.cost_per_kg||0},${i.reorder_level||0},'${i.unit||'kg'}')">Edit</button>
+        <button class="btn btn-xs btn-outline" onclick="ingShowEdit(${i.id},'${i.code}',${i.cost_per_kg||0},${i.reorder_level||0},'${i.unit||'kg'}','${(i.name||'').replace(/'/g,"\\'")}')">Edit</button>
         <button class="btn btn-xs" style="margin-left:4px;background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili)" onclick="ingDeactivate('${i.code}','${i.code}')">Deactivate</button>
       ` : `
         <button class="btn btn-xs" style="background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="ingReactivate('${i.code}')">Reactivate</button>
@@ -9259,6 +9342,7 @@ async function renderIngredientsAdmin() {
       <div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">
         <div id="ing-edit-msg-${i.id}" style="margin-bottom:6px"></div>
         <div class="form-row" style="align-items:flex-end;margin-bottom:0">
+          <div class="form-group" style="flex:1;min-width:150px"><label style="font-size:12px">Name (optional)</label><input id="ie-name-${i.id}" type="text" class="form-input" placeholder="e.g. Chaat Masala"></div>
           <div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="ie-cost-${i.id}" type="number" min="0" step="0.01" class="form-input" style="width:120px"></div>
           <div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="ie-reorder-${i.id}" type="number" min="0" step="1" class="form-input" style="width:120px"></div>
           <div class="form-group"><label style="font-size:12px">Unit</label>
@@ -9312,10 +9396,10 @@ function ingShowAdd() {
   document.getElementById('ing-add-area').innerHTML = `
   <div class="card mb-16" style="border-top:3px solid var(--cardamom)">
     <h3 style="margin-bottom:14px">New Ingredient</h3>
-    <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">⚠ Only the code is stored — no names. Keep your ingredient reference file off-system.</p>
     <div id="ing-add-msg"></div>
     <div class="form-row" style="align-items:flex-end">
       <div class="form-group"><label>Code * <span style="font-size:10px;color:var(--text-3)">(e.g. ING-020SP)</span></label><input id="ia-code" class="form-input" placeholder="ING-020SP" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+      <div class="form-group" style="flex:1;min-width:140px"><label>Name <span style="font-size:10px;color:var(--text-3)">(optional)</span></label><input id="ia-name" class="form-input" placeholder="e.g. Chaat Masala"></div>
       <div class="form-group"><label>Cost/kg (PKR) *</label><input id="ia-cost" type="number" min="0" step="0.01" class="form-input" placeholder="0.00"></div>
       <div class="form-group"><label>Reorder Level (g)</label><input id="ia-reorder" type="number" min="0" step="1" class="form-input" placeholder="0" value="0"></div>
       <div class="form-group"><label>Unit</label>
@@ -9335,31 +9419,34 @@ function ingShowAdd() {
 
 async function ingSubmitAdd() {
   const code    = document.getElementById('ia-code')?.value.trim().toUpperCase();
+  const name    = document.getElementById('ia-name')?.value.trim() || '';
   const cost    = parseFloat(document.getElementById('ia-cost')?.value || 0);
   const reorder = parseFloat(document.getElementById('ia-reorder')?.value || 0);
   const unit    = document.getElementById('ia-unit')?.value || 'kg';
   if (!code) { showMsg('ing-add-msg','Code is required','error'); return; }
   if (cost < 0) { showMsg('ing-add-msg','Cost cannot be negative','error'); return; }
   try {
-    const res = await POST('/api/ingredients', { code, cost_per_kg: cost, reorder_level: reorder, unit });
-    showMsg('ing-add-msg', `✓ Ingredient ${res.code} added`, 'success');
+    const res = await POST('/api/ingredients', { code, name, cost_per_kg: cost, reorder_level: reorder, unit });
+    showMsg('ing-add-msg', `✓ Ingredient ${res.code}${name ? ' ('+name+')' : ''} added`, 'success');
     setTimeout(() => nav('ingredients-admin'), 800);
   } catch(e) { showMsg('ing-add-msg', e.message, 'error'); }
 }
 
-function ingShowEdit(id, code, cost, reorder, unit) {
+function ingShowEdit(id, code, cost, reorder, unit, name) {
   document.querySelectorAll('[id^="ing-edit-"]').forEach(el => el.style.display = 'none');
   const row = document.getElementById('ing-edit-' + id);
   if (!row) return;
   row.style.display = '';
+  const nameEl    = document.getElementById('ie-name-' + id);
   const costEl    = document.getElementById('ie-cost-' + id);
   const reorderEl = document.getElementById('ie-reorder-' + id);
   const unitEl    = document.getElementById('ie-unit-' + id);
+  if (nameEl)    nameEl.value    = name || '';
   if (costEl)    costEl.value    = cost;
   if (reorderEl) reorderEl.value = reorder;
   if (unitEl)    unitEl.value    = unit;
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  costEl?.focus();
+  nameEl?.focus();
 }
 
 function ingCancelEdit(id) {
@@ -9368,13 +9455,14 @@ function ingCancelEdit(id) {
 }
 
 async function ingSubmitEdit(id, code) {
+  const name    = document.getElementById('ie-name-' + id)?.value?.trim() || '';
   const cost    = parseFloat(document.getElementById('ie-cost-' + id)?.value || 0);
   const reorder = parseFloat(document.getElementById('ie-reorder-' + id)?.value || 0);
   const unit    = document.getElementById('ie-unit-' + id)?.value || 'kg';
   const msgEl   = 'ing-edit-msg-' + id;
   if (cost < 0) { showMsg(msgEl,'Cost cannot be negative','error'); return; }
   try {
-    await PUT('/api/ingredients/' + code, { cost_per_kg: cost, reorder_level: reorder, unit });
+    await PUT('/api/ingredients/' + code, { name, cost_per_kg: cost, reorder_level: reorder, unit });
     showMsg(msgEl, `✓ ${code} updated`, 'success');
     setTimeout(() => nav('ingredients-admin'), 600);
   } catch(e) { showMsg(msgEl, e.message, 'error'); }
