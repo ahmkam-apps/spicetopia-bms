@@ -6175,60 +6175,81 @@ def import_suppliers_master(rows):
 
 
 def import_products_master(rows):
-    """Upsert products and their variants from master rows. Returns {imported, updated, errors}."""
+    """Upsert products and their variants from master rows.
+
+    Supports one-row-per-variant format with explicit sku_code:
+      product_code, product_name, sku_code, pack_size
+      GM, Garam Masala, SPGM-50, 50g
+
+    Returns {imported, updated, errors}.
+    'imported'/'updated' count product rows (not variants).
+    """
     imported = updated = 0
+    variant_imported = variant_updated = 0
     errors = []
+    seen_products = {}   # product_code -> prod_id, to avoid redundant UPDATE per row
     c = _conn()
     try:
         for i, row in enumerate(rows, 1):
-            code = row.get('code', '').strip().upper()
-            name = row.get('name', '').strip()
+            # Support both 'code' (old) and 'product_code' (new) column names
+            code = (row.get('product_code') or row.get('code') or '').strip().upper()
+            name = (row.get('product_name') or row.get('name') or '').strip()
+            sku_code  = row.get('sku_code', '').strip()
+            ps_label  = row.get('pack_size', '').strip()
+
             if not code or not name:
-                errors.append(f"Row {i}: code and name are required"); continue
-            name_urdu  = row.get('name_urdu', '')
-            blend_code = row.get('blend_code', '')
-            pack_sizes_raw = row.get('pack_sizes', '').strip()
+                errors.append(f"Row {i}: product_code and product_name are required"); continue
+            if not sku_code or not ps_label:
+                errors.append(f"Row {i}: sku_code and pack_size are required"); continue
 
-            existing = c.execute("SELECT id FROM products WHERE code=?", (code,)).fetchone()
-            if existing:
-                prod_id = existing[0]
-                c.execute("""UPDATE products SET name=?, name_urdu=?, blend_code=?, active=1
-                             WHERE code=?""", (name, name_urdu, blend_code, code))
-                updated += 1
+            # Upsert product (once per unique product_code)
+            if code not in seen_products:
+                existing = c.execute("SELECT id FROM products WHERE code=?", (code,)).fetchone()
+                if existing:
+                    prod_id = existing[0]
+                    c.execute("""UPDATE products SET name=?, active=1 WHERE code=?""", (name, code))
+                    updated += 1
+                else:
+                    cur = c.execute("""INSERT INTO products (code, name, name_urdu, blend_code, active)
+                                 VALUES (?,?,?,?,1)""", (code, name, '', ''))
+                    prod_id = cur.lastrowid
+                    imported += 1
+                seen_products[code] = prod_id
             else:
-                cur = c.execute("""INSERT INTO products (code, name, name_urdu, blend_code, active)
-                             VALUES (?,?,?,?,1)""", (code, name, name_urdu, blend_code))
-                prod_id = cur.lastrowid
-                imported += 1
+                prod_id = seen_products[code]
 
-            # Create variants for each pack size listed
-            if pack_sizes_raw:
-                for ps_label in [p.strip() for p in pack_sizes_raw.split(',') if p.strip()]:
-                    ps_row = c.execute("SELECT id FROM pack_sizes WHERE label=?", (ps_label,)).fetchone()
-                    if not ps_row:
-                        # Auto-create pack size
-                        grams = int(''.join(filter(str.isdigit, ps_label)) or 0)
-                        if 'kg' in ps_label.lower():
-                            grams *= 1000
-                        c.execute("INSERT OR IGNORE INTO pack_sizes (label, grams) VALUES (?,?)",
-                                  (ps_label, grams))
-                        ps_row = c.execute("SELECT id FROM pack_sizes WHERE label=?", (ps_label,)).fetchone()
-                    ps_id = ps_row[0]
-                    # Get next SKU number
-                    last = c.execute("SELECT last_num FROM id_counters WHERE entity='sku'").fetchone()
-                    last_num = (last[0] if last else 0) + 1
-                    c.execute("INSERT OR REPLACE INTO id_counters (entity, last_num) VALUES ('sku', ?)", (last_num,))
-                    sku = f"SP-SKU-{last_num:04d}"
-                    c.execute("""INSERT OR IGNORE INTO product_variants
-                                 (sku_code, product_id, pack_size_id, active_flag)
-                                 VALUES (?,?,?,1)""", (sku, prod_id, ps_id))
+            # Ensure pack_size exists
+            ps_row = c.execute("SELECT id FROM pack_sizes WHERE label=?", (ps_label,)).fetchone()
+            if not ps_row:
+                grams = int(''.join(filter(str.isdigit, ps_label)) or 0)
+                if 'kg' in ps_label.lower():
+                    grams *= 1000
+                c.execute("INSERT OR IGNORE INTO pack_sizes (label, grams) VALUES (?,?)", (ps_label, grams))
+                ps_row = c.execute("SELECT id FROM pack_sizes WHERE label=?", (ps_label,)).fetchone()
+            ps_id = ps_row[0]
+
+            # Upsert variant with explicit sku_code
+            existing_var = c.execute(
+                "SELECT id FROM product_variants WHERE sku_code=?", (sku_code,)).fetchone()
+            if existing_var:
+                c.execute("""UPDATE product_variants SET product_id=?, pack_size_id=?, active_flag=1
+                             WHERE sku_code=?""", (prod_id, ps_id, sku_code))
+                variant_updated += 1
+            else:
+                c.execute("""INSERT INTO product_variants (sku_code, product_id, pack_size_id, active_flag)
+                             VALUES (?,?,?,1)""", (sku_code, prod_id, ps_id))
+                variant_imported += 1
 
         c.commit()
     finally:
         c.close()
     save_db()
     load_ref()
-    return {'imported': imported, 'updated': updated, 'errors': errors}
+    return {
+        'imported': imported, 'updated': updated,
+        'variants_imported': variant_imported, 'variants_updated': variant_updated,
+        'errors': errors
+    }
 
 
 def import_prices_master(rows):
@@ -6445,7 +6466,7 @@ def _master_template_csv(master_type):
     templates = {
         'customers':    'code,name,customer_type,category,city,phone,email,payment_terms_days\nSP-CUST-0001,Example Customer,RETAIL,General,Karachi,0300-0000000,email@example.com,30\n',
         'suppliers':    'code,name,contact,phone,email,city,address\nSP-SUP-0001,Example Supplier,Contact Name,0300-0000000,email@example.com,Karachi,Address here\n',
-        'products':     'code,name,name_urdu,blend_code,pack_sizes\nP001,Red Chilli Powder,,BC001,"50g,100g,500g,1000g"\n',
+        'products':     'product_code,product_name,sku_code,pack_size\nGM,Garam Masala,SPGM-50,50g\nGM,Garam Masala,SPGM-100,100g\nGM,Garam Masala,SPGM-1000,1000g\n',
         'prices':       'product_code,pack_size,price_type,price,effective_from\nP001,50g,retail_mrp,150,2026-01-01\nP001,50g,ex_factory,120,2026-01-01\n',
         'ingredients':  'code,name,cost_per_kg,unit\nING-001SP,Zeera (Pakistani),1380,kg\nING-002SP,Dhaniya (Sabit),520,kg\n',
     }
