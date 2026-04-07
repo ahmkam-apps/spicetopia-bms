@@ -6466,7 +6466,7 @@ def _master_template_csv(master_type):
     templates = {
         'customers':    'code,name,customer_type,category,city,phone,email,payment_terms_days\nSP-CUST-0001,Example Customer,RETAIL,General,Karachi,0300-0000000,email@example.com,30\n',
         'suppliers':    'code,name,contact,phone,email,city,address\nSP-SUP-0001,Example Supplier,Contact Name,0300-0000000,email@example.com,Karachi,Address here\n',
-        'products':     'product_code,product_name,sku_code,pack_size\nGM,Garam Masala,SPGM-50,50g\nGM,Garam Masala,SPGM-100,100g\nGM,Garam Masala,SPGM-1000,1000g\n',
+        'products':     'product_code,product_name,sku_code,pack_size\nSPGM,Garam Masala,SPGM-50,50g\nSPGM,Garam Masala,SPGM-100,100g\nSPGM,Garam Masala,SPGM-1000,1000g\n',
         'prices':       'product_code,pack_size,price_type,price,effective_from\nP001,50g,retail_mrp,150,2026-01-01\nP001,50g,ex_factory,120,2026-01-01\n',
         'ingredients':  'code,name,cost_per_kg,unit\nING-001SP,Zeera (Pakistani),1380,kg\nING-002SP,Dhaniya (Sabit),520,kg\n',
     }
