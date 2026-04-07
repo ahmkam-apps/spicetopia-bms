@@ -4331,6 +4331,50 @@ def update_customer_order(order_id, data):
     return detail
 
 
+def add_customer_order_item(order_id, data):
+    """
+    Add a new line item to an existing customer order.
+    Allowed for draft and confirmed orders only.
+    data: {productCode, packSize, qty, unitPrice}
+    """
+    order = qry1("SELECT * FROM customer_orders WHERE id=?", (order_id,))
+    if not order:
+        raise ValueError("Order not found")
+    if order['status'] not in ('draft', 'confirmed'):
+        raise ValueError(f"Cannot add items to a {order['status']} order")
+
+    var = ref['var_by_sku'].get((data.get('productCode', ''), data.get('packSize', '')))
+    if not var:
+        raise ValueError(f"Product not found: {data.get('productCode')}/{data.get('packSize')}")
+    qty = int(data.get('qty', 0))
+    if qty <= 0:
+        raise ValueError("Quantity must be positive")
+    unit_price = r2(data.get('unitPrice', 0))
+    line_total = r2(qty * unit_price)
+
+    # Check for duplicate line (same variant already on order)
+    existing = qry1("SELECT id FROM customer_order_items WHERE order_id=? AND product_variant_id=?",
+                    (order_id, var['id']))
+    if existing:
+        raise ValueError(f"{data.get('productCode')} {data.get('packSize')} is already on this order — "
+                         f"edit the existing line instead")
+
+    c = _conn()
+    try:
+        c.execute("""
+            INSERT INTO customer_order_items (order_id, product_variant_id, qty_ordered, unit_price, line_total)
+            VALUES (?, ?, ?, ?, ?)
+        """, (order_id, var['id'], qty, unit_price, line_total))
+        c.execute("UPDATE customer_orders SET updated_at=datetime('now') WHERE id=?", (order_id,))
+        c.commit()
+    except Exception:
+        c.rollback(); raise
+    finally:
+        c.close()
+    save_db()
+    return get_customer_order(order_id)
+
+
 def confirm_customer_order(order_id):
     """Move order from draft or pending_review → confirmed. Warns (but does not block) on stock shortfalls."""
     order = qry1("SELECT * FROM customer_orders WHERE id=?", (order_id,))
@@ -5094,11 +5138,16 @@ def update_purchase_order_status(po_id, new_status, data=None):
     c = _conn()
     try:
         if new_status in ('received', 'partial'):
-            # Update received quantities per item
-            received_items = data.get('receivedItems', [])  # [{id, receivedKg}]
+            # Update received quantities and unit costs per item
+            received_items = data.get('receivedItems', [])  # [{id, receivedKg, unitCostKg?}]
             for ri in received_items:
-                c.execute("UPDATE po_items SET received_kg=? WHERE id=? AND po_id=?",
-                          (r2(float(ri.get('receivedKg', 0))), ri['id'], po_id))
+                new_cost = ri.get('unitCostKg')
+                if new_cost is not None and float(new_cost) > 0:
+                    c.execute("UPDATE po_items SET received_kg=?, unit_cost_kg=? WHERE id=? AND po_id=?",
+                              (r2(float(ri.get('receivedKg', 0))), r2(float(new_cost)), ri['id'], po_id))
+                else:
+                    c.execute("UPDATE po_items SET received_kg=? WHERE id=? AND po_id=?",
+                              (r2(float(ri.get('receivedKg', 0))), ri['id'], po_id))
 
             # Check if fully received
             items_after = qry("""
@@ -6218,12 +6267,13 @@ def import_ingredients_master(rows):
 
 
 def create_ingredient(data):
-    """Create a new ingredient. No name is stored — code only (IP protection)."""
+    """Create a new ingredient."""
     code = str(data.get('code', '')).strip().upper()
     if not code:
         raise ValueError("Code is required (e.g. ING-020SP)")
     if qry1("SELECT id FROM ingredients WHERE code=?", (code,)):
         raise ValueError(f"Ingredient '{code}' already exists")
+    name    = str(data.get('name', '')).strip()
     cost = float(str(data.get('cost_per_kg', 0)).replace(',', '') or 0)
     if cost < 0:
         raise ValueError("Cost cannot be negative")
@@ -6233,8 +6283,8 @@ def create_ingredient(data):
     try:
         cur = c.execute("""
             INSERT INTO ingredients (code, name, unit, cost_per_kg, reorder_level, active, created_at)
-            VALUES (?, '', ?, ?, ?, 1, ?)
-        """, (code, unit, cost, reorder, today()))
+            VALUES (?, ?, ?, ?, ?, 1, ?)
+        """, (code, name, unit, cost, reorder, today()))
         iid = cur.lastrowid
         if cost > 0:
             c.execute("""
@@ -6252,11 +6302,13 @@ def create_ingredient(data):
 
 
 def update_ingredient(code, data):
-    """Update cost_per_kg, unit, or reorder_level for an ingredient."""
+    """Update name, cost_per_kg, unit, or reorder_level for an ingredient."""
     ing = qry1("SELECT * FROM ingredients WHERE code=?", (code,))
     if not ing:
         raise ValueError(f"Ingredient not found: {code}")
     set_parts, vals = [], []
+    if 'name' in data:
+        set_parts.append("name=?"); vals.append(str(data['name']).strip())
     if 'cost_per_kg' in data:
         new_cost = float(str(data['cost_per_kg']).replace(',', '') or 0)
         if new_cost < 0:
@@ -8950,6 +9002,14 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, 'Permission denied', 403); return
                 order_id = int(path.split('/')[3])
                 send_json(self, confirm_customer_order(order_id), 200)
+                return
+
+            # POST /api/customer-orders/:id/items  — add line item (admin, sales)
+            if path.startswith('/api/customer-orders/') and path.endswith('/items') and len(path.split('/')) == 5:
+                if not require(sess, 'admin', 'sales'):
+                    send_error(self, 'Permission denied', 403); return
+                order_id = int(path.split('/')[3])
+                send_json(self, add_customer_order_item(order_id, data), 201)
                 return
 
             # POST /api/customer-orders/:id/cancel  (admin, sales)
