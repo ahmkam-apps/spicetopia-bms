@@ -2122,7 +2122,8 @@ def login_user(username, password):
     }
     _log('info', 'login', user=user['username'], role=user['role'])
     show_welcome = user['username'].lower() == 'fk_baba'
-    return {**sess, 'token': token, 'showWelcome': show_welcome}
+    dev_tools    = os.environ.get('DEV_TOOLS', '').lower() in ('1', 'true', 'yes')
+    return {**sess, 'token': token, 'showWelcome': show_welcome, 'devTools': dev_tools}
 
 
 def logout_user(token):
@@ -5663,6 +5664,58 @@ def get_procurement_list(wo_id):
     }
 
 
+def dev_reset_all():
+    """
+    DEV ONLY — wipe all transactional and master data.
+    Keeps: users, sessions, pack_sizes, price_types, zones.
+    Only callable when DEV_TOOLS env var is set.
+    Returns row counts cleared per table.
+    """
+    if os.environ.get('DEV_TOOLS', '').lower() not in ('1', 'true', 'yes'):
+        raise PermissionError("DEV_TOOLS not enabled on this environment")
+
+    # Delete order matters — children before parents
+    tables = [
+        'payment_allocations', 'customer_payments',
+        'supplier_payment_allocations', 'supplier_payments',
+        'invoice_items', 'invoices', 'sales',
+        'supplier_bill_items', 'supplier_bills',
+        'po_items', 'purchase_orders',
+        'production_consumption', 'production_batches',
+        'field_order_items', 'field_orders',
+        'customer_order_items', 'customer_orders',
+        'work_orders',
+        'order_hold_expiry',
+        'beat_visits', 'route_customers',
+        'inventory_ledger', 'ingredient_price_history',
+        'bom_items', 'bom_versions',
+        'product_prices', 'product_variants', 'products',
+        'customers', 'suppliers', 'ingredients',
+        'change_log', 'error_log',
+    ]
+    counts = {}
+    c = _conn()
+    try:
+        for t in tables:
+            try:
+                n = c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                c.execute(f"DELETE FROM {t}")
+                counts[t] = n
+            except Exception:
+                counts[t] = 0  # table may not exist yet
+        # Reset all ID counters to 0
+        c.execute("UPDATE id_counters SET last_num = 0")
+        c.commit()
+    except Exception:
+        c.rollback()
+        raise
+    finally:
+        c.close()
+    save_db()
+    load_ref()  # reload ref cache — now empty
+    return {'reset': True, 'cleared': counts, 'total_rows': sum(counts.values())}
+
+
 def list_work_orders():
     return qry("""
         SELECT wo.*, p.name as product_name, p.code as product_code,
@@ -8800,6 +8853,17 @@ class Handler(BaseHTTPRequestHandler):
         qs     = parse_qs(parsed.query)
         try:
             data = read_body(self)
+
+            # POST /api/dev/reset-all  (DEV_TOOLS only, admin only)
+            if path == '/api/dev/reset-all':
+                if os.environ.get('DEV_TOOLS', '').lower() not in ('1', 'true', 'yes'):
+                    send_error(self, 'Not available in this environment', 403); return
+                sess = get_session(self)
+                if not sess or sess['role'] != 'admin':
+                    send_json(self, {'error': 'Admin only'}, 403); return
+                result = dev_reset_all()
+                send_json(self, result)
+                return
 
             # POST /api/auth/login  (no auth required)
             if path == '/api/auth/login':
