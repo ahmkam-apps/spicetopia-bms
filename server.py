@@ -6266,8 +6266,10 @@ def import_prices_master(rows):
 
 
 def import_ingredients_master(rows):
-    """Upsert ingredients from master rows (code + cost_per_kg only — no name stored).
-    Columns: code, cost_per_kg, reorder_level (optional), unit (optional)
+    """Upsert ingredients from master rows.
+    Columns: code (required), cost_per_kg (required), name (optional),
+             unit (optional), reorder_level (optional — ignored, set manually in app)
+    Accepts 'name' or 'Ingredient Name (English)' as the name column.
     Returns {imported, updated, errors}.
     """
     imported = 0
@@ -6284,11 +6286,8 @@ def import_ingredients_master(rows):
             errors.append(f"Row {i}: invalid cost_per_kg '{cost_str}'"); continue
         if cost < 0:
             errors.append(f"Row {i}: cost_per_kg cannot be negative"); continue
-        reorder_str = str(row.get('reorder_level', '0')).replace(',', '') or '0'
-        try:
-            reorder = float(reorder_str)
-        except ValueError:
-            reorder = 0.0
+        # Accept 'name' or 'Ingredient Name (English)' column
+        name = str(row.get('name') or row.get('Ingredient Name (English)') or '').strip()
         unit = str(row.get('unit', 'kg')).strip() or 'kg'
         existing = qry1("SELECT id FROM ingredients WHERE code=?", (code,))
         try:
@@ -6296,9 +6295,9 @@ def import_ingredients_master(rows):
                 c = _conn()
                 try:
                     c.execute("""UPDATE ingredients
-                                 SET cost_per_kg=?, reorder_level=?, unit=?, updated_at=?
+                                 SET cost_per_kg=?, unit=?, name=?, updated_at=?
                                  WHERE code=?""",
-                              (cost, reorder, unit, today(), code))
+                              (cost, unit, name, today(), code))
                     c.commit()
                 finally:
                     c.close()
@@ -6307,8 +6306,8 @@ def import_ingredients_master(rows):
                 c = _conn()
                 try:
                     c.execute("""INSERT INTO ingredients (code, name, unit, cost_per_kg, reorder_level, created_at)
-                                 VALUES (?, '', ?, ?, ?, ?)""",
-                              (code, unit, cost, reorder, today()))
+                                 VALUES (?, ?, ?, ?, 0, ?)""",
+                              (code, name, unit, cost, today()))
                     c.commit()
                 finally:
                     c.close()
@@ -6316,6 +6315,7 @@ def import_ingredients_master(rows):
         except Exception as e:
             errors.append(f"Row {i} ({code}): {e}")
     save_db()
+    load_ref()
     return {'imported': imported, 'updated': updated, 'errors': errors}
 
 
@@ -6447,7 +6447,7 @@ def _master_template_csv(master_type):
         'suppliers':    'code,name,contact,phone,email,city,address\nSP-SUP-0001,Example Supplier,Contact Name,0300-0000000,email@example.com,Karachi,Address here\n',
         'products':     'code,name,name_urdu,blend_code,pack_sizes\nP001,Red Chilli Powder,,BC001,"50g,100g,500g,1000g"\n',
         'prices':       'product_code,pack_size,price_type,price,effective_from\nP001,50g,retail_mrp,150,2026-01-01\nP001,50g,ex_factory,120,2026-01-01\n',
-        'ingredients':  'code,cost_per_kg,unit,reorder_level\nING-001SP,850,kg,50\nING-002SP,320,kg,25\n',
+        'ingredients':  'code,name,cost_per_kg,unit\nING-001SP,Zeera (Pakistani),1380,kg\nING-002SP,Dhaniya (Sabit),520,kg\n',
     }
     return templates.get(master_type, '').encode('utf-8')
 
