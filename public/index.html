@@ -928,7 +928,7 @@ async function renderDashboard() {
         <strong style="color:#c2410c">${apO.count} supplier bill${apO.count === 1 ? '' : 's'} overdue</strong>
         <span style="color:#7c2d12;margin-left:6px">${fmtPKR(apO.amount)} outstanding</span>
       </div>
-      <button onclick="nav('supplier-bills')" style="margin-left:auto;background:#c2410c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
+      <button onclick="nav('bills')" style="margin-left:auto;background:#c2410c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
     </div>`;
   }
 
@@ -939,7 +939,7 @@ async function renderDashboard() {
         <strong style="color:#a16207">${apDS.count} bill${apDS.count === 1 ? '' : 's'} due within 7 days</strong>
         <span style="color:#713f12;margin-left:6px">${fmtPKR(apDS.amount)} payable</span>
       </div>
-      <button onclick="nav('supplier-bills')" style="margin-left:auto;background:#ca8a04;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
+      <button onclick="nav('bills')" style="margin-left:auto;background:#ca8a04;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
     </div>`;
   }
 
@@ -4586,6 +4586,7 @@ async function openPODetail(poId) {
 }
 
 function _renderPODetail(po) {
+  _lastPOData = po;
   const statusBadge = s => {
     const map = { draft:'secondary', sent:'warning', partial:'warning', received:'success', cancelled:'secondary' };
     return `<span class="badge badge-${map[s]||'secondary'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
@@ -4639,6 +4640,7 @@ function _renderPODetail(po) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         <div style="display:flex;gap:6px">
+          ${['draft','sent'].includes(po.status) ? `<button class="btn btn-outline btn-sm" onclick="editPOHeader(${po.id})" style="font-size:12px">✏ Edit</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="downloadPOPDF(${po.id})" style="font-size:12px">⬇ Download PO PDF</button>
           <button class="btn btn-outline btn-sm" id="copy-po-btn-${po.id}" onclick="copyPOText(${po.id})" style="font-size:12px">📋 Copy for WhatsApp</button>
         </div>
@@ -4751,6 +4753,95 @@ async function setPOStatus(poId, status) {
     _renderPODetail(po);
   } catch(e) {
     showMsg(`po-action-msg-${poId}`, 'Error: ' + e.message, 'error');
+  }
+}
+
+function editPOHeader(poId) {
+  const area = document.getElementById('po-detail-area');
+  const po = _lastPOData && _lastPOData.id === poId ? _lastPOData : null;
+  area.insertAdjacentHTML('afterbegin', `
+  <div id="po-edit-form-${poId}" class="card mb-16" style="border-top:3px solid var(--mac-blue)">
+    <h4 style="margin-bottom:12px">Edit Purchase Order</h4>
+    <div id="po-edit-msg-${poId}"></div>
+    <div class="form-row" style="gap:10px">
+      <div class="form-group"><label style="font-size:12px">Expected Date</label>
+        <input type="date" id="po-edit-expected-${poId}" value="${po?.expected_date||''}">
+      </div>
+      <div class="form-group"><label style="font-size:12px">Payment Terms</label>
+        <select id="po-edit-terms-${poId}">
+          <option value="CREDIT" ${(po?.payment_terms||'CREDIT')==='CREDIT'?'selected':''}>Credit</option>
+          <option value="COD" ${po?.payment_terms==='COD'?'selected':''}>Cash on Delivery</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1"><label style="font-size:12px">Notes</label>
+        <input id="po-edit-notes-${poId}" value="${(po?.notes||'').replace(/"/g,'&quot;')}" placeholder="Optional notes">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-primary btn-sm" onclick="savePOEdit(${poId})">Save Changes</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('po-edit-form-${poId}').remove()">Cancel</button>
+    </div>
+  </div>`);
+}
+
+let _lastPOData = null;
+
+async function savePOEdit(poId) {
+  const expectedDate   = document.getElementById(`po-edit-expected-${poId}`).value;
+  const notes          = document.getElementById(`po-edit-notes-${poId}`).value;
+  const paymentTerms   = document.getElementById(`po-edit-terms-${poId}`).value;
+  try {
+    const po = await PUT(`/api/purchase-orders/${poId}`, { expectedDate: expectedDate||null, notes, paymentTerms });
+    _lastPOData = po;
+    document.getElementById(`po-edit-form-${poId}`)?.remove();
+    await openPODetail(poId);
+  } catch(e) {
+    showMsg(`po-edit-msg-${poId}`, 'Error: ' + e.message, 'error');
+  }
+}
+
+let _lastBillData = null;
+
+function editBillHeader(billId) {
+  const area = document.getElementById('bill-detail-area');
+  if (!area) return;
+  const bill = _lastBillData && _lastBillData.id === billId ? _lastBillData : null;
+  // Remove any existing edit form
+  const existing = document.getElementById(`bill-edit-form-${billId}`);
+  if (existing) { existing.remove(); return; }
+  area.insertAdjacentHTML('afterbegin', `
+  <div id="bill-edit-form-${billId}" class="card mb-16" style="border-top:3px solid var(--mac-blue)">
+    <h4 style="margin-bottom:12px">Edit Supplier Bill</h4>
+    <div id="bill-edit-msg-${billId}"></div>
+    <div class="form-row" style="gap:10px">
+      <div class="form-group"><label style="font-size:12px">Due Date</label>
+        <input type="date" id="bill-edit-due-${billId}" value="${bill?.due_date||''}">
+      </div>
+      <div class="form-group"><label style="font-size:12px">Supplier Reference</label>
+        <input id="bill-edit-ref-${billId}" value="${(bill?.supplier_ref||'').replace(/"/g,'&quot;')}" placeholder="Supplier invoice/ref number">
+      </div>
+      <div class="form-group" style="flex:1"><label style="font-size:12px">Notes</label>
+        <input id="bill-edit-notes-${billId}" value="${(bill?.notes||'').replace(/"/g,'&quot;')}" placeholder="Optional notes">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-primary btn-sm" onclick="saveBillEdit(${billId})">Save Changes</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('bill-edit-form-${billId}').remove()">Cancel</button>
+    </div>
+  </div>`);
+}
+
+async function saveBillEdit(billId) {
+  const dueDate    = document.getElementById(`bill-edit-due-${billId}`).value;
+  const notes      = document.getElementById(`bill-edit-notes-${billId}`).value;
+  const supplierRef = document.getElementById(`bill-edit-ref-${billId}`).value;
+  try {
+    const bill = await PUT(`/api/bills/${billId}`, { dueDate: dueDate||null, notes, supplierRef });
+    _lastBillData = bill;
+    document.getElementById(`bill-edit-form-${billId}`)?.remove();
+    await showBillDetail(billId);
+  } catch(e) {
+    showMsg(`bill-edit-msg-${billId}`, 'Error: ' + e.message, 'error');
   }
 }
 
@@ -5182,6 +5273,7 @@ async function showBillDetail(billId) {
 }
 
 function _renderBillDetail(bill) {
+  _lastBillData = bill;
   const billId = bill.id;
   const itemRows = (bill.items||[]).map(i => `
     <tr style="border-top:1px solid var(--border)">
@@ -5216,6 +5308,7 @@ function _renderBillDetail(bill) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         <div style="display:flex;gap:6px">
+          ${['UNPAID','PARTIAL'].includes(bill.status) ? `<button class="btn btn-outline btn-sm" onclick="editBillHeader(${billId})" style="font-size:12px">✏ Edit</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="printBill(${billId})" style="font-size:12px">🖨 Print</button>
           <button class="btn btn-outline btn-sm" id="copy-bill-btn-${billId}" onclick="copyBillText(${billId})" style="font-size:12px">📋 Copy for WhatsApp</button>
         </div>
