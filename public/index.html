@@ -998,7 +998,7 @@ async function renderDashboard() {
       </table>
     </div>
     <div class="card">
-      <div class="section-header"><h2>⚠️ Low Stock Alerts</h2></div>
+      <div class="section-header"><h2>${alertRows ? '⚠️ Low Stock Alerts' : '✅ Stock Levels'}</h2></div>
       <table>
         <thead><tr><th>Code</th><th>Ingredient</th><th class="text-right">Balance</th><th>Reorder</th></tr></thead>
         <tbody>${alertRows || '<tr><td colspan="4" style="text-align:center;color:var(--cardamom)">All stock levels OK</td></tr>'}</tbody>
