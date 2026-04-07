@@ -9500,6 +9500,8 @@ function renderMasterData() {
       columns: 'code, name, contact, phone, email, city, address' },
     { key: 'ingredients', label: 'Ingredients', icon: '🌿',
       columns: 'code (e.g. ING-001SP), name, cost_per_kg, unit (default: kg) — reorder level set manually in app' },
+    { key: 'products', label: 'Products & Variants', icon: '🌶️',
+      columns: 'code, name, name_urdu, blend_code, pack_sizes (comma-separated e.g. "50g,100g,1000g")' },
   ];
 
   return `
