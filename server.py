@@ -873,11 +873,14 @@ def ensure_full_schema():
                 bill_date    TEXT NOT NULL,
                 due_date     TEXT NOT NULL,
                 status       TEXT DEFAULT 'UNPAID'
-                             CHECK(status IN ('UNPAID','PARTIAL','PAID')),
+                             CHECK(status IN ('UNPAID','PARTIAL','PAID','VOID')),
                 notes        TEXT DEFAULT '',
                 total_amount REAL DEFAULT 0,
                 supplier_ref TEXT DEFAULT '',
-                created_at   TEXT DEFAULT (datetime('now'))
+                created_at   TEXT DEFAULT (datetime('now')),
+                voided_at    TEXT DEFAULT NULL,
+                voided_by    TEXT DEFAULT NULL,
+                void_note    TEXT DEFAULT NULL
             )""",
             """CREATE TABLE IF NOT EXISTS supplier_bill_items (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3436,12 +3439,13 @@ def create_product(data):
 
     c = _conn()
     try:
-        cur = c.execute("""
+        c.execute("""
             INSERT INTO products (code, name, name_urdu, blend_code, active)
             VALUES (?,?,?,?,1)
         """, (full_code, name, name_urdu, blend_code))
-        prod_id = cur.lastrowid
+        prod_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
 
+        c.execute("INSERT OR IGNORE INTO id_counters (entity, last_num) VALUES ('sku', 0)")
         c.execute("UPDATE id_counters SET last_num=last_num+1 WHERE entity='sku'")
         num = c.execute("SELECT last_num FROM id_counters WHERE entity='sku'").fetchone()[0]
         sku_code = f"SP-SKU-{num:04d}"
@@ -3563,6 +3567,74 @@ def deactivate_variant(variant_id):
 # ═══════════════════════════════════════════════════════════════════
 #  BUSINESS LOGIC — SUPPLIERS
 # ═══════════════════════════════════════════════════════════════════
+
+def _migrate_supplier_bills_void():
+    """Migration: add voided_at/voided_by/void_note columns and VOID status to supplier_bills.
+    SQLite doesn't allow ALTER TABLE to change a CHECK constraint, so we recreate the table."""
+    c = _conn()
+    try:
+        c.execute("PRAGMA foreign_keys=OFF")
+        # Check if VOID is already in the constraint
+        tbl = c.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='supplier_bills'"
+        ).fetchone()
+        if not tbl:
+            return  # table doesn't exist yet — schema creation handles it
+        tbl_sql = tbl[0] or ''
+        cols = [row[1] for row in c.execute("PRAGMA table_info(supplier_bills)")]
+
+        needs_rebuild = "'VOID'" not in tbl_sql and '"VOID"' not in tbl_sql
+        needs_voided_cols = 'voided_at' not in cols
+
+        if needs_rebuild:
+            # Recreate table with VOID in CHECK constraint + voided columns
+            c.execute("""CREATE TABLE IF NOT EXISTS supplier_bills_new (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                bill_number  TEXT NOT NULL UNIQUE,
+                supplier_id  INTEGER NOT NULL REFERENCES suppliers(id),
+                bill_date    TEXT NOT NULL,
+                due_date     TEXT NOT NULL,
+                status       TEXT DEFAULT 'UNPAID'
+                             CHECK(status IN ('UNPAID','PARTIAL','PAID','VOID')),
+                notes        TEXT DEFAULT '',
+                total_amount REAL DEFAULT 0,
+                supplier_ref TEXT DEFAULT '',
+                created_at   TEXT DEFAULT (datetime('now')),
+                voided_at    TEXT DEFAULT NULL,
+                voided_by    TEXT DEFAULT NULL,
+                void_note    TEXT DEFAULT NULL
+            )""")
+            existing_cols = [row[1] for row in c.execute("PRAGMA table_info(supplier_bills)")]
+            void_cols = 'voided_at' if 'voided_at' in existing_cols else 'NULL'
+            c.execute(f"""INSERT INTO supplier_bills_new
+                SELECT id, bill_number, supplier_id, bill_date, due_date, status,
+                       notes, total_amount, COALESCE(supplier_ref,''), created_at,
+                       {'voided_at' if 'voided_at' in existing_cols else 'NULL'},
+                       {'voided_by' if 'voided_by' in existing_cols else 'NULL'},
+                       {'void_note' if 'void_note' in existing_cols else 'NULL'}
+                FROM supplier_bills""")
+            c.execute("DROP TABLE supplier_bills")
+            c.execute("ALTER TABLE supplier_bills_new RENAME TO supplier_bills")
+            print("  ✓ supplier_bills: migrated — added VOID status + voided columns")
+        elif needs_voided_cols:
+            # Table has VOID but missing the voided columns — just add them
+            for col in ['voided_at', 'voided_by', 'void_note']:
+                if col not in cols:
+                    try:
+                        c.execute(f"ALTER TABLE supplier_bills ADD COLUMN {col} TEXT DEFAULT NULL")
+                    except Exception:
+                        pass
+            print("  ✓ supplier_bills: added voided_at/voided_by/void_note columns")
+        c.commit()
+    except Exception as e:
+        print(f"  ⚠ supplier_bills migration error: {e}")
+        try: c.rollback()
+        except: pass
+    finally:
+        try: c.execute("PRAGMA foreign_keys=ON")
+        except: pass
+        c.close()
+
 
 def _ensure_supplier_zone_col():
     """Safe migration: add zone_id column to suppliers if not present.
@@ -3772,7 +3844,8 @@ def _enforce_credit_limit(cust_id: int, new_invoice_total: float):
 
     ar_row = qry1("""
         SELECT COALESCE(SUM(
-            i.total - COALESCE((SELECT SUM(amount) FROM payment_allocations WHERE invoice_id=i.id), 0)
+            COALESCE((SELECT SUM(quantity*unit_price) FROM invoice_items WHERE invoice_id=i.id), 0)
+            - COALESCE((SELECT SUM(allocated_amount) FROM payment_allocations WHERE invoice_id=i.id), 0)
         ), 0) AS balance
         FROM invoices i
         WHERE i.customer_id=? AND i.status IN ('UNPAID','PARTIAL')
@@ -4258,6 +4331,50 @@ def update_customer_order(order_id, data):
     return detail
 
 
+def add_customer_order_item(order_id, data):
+    """
+    Add a new line item to an existing customer order.
+    Allowed for draft and confirmed orders only.
+    data: {productCode, packSize, qty, unitPrice}
+    """
+    order = qry1("SELECT * FROM customer_orders WHERE id=?", (order_id,))
+    if not order:
+        raise ValueError("Order not found")
+    if order['status'] not in ('draft', 'confirmed'):
+        raise ValueError(f"Cannot add items to a {order['status']} order")
+
+    var = ref['var_by_sku'].get((data.get('productCode', ''), data.get('packSize', '')))
+    if not var:
+        raise ValueError(f"Product not found: {data.get('productCode')}/{data.get('packSize')}")
+    qty = int(data.get('qty', 0))
+    if qty <= 0:
+        raise ValueError("Quantity must be positive")
+    unit_price = r2(data.get('unitPrice', 0))
+    line_total = r2(qty * unit_price)
+
+    # Check for duplicate line (same variant already on order)
+    existing = qry1("SELECT id FROM customer_order_items WHERE order_id=? AND product_variant_id=?",
+                    (order_id, var['id']))
+    if existing:
+        raise ValueError(f"{data.get('productCode')} {data.get('packSize')} is already on this order — "
+                         f"edit the existing line instead")
+
+    c = _conn()
+    try:
+        c.execute("""
+            INSERT INTO customer_order_items (order_id, product_variant_id, qty_ordered, unit_price, line_total)
+            VALUES (?, ?, ?, ?, ?)
+        """, (order_id, var['id'], qty, unit_price, line_total))
+        c.execute("UPDATE customer_orders SET updated_at=datetime('now') WHERE id=?", (order_id,))
+        c.commit()
+    except Exception:
+        c.rollback(); raise
+    finally:
+        c.close()
+    save_db()
+    return get_customer_order(order_id)
+
+
 def confirm_customer_order(order_id):
     """Move order from draft or pending_review → confirmed. Warns (but does not block) on stock shortfalls."""
     order = qry1("SELECT * FROM customer_orders WHERE id=?", (order_id,))
@@ -4296,7 +4413,8 @@ def confirm_customer_order(order_id):
         if credit_limit > 0:
             ar_row = qry1("""
                 SELECT COALESCE(SUM(
-                    i.total - COALESCE((SELECT SUM(amount) FROM payment_allocations WHERE invoice_id=i.id),0)
+                    COALESCE((SELECT SUM(quantity*unit_price) FROM invoice_items WHERE invoice_id=i.id), 0)
+                    - COALESCE((SELECT SUM(allocated_amount) FROM payment_allocations WHERE invoice_id=i.id), 0)
                 ), 0) AS balance
                 FROM invoices i
                 WHERE i.customer_id=? AND i.status IN ('UNPAID','PARTIAL')
@@ -4949,6 +5067,56 @@ def create_purchase_order(data):
     return get_purchase_order(po_id)
 
 
+def update_purchase_order(po_id, data):
+    """Edit PO header fields: expected_date, notes, payment_terms.
+    Only allowed when PO status is 'draft' or 'sent' (not received/cancelled)."""
+    po = qry1("SELECT * FROM purchase_orders WHERE id=?", (po_id,))
+    if not po:
+        raise ValueError("Purchase order not found")
+    if po['status'] in ('received', 'cancelled'):
+        raise ValueError(f"Cannot edit a {po['status']} purchase order")
+    set_parts, vals = [], []
+    if 'expectedDate' in data:
+        set_parts.append("expected_date=?"); vals.append(data['expectedDate'] or None)
+    if 'notes' in data:
+        set_parts.append("notes=?"); vals.append(str(data.get('notes', '')).strip())
+    if 'paymentTerms' in data:
+        set_parts.append("payment_terms=?"); vals.append(str(data['paymentTerms']).strip())
+    if not set_parts:
+        return po
+    set_parts.append("updated_at=?"); vals.append(datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S'))
+    vals.append(po_id)
+    run(f"UPDATE purchase_orders SET {', '.join(set_parts)} WHERE id=?", vals)
+    return qry1("""
+        SELECT po.*, s.name as supplier_name
+        FROM purchase_orders po JOIN suppliers s ON s.id=po.supplier_id
+        WHERE po.id=?
+    """, (po_id,))
+
+
+def update_supplier_bill(bill_id, data):
+    """Edit supplier bill header fields: due_date, notes, supplier_ref.
+    Only allowed on UNPAID or PARTIAL bills."""
+    bill = qry1("SELECT * FROM supplier_bills WHERE id=?", (bill_id,))
+    if not bill:
+        raise ValueError("Supplier bill not found")
+    if bill['status'] not in ('UNPAID', 'PARTIAL'):
+        raise ValueError(f"Cannot edit a {bill['status']} bill")
+    set_parts, vals = [], []
+    if 'dueDate' in data:
+        set_parts.append("due_date=?"); vals.append(data['dueDate'])
+    if 'notes' in data:
+        set_parts.append("notes=?"); vals.append(str(data.get('notes', '')).strip())
+    if 'supplierRef' in data:
+        set_parts.append("supplier_ref=?"); vals.append(str(data.get('supplierRef', '')).strip())
+    if not set_parts:
+        return bill
+    vals.append(bill_id)
+    run(f"UPDATE supplier_bills SET {', '.join(set_parts)} WHERE id=?", vals)
+    save_db()
+    return qry1("SELECT * FROM supplier_bills WHERE id=?", (bill_id,))
+
+
 def update_purchase_order_status(po_id, new_status, data=None):
     """
     Update PO status. On 'received': update received_kg, update inventory, auto-create bill.
@@ -4970,11 +5138,16 @@ def update_purchase_order_status(po_id, new_status, data=None):
     c = _conn()
     try:
         if new_status in ('received', 'partial'):
-            # Update received quantities per item
-            received_items = data.get('receivedItems', [])  # [{id, receivedKg}]
+            # Update received quantities and unit costs per item
+            received_items = data.get('receivedItems', [])  # [{id, receivedKg, unitCostKg?}]
             for ri in received_items:
-                c.execute("UPDATE po_items SET received_kg=? WHERE id=? AND po_id=?",
-                          (r2(float(ri.get('receivedKg', 0))), ri['id'], po_id))
+                new_cost = ri.get('unitCostKg')
+                if new_cost is not None and float(new_cost) > 0:
+                    c.execute("UPDATE po_items SET received_kg=?, unit_cost_kg=? WHERE id=? AND po_id=?",
+                              (r2(float(ri.get('receivedKg', 0))), r2(float(new_cost)), ri['id'], po_id))
+                else:
+                    c.execute("UPDATE po_items SET received_kg=? WHERE id=? AND po_id=?",
+                              (r2(float(ri.get('receivedKg', 0))), ri['id'], po_id))
 
             # Check if fully received
             items_after = qry("""
@@ -6094,12 +6267,13 @@ def import_ingredients_master(rows):
 
 
 def create_ingredient(data):
-    """Create a new ingredient. No name is stored — code only (IP protection)."""
+    """Create a new ingredient."""
     code = str(data.get('code', '')).strip().upper()
     if not code:
         raise ValueError("Code is required (e.g. ING-020SP)")
     if qry1("SELECT id FROM ingredients WHERE code=?", (code,)):
         raise ValueError(f"Ingredient '{code}' already exists")
+    name    = str(data.get('name', '')).strip()
     cost = float(str(data.get('cost_per_kg', 0)).replace(',', '') or 0)
     if cost < 0:
         raise ValueError("Cost cannot be negative")
@@ -6109,8 +6283,8 @@ def create_ingredient(data):
     try:
         cur = c.execute("""
             INSERT INTO ingredients (code, name, unit, cost_per_kg, reorder_level, active, created_at)
-            VALUES (?, '', ?, ?, ?, 1, ?)
-        """, (code, unit, cost, reorder, today()))
+            VALUES (?, ?, ?, ?, ?, 1, ?)
+        """, (code, name, unit, cost, reorder, today()))
         iid = cur.lastrowid
         if cost > 0:
             c.execute("""
@@ -6128,11 +6302,13 @@ def create_ingredient(data):
 
 
 def update_ingredient(code, data):
-    """Update cost_per_kg, unit, or reorder_level for an ingredient."""
+    """Update name, cost_per_kg, unit, or reorder_level for an ingredient."""
     ing = qry1("SELECT * FROM ingredients WHERE code=?", (code,))
     if not ing:
         raise ValueError(f"Ingredient not found: {code}")
     set_parts, vals = [], []
+    if 'name' in data:
+        set_parts.append("name=?"); vals.append(str(data['name']).strip())
     if 'cost_per_kg' in data:
         new_cost = float(str(data['cost_per_kg']).replace(',', '') or 0)
         if new_cost < 0:
@@ -7099,14 +7275,23 @@ def get_dashboard():
         FROM sales WHERE sale_date >= ? GROUP BY customer_type
     """, (month_start,))
 
-    # Finished goods stock
+    # Finished goods stock — query all variants (active + inactive) so historical stock shows
     fg_stock = get_finished_stock_map()
     fg_list = []
-    for vid, units in fg_stock.items():
-        v = ref['var_by_id'].get(vid)
-        if v and units > 0:          # skip zero / negative stock — data issue, not a real holding
-            fg_list.append({'skuCode': v['sku_code'], 'product': v['product_name'],
-                            'packSize': v['pack_size'], 'units': units})
+    if fg_stock:
+        var_ids = ','.join(str(i) for i in fg_stock.keys())
+        all_vars = {r['id']: r for r in qry(f"""
+            SELECT pv.id, pv.sku_code, p.name as product_name, ps.label as pack_size
+            FROM product_variants pv
+            JOIN products p ON p.id=pv.product_id
+            JOIN pack_sizes ps ON ps.id=pv.pack_size_id
+            WHERE pv.id IN ({var_ids})
+        """)}
+        for vid, units in fg_stock.items():
+            v = all_vars.get(vid)
+            if v and units > 0:
+                fg_list.append({'skuCode': v['sku_code'], 'product': v['product_name'],
+                                'packSize': v['pack_size'], 'units': units})
 
     return {
         'salesToday': {
@@ -8819,6 +9004,14 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, confirm_customer_order(order_id), 200)
                 return
 
+            # POST /api/customer-orders/:id/items  — add line item (admin, sales)
+            if path.startswith('/api/customer-orders/') and path.endswith('/items') and len(path.split('/')) == 5:
+                if not require(sess, 'admin', 'sales'):
+                    send_error(self, 'Permission denied', 403); return
+                order_id = int(path.split('/')[3])
+                send_json(self, add_customer_order_item(order_id, data), 201)
+                return
+
             # POST /api/customer-orders/:id/cancel  (admin, sales)
             if path.startswith('/api/customer-orders/') and path.endswith('/cancel'):
                 if not require(sess, 'admin', 'sales'):
@@ -9398,6 +9591,24 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, 'Permission denied', 403); return
                 wo_id  = int(path.split('/')[3])
                 result = update_work_order(wo_id, data)
+                send_json(self, result)
+                return
+
+            # PUT /api/purchase-orders/:id  (admin, accountant, warehouse — edit header fields)
+            if path.startswith('/api/purchase-orders/') and len(path.split('/')) == 4:
+                if not require(sess, 'admin', 'accountant', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                po_id  = int(path.split('/')[3])
+                result = update_purchase_order(po_id, data)
+                send_json(self, result)
+                return
+
+            # PUT /api/bills/:id  (admin, accountant — edit header fields on UNPAID/PARTIAL bills)
+            if path.startswith('/api/bills/') and len(path.split('/')) == 4:
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                bill_id = int(path.split('/')[3])
+                result  = update_supplier_bill(bill_id, data)
                 send_json(self, result)
                 return
 
@@ -10794,6 +11005,7 @@ if __name__ == '__main__':
     ensure_supplier_bills_schema()
     ensure_purchase_orders_schema()
     ensure_batch_cost_column()
+    _migrate_supplier_bills_void()   # adds VOID status + voided columns to supplier_bills
     ensure_review_queue_schema()
     ensure_master_schema()  # must run before load_ref() — adds active, credit_limit cols
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
