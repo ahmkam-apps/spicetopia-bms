@@ -7104,7 +7104,7 @@ def get_dashboard():
     fg_list = []
     for vid, units in fg_stock.items():
         v = ref['var_by_id'].get(vid)
-        if v:
+        if v and units > 0:          # skip zero / negative stock — data issue, not a real holding
             fg_list.append({'skuCode': v['sku_code'], 'product': v['product_name'],
                             'packSize': v['pack_size'], 'units': units})
 

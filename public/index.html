@@ -1819,6 +1819,44 @@ async function renderOrdersInvoices() {
     }
   });
 
+  // Orphan invoices — created via direct sales API, not linked to any customer order
+  const todayStr = new Date().toISOString().slice(0,10);
+  const orphanInvs = invs.filter(inv => !inv.customer_order_id && inv.status !== 'VOIDED');
+  const orphanRows = orphanInvs.map(inv => {
+    const isOverdue = inv.status !== 'PAID' && inv.due_date && inv.due_date < todayStr;
+    const statusColor = inv.status === 'PAID' ? 'var(--cardamom)' : isOverdue ? 'var(--chili)' : 'var(--cinnamon)';
+    const statusLabel = inv.status === 'PAID' ? 'Paid' : isOverdue ? '🔴 Overdue' : inv.status;
+    return `<tr>
+      <td><strong style="font-family:monospace">${inv.invoice_number}</strong><br>
+          <span style="font-size:10px;color:var(--text-3)">${inv.invoice_date}</span></td>
+      <td>${inv.customer_name || '—'}</td>
+      <td><span style="font-size:11px;color:var(--text-3)">— no order —</span></td>
+      <td class="text-right">${fmtPKR(inv.total || 0)}</td>
+      <td class="text-right">${fmtPKR(inv.paid || 0)}</td>
+      <td class="text-right" style="color:${(inv.balance||0)>0?'var(--chili)':'var(--text-3)'}"><strong>${fmtPKR(inv.balance || 0)}</strong></td>
+      <td><span style="font-size:11px;font-weight:600;color:${statusColor}">${statusLabel}</span>
+          ${inv.due_date ? `<br><span style="font-size:10px;color:var(--text-3)">Due: ${inv.due_date}</span>` : ''}</td>
+      <td>${inv.status !== 'PAID' ? `<button class="btn btn-sm btn-outline" style="font-size:11px" onclick="recordPaymentForInvoice(${inv.id},'${inv.invoice_number}',${inv.balance||0})">Record Payment</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  const orphanSection = orphanInvs.length > 0 ? `
+  <div class="card mb-16">
+    <div style="font-size:13px;font-weight:700;color:var(--chili);margin-bottom:12px">
+      ⚠️ Standalone Invoices <span style="font-weight:400;color:var(--text-3);font-size:12px">(not linked to an order — legacy or direct-entry)</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Invoice #</th><th>Customer</th><th>Order</th>
+          <th class="text-right">Total</th><th class="text-right">Paid</th>
+          <th class="text-right">Outstanding</th><th>Status</th><th>Actions</th>
+        </tr></thead>
+        <tbody>${orphanRows}</tbody>
+      </table>
+    </div>
+  </div>` : '';
+
   // Status filter
   const filters = ['all','draft','confirmed','in_production','partially_invoiced','invoiced','cancelled'];
   const filterLabels = {
@@ -1951,6 +1989,8 @@ async function renderOrdersInvoices() {
       </table>
     </div>
   </div>
+
+  ${orphanSection}
 
   <!-- Order detail panel -->
   <div id="co-detail-panel"></div>`;
