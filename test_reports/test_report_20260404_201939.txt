@@ -1,0 +1,79 @@
+══════════════════════════════════════════════════════════════
+  SPICETOPIA ERP — TEST REPORT
+  Run at : 2026-04-04 20:19:39
+  Server : http://localhost:3001
+══════════════════════════════════════════════════════════════
+  Passed  : 24
+  Failed  : 11
+  Skipped : 2
+  Total   : 37
+  Result  : FAILURES FOUND (68% passing)
+══════════════════════════════════════════════════════════════
+
+  ✓ [PASS]  Server is reachable on port 3001
+  ✓ [PASS]  Login as 'admin' returns auth token
+  ✓ [PASS]  /api/auth/me returns current user
+  ✗ [FAIL]  Invalid token correctly returns 401  → got 200
+  ✗ [FAIL]  Dashboard returns all required KPI fields  → missing: ['total_customers', 'total_products', 'total_ingredients', 'low_stock_ingredients', 'low_stock_products', 'outstanding_ar', 'outstanding_ap', 'recent_invoices']
+  ✗ [FAIL]  Dashboard AR/AP are non-negative numbers  → AR=-1.0 AP=-1.0
+  ✓ [PASS]  Products list returns 2 product(s)
+  ✓ [PASS]  Ingredients list returns 29 ingredient(s)
+  ✓ [PASS]  Create new customer → code: SP-SP-CUST-0001
+  ✓ [PASS]  Edit customer SP-SP-CUST-0001
+  ✓ [PASS]  Create new supplier → id: 3
+  ✓ [PASS]  Customers list returns 6 customer(s)
+  ✓ [PASS]  Inventory ledger returns 56 movement(s)
+  ✗ [FAIL]  Inventory adjustment (stock addition)  → 400 Client Error: Bad Request for url: http://localhost:3001/api/inventory/adjustment
+  ⊘ [SKIP]  Negative inventory guard  [Could not calculate current stock: 'quantity']
+  ✗ [FAIL]  Multi-line sale (POST /api/sales/multi)  → 400 Client Error: Bad Request for url: http://localhost:3001/api/sales/multi
+  ✗ [FAIL]  Create multi-ingredient bill (POST /api/bills)  → 400 Client Error: Bad Request for url: http://localhost:3001/api/bills
+  ✗ [FAIL]  Create work order (POST /api/work-orders)  → 400 Client Error: Bad Request for url: http://localhost:3001/api/work-orders
+  ✓ [PASS]  Prices list returns 24 price record(s)
+  ✗ [FAIL]  Create new price (POST /api/prices)  → 500 Server Error: Internal Server Error for url: http://localhost:3001/api/prices
+  ✓ [PASS]  Margins report returns 1 product row(s)
+  ✗ [FAIL]  Rep performance report returns a list  → {'period': '2026-04', 'reps': []}
+  ✓ [PASS]  Audit log returns 44 entries
+  ✓ [PASS]  Zones list returns 5 zone(s)
+  ✓ [PASS]  Routes list returns 16 route(s)
+  ✓ [PASS]  Reps list returns 0 rep(s)
+  ✓ [PASS]  Field orders list returns 0 order(s)
+  ✓ [PASS]  Beat visits list returns 0 visit(s)
+  ✓ [PASS]  Payroll list returns 0 record(s)
+  ✓ [PASS]  GET /api/customer-orders returns list (0 order(s))
+  ✓ [PASS]  Status filter ?status=draft returns list (0 order(s))
+  ✓ [PASS]  Status filter ?status=confirmed returns list (0 order(s))
+  ✓ [PASS]  Status filter ?status=invoiced returns list (0 order(s))
+  ✓ [PASS]  Status filter ?status=cancelled returns list (0 order(s))
+  ✗ [FAIL]  POST /api/customer-orders responds  → 400 Client Error: Bad Request for url: http://localhost:3001/api/customer-orders
+  ⊘ [SKIP]  Subsequent order tests — order creation failed  [skipping dependents]
+  ✗ [FAIL]  [Step 1] POST /api/customer-orders  → 400 Client Error: Bad Request for url: http://localhost:3001/api/customer-orders
+
+──────────────────────────────────────────────────────────────
+  FAILED TESTS DETAIL
+──────────────────────────────────────────────────────────────
+  ✗ Invalid token correctly returns 401
+      Detail: got 200
+  ✗ Dashboard returns all required KPI fields
+      Detail: missing: ['total_customers', 'total_products', 'total_ingredients', 'low_stock_ingredients', 'low_stock_products', 'outstanding_ar', 'outstanding_ap', 'recent_invoices']
+  ✗ Dashboard AR/AP are non-negative numbers
+      Detail: AR=-1.0 AP=-1.0
+  ✗ Inventory adjustment (stock addition)
+      Detail: 400 Client Error: Bad Request for url: http://localhost:3001/api/inventory/adjustment
+  ✗ Multi-line sale (POST /api/sales/multi)
+      Detail: 400 Client Error: Bad Request for url: http://localhost:3001/api/sales/multi
+  ✗ Create multi-ingredient bill (POST /api/bills)
+      Detail: 400 Client Error: Bad Request for url: http://localhost:3001/api/bills
+  ✗ Create work order (POST /api/work-orders)
+      Detail: 400 Client Error: Bad Request for url: http://localhost:3001/api/work-orders
+  ✗ Create new price (POST /api/prices)
+      Detail: 500 Server Error: Internal Server Error for url: http://localhost:3001/api/prices
+  ✗ Rep performance report returns a list
+      Detail: {'period': '2026-04', 'reps': []}
+  ✗ POST /api/customer-orders responds
+      Detail: 400 Client Error: Bad Request for url: http://localhost:3001/api/customer-orders
+  ✗ [Step 1] POST /api/customer-orders
+      Detail: 400 Client Error: Bad Request for url: http://localhost:3001/api/customer-orders
+
+══════════════════════════════════════════════════════════════
+  END OF REPORT
+══════════════════════════════════════════════════════════════

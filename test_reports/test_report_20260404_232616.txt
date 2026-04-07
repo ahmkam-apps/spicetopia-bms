@@ -1,0 +1,33 @@
+══════════════════════════════════════════════════════════════
+  SPICETOPIA ERP — TEST REPORT
+  Run at : 2026-04-04 23:26:16
+  Server : http://localhost:3001
+══════════════════════════════════════════════════════════════
+  Passed  : 11
+  Failed  : 0
+  Skipped : 1
+  Total   : 12
+  Result  : ALL PASSED ✓
+══════════════════════════════════════════════════════════════
+
+  ✓ [PASS]  Server is reachable on port 3001
+  ✓ [PASS]  Login as 'admin' returns auth token
+  ✓ [PASS]  /api/auth/me returns current user
+  ✓ [PASS]  Invalid token correctly rejected (authenticated:false)
+  ✓ [PASS]  Products list returns 2 product(s)
+  ✓ [PASS]  Resolved variant_id=1  pack_size=50g  price_type_id=1 for 'CM'
+  ✓ [PASS]  Ingredients list returns 29 ingredient(s)
+  ✓ [PASS]  Create new customer → code: SP-SP-CUST-0014
+  ✓ [PASS]  Edit customer SP-SP-CUST-0014
+  ✓ [PASS]  Create new supplier → id: 16
+  ✓ [PASS]  Customers list returns 19 customer(s)
+  ⊘ [SKIP]  Multi-line sale  [No finished goods stock for CM/50g — run production module first or re-run full suite]
+
+──────────────────────────────────────────────────────────────
+  FAILED TESTS DETAIL
+──────────────────────────────────────────────────────────────
+  (none)
+
+══════════════════════════════════════════════════════════════
+  END OF REPORT
+══════════════════════════════════════════════════════════════

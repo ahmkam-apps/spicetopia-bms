@@ -1,0 +1,307 @@
+{
+  "run_at": "2026-04-04 22:42:36",
+  "server": "http://localhost:3001",
+  "summary": {
+    "total": 73,
+    "passed": 72,
+    "failed": 0,
+    "skipped": 1,
+    "pass_pct": 100,
+    "result": "PASS"
+  },
+  "tests": [
+    {
+      "status": "PASS",
+      "test": "Server is reachable on port 3001"
+    },
+    {
+      "status": "PASS",
+      "test": "Login as 'admin' returns auth token"
+    },
+    {
+      "status": "PASS",
+      "test": "/api/auth/me returns current user"
+    },
+    {
+      "status": "PASS",
+      "test": "Invalid token correctly rejected (authenticated:false)"
+    },
+    {
+      "status": "PASS",
+      "test": "Dashboard returns all required KPI fields"
+    },
+    {
+      "status": "PASS",
+      "test": "Dashboard AR=0.00  AP=18000.00  (non-negative)"
+    },
+    {
+      "status": "PASS",
+      "test": "Products list returns 2 product(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Resolved variant_id=1  pack_size=50g  price_type_id=1 for 'CM'"
+    },
+    {
+      "status": "PASS",
+      "test": "Ingredients list returns 29 ingredient(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new customer \u2192 code: SP-SP-CUST-0013"
+    },
+    {
+      "status": "PASS",
+      "test": "Edit customer SP-SP-CUST-0013"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new supplier \u2192 id: 15"
+    },
+    {
+      "status": "PASS",
+      "test": "Customers list returns 18 customer(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Inventory ledger returns 191 movement(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Inventory adjustment (add 100kg to ingredient 1)"
+    },
+    {
+      "status": "PASS",
+      "test": "Negative inventory guard: server rejects stock below zero"
+    },
+    {
+      "status": "SKIP",
+      "test": "Multi-line sale",
+      "reason": "No finished goods stock for CM/50g \u2014 run production module first or re-run full suite"
+    },
+    {
+      "status": "PASS",
+      "test": "Create multi-ingredient bill \u2192 id: 14"
+    },
+    {
+      "status": "PASS",
+      "test": "New bill appears in bills list"
+    },
+    {
+      "status": "PASS",
+      "test": "Record payment against bill 14"
+    },
+    {
+      "status": "PASS",
+      "test": "Bill balance reduced after payment \u2192 2000.00"
+    },
+    {
+      "status": "PASS",
+      "test": "AP aging report returns 10 supplier row(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create work order \u2192 id: 26"
+    },
+    {
+      "status": "PASS",
+      "test": "Work order appears in work orders list"
+    },
+    {
+      "status": "PASS",
+      "test": "Update work order status \u2192 in_progress"
+    },
+    {
+      "status": "PASS",
+      "test": "Convert work order \u2192 production batch (response: {'batchId': 'SP-BATCH-0020', 'totalGrams': 500.0, 'qtyUnits': 10, 'ingredients': [{'ingredient_id': 1, 'ing_code': 'SP-ING001', 'ing_name': 'Zeera (Indian)', 'needed_grams': 143.0}, {'ingredient_id': 4, 'ing_code': 'SP-ING004', 'ing_name': 'Dhaniya (Sabit)', 'needed_grams': 71.5}, {'ingredient_id': 6, 'ing_code': 'SP-ING006', 'ing_name': 'Lal Mirch Loongi', 'needed_grams': 143.0}, {'ingredient_id': 9, 'ing_code': 'SP-ING009', 'ing_name': 'Kala Namak', 'needed_grams': 57.0}, {'ingredient_id': 10, 'ing_code': 'SP-ING010', 'ing_name': 'Tatri', 'needed_grams': 57.0}, {'ingredient_id': 23, 'ing_code': 'SP-ING023', 'ing_name': 'Kali Mirch', 'needed_grams': 28.5}], 'bomVersion': 1, 'woNumber': 'SP-WO-0026'})"
+    },
+    {
+      "status": "PASS",
+      "test": "Production batches list returns 20 batch(es)"
+    },
+    {
+      "status": "PASS",
+      "test": "Prices list returns 24 price record(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new price \u2192 id: 41"
+    },
+    {
+      "status": "PASS",
+      "test": "Only one active price per variant+price_type (no duplicates)"
+    },
+    {
+      "status": "PASS",
+      "test": "Margins report returns 2 product row(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Rep performance report returns 0 rep row(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Audit log returns 200 entries"
+    },
+    {
+      "status": "PASS",
+      "test": "Zones list returns 5 zone(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Routes list returns 16 route(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Reps list returns 0 rep(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Field orders list returns 0 order(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Beat visits list returns 0 visit(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Payroll list returns 0 record(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "GET /api/customer-orders returns list (24 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=draft returns list (2 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=confirmed returns list (9 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=invoiced returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=cancelled returns list (10 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Create draft order \u2192 id=25  number=SP-ORD-0027"
+    },
+    {
+      "status": "PASS",
+      "test": "GET /api/customer-orders/25 returns correct order"
+    },
+    {
+      "status": "PASS",
+      "test": "New order status is 'draft'"
+    },
+    {
+      "status": "PASS",
+      "test": "Order has 1 line item(s) with correct product code"
+    },
+    {
+      "status": "PASS",
+      "test": "Cannot invoice a draft order (correctly rejected)"
+    },
+    {
+      "status": "PASS",
+      "test": "Confirm order 25 \u2192 status updated"
+    },
+    {
+      "status": "PASS",
+      "test": "Order status is 'confirmed' after confirm call"
+    },
+    {
+      "status": "PASS",
+      "test": "Re-confirming already-confirmed order is rejected"
+    },
+    {
+      "status": "PASS",
+      "test": "Cancel confirmed order 25 \u2192 ok"
+    },
+    {
+      "status": "PASS",
+      "test": "Order status is 'cancelled' after cancel call"
+    },
+    {
+      "status": "PASS",
+      "test": "Cannot create WO on a cancelled order (correctly rejected)"
+    },
+    {
+      "status": "PASS",
+      "test": "Order with empty lines is rejected"
+    },
+    {
+      "status": "PASS",
+      "test": "Order with non-existent customer is rejected"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 1] Customer order created \u2192 id=26  number=SP-ORD-0028"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 2] Order 26 confirmed"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 2] Order detail has 1 item(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 3] Work order created from order item \u2192 wo_id=27"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 4] Work order 27 appears in Production module list"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 4] Work order links back to customer_order_id=26"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 5] Production batch released from work order (batchId=SP-BATCH-0021)"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 5b] Production batch list grew from 20 \u2192 21"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 6] Invoice generated from order \u2192 invoice_id=6"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 7] Order status is 'partially_invoiced' after partial invoice"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 8] Invoice 6 appears in Invoices list"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 8] Invoice links back to customer_order_id=26"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 9] Dashboard outstanding AR is positive (472.00) \u2014 invoice reflected"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 10] Payment of 472.00 recorded against invoice 6"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 10] Dashboard AR dropped after payment (472.00 \u2192 0.00)"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 11] Invoice balance is zero after full payment (0.00)"
+    }
+  ]
+}

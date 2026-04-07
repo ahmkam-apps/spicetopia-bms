@@ -1,0 +1,201 @@
+{
+  "run_at": "2026-04-04 20:26:38",
+  "server": "http://localhost:3001",
+  "summary": {
+    "total": 45,
+    "passed": 38,
+    "failed": 6,
+    "skipped": 1,
+    "pass_pct": 86,
+    "result": "FAIL"
+  },
+  "tests": [
+    {
+      "status": "PASS",
+      "test": "Server is reachable on port 3001"
+    },
+    {
+      "status": "PASS",
+      "test": "Login as 'admin' returns auth token"
+    },
+    {
+      "status": "PASS",
+      "test": "/api/auth/me returns current user"
+    },
+    {
+      "status": "PASS",
+      "test": "Invalid token correctly rejected (authenticated:false)"
+    },
+    {
+      "status": "PASS",
+      "test": "Dashboard returns all required KPI fields"
+    },
+    {
+      "status": "PASS",
+      "test": "Dashboard AR=0.00  AP=33000.00  (non-negative)"
+    },
+    {
+      "status": "PASS",
+      "test": "Products list returns 2 product(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Resolved variant_id=1  pack_size=50g  price_type_id=1 for 'CM'"
+    },
+    {
+      "status": "PASS",
+      "test": "Ingredients list returns 29 ingredient(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new customer \u2192 code: SP-SP-CUST-0002"
+    },
+    {
+      "status": "PASS",
+      "test": "Edit customer SP-SP-CUST-0002"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new supplier \u2192 id: 4"
+    },
+    {
+      "status": "PASS",
+      "test": "Customers list returns 7 customer(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Inventory ledger returns 56 movement(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Inventory adjustment (add 100kg to ingredient 1)"
+    },
+    {
+      "status": "PASS",
+      "test": "Negative inventory guard: server rejects stock below zero"
+    },
+    {
+      "status": "FAIL",
+      "test": "Multi-line sale (POST /api/sales/multi)",
+      "detail": "400 Client Error: Bad Request for url: http://localhost:3001/api/sales/multi"
+    },
+    {
+      "status": "FAIL",
+      "test": "Create bill returns id",
+      "detail": "{'billNumber': 'SP-BILL-0003', 'billId': 3, 'total': 3000.0}"
+    },
+    {
+      "status": "FAIL",
+      "test": "New bill appears in bills list",
+      "detail": "bill_id=None not found"
+    },
+    {
+      "status": "PASS",
+      "test": "AP aging report returns 3 supplier row(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create work order \u2192 id: 4"
+    },
+    {
+      "status": "PASS",
+      "test": "Work order appears in work orders list"
+    },
+    {
+      "status": "FAIL",
+      "test": "Update work order status (IN_PROGRESS)",
+      "detail": "400 Client Error: Bad Request for url: http://localhost:3001/api/work-orders/4/status"
+    },
+    {
+      "status": "PASS",
+      "test": "Convert work order \u2192 production batch (response: {'batchId': 'SP-BATCH-0003', 'totalGrams': 500.0, 'qtyUnits': 10, 'ingredients': [{'ingredient_id': 1, 'ing_code': 'SP-ING001', 'ing_name': 'Zeera (Indian)', 'needed_grams': 143.0}, {'ingredient_id': 4, 'ing_code': 'SP-ING004', 'ing_name': 'Dhaniya (Sabit)', 'needed_grams': 71.5}, {'ingredient_id': 6, 'ing_code': 'SP-ING006', 'ing_name': 'Lal Mirch Loongi', 'needed_grams': 143.0}, {'ingredient_id': 9, 'ing_code': 'SP-ING009', 'ing_name': 'Kala Namak', 'needed_grams': 57.0}, {'ingredient_id': 10, 'ing_code': 'SP-ING010', 'ing_name': 'Tatri', 'needed_grams': 57.0}, {'ingredient_id': 23, 'ing_code': 'SP-ING023', 'ing_name': 'Kali Mirch', 'needed_grams': 28.5}], 'bomVersion': 1, 'woNumber': 'SP-WO-0004'})"
+    },
+    {
+      "status": "PASS",
+      "test": "Production batches list returns 3 batch(es)"
+    },
+    {
+      "status": "PASS",
+      "test": "Prices list returns 24 price record(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new price \u2192 id: 30"
+    },
+    {
+      "status": "PASS",
+      "test": "Only one active price per variant+price_type (no duplicates)"
+    },
+    {
+      "status": "PASS",
+      "test": "Margins report returns 1 product row(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Rep performance report returns 0 rep row(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Audit log returns 51 entries"
+    },
+    {
+      "status": "PASS",
+      "test": "Zones list returns 5 zone(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Routes list returns 16 route(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Reps list returns 0 rep(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Field orders list returns 0 order(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Beat visits list returns 0 visit(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Payroll list returns 0 record(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "GET /api/customer-orders returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=draft returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=confirmed returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=invoiced returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=cancelled returns list (0 order(s))"
+    },
+    {
+      "status": "FAIL",
+      "test": "Create draft order returns ok+order_id",
+      "detail": "{'orderId': 1, 'orderNumber': 'SP-ORD-0003'}"
+    },
+    {
+      "status": "SKIP",
+      "test": "Subsequent order tests \u2014 order creation failed",
+      "reason": "skipping dependents"
+    },
+    {
+      "status": "FAIL",
+      "test": "[Step 1] Customer order created",
+      "detail": "{'orderId': 2, 'orderNumber': 'SP-ORD-0004'}"
+    }
+  ]
+}

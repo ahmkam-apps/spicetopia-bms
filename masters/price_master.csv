@@ -1,0 +1,25 @@
+product_code,product_name,pack_size,price_type,price,effective_from
+CM,Chaat Masala,50g,mfg_cost,85.0,2026-04-04
+CM,Chaat Masala,50g,ex_factory,120.0,2026-04-04
+CM,Chaat Masala,50g,distributor,150.0,2026-04-04
+CM,Chaat Masala,50g,retail_mrp,200.0,2026-04-04
+CM,Chaat Masala,100g,mfg_cost,161.5,2026-04-04
+CM,Chaat Masala,100g,ex_factory,228.0,2026-04-04
+CM,Chaat Masala,100g,distributor,285.0,2026-04-04
+CM,Chaat Masala,100g,retail_mrp,380.0,2026-04-04
+CM,Chaat Masala,1000g,mfg_cost,1360.0,2026-04-04
+CM,Chaat Masala,1000g,ex_factory,1920.0,2026-04-04
+CM,Chaat Masala,1000g,distributor,2400.0,2026-04-04
+CM,Chaat Masala,1000g,retail_mrp,3200.0,2026-04-04
+GM,Garam Masala,50g,mfg_cost,90.0,2026-04-04
+GM,Garam Masala,50g,ex_factory,130.0,2026-04-04
+GM,Garam Masala,50g,distributor,165.0,2026-04-04
+GM,Garam Masala,50g,retail_mrp,220.0,2026-04-04
+GM,Garam Masala,100g,mfg_cost,171.0,2026-04-04
+GM,Garam Masala,100g,ex_factory,247.0,2026-04-04
+GM,Garam Masala,100g,distributor,313.5,2026-04-04
+GM,Garam Masala,100g,retail_mrp,418.0,2026-04-04
+GM,Garam Masala,1000g,mfg_cost,1440.0,2026-04-04
+GM,Garam Masala,1000g,ex_factory,2080.0,2026-04-04
+GM,Garam Masala,1000g,distributor,2640.0,2026-04-04
+GM,Garam Masala,1000g,retail_mrp,3520.0,2026-04-04

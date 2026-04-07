@@ -1,0 +1,93 @@
+══════════════════════════════════════════════════════════════
+  SPICETOPIA ERP — TEST REPORT
+  Run at : 2026-04-04 20:31:12
+  Server : http://localhost:3001
+══════════════════════════════════════════════════════════════
+  Passed  : 59
+  Failed  : 4
+  Skipped : 2
+  Total   : 65
+  Result  : FAILURES FOUND (93% passing)
+══════════════════════════════════════════════════════════════
+
+  ✓ [PASS]  Server is reachable on port 3001
+  ✓ [PASS]  Login as 'admin' returns auth token
+  ✓ [PASS]  /api/auth/me returns current user
+  ✓ [PASS]  Invalid token correctly rejected (authenticated:false)
+  ✓ [PASS]  Dashboard returns all required KPI fields
+  ✓ [PASS]  Dashboard AR=0.00  AP=38000.00  (non-negative)
+  ✓ [PASS]  Products list returns 2 product(s)
+  ✓ [PASS]  Resolved variant_id=1  pack_size=50g  price_type_id=1 for 'CM'
+  ✓ [PASS]  Ingredients list returns 29 ingredient(s)
+  ✓ [PASS]  Create new customer → code: SP-SP-CUST-0004
+  ✓ [PASS]  Edit customer SP-SP-CUST-0004
+  ✓ [PASS]  Create new supplier → id: 6
+  ✓ [PASS]  Customers list returns 9 customer(s)
+  ✓ [PASS]  Inventory ledger returns 74 movement(s)
+  ✓ [PASS]  Inventory adjustment (add 100kg to ingredient 1)
+  ✓ [PASS]  Negative inventory guard: server rejects stock below zero
+  ⊘ [SKIP]  Multi-line sale  [No finished goods stock for CM/50g — run production module first or re-run full suite]
+  ✓ [PASS]  Create multi-ingredient bill → id: 5
+  ✓ [PASS]  New bill appears in bills list
+  ✓ [PASS]  Record payment against bill 5
+  ✓ [PASS]  Bill balance reduced after payment → 2000.00
+  ✓ [PASS]  AP aging report returns 5 supplier row(s)
+  ✓ [PASS]  Create work order → id: 6
+  ✓ [PASS]  Work order appears in work orders list
+  ✓ [PASS]  Update work order status → in_progress
+  ✓ [PASS]  Convert work order → production batch (response: {'batchId': 'SP-BATCH-0005', 'totalGrams': 500.0, 'qtyUnits': 10, 'ingredients': [{'ingredient_id': 1, 'ing_code': 'SP-ING001', 'ing_name': 'Zeera (Indian)', 'needed_grams': 143.0}, {'ingredient_id': 4, 'ing_code': 'SP-ING004', 'ing_name': 'Dhaniya (Sabit)', 'needed_grams': 71.5}, {'ingredient_id': 6, 'ing_code': 'SP-ING006', 'ing_name': 'Lal Mirch Loongi', 'needed_grams': 143.0}, {'ingredient_id': 9, 'ing_code': 'SP-ING009', 'ing_name': 'Kala Namak', 'needed_grams': 57.0}, {'ingredient_id': 10, 'ing_code': 'SP-ING010', 'ing_name': 'Tatri', 'needed_grams': 57.0}, {'ingredient_id': 23, 'ing_code': 'SP-ING023', 'ing_name': 'Kali Mirch', 'needed_grams': 28.5}], 'bomVersion': 1, 'woNumber': 'SP-WO-0006'})
+  ✓ [PASS]  Production batches list returns 5 batch(es)
+  ✓ [PASS]  Prices list returns 24 price record(s)
+  ✓ [PASS]  Create new price → id: 32
+  ✓ [PASS]  Only one active price per variant+price_type (no duplicates)
+  ✓ [PASS]  Margins report returns 1 product row(s)
+  ✓ [PASS]  Rep performance report returns 0 rep row(s)
+  ✓ [PASS]  Audit log returns 72 entries
+  ✓ [PASS]  Zones list returns 5 zone(s)
+  ✓ [PASS]  Routes list returns 16 route(s)
+  ✓ [PASS]  Reps list returns 0 rep(s)
+  ✓ [PASS]  Field orders list returns 0 order(s)
+  ✓ [PASS]  Beat visits list returns 0 visit(s)
+  ✓ [PASS]  Payroll list returns 0 record(s)
+  ✓ [PASS]  GET /api/customer-orders returns list (4 order(s))
+  ✓ [PASS]  Status filter ?status=draft returns list (2 order(s))
+  ✓ [PASS]  Status filter ?status=confirmed returns list (1 order(s))
+  ✓ [PASS]  Status filter ?status=invoiced returns list (0 order(s))
+  ✓ [PASS]  Status filter ?status=cancelled returns list (1 order(s))
+  ✓ [PASS]  Create draft order → id=5  number=SP-ORD-0007
+  ✓ [PASS]  GET /api/customer-orders/5 returns correct order
+  ✓ [PASS]  New order status is 'draft'
+  ✓ [PASS]  Order has 1 line item(s) with correct product code
+  ✓ [PASS]  Cannot invoice a draft order (correctly rejected)
+  ✓ [PASS]  Confirm order 5 → status updated
+  ✓ [PASS]  Order status is 'confirmed' after confirm call
+  ✓ [PASS]  Re-confirming already-confirmed order is rejected
+  ✓ [PASS]  Cancel confirmed order 5 → ok
+  ✓ [PASS]  Order status is 'cancelled' after cancel call
+  ✓ [PASS]  Cannot create WO on a cancelled order (correctly rejected)
+  ✓ [PASS]  Order with empty lines is rejected
+  ✓ [PASS]  Order with non-existent customer is rejected
+  ✓ [PASS]  [Step 1] Customer order created → id=6  number=SP-ORD-0008
+  ✓ [PASS]  [Step 2] Order 6 confirmed
+  ✓ [PASS]  [Step 2] Order detail has 1 item(s)
+  ✗ [FAIL]  [Step 3] Work order created from order item  → {'woId': 7, 'woNumber': 'SP-WO-0007', 'qtyPlanned': 3, 'feasible': True, 'shortfalls': []}
+  ✗ [FAIL]  [Step 6] POST /api/customer-orders/6/invoice  → 400 Client Error: Bad Request for url: http://localhost:3001/api/customer-orders/6/invoice
+  ✗ [FAIL]  [Step 7] Order status updated after invoice  → expected partially_invoiced or invoiced, got 'confirmed'
+  ✗ [FAIL]  [Step 9] Dashboard AR reflects new invoice  → AR=0.0
+  ⊘ [SKIP]  [Step 10] Payment + AR drop  [invoice_id or invoice_total not available]
+
+──────────────────────────────────────────────────────────────
+  FAILED TESTS DETAIL
+──────────────────────────────────────────────────────────────
+  ✗ [Step 3] Work order created from order item
+      Detail: {'woId': 7, 'woNumber': 'SP-WO-0007', 'qtyPlanned': 3, 'feasible': True, 'shortfalls': []}
+  ✗ [Step 6] POST /api/customer-orders/6/invoice
+      Detail: 400 Client Error: Bad Request for url: http://localhost:3001/api/customer-orders/6/invoice
+  ✗ [Step 7] Order status updated after invoice
+      Detail: expected partially_invoiced or invoiced, got 'confirmed'
+  ✗ [Step 9] Dashboard AR reflects new invoice
+      Detail: AR=0.0
+
+══════════════════════════════════════════════════════════════
+  END OF REPORT
+══════════════════════════════════════════════════════════════

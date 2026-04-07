@@ -1,0 +1,77 @@
+══════════════════════════════════════════════════════════════
+  SPICETOPIA ERP — TEST REPORT
+  Run at : 2026-04-04 20:26:38
+  Server : http://localhost:3001
+══════════════════════════════════════════════════════════════
+  Passed  : 38
+  Failed  : 6
+  Skipped : 1
+  Total   : 45
+  Result  : FAILURES FOUND (86% passing)
+══════════════════════════════════════════════════════════════
+
+  ✓ [PASS]  Server is reachable on port 3001
+  ✓ [PASS]  Login as 'admin' returns auth token
+  ✓ [PASS]  /api/auth/me returns current user
+  ✓ [PASS]  Invalid token correctly rejected (authenticated:false)
+  ✓ [PASS]  Dashboard returns all required KPI fields
+  ✓ [PASS]  Dashboard AR=0.00  AP=33000.00  (non-negative)
+  ✓ [PASS]  Products list returns 2 product(s)
+  ✓ [PASS]  Resolved variant_id=1  pack_size=50g  price_type_id=1 for 'CM'
+  ✓ [PASS]  Ingredients list returns 29 ingredient(s)
+  ✓ [PASS]  Create new customer → code: SP-SP-CUST-0002
+  ✓ [PASS]  Edit customer SP-SP-CUST-0002
+  ✓ [PASS]  Create new supplier → id: 4
+  ✓ [PASS]  Customers list returns 7 customer(s)
+  ✓ [PASS]  Inventory ledger returns 56 movement(s)
+  ✓ [PASS]  Inventory adjustment (add 100kg to ingredient 1)
+  ✓ [PASS]  Negative inventory guard: server rejects stock below zero
+  ✗ [FAIL]  Multi-line sale (POST /api/sales/multi)  → 400 Client Error: Bad Request for url: http://localhost:3001/api/sales/multi
+  ✗ [FAIL]  Create bill returns id  → {'billNumber': 'SP-BILL-0003', 'billId': 3, 'total': 3000.0}
+  ✗ [FAIL]  New bill appears in bills list  → bill_id=None not found
+  ✓ [PASS]  AP aging report returns 3 supplier row(s)
+  ✓ [PASS]  Create work order → id: 4
+  ✓ [PASS]  Work order appears in work orders list
+  ✗ [FAIL]  Update work order status (IN_PROGRESS)  → 400 Client Error: Bad Request for url: http://localhost:3001/api/work-orders/4/status
+  ✓ [PASS]  Convert work order → production batch (response: {'batchId': 'SP-BATCH-0003', 'totalGrams': 500.0, 'qtyUnits': 10, 'ingredients': [{'ingredient_id': 1, 'ing_code': 'SP-ING001', 'ing_name': 'Zeera (Indian)', 'needed_grams': 143.0}, {'ingredient_id': 4, 'ing_code': 'SP-ING004', 'ing_name': 'Dhaniya (Sabit)', 'needed_grams': 71.5}, {'ingredient_id': 6, 'ing_code': 'SP-ING006', 'ing_name': 'Lal Mirch Loongi', 'needed_grams': 143.0}, {'ingredient_id': 9, 'ing_code': 'SP-ING009', 'ing_name': 'Kala Namak', 'needed_grams': 57.0}, {'ingredient_id': 10, 'ing_code': 'SP-ING010', 'ing_name': 'Tatri', 'needed_grams': 57.0}, {'ingredient_id': 23, 'ing_code': 'SP-ING023', 'ing_name': 'Kali Mirch', 'needed_grams': 28.5}], 'bomVersion': 1, 'woNumber': 'SP-WO-0004'})
+  ✓ [PASS]  Production batches list returns 3 batch(es)
+  ✓ [PASS]  Prices list returns 24 price record(s)
+  ✓ [PASS]  Create new price → id: 30
+  ✓ [PASS]  Only one active price per variant+price_type (no duplicates)
+  ✓ [PASS]  Margins report returns 1 product row(s)
+  ✓ [PASS]  Rep performance report returns 0 rep row(s)
+  ✓ [PASS]  Audit log returns 51 entries
+  ✓ [PASS]  Zones list returns 5 zone(s)
+  ✓ [PASS]  Routes list returns 16 route(s)
+  ✓ [PASS]  Reps list returns 0 rep(s)
+  ✓ [PASS]  Field orders list returns 0 order(s)
+  ✓ [PASS]  Beat visits list returns 0 visit(s)
+  ✓ [PASS]  Payroll list returns 0 record(s)
+  ✓ [PASS]  GET /api/customer-orders returns list (0 order(s))
+  ✓ [PASS]  Status filter ?status=draft returns list (0 order(s))
+  ✓ [PASS]  Status filter ?status=confirmed returns list (0 order(s))
+  ✓ [PASS]  Status filter ?status=invoiced returns list (0 order(s))
+  ✓ [PASS]  Status filter ?status=cancelled returns list (0 order(s))
+  ✗ [FAIL]  Create draft order returns ok+order_id  → {'orderId': 1, 'orderNumber': 'SP-ORD-0003'}
+  ⊘ [SKIP]  Subsequent order tests — order creation failed  [skipping dependents]
+  ✗ [FAIL]  [Step 1] Customer order created  → {'orderId': 2, 'orderNumber': 'SP-ORD-0004'}
+
+──────────────────────────────────────────────────────────────
+  FAILED TESTS DETAIL
+──────────────────────────────────────────────────────────────
+  ✗ Multi-line sale (POST /api/sales/multi)
+      Detail: 400 Client Error: Bad Request for url: http://localhost:3001/api/sales/multi
+  ✗ Create bill returns id
+      Detail: {'billNumber': 'SP-BILL-0003', 'billId': 3, 'total': 3000.0}
+  ✗ New bill appears in bills list
+      Detail: bill_id=None not found
+  ✗ Update work order status (IN_PROGRESS)
+      Detail: 400 Client Error: Bad Request for url: http://localhost:3001/api/work-orders/4/status
+  ✗ Create draft order returns ok+order_id
+      Detail: {'orderId': 1, 'orderNumber': 'SP-ORD-0003'}
+  ✗ [Step 1] Customer order created
+      Detail: {'orderId': 2, 'orderNumber': 'SP-ORD-0004'}
+
+══════════════════════════════════════════════════════════════
+  END OF REPORT
+══════════════════════════════════════════════════════════════

@@ -1,0 +1,175 @@
+{
+  "run_at": "2026-04-04 20:19:39",
+  "server": "http://localhost:3001",
+  "summary": {
+    "total": 37,
+    "passed": 24,
+    "failed": 11,
+    "skipped": 2,
+    "pass_pct": 68,
+    "result": "FAIL"
+  },
+  "tests": [
+    {
+      "status": "PASS",
+      "test": "Server is reachable on port 3001"
+    },
+    {
+      "status": "PASS",
+      "test": "Login as 'admin' returns auth token"
+    },
+    {
+      "status": "PASS",
+      "test": "/api/auth/me returns current user"
+    },
+    {
+      "status": "FAIL",
+      "test": "Invalid token correctly returns 401",
+      "detail": "got 200"
+    },
+    {
+      "status": "FAIL",
+      "test": "Dashboard returns all required KPI fields",
+      "detail": "missing: ['total_customers', 'total_products', 'total_ingredients', 'low_stock_ingredients', 'low_stock_products', 'outstanding_ar', 'outstanding_ap', 'recent_invoices']"
+    },
+    {
+      "status": "FAIL",
+      "test": "Dashboard AR/AP are non-negative numbers",
+      "detail": "AR=-1.0 AP=-1.0"
+    },
+    {
+      "status": "PASS",
+      "test": "Products list returns 2 product(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Ingredients list returns 29 ingredient(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new customer \u2192 code: SP-SP-CUST-0001"
+    },
+    {
+      "status": "PASS",
+      "test": "Edit customer SP-SP-CUST-0001"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new supplier \u2192 id: 3"
+    },
+    {
+      "status": "PASS",
+      "test": "Customers list returns 6 customer(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Inventory ledger returns 56 movement(s)"
+    },
+    {
+      "status": "FAIL",
+      "test": "Inventory adjustment (stock addition)",
+      "detail": "400 Client Error: Bad Request for url: http://localhost:3001/api/inventory/adjustment"
+    },
+    {
+      "status": "SKIP",
+      "test": "Negative inventory guard",
+      "reason": "Could not calculate current stock: 'quantity'"
+    },
+    {
+      "status": "FAIL",
+      "test": "Multi-line sale (POST /api/sales/multi)",
+      "detail": "400 Client Error: Bad Request for url: http://localhost:3001/api/sales/multi"
+    },
+    {
+      "status": "FAIL",
+      "test": "Create multi-ingredient bill (POST /api/bills)",
+      "detail": "400 Client Error: Bad Request for url: http://localhost:3001/api/bills"
+    },
+    {
+      "status": "FAIL",
+      "test": "Create work order (POST /api/work-orders)",
+      "detail": "400 Client Error: Bad Request for url: http://localhost:3001/api/work-orders"
+    },
+    {
+      "status": "PASS",
+      "test": "Prices list returns 24 price record(s)"
+    },
+    {
+      "status": "FAIL",
+      "test": "Create new price (POST /api/prices)",
+      "detail": "500 Server Error: Internal Server Error for url: http://localhost:3001/api/prices"
+    },
+    {
+      "status": "PASS",
+      "test": "Margins report returns 1 product row(s)"
+    },
+    {
+      "status": "FAIL",
+      "test": "Rep performance report returns a list",
+      "detail": "{'period': '2026-04', 'reps': []}"
+    },
+    {
+      "status": "PASS",
+      "test": "Audit log returns 44 entries"
+    },
+    {
+      "status": "PASS",
+      "test": "Zones list returns 5 zone(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Routes list returns 16 route(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Reps list returns 0 rep(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Field orders list returns 0 order(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Beat visits list returns 0 visit(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Payroll list returns 0 record(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "GET /api/customer-orders returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=draft returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=confirmed returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=invoiced returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=cancelled returns list (0 order(s))"
+    },
+    {
+      "status": "FAIL",
+      "test": "POST /api/customer-orders responds",
+      "detail": "400 Client Error: Bad Request for url: http://localhost:3001/api/customer-orders"
+    },
+    {
+      "status": "SKIP",
+      "test": "Subsequent order tests \u2014 order creation failed",
+      "reason": "skipping dependents"
+    },
+    {
+      "status": "FAIL",
+      "test": "[Step 1] POST /api/customer-orders",
+      "detail": "400 Client Error: Bad Request for url: http://localhost:3001/api/customer-orders"
+    }
+  ]
+}

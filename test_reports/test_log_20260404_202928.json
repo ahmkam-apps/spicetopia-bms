@@ -1,0 +1,255 @@
+{
+  "run_at": "2026-04-04 20:29:28",
+  "server": "http://localhost:3001",
+  "summary": {
+    "total": 59,
+    "passed": 54,
+    "failed": 4,
+    "skipped": 1,
+    "pass_pct": 93,
+    "result": "FAIL"
+  },
+  "tests": [
+    {
+      "status": "PASS",
+      "test": "Server is reachable on port 3001"
+    },
+    {
+      "status": "PASS",
+      "test": "Login as 'admin' returns auth token"
+    },
+    {
+      "status": "PASS",
+      "test": "/api/auth/me returns current user"
+    },
+    {
+      "status": "PASS",
+      "test": "Invalid token correctly rejected (authenticated:false)"
+    },
+    {
+      "status": "PASS",
+      "test": "Dashboard returns all required KPI fields"
+    },
+    {
+      "status": "PASS",
+      "test": "Dashboard AR=0.00  AP=36000.00  (non-negative)"
+    },
+    {
+      "status": "PASS",
+      "test": "Products list returns 2 product(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Resolved variant_id=1  pack_size=50g  price_type_id=1 for 'CM'"
+    },
+    {
+      "status": "PASS",
+      "test": "Ingredients list returns 29 ingredient(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new customer \u2192 code: SP-SP-CUST-0003"
+    },
+    {
+      "status": "PASS",
+      "test": "Edit customer SP-SP-CUST-0003"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new supplier \u2192 id: 5"
+    },
+    {
+      "status": "PASS",
+      "test": "Customers list returns 8 customer(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Inventory ledger returns 65 movement(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Inventory adjustment (add 100kg to ingredient 1)"
+    },
+    {
+      "status": "PASS",
+      "test": "Negative inventory guard: server rejects stock below zero"
+    },
+    {
+      "status": "SKIP",
+      "test": "Multi-line sale",
+      "reason": "No finished goods stock for CM/50g \u2014 run production module first or re-run full suite"
+    },
+    {
+      "status": "PASS",
+      "test": "Create multi-ingredient bill \u2192 id: 4"
+    },
+    {
+      "status": "PASS",
+      "test": "New bill appears in bills list"
+    },
+    {
+      "status": "PASS",
+      "test": "Record payment against bill 4"
+    },
+    {
+      "status": "PASS",
+      "test": "Bill balance reduced after payment \u2192 2000.00"
+    },
+    {
+      "status": "PASS",
+      "test": "AP aging report returns 4 supplier row(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create work order \u2192 id: 5"
+    },
+    {
+      "status": "PASS",
+      "test": "Work order appears in work orders list"
+    },
+    {
+      "status": "PASS",
+      "test": "Update work order status \u2192 in_progress"
+    },
+    {
+      "status": "PASS",
+      "test": "Convert work order \u2192 production batch (response: {'batchId': 'SP-BATCH-0004', 'totalGrams': 500.0, 'qtyUnits': 10, 'ingredients': [{'ingredient_id': 1, 'ing_code': 'SP-ING001', 'ing_name': 'Zeera (Indian)', 'needed_grams': 143.0}, {'ingredient_id': 4, 'ing_code': 'SP-ING004', 'ing_name': 'Dhaniya (Sabit)', 'needed_grams': 71.5}, {'ingredient_id': 6, 'ing_code': 'SP-ING006', 'ing_name': 'Lal Mirch Loongi', 'needed_grams': 143.0}, {'ingredient_id': 9, 'ing_code': 'SP-ING009', 'ing_name': 'Kala Namak', 'needed_grams': 57.0}, {'ingredient_id': 10, 'ing_code': 'SP-ING010', 'ing_name': 'Tatri', 'needed_grams': 57.0}, {'ingredient_id': 23, 'ing_code': 'SP-ING023', 'ing_name': 'Kali Mirch', 'needed_grams': 28.5}], 'bomVersion': 1, 'woNumber': 'SP-WO-0005'})"
+    },
+    {
+      "status": "PASS",
+      "test": "Production batches list returns 4 batch(es)"
+    },
+    {
+      "status": "PASS",
+      "test": "Prices list returns 24 price record(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new price \u2192 id: 31"
+    },
+    {
+      "status": "PASS",
+      "test": "Only one active price per variant+price_type (no duplicates)"
+    },
+    {
+      "status": "PASS",
+      "test": "Margins report returns 1 product row(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Rep performance report returns 0 rep row(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Audit log returns 60 entries"
+    },
+    {
+      "status": "PASS",
+      "test": "Zones list returns 5 zone(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Routes list returns 16 route(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Reps list returns 0 rep(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Field orders list returns 0 order(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Beat visits list returns 0 visit(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Payroll list returns 0 record(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "GET /api/customer-orders returns list (2 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=draft returns list (2 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=confirmed returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=invoiced returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Status filter ?status=cancelled returns list (0 order(s))"
+    },
+    {
+      "status": "PASS",
+      "test": "Create draft order \u2192 id=3  number=SP-ORD-0005"
+    },
+    {
+      "status": "FAIL",
+      "test": "GET /api/customer-orders/3 returns correct order",
+      "detail": "{'id': 3, 'order_number': 'SP-ORD-0005', 'customer_id': 11, 'order_date': '2026-04-04', 'required_date': '2026-05-04', 'status': 'draft', 'notes': 'Automated test order', 'created_at': '2026-04-05 01:29:28', 'updated_at': '2026-04-05 01:29:28', 'customer_name': 'Test Customer (Edited)', 'customer_code': 'SP-SP-CUST-0003', 'customer_phone': '0300-1111111', 'customer_city': '', 'items': [{'id': 3, 'order_id': 3, 'product_variant_id': 1, 'qty_ordered': 2, 'unit_price': 100.0, 'line_total': 200.0, 'qty_in_production': 0, 'qty_invoiced': 0, 'product_name': 'Chaat Masala', 'product_code': 'CM', 'pack_size': '50g', 'sku_code': 'SP-SKU-0001'}], 'workOrders': [], 'invoices': []}"
+    },
+    {
+      "status": "PASS",
+      "test": "New order status is 'draft'"
+    },
+    {
+      "status": "PASS",
+      "test": "Order has 1 line item(s) with correct product code"
+    },
+    {
+      "status": "PASS",
+      "test": "Cannot invoice a draft order (correctly rejected)"
+    },
+    {
+      "status": "FAIL",
+      "test": "Confirm order 3",
+      "detail": "{'id': 3, 'order_number': 'SP-ORD-0005', 'customer_id': 11, 'order_date': '2026-04-04', 'required_date': '2026-05-04', 'status': 'confirmed', 'notes': 'Automated test order', 'created_at': '2026-04-05 01:29:28', 'updated_at': '2026-04-05 01:29:28', 'customer_name': 'Test Customer (Edited)', 'customer_code': 'SP-SP-CUST-0003', 'customer_phone': '0300-1111111', 'customer_city': '', 'items': [{'id': 3, 'order_id': 3, 'product_variant_id': 1, 'qty_ordered': 2, 'unit_price': 100.0, 'line_total': 200.0, 'qty_in_production': 0, 'qty_invoiced': 0, 'product_name': 'Chaat Masala', 'product_code': 'CM', 'pack_size': '50g', 'sku_code': 'SP-SKU-0001'}], 'workOrders': [], 'invoices': []}"
+    },
+    {
+      "status": "PASS",
+      "test": "Order status is 'confirmed' after confirm call"
+    },
+    {
+      "status": "PASS",
+      "test": "Re-confirming already-confirmed order is rejected"
+    },
+    {
+      "status": "PASS",
+      "test": "Cancel confirmed order 3 \u2192 ok"
+    },
+    {
+      "status": "PASS",
+      "test": "Order status is 'cancelled' after cancel call"
+    },
+    {
+      "status": "FAIL",
+      "test": "WO creation on cancelled order check",
+      "detail": "'item_id'"
+    },
+    {
+      "status": "PASS",
+      "test": "Order with empty lines is rejected"
+    },
+    {
+      "status": "PASS",
+      "test": "Order with non-existent customer is rejected"
+    },
+    {
+      "status": "PASS",
+      "test": "[Step 1] Customer order created \u2192 id=4  number=SP-ORD-0006"
+    },
+    {
+      "status": "FAIL",
+      "test": "[Step 2] Confirm order 4",
+      "detail": "{'id': 4, 'order_number': 'SP-ORD-0006', 'customer_id': 11, 'order_date': '2026-04-04', 'required_date': '2026-05-04', 'status': 'confirmed', 'notes': 'Integration flow test order', 'created_at': '2026-04-05 01:29:28', 'updated_at': '2026-04-05 01:29:28', 'customer_name': 'Test Customer (Edited)', 'customer_code': 'SP-SP-CUST-0003', 'customer_phone': '0300-1111111', 'customer_city': '', 'items': [{'id': 4, 'order_id': 4, 'product_variant_id': 1, 'qty_ordered': 3, 'unit_price': 200.0, 'line_total': 600.0, 'qty_in_production': 0, 'qty_invoiced': 0, 'product_name': 'Chaat Masala', 'product_code': 'CM', 'pack_size': '50g', 'sku_code': 'SP-SKU-0001'}], 'workOrders': [], 'invoices': []}"
+    }
+  ]
+}

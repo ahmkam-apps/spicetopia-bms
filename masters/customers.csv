@@ -1,0 +1,9 @@
+code,name,customer_type,category,city,phone,email,payment_terms_days,default_pack
+SP-CUST001,Mehfil,RETAIL,Restaurant (Bulk),Hyderabad,,,30,50g
+SP-CUST002,Haveli,RETAIL,Restaurant (Bulk),Hyderabad,,,30,50g
+SP-CUST003,Hyderabad Darbar,RETAIL,Restaurant (Bulk),Hyderabad,,,30,50g
+SP-CUST004,Hyderi,DIRECT,,Hyderabad,,,30,50g
+SP-CUST005,Chuapal,RETAIL,,Karachi,,,20,100g
+SP-CUST006,Taimuriya,RETAIL,Retail,Karachi,,,30,50g
+SP-CUST007,Hameed Store,RETAIL,Retail,Karachi,,,30,50g
+SP-CUST008,Zaheer,RETAIL,Retail,Karachi,,,30,50g

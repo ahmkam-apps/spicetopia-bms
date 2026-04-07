@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Spicetopia Field App</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --saffron:  #E8901A;
+  --turmeric: #D4700A;
+  --cardamom: #2E8B57;
+  --chili:    #C0392B;
+  --bg:       #F7F4EF;
+  --card:     #FFFFFF;
+  --text:     #1A1209;
+  --text-2:   #5A4A35;
+  --border:   #E8DFD0;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+       background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ── TOPBAR ── */
+.topbar {
+  background: var(--saffron);
+  padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-title { color: #fff; font-weight: 700; font-size: 17px; }
+.topbar-subtitle { color: rgba(255,255,255,0.75); font-size: 12px; }
+.logout-btn { background: rgba(255,255,255,0.2); border: none; color: #fff;
+  padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
+
+/* ── SCREENS ── */
+.screen { display: none; padding: 16px; max-width: 480px; margin: 0 auto; }
+.screen.active { display: block; }
+
+/* ── LOGIN ── */
+#login-screen {
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 24px;
+  background: linear-gradient(135deg, #1C0E04 0%, #3D1F0A 100%);
+}
+.login-sub { color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 36px; }
+.login-card { background: #fff; border-radius: 16px; padding: 24px; width: 100%; max-width: 340px; }
+.login-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; display: block; }
+.login-input { width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+  border-radius: 10px; font-size: 16px; outline: none; margin-bottom: 14px; }
+.login-input:focus { border-color: var(--saffron); }
+.pin-input { font-size: 24px; letter-spacing: 8px; text-align: center; }
+.login-btn { width: 100%; padding: 14px; background: var(--saffron); color: #fff;
+  border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }
+.login-btn:active { background: var(--turmeric); }
+.login-error { color: var(--chili); font-size: 13px; text-align: center; margin-top: 10px; display: none; }
+
+/* ── CARDS ── */
+.card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.card-title { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 10px;
+  text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ── BUTTONS ── */
+.btn { padding: 12px 20px; border-radius: 10px; border: none; font-size: 14px;
+  font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 10px; }
+.btn-primary { background: var(--saffron); color: #fff; }
+.btn-secondary { background: var(--bg); color: var(--text); border: 1.5px solid var(--border); }
+.btn-success { background: var(--cardamom); color: #fff; }
+.btn-danger  { background: var(--chili); color: #fff; }
+.btn-sm { padding: 6px 14px; font-size: 13px; border-radius: 8px; width: auto;
+  margin-bottom: 0; }
+
+/* ── NAV TABS ── */
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--card); border-top: 1px solid var(--border);
+  display: flex; justify-content: space-around; padding: 8px 0 12px; z-index: 100; }
+.nav-tab { display: flex; flex-direction: column; align-items: center; gap: 2px;
+  flex: 1; background: none; border: none; cursor: pointer; padding: 4px; }
+.nav-tab .icon { font-size: 22px; }
+.nav-tab .label { font-size: 10px; color: var(--text-2); font-weight: 500; }
+.nav-tab.active .label { color: var(--saffron); }
+.nav-tab.active .icon { filter: saturate(2); }
+
+/* ── STOP LIST ── */
+.stop-item { display: flex; align-items: center; gap: 12px; padding: 12px;
+  border-bottom: 1px solid var(--border); cursor: pointer; }
+.stop-item:last-child { border-bottom: none; }
+.stop-num { width: 28px; height: 28px; background: var(--saffron); color: #fff;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.stop-num.done { background: var(--cardamom); }
+.stop-name { font-size: 14px; font-weight: 600; }
+.stop-sub  { font-size: 12px; color: var(--text-2); }
+.stop-status { margin-left: auto; font-size: 11px; font-weight: 600;
+  padding: 3px 8px; border-radius: 20px; flex-shrink: 0; }
+.stop-status.visited { background: #d4edda; color: var(--cardamom); }
+.stop-status.no_order { background: #f8d7da; color: var(--chili); }
+
+/* ── FORM ── */
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 5px; display: block; }
+.form-input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
+  border-radius: 9px; font-size: 15px; outline: none; }
+.form-input:focus { border-color: var(--saffron); }
+select.form-input { background: #fff; }
+
+/* ── ORDER ITEMS ── */
+.order-item { display: flex; align-items: center; gap: 8px; padding: 8px 0;
+  border-bottom: 1px solid var(--border); }
+.order-item:last-child { border-bottom: none; }
+.oi-name { flex: 1; font-size: 13px; }
+.oi-qty  { width: 60px; padding: 6px 8px; border: 1.5px solid var(--border);
+  border-radius: 7px; font-size: 14px; text-align: center; outline: none; }
+.oi-price { width: 80px; text-align: right; font-size: 13px; color: var(--text-2); }
+.oi-remove { background: none; border: none; color: var(--chili); font-size: 18px; cursor: pointer; }
+
+/* ── KPI TILES ── */
+.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.kpi-tile { background: var(--card); border-radius: 12px; padding: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+.kpi-label { font-size: 11px; color: var(--text-2); font-weight: 600; margin-bottom: 4px; }
+.kpi-value { font-size: 20px; font-weight: 700; color: var(--saffron); }
+.kpi-sub   { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+
+/* ── ALERTS ── */
+.alert { padding: 12px 14px; border-radius: 10px; font-size: 13px; margin-bottom: 12px; }
+.alert-success { background: #d4edda; color: #155724; }
+.alert-error   { background: #f8d7da; color: #721c24; }
+
+/* Spacer for bottom nav */
+.bottom-space { height: 72px; }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ── -->
+<div id="login-screen">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 115" style="width:220px;margin-bottom:16px;display:block">
+    <defs>
+      <linearGradient id="chiliGradW" x1="0.5" y1="0" x2="0.5" y2="1">
+        <stop offset="0%"   stop-color="#FFB347"/>
+        <stop offset="55%"  stop-color="#FA6420"/>
+        <stop offset="100%" stop-color="#D42010"/>
+      </linearGradient>
+    </defs>
+    <text font-family="'Arial Black','Arial Bold',Arial,sans-serif" font-weight="900" font-size="54" fill="#FFFFFF" letter-spacing="1"><tspan x="36" y="68">SP</tspan></text>
+    <path d="M128,16 C138,26 140,46 135,58 Q128,67 121,58 C116,46 118,26 128,16 Z" fill="url(#chiliGradW)"/>
+    <text font-family="'Arial Black','Arial Bold',Arial,sans-serif" font-weight="900" font-size="54" fill="#FFFFFF" letter-spacing="1"><tspan x="144" y="68">CETOPIA</tspan></text>
+    <line x1="36" y1="80" x2="424" y2="80" stroke="rgba(255,255,255,0.25)" stroke-width="0.9"/>
+    <text x="230" y="101" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="11.5" fill="rgba(255,255,255,0.5)" letter-spacing="6" font-weight="400">FLAVORS REDEFINED</text>
+  </svg>
+  <div class="login-sub">Field Sales App</div>
+
+  <div class="login-card">
+    <label class="login-label">Phone Number</label>
+    <input class="login-input" id="login-phone" type="tel" placeholder="03001234567"
+      inputmode="numeric" autocomplete="tel">
+
+    <label class="login-label">4-Digit PIN</label>
+    <input class="login-input pin-input" id="login-pin" type="password"
+      maxlength="4" placeholder="••••" inputmode="numeric">
+
+    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app" style="display:none">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbar-name">Sales Rep</div>
+      <div class="topbar-subtitle" id="topbar-date"></div>
+    </div>
+    <button class="logout-btn" onclick="doLogout()">Logout</button>
+  </div>
+
+  <!-- TODAY'S ROUTE screen -->
+  <div class="screen active" id="screen-route">
+    <div class="kpi-grid" id="daily-kpis">
+      <div class="kpi-tile"><div class="kpi-label">Stops Today</div><div class="kpi-value" id="kpi-stops">—</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Visited</div><div class="kpi-value" id="kpi-visited">—</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Orders</div><div class="kpi-value" id="kpi-orders">—</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Day Sales</div><div class="kpi-value" id="kpi-sales" style="font-size:15px">—</div></div>
+    </div>
+    <div id="route-list">
+      <div class="card"><div style="text-align:center;color:var(--text-2);padding:24px">Loading routes…</div></div>
+    </div>
+  </div>
+
+  <!-- NEW ORDER screen -->
+  <div class="screen" id="screen-order">
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Customer</div>
+      <select class="form-input" id="order-customer">
+        <option value="">Select customer…</option>
+      </select>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Add Products</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <select class="form-input" id="order-product" style="flex:1">
+          <option value="">Select product…</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="addOrderItem()">Add</button>
+      </div>
+      <div id="order-items"></div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Order Total</div>
+      <div style="font-size:24px;font-weight:700;color:var(--saffron)" id="order-total">PKR 0</div>
+    </div>
+    <textarea class="form-input" id="order-notes" placeholder="Notes…" rows="2"
+      style="margin-bottom:12px"></textarea>
+    <button class="btn btn-success" onclick="submitOrder()">Submit Order</button>
+    <button class="btn btn-secondary" onclick="clearOrder()">Clear</button>
+  </div>
+
+  <!-- VISIT LOG screen -->
+  <div class="screen" id="screen-log">
+    <div class="card">
+      <div class="card-title">Record Visit</div>
+      <div class="form-group">
+        <label class="form-label">Customer</label>
+        <select class="form-input" id="visit-customer">
+          <option value="">Select customer…</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Outcome</label>
+        <select class="form-input" id="visit-outcome">
+          <option value="visited">Visited — Order taken</option>
+          <option value="no_order">Visited — No order</option>
+          <option value="closed">Shop closed</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="visit-notes" rows="2" placeholder="Optional notes…"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="submitVisit()">Log Visit</button>
+    </div>
+    <div id="visit-log-list" style="margin-top:14px"></div>
+  </div>
+
+  <!-- PROFILE screen -->
+  <div class="screen" id="screen-profile">
+    <div class="card">
+      <div class="card-title">My Profile</div>
+      <div id="profile-info" style="font-size:14px;line-height:2"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Change PIN</div>
+      <div class="form-group">
+        <label class="form-label">New PIN (4 digits)</label>
+        <input class="login-input pin-input" id="new-pin" type="password" maxlength="4"
+          placeholder="••••" inputmode="numeric" style="margin-bottom:0">
+      </div>
+      <button class="btn btn-primary" style="margin-top:10px" onclick="changePin()">Update PIN</button>
+    </div>
+  </div>
+
+  <div class="bottom-space"></div>
+
+  <!-- Bottom navigation -->
+  <nav class="bottom-nav">
+    <button class="nav-tab active" id="tab-route" onclick="switchTab('route')">
+      <span class="icon">🗺️</span><span class="label">Route</span>
+    </button>
+    <button class="nav-tab" id="tab-order" onclick="switchTab('order')">
+      <span class="icon">📝</span><span class="label">New Order</span>
+    </button>
+    <button class="nav-tab" id="tab-log" onclick="switchTab('log')">
+      <span class="icon">✅</span><span class="label">Visit Log</span>
+    </button>
+    <button class="nav-tab" id="tab-profile" onclick="switchTab('profile')">
+      <span class="icon">👤</span><span class="label">Profile</span>
+    </button>
+  </nav>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+//  STATE
+// ──────────────────────────────────────────────
+const state = {
+  repId:      parseInt(sessionStorage.getItem('field_rep_id') || '0'),
+  repName:    sessionStorage.getItem('field_rep_name') || '',
+  routes:     [],
+  customers:  [],
+  products:   [],
+  orderItems: [],
+  todayVisits:  [],
+  todayOrders:  [],
+};
+
+// Check session via a lightweight API ping (cookie sent automatically)
+async function _checkSession() {
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.authenticated && d.role === 'field_rep') {
+        state.repId   = d.userId;
+        state.repName = d.displayName;
+        return true;
+      }
+    }
+  } catch(e) {}
+  return false;
+}
+
+// ──────────────────────────────────────────────
+//  INIT
+// ──────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('topbar-date').textContent =
+    new Date().toLocaleDateString('en-PK', {weekday:'long', day:'numeric', month:'long'});
+
+  const loggedIn = await _checkSession();
+  if (loggedIn) {
+    showApp();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+
+  // Enter key on PIN triggers login
+  document.getElementById('login-pin').addEventListener('keyup', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+});
+
+// ──────────────────────────────────────────────
+//  AUTH
+// ──────────────────────────────────────────────
+async function doLogin() {
+  const phone = document.getElementById('login-phone').value.trim();
+  const pin   = document.getElementById('login-pin').value.trim();
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+
+  if (!phone || !pin) { showError('Phone and PIN are required'); return; }
+
+  try {
+    const r = await fetch('/api/field/auth', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({phone, pin})
+    });
+    const d = await r.json();
+    if (!r.ok) { showError(d.error || 'Login failed'); return; }
+    // Token is set as httpOnly cookie by server — not accessible in JS
+    state.repId   = d.repId;
+    state.repName = d.name;
+    sessionStorage.setItem('field_rep_id',   d.repId);
+    sessionStorage.setItem('field_rep_name', d.name);
+    showApp();
+  } catch(e) {
+    showError('Connection error. Is the server running?');
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function doLogout() {
+  state.repId = 0; state.repName = '';
+  sessionStorage.clear();
+  // Expire the httpOnly cookie server-side by clearing it
+  document.cookie = 'field_token=; Max-Age=0; Path=/;';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ──────────────────────────────────────────────
+//  APP INIT
+// ──────────────────────────────────────────────
+async function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('topbar-name').textContent = state.repName;
+  await loadAppData();
+  renderRoute();
+}
+
+async function loadAppData() {
+  // Load today's routes, customers, products in parallel
+  // Cookie is sent automatically via credentials: 'same-origin'
+  const opts = { credentials: 'same-origin' };
+  try {
+    const [routesR, prodsR, custsR] = await Promise.all([
+      fetch('/api/field/my-routes', opts),
+      fetch('/api/products',        opts),
+      fetch('/api/customers?all=1', opts),
+    ]);
+    state.routes    = routesR.ok ? await routesR.json() : [];
+    const prods     = prodsR.ok  ? await prodsR.json()  : [];
+    state.customers = custsR.ok  ? await custsR.json()  : [];
+
+    // Build product + variant list for order dropdown
+    state.products = [];
+    prods.forEach(p => {
+      if (p.active === 0) return;
+      state.products.push({
+        variantId: p.variant_id || p.id,
+        label: `${p.name}`,
+        packSize: p.pack_size || '',
+        sku: p.code,
+        // Default price — will be 0, rep enters manually
+        price: 0,
+      });
+    });
+
+    populateDropdowns();
+  } catch(e) {
+    console.error('loadAppData error', e);
+  }
+}
+
+function populateDropdowns() {
+  // Customer dropdowns
+  const custOpts = state.customers.map(c =>
+    `<option value="${c.id}">${escH(c.name)} (${escH(c.code)})</option>`).join('');
+  document.getElementById('order-customer').innerHTML = '<option value="">Select customer…</option>' + custOpts;
+  document.getElementById('visit-customer').innerHTML = '<option value="">Select customer…</option>' + custOpts;
+
+  // Product dropdown
+  const prodOpts = state.products.map(p =>
+    `<option value="${p.variantId}" data-sku="${p.sku}" data-price="${p.price}">${escH(p.label)}</option>`
+  ).join('');
+  document.getElementById('order-product').innerHTML = '<option value="">Select product…</option>' + prodOpts;
+}
+
+// ──────────────────────────────────────────────
+//  ROUTE SCREEN
+// ──────────────────────────────────────────────
+function renderRoute() {
+  const container = document.getElementById('route-list');
+  if (!state.routes.length) {
+    container.innerHTML = `
+      <div class="card">
+        <div style="text-align:center;padding:32px;color:var(--text-2)">
+          <div style="font-size:36px;margin-bottom:12px">🗺️</div>
+          <div style="font-weight:600">No routes assigned today</div>
+          <div style="font-size:13px;margin-top:6px">Contact your manager to assign routes</div>
+        </div>
+      </div>`;
+    updateKPIs(0, 0, 0, 0);
+    return;
+  }
+
+  let totalStops = 0;
+  let html = '';
+  state.routes.forEach(route => {
+    const stops = route.stops || [];
+    totalStops += stops.length;
+    const stopRows = stops.map((stop, i) => {
+      const visit = state.todayVisits.find(v => v.customer_id == stop.customer_id);
+      const statusHtml = visit
+        ? `<span class="stop-status ${visit.outcome}">${visit.outcome === 'visited' ? '✓ Visited' : visit.outcome === 'no_order' ? 'No Order' : 'Closed'}</span>`
+        : '';
+      return `
+        <div class="stop-item" onclick="quickVisit(${stop.customer_id}, ${route.id})">
+          <div class="stop-num ${visit?'done':''}">${i+1}</div>
+          <div style="flex:1">
+            <div class="stop-name">${escH(stop.customer_name||stop.shop_name||'')}</div>
+            <div class="stop-sub">${escH(stop.address||stop.customer_code||'')}</div>
+          </div>
+          ${statusHtml}
+          <span style="font-size:18px;color:var(--saffron)">›</span>
+        </div>`;
+    }).join('');
+
+    html += `
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
+        <div style="padding:12px 14px;background:var(--saffron);display:flex;justify-content:space-between">
+          <div style="color:#fff;font-weight:700;font-size:14px">${escH(route.name||'')} 🗺️</div>
+          <div style="color:rgba(255,255,255,0.8);font-size:12px">${escH(route.zone_name||'')}</div>
+        </div>
+        ${stopRows || '<div style="padding:16px;color:var(--text-2);font-size:13px">No stops assigned to this route</div>'}
+      </div>`;
+  });
+
+  container.innerHTML = html;
+  updateKPIs(totalStops,
+    state.todayVisits.length,
+    state.todayOrders.length,
+    state.todayOrders.reduce((s,o) => s + (o.total||0), 0));
+}
+
+function updateKPIs(stops, visited, orders, sales) {
+  document.getElementById('kpi-stops').textContent   = stops;
+  document.getElementById('kpi-visited').textContent = visited;
+  document.getElementById('kpi-orders').textContent  = orders;
+  document.getElementById('kpi-sales').textContent   = 'PKR '+(sales||0).toLocaleString();
+}
+
+function quickVisit(customerId, routeId) {
+  // Pre-fill visit log and switch tab
+  document.getElementById('visit-customer').value = customerId;
+  switchTab('log');
+}
+
+// ──────────────────────────────────────────────
+//  ORDER SCREEN
+// ──────────────────────────────────────────────
+function addOrderItem() {
+  const sel   = document.getElementById('order-product');
+  const vid   = sel.value;
+  const label = sel.options[sel.selectedIndex]?.text || '';
+  if (!vid) return;
+
+  // Check if already added
+  const existing = state.orderItems.find(i => i.variantId == vid);
+  if (existing) { existing.qty++; renderOrderItems(); return; }
+
+  state.orderItems.push({variantId: vid, name: label, qty: 1, unitPrice: 0});
+  renderOrderItems();
+}
+
+function renderOrderItems() {
+  const container = document.getElementById('order-items');
+  if (!state.orderItems.length) {
+    container.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:8px 0">No items added</div>';
+    document.getElementById('order-total').textContent = 'PKR 0';
+    return;
+  }
+  container.innerHTML = state.orderItems.map((item, idx) => `
+    <div class="order-item">
+      <div class="oi-name">${escH(item.name)}</div>
+      <input class="oi-qty" type="number" min="1" value="${item.qty}"
+        onchange="updateItemQty(${idx}, this.value)" inputmode="numeric">
+      <div style="display:flex;flex-direction:column;align-items:flex-end">
+        <input class="oi-qty" type="number" min="0" value="${item.unitPrice}"
+          onchange="updateItemPrice(${idx}, this.value)" placeholder="Price" inputmode="decimal" style="width:80px;margin-bottom:2px">
+        <span style="font-size:10px;color:var(--text-2)">unit price</span>
+      </div>
+      <button class="oi-remove" onclick="removeItem(${idx})">×</button>
+    </div>
+  `).join('');
+  recalcTotal();
+}
+
+function updateItemQty(idx, val)   { state.orderItems[idx].qty       = parseFloat(val)||1; recalcTotal(); }
+function updateItemPrice(idx, val) { state.orderItems[idx].unitPrice = parseFloat(val)||0; recalcTotal(); }
+function removeItem(idx)           { state.orderItems.splice(idx,1); renderOrderItems(); }
+
+function recalcTotal() {
+  const total = state.orderItems.reduce((s,i) => s + i.qty * i.unitPrice, 0);
+  document.getElementById('order-total').textContent = 'PKR ' + total.toLocaleString();
+}
+
+async function submitOrder() {
+  const custId = document.getElementById('order-customer').value;
+  if (!custId) return alert('Please select a customer');
+  if (!state.orderItems.length) return alert('Add at least one product');
+
+  const emptyPrice = state.orderItems.filter(i => i.unitPrice <= 0);
+  if (emptyPrice.length) return alert('Please enter unit price for all items');
+
+  const routeId = state.routes[0]?.id;  // Use first route
+  const payload = {
+    repId:      state.repId,
+    routeId:    routeId || null,
+    customerId: parseInt(custId),
+    notes:      document.getElementById('order-notes').value.trim(),
+    items: state.orderItems.map(i => ({
+      variantId: i.variantId,
+      qty:       i.qty,
+      unitPrice: i.unitPrice,
+    }))
+  };
+
+  try {
+    const r = await fetch('/api/field-orders', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (!r.ok) { alert('Error: ' + (d.error||'unknown')); return; }
+    const total = state.orderItems.reduce((s,i) => s + i.qty * i.unitPrice, 0);
+    state.todayOrders.push({id: d.id, total});
+    clearOrder();
+    alert(`Order submitted! Total: PKR ${total.toLocaleString()}`);
+    switchTab('route');
+    renderRoute();
+  } catch(e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+function clearOrder() {
+  state.orderItems = [];
+  document.getElementById('order-customer').value = '';
+  document.getElementById('order-notes').value = '';
+  document.getElementById('order-product').value = '';
+  renderOrderItems();
+}
+
+// ──────────────────────────────────────────────
+//  VISIT LOG SCREEN
+// ──────────────────────────────────────────────
+async function submitVisit() {
+  const custId  = document.getElementById('visit-customer').value;
+  const outcome = document.getElementById('visit-outcome').value;
+  const notes   = document.getElementById('visit-notes').value.trim();
+  if (!custId) return alert('Please select a customer');
+
+  const routeId = state.routes[0]?.id;
+  const payload = {
+    repId:      state.repId,
+    routeId:    routeId || null,
+    customerId: parseInt(custId),
+    outcome,
+    notes,
+  };
+
+  try {
+    const r = await fetch('/api/beat-visits', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (!r.ok) { alert('Error: ' + (d.error||'unknown')); return; }
+    state.todayVisits.push({customer_id: parseInt(custId), outcome});
+    document.getElementById('visit-customer').value = '';
+    document.getElementById('visit-notes').value = '';
+    renderVisitLog();
+    renderRoute();
+  } catch(e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+function renderVisitLog() {
+  const container = document.getElementById('visit-log-list');
+  if (!state.todayVisits.length) { container.innerHTML = ''; return; }
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-title">Today's Visits (${state.todayVisits.length})</div>
+      ${state.todayVisits.map(v => {
+        const cust = state.customers.find(c => c.id == v.customer_id);
+        return `<div class="stop-item">
+          <div class="stop-num done">✓</div>
+          <div><div class="stop-name">${cust ? escH(cust.name) : 'Unknown'}</div></div>
+          <span class="stop-status ${v.outcome}">${v.outcome === 'visited' ? 'Visited' : v.outcome === 'no_order' ? 'No Order' : 'Closed'}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ──────────────────────────────────────────────
+//  PROFILE SCREEN
+// ──────────────────────────────────────────────
+async function loadProfile() {
+  try {
+    const r = await fetch(`/api/reps/${state.repId}`, { credentials: 'same-origin' });
+    const rep = await r.json();
+    if (!r.ok) return;
+    const salary = (rep.salary_components||[])[0] || {};
+    document.getElementById('profile-info').innerHTML = `
+      <b>Name:</b> ${escH(rep.name||'')} <br>
+      <b>Employee ID:</b> ${escH(rep.employee_id||'')} <br>
+      <b>Phone:</b> ${escH(rep.phone||'')} <br>
+      <b>Designation:</b> ${escH(rep.designation||'')} <br>
+      <b>Basic Salary:</b> PKR ${(salary.basic_salary||0).toLocaleString()} <br>
+      <b>Routes:</b> ${(rep.routes||[]).map(r=>escH(r.route_name)).join(', ')||'—'}
+    `;
+  } catch(e) {}
+}
+
+async function changePin() {
+  const pin = document.getElementById('new-pin').value.trim();
+  if (pin.length !== 4 || !/^\d+$/.test(pin)) return alert('PIN must be exactly 4 digits');
+  const r = await fetch(`/api/reps/${state.repId}`, {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({pin})
+  });
+  const d = await r.json();
+  if (!r.ok) return alert('Error: '+(d.error||'unknown'));
+  document.getElementById('new-pin').value = '';
+  alert('PIN updated successfully!');
+}
+
+// ──────────────────────────────────────────────
+//  NAV TABS
+// ──────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('screen-' + tab).classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'profile') loadProfile();
+  if (tab === 'log')     renderVisitLog();
+  if (tab === 'order' && !state.orderItems.length) renderOrderItems();
+}
+
+// ──────────────────────────────────────────────
+//  HELPERS
+// ──────────────────────────────────────────────
+function escH(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>

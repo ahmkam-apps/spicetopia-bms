@@ -1,0 +1,39 @@
+{"ts": "2026-04-05T14:49:08", "level": "INFO", "msg": "password_upgraded", "user": "admin"}
+{"ts": "2026-04-05T14:49:08", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-05T14:49:17", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:49:18", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:49:18", "level": "INFO", "msg": "soft_hold_released"}
+{"ts": "2026-04-05T14:49:19", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:49:20", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:49:20", "level": "INFO", "msg": "soft_hold_released"}
+{"ts": "2026-04-05T14:49:21", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:49:21", "level": "INFO", "msg": "soft_hold_released"}
+{"ts": "2026-04-05T14:49:31", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-05T14:50:03", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-05T14:50:21", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-05T14:50:32", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:50:33", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:50:33", "level": "INFO", "msg": "soft_hold_released"}
+{"ts": "2026-04-05T14:50:34", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:50:35", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:50:36", "level": "INFO", "msg": "soft_hold_released"}
+{"ts": "2026-04-05T14:50:36", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:50:37", "level": "INFO", "msg": "soft_hold_released"}
+{"ts": "2026-04-05T14:51:17", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-05T14:51:45", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-05T14:51:54", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:51:55", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:51:55", "level": "INFO", "msg": "soft_hold_released"}
+{"ts": "2026-04-05T14:51:56", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:51:57", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:51:57", "level": "INFO", "msg": "soft_hold_released"}
+{"ts": "2026-04-05T14:51:58", "level": "INFO", "msg": "soft_hold_placed"}
+{"ts": "2026-04-05T14:51:58", "level": "INFO", "msg": "soft_hold_released"}
+{"ts": "2026-04-05T15:07:16", "level": "WARNING", "msg": "rate_limit_lockout", "ip": "127.0.0.1"}
+{"ts": "2026-04-05T15:07:29", "level": "WARNING", "msg": "rate_limit_lockout", "ip": "127.0.0.1"}
+{"ts": "2026-04-05T15:07:53", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_150753.db"}
+{"ts": "2026-04-05T15:12:04", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_151204.db"}
+{"ts": "2026-04-05T15:18:18", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_151818.db"}
+{"ts": "2026-04-05T15:32:33", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_153233.db"}
+{"ts": "2026-04-05T15:36:32", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-05T15:37:18", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_153718.db"}

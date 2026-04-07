@@ -1,0 +1,63 @@
+{
+  "run_at": "2026-04-04 23:26:16",
+  "server": "http://localhost:3001",
+  "summary": {
+    "total": 12,
+    "passed": 11,
+    "failed": 0,
+    "skipped": 1,
+    "pass_pct": 100,
+    "result": "PASS"
+  },
+  "tests": [
+    {
+      "status": "PASS",
+      "test": "Server is reachable on port 3001"
+    },
+    {
+      "status": "PASS",
+      "test": "Login as 'admin' returns auth token"
+    },
+    {
+      "status": "PASS",
+      "test": "/api/auth/me returns current user"
+    },
+    {
+      "status": "PASS",
+      "test": "Invalid token correctly rejected (authenticated:false)"
+    },
+    {
+      "status": "PASS",
+      "test": "Products list returns 2 product(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Resolved variant_id=1  pack_size=50g  price_type_id=1 for 'CM'"
+    },
+    {
+      "status": "PASS",
+      "test": "Ingredients list returns 29 ingredient(s)"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new customer \u2192 code: SP-SP-CUST-0014"
+    },
+    {
+      "status": "PASS",
+      "test": "Edit customer SP-SP-CUST-0014"
+    },
+    {
+      "status": "PASS",
+      "test": "Create new supplier \u2192 id: 16"
+    },
+    {
+      "status": "PASS",
+      "test": "Customers list returns 19 customer(s)"
+    },
+    {
+      "status": "SKIP",
+      "test": "Multi-line sale",
+      "reason": "No finished goods stock for CM/50g \u2014 run production module first or re-run full suite"
+    }
+  ]
+}

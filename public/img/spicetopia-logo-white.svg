@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 115">
+  <defs>
+    <linearGradient id="chiliGradW" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%"   stop-color="#FFB347"/>
+      <stop offset="55%"  stop-color="#FA6420"/>
+      <stop offset="100%" stop-color="#D42010"/>
+    </linearGradient>
+  </defs>
+
+  <!-- SP -->
+  <text font-family="'Arial Black','Arial Bold',Arial,sans-serif"
+        font-weight="900" font-size="54" fill="#FFFFFF" letter-spacing="1">
+    <tspan x="36" y="68">SP</tspan>
+  </text>
+
+  <!-- Chili flame -->
+  <path d="M128,16 C138,26 140,46 135,58 Q128,67 121,58 C116,46 118,26 128,16 Z"
+        fill="url(#chiliGradW)"/>
+
+  <!-- CETOPIA -->
+  <text font-family="'Arial Black','Arial Bold',Arial,sans-serif"
+        font-weight="900" font-size="54" fill="#FFFFFF" letter-spacing="1">
+    <tspan x="144" y="68">CETOPIA</tspan>
+  </text>
+
+  <!-- Separator -->
+  <line x1="36" y1="80" x2="424" y2="80" stroke="rgba(255,255,255,0.25)" stroke-width="0.9"/>
+
+  <!-- Tagline -->
+  <text x="230" y="101" text-anchor="middle"
+        font-family="Arial,Helvetica,sans-serif"
+        font-size="11.5" fill="rgba(255,255,255,0.5)" letter-spacing="6" font-weight="400">FLAVORS REDEFINED</text>
+</svg>
