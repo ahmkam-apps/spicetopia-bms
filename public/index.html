@@ -9645,6 +9645,36 @@ async function renderSystem() {
       </div>
     </div>
 
+    <div class="card" style="max-width:720px;margin-top:20px">
+      <div class="card-header"><b>📥 Master Data Import</b></div>
+      <div class="card-body">
+        <p style="color:var(--text-2);font-size:0.9em;margin-bottom:16px">
+          Upload Excel (.xlsx) or CSV to import master data. Existing records updated by code — new records created.
+        </p>
+        ${['ingredients','customers','suppliers'].map(type => `
+        <div style="border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:12px;background:var(--bg-2)">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <div>
+              <b style="text-transform:capitalize">${type}</b>
+              <span style="font-size:0.82em;color:var(--text-3);margin-left:8px">
+                ${type==='ingredients' ? 'code, name, cost_per_kg, unit' :
+                  type==='customers'   ? 'code, name, customer_type, city, address, phone, email' :
+                                         'code, name, contact, phone, email, city, address'}
+              </span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <a href="/api/admin/masters/template/${type}" style="font-size:0.82em;color:var(--cardamom);text-decoration:none">⬇ Template</a>
+              <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0">
+                📂 Choose File
+                <input type="file" accept=".xlsx,.csv" style="display:none" onchange="uploadMasterFile('${type}',this)">
+              </label>
+            </div>
+          </div>
+          <div id="import-msg-${type}" style="margin-top:8px;font-size:0.85em"></div>
+        </div>`).join('')}
+      </div>
+    </div>
+
     ${state.currentUser?.devTools ? `
     <div class="card" style="max-width:720px;margin-top:20px;border:2px solid var(--chili)">
       <div class="card-header" style="background:var(--orange-pale)">
@@ -9665,6 +9695,35 @@ async function renderSystem() {
         </div>
       </div>
     </div>` : ''}`;
+}
+
+async function uploadMasterFile(type, input) {
+  const msgEl = document.getElementById(`import-msg-${type}`);
+  const file  = input.files[0];
+  if (!file) return;
+  msgEl.innerHTML = `<span style="color:var(--text-3)">⏳ Uploading ${file.name}…</span>`;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch(`/api/admin/masters/upload/${type}`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + authToken() },
+      body: fd
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'Upload failed');
+    let msg = `<span style="color:var(--cardamom)">✓ ${d.rows_processed} rows processed — `;
+    msg += `${d.imported || 0} imported, ${d.updated || 0} updated`;
+    if (d.errors && d.errors.length > 0) {
+      msg += ` — <span style="color:var(--chili)">${d.errors.length} error(s): ${d.errors.slice(0,3).join('; ')}</span>`;
+    }
+    msg += '</span>';
+    msgEl.innerHTML = msg;
+    input.value = '';
+  } catch(e) {
+    msgEl.innerHTML = `<span style="color:var(--chili)">✗ ${e.message}</span>`;
+    input.value = '';
+  }
 }
 
 async function devResetAll(btn) {
