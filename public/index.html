@@ -9643,7 +9643,55 @@ async function renderSystem() {
 
         ${tableSection}
       </div>
-    </div>`;
+    </div>
+
+    ${state.currentUser?.devTools ? `
+    <div class="card" style="max-width:720px;margin-top:20px;border:2px solid var(--chili)">
+      <div class="card-header" style="background:var(--orange-pale)">
+        <b style="color:var(--chili)">🧪 DEV TOOLS — Development Environment Only</b>
+      </div>
+      <div class="card-body">
+        <p style="color:var(--text-2);font-size:0.9em;margin-bottom:16px">
+          These tools are only available on the dev environment. They permanently delete data and cannot be undone.
+        </p>
+        <div style="border:1px solid var(--chili);border-radius:6px;padding:16px;background:#fff8f6">
+          <b style="color:var(--chili)">⚠️ Reset All Data</b>
+          <p style="font-size:0.85em;color:var(--text-3);margin:6px 0 12px">
+            Wipes all customers, suppliers, ingredients, products, orders, invoices, production batches, and payments.
+            Keeps users, pack sizes, price types, and zones.
+          </p>
+          <button class="btn btn-danger" onclick="devResetAll(this)">🗑 Reset All Data</button>
+          <span id="dev-reset-msg" style="margin-left:12px;font-size:0.9em"></span>
+        </div>
+      </div>
+    </div>` : ''}`;
+}
+
+async function devResetAll(btn) {
+  const msgEl = document.getElementById('dev-reset-msg');
+  const confirmed = confirm(
+    '⚠️ WARNING: This will permanently delete ALL data including customers, suppliers, ingredients, products, orders, invoices, and production records.\n\nThis cannot be undone.\n\nType OK to confirm.'
+  );
+  if (!confirmed) return;
+  btn.disabled = true;
+  btn.textContent = '⏳ Resetting…';
+  msgEl.textContent = '';
+  try {
+    const r = await fetch('/api/dev/reset-all', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + authToken(), 'Content-Type': 'application/json' }
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Reset failed');
+    const total = d.total_rows || 0;
+    msgEl.innerHTML = `<span style="color:#4caf50">✓ Done — ${total.toLocaleString()} rows cleared</span>`;
+    setTimeout(() => nav('dashboard'), 2000);
+  } catch(e) {
+    msgEl.innerHTML = `<span style="color:var(--chili)">✗ ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🗑 Reset All Data';
+  }
 }
 
 async function runBackupNow(btn) {
