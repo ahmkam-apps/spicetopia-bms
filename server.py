@@ -4178,6 +4178,7 @@ def create_customer_order(data):
     order_date    = data.get('orderDate', today())
     required_date = data.get('requiredDate', '')
     notes         = data.get('notes', '')
+    _sync_counter_to_max('customer_order', 'customer_orders', 'order_number', 'SP-ORD-')
     order_number  = next_id('customer_order', 'ORD')
 
     # Validate + resolve all lines before writing
@@ -4422,7 +4423,7 @@ def add_customer_order_item(order_id, data):
     finally:
         c.close()
     save_db()
-    return get_customer_order(order_id)
+    return _order_detail(order_id)
 
 
 def confirm_customer_order(order_id):
@@ -4543,6 +4544,7 @@ def create_wo_from_order_item(order_id, item_id, data):
 
     # Create the work order
     feasibility = check_wo_feasibility(item['product_variant_id'], remaining)
+    _sync_counter_to_max('work_order', 'work_orders', 'wo_number', 'SP-WO-')
     wo_number   = next_id('work_order', 'WO')
     c = _conn()
     try:
@@ -5077,6 +5079,7 @@ def create_purchase_order(data):
     if not items:
         raise ValueError("Purchase order must have at least one item")
 
+    _sync_counter_to_max('purchase_order', 'purchase_orders', 'po_number', 'SP-PO-')
     po_num       = next_id('purchase_order', 'PO')
     po_date      = data.get('poDate', today())
     expected     = data.get('expectedDate', '')
@@ -5403,6 +5406,7 @@ def create_supplier_bill(data):
         if existing:
             raise ValueError(f"Duplicate: Supplier ref '{supplier_ref}' already recorded as {existing['bill_number']}")
 
+    _sync_counter_to_max('bill', 'supplier_bills', 'bill_number', 'SP-BILL-')
     bill_num  = next_id('bill', 'BILL')
 
     c = _conn()
@@ -8968,6 +8972,45 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
+            # POST /api/dev/seed-fg-stock  (DEV_TOOLS only — bypasses BOM for tests)
+            if path == '/api/dev/seed-fg-stock':
+                if os.environ.get('DEV_TOOLS', '').lower() not in ('1', 'true', 'yes'):
+                    send_error(self, 'Not available in this environment', 403); return
+                sess = get_session(self)
+                if not sess or sess['role'] != 'admin':
+                    send_json(self, {'error': 'Admin only'}, 403); return
+                _pc   = data.get('productCode', '')
+                _ps   = data.get('packSize', '')
+                _qty  = int(data.get('qtyUnits', 0))
+                _date = data.get('batchDate', today())
+                _var  = ref['var_by_sku'].get((_pc, _ps))
+                if not _var:
+                    send_json(self, {'error': f'Variant not found: {_pc}/{_ps}'}, 400); return
+                if _qty <= 0:
+                    send_json(self, {'error': 'qtyUnits must be positive'}, 400); return
+                _bid = next_id('batch', 'BATCH')
+                _c = _conn()
+                try:
+                    _c.execute("""
+                        INSERT INTO production_batches
+                            (batch_id, batch_date, product_id, product_variant_id,
+                             qty_grams, qty_units, pack_size, notes, unit_cost_at_posting)
+                        VALUES (?,?,?,?,?,?,?,?,?)
+                    """, (_bid, _date, _var['product_id'], _var['id'],
+                          _qty * _var.get('pack_grams', 50), _qty, _var['pack_size'],
+                          'DEV seed', 0.0))
+                    _c.commit()
+                except Exception as _e:
+                    _c.rollback(); _c.close()
+                    send_json(self, {'error': str(_e)}, 500); return
+                finally:
+                    try: _c.close()
+                    except: pass
+                save_db()
+                send_json(self, {'ok': True, 'batchId': _bid, 'qtyUnits': _qty,
+                                 'productCode': _pc, 'packSize': _ps})
+                return
+
             # POST /api/auth/login  (no auth required)
             if path == '/api/auth/login':
                 ip = _get_client_ip(self)
@@ -11248,10 +11291,12 @@ if __name__ == '__main__':
     print()
 
     # Open browser in background thread (webbrowser has no thread restriction)
-    def _open_browser():
-        import time; time.sleep(1.2)
-        webbrowser.open(url)   # open the login page directly
-    threading.Thread(target=_open_browser, daemon=True).start()
+    # Skipped when NO_BROWSER=1 (e.g. automated test runs)
+    if os.environ.get('NO_BROWSER', '').lower() not in ('1', 'true', 'yes'):
+        def _open_browser():
+            import time; time.sleep(1.2)
+            webbrowser.open(url)   # open the login page directly
+        threading.Thread(target=_open_browser, daemon=True).start()
 
     # ── Step 5: Welcome popup — MUST run on main thread on macOS ──
     # Show BEFORE serve_forever() blocks the main thread.
