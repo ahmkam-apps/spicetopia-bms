@@ -4178,6 +4178,7 @@ def create_customer_order(data):
     order_date    = data.get('orderDate', today())
     required_date = data.get('requiredDate', '')
     notes         = data.get('notes', '')
+    _sync_counter_to_max('customer_order', 'customer_orders', 'order_number', 'SP-ORD-')
     order_number  = next_id('customer_order', 'ORD')
 
     # Validate + resolve all lines before writing
@@ -4543,6 +4544,7 @@ def create_wo_from_order_item(order_id, item_id, data):
 
     # Create the work order
     feasibility = check_wo_feasibility(item['product_variant_id'], remaining)
+    _sync_counter_to_max('work_order', 'work_orders', 'wo_number', 'SP-WO-')
     wo_number   = next_id('work_order', 'WO')
     c = _conn()
     try:
@@ -5077,6 +5079,7 @@ def create_purchase_order(data):
     if not items:
         raise ValueError("Purchase order must have at least one item")
 
+    _sync_counter_to_max('purchase_order', 'purchase_orders', 'po_number', 'SP-PO-')
     po_num       = next_id('purchase_order', 'PO')
     po_date      = data.get('poDate', today())
     expected     = data.get('expectedDate', '')
@@ -5403,6 +5406,7 @@ def create_supplier_bill(data):
         if existing:
             raise ValueError(f"Duplicate: Supplier ref '{supplier_ref}' already recorded as {existing['bill_number']}")
 
+    _sync_counter_to_max('bill', 'supplier_bills', 'bill_number', 'SP-BILL-')
     bill_num  = next_id('bill', 'BILL')
 
     c = _conn()
@@ -11287,10 +11291,12 @@ if __name__ == '__main__':
     print()
 
     # Open browser in background thread (webbrowser has no thread restriction)
-    def _open_browser():
-        import time; time.sleep(1.2)
-        webbrowser.open(url)   # open the login page directly
-    threading.Thread(target=_open_browser, daemon=True).start()
+    # Skipped when NO_BROWSER=1 (e.g. automated test runs)
+    if os.environ.get('NO_BROWSER', '').lower() not in ('1', 'true', 'yes'):
+        def _open_browser():
+            import time; time.sleep(1.2)
+            webbrowser.open(url)   # open the login page directly
+        threading.Thread(target=_open_browser, daemon=True).start()
 
     # ── Step 5: Welcome popup — MUST run on main thread on macOS ──
     # Show BEFORE serve_forever() blocks the main thread.
