@@ -1906,9 +1906,11 @@ async function renderOrdersInvoices() {
       return variant && (variant.stockUnits || 0) >= item.qty_ordered;
     });
 
+    const canAddItem = ['draft','confirmed'].includes(o.status);
     const actions = `
       ${canConfirm && !allInStock ? `<button class="btn btn-xs btn-outline" style="color:var(--mac-blue)" onclick="event.stopPropagation();_oiConfirmOrder(${o.id})">✓ Confirm</button>` : ''}
       ${allInStock ? `<button class="btn btn-xs btn-primary" onclick="event.stopPropagation();_oiConfirmAndInvoice(${o.id})" title="All items in stock — confirm and invoice in one step">⚡ Confirm & Invoice</button>` : ''}
+      ${canAddItem ? `<button class="btn btn-xs btn-outline" style="color:var(--cardamom)" onclick="event.stopPropagation();openOrderDetail(${o.id}).then(()=>showAddItemForm(${o.id}))" title="Add another product to this order">+ Product</button>` : ''}
       ${canInvoice ? `<button class="btn btn-xs" style="background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="event.stopPropagation();_oiOpenInvoiceForm(${o.id})">🧾 Invoice</button>` : ''}
       ${inProd ? `<span style="font-size:11px;color:var(--cinnamon)">⚙ In Production</span>` : ''}
     `;
@@ -2914,9 +2916,11 @@ function renderSaleLines() {
   const body = document.getElementById('sale-lines-body');
   if (!body) return;
   const prodOptions = (state.ref.products||[]).flatMap(p =>
-    (p.variants||[])
-      .filter(v => (v.stockUnits || 0) > 0)
-      .map(v => `<option value="${p.code}|${v.pack_size}">${p.name} — ${v.pack_size} (${v.stockUnits} in stock)</option>`)
+    (p.variants||[]).map(v => {
+      const stock = v.stockUnits || 0;
+      const stockLabel = stock > 0 ? `${stock} in stock` : '⚠ no stock';
+      return `<option value="${p.code}|${v.pack_size}">${p.name} — ${v.pack_size} (${stockLabel})</option>`;
+    })
   ).join('');
 
   body.innerHTML = _saleLines.map((line, idx) => {
@@ -4753,9 +4757,12 @@ function _renderPODetail(po) {
         <tbody>${receiptRows}</tbody>
       </table>
       <div style="font-size:11px;color:#166534;margin-bottom:8px">* Enter actual unit cost at time of delivery — this is used to calculate the supplier bill amount.</div>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" style="background:#16a34a;border-color:#16a34a" onclick="receiveGoodsPO(${po.id})">
           ✓ Confirm Receipt &amp; Update Inventory
+        </button>
+        <button class="btn btn-outline btn-sm" style="color:#16a34a;border-color:#16a34a" onclick="quickReceiveAllPO(${po.id})" title="Pre-fill all quantities &amp; costs from this PO — then click Confirm">
+          ⚡ Use PO Quantities &amp; Costs
         </button>
         ${canCancel ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="setPOStatus(${po.id},'cancelled')">✕ Cancel PO</button>` : ''}
       </div>
@@ -4927,6 +4934,19 @@ async function receiveGoodsPO(poId) {
     showMsg(`po-action-msg-${poId}`, 'Error: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Receipt & Update Inventory'; }
   }
+}
+
+function quickReceiveAllPO(poId) {
+  // Pre-fills receipt form inputs from the PO's ordered quantities and unit costs
+  const po = _lastPOData;
+  if (!po || po.id !== poId) return;
+  po.items.forEach(item => {
+    const qtyEl  = document.getElementById(`rcv-qty-${item.id}`);
+    const costEl = document.getElementById(`rcv-cost-${item.id}`);
+    if (qtyEl)  qtyEl.value  = fmt(item.quantity_kg, 3);
+    if (costEl && item.unit_cost_kg > 0) costEl.value = fmt(item.unit_cost_kg, 2);
+  });
+  showMsg(`po-action-msg-${poId}`, '✓ Quantities &amp; costs pre-filled from PO — review then click Confirm Receipt.', 'success');
 }
 
 async function printPO(poId) {
@@ -5607,8 +5627,8 @@ async function renderAPPayments() {
     <h3 style="margin-bottom:14px">Record Supplier Payment</h3>
     <div id="apay-msg"></div>
     <div class="form-row">
-      <div class="form-group"><label>Supplier *</label><select id="ap-sup">${supOptions || '<option disabled>No suppliers</option>'}</select></div>
-      <div class="form-group"><label>Amount (PKR) *</label><input id="ap-amt" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>Supplier *</label><select id="ap-sup" onchange="apPaySupplierChanged()">${supOptions || '<option disabled>No suppliers</option>'}</select></div>
+      <div class="form-group"><label>Amount (PKR) *<span id="ap-bal-hint" style="font-size:11px;color:var(--cardamom);margin-left:6px;font-weight:400"></span></label><input id="ap-amt" type="number" min="0" step="0.01" placeholder="0.00"></div>
       <div class="form-group"><label>Date</label><input id="ap-date" type="date" value="${today()}"></div>
       <div class="form-group"><label>Mode</label>
         <select id="ap-mode"><option value="BANK_TRANSFER">Bank Transfer</option><option value="CASH">Cash</option><option value="CHEQUE">Cheque</option><option value="OTHER">Other</option></select>
@@ -5625,6 +5645,26 @@ async function renderAPPayments() {
       </table>
     </div>
   </div>`;
+}
+
+async function apPaySupplierChanged() {
+  const supId = parseInt(document.getElementById('ap-sup')?.value || 0);
+  const hintEl = document.getElementById('ap-bal-hint');
+  const amtEl  = document.getElementById('ap-amt');
+  if (!hintEl || !amtEl) return;
+  if (!supId) { hintEl.textContent = ''; amtEl.value = ''; return; }
+  try {
+    const bills = await GET('/api/bills?supplierId=' + supId);
+    const unpaid = (bills||[]).filter(b => b.status === 'UNPAID' || b.status === 'PARTIAL');
+    const total  = unpaid.reduce((s, b) => s + (parseFloat(b.balance)||0), 0);
+    if (total > 0) {
+      hintEl.textContent = `(outstanding: ${fmtPKR(total)})`;
+      amtEl.value = total.toFixed(2);
+    } else {
+      hintEl.textContent = '(no outstanding bills)';
+      amtEl.value = '';
+    }
+  } catch(e) { hintEl.textContent = ''; }
 }
 
 async function saveAPPayment() {
@@ -5762,7 +5802,7 @@ async function renderInventory() {
 
     const editRow = isAdmin ? `
     <tr id="rm-edit-${i.id}" style="display:none">
-      <td colspan="12" style="padding:0">
+      <td colspan="13" style="padding:0">
         <div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">
           <div id="rm-edit-msg-${i.id}" style="margin-bottom:6px"></div>
           <div class="form-row" style="align-items:flex-end;margin-bottom:0">
@@ -5792,6 +5832,7 @@ async function renderInventory() {
 
     return `<tr>
       <td><strong>${i.code}</strong></td>
+      <td>${i.name || ''}</td>
       <td class="num text-right">${fmt(i.balanceGrams,0)} g</td>
       <td class="num text-right">${reservedCell}</td>
       <td class="num text-right" style="font-weight:600;color:${availColor}">${fmt(available,0)} g</td>
@@ -5868,12 +5909,37 @@ async function renderInventory() {
   <!-- Raw Materials pane -->
   <div id="inv-pane-rm" class="mod-tab-pane active">
     <div id="adj-form-area"></div>
+    ${isAdmin ? `
+    <div class="card mb-14" id="ing-add-card" style="display:none">
+      <h4 style="margin-bottom:12px">+ Add New Ingredient</h4>
+      <div id="ing-add-msg"></div>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group"><label style="font-size:12px">Code *</label><input id="ing-add-code" placeholder="e.g. ING-020SP" style="width:130px"></div>
+        <div class="form-group" style="flex:2"><label style="font-size:12px">Name *</label><input id="ing-add-name" placeholder="Ingredient name" style="min-width:200px"></div>
+        <div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="ing-add-cost" type="number" min="0" step="0.01" placeholder="0.00" style="width:120px"></div>
+        <div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="ing-add-reorder" type="number" min="0" step="1" placeholder="0" style="width:120px"></div>
+        <div class="form-group"><label style="font-size:12px">Unit</label>
+          <select id="ing-add-unit" class="form-input" style="width:70px">
+            <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="pcs">pcs</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:4px">
+          <button class="btn btn-primary btn-sm" onclick="saveNewIngredient()">Add</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('ing-add-card').style.display='none'">Cancel</button>
+        </div>
+      </div>
+    </div>` : ''}
     ${changeBanner}
     <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:13px;font-weight:600">${ings.length} Ingredient${ings.length===1?'':'s'}</span>
+        ${isAdmin ? `<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById('ing-add-card');c.style.display=c.style.display==='none'?'':'none'">+ Add Ingredient</button>` : ''}
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
             <th>Code</th>
+            <th>Name</th>
             <th class="text-right">Physical</th>
             <th class="text-right" title="Grams reserved by planned/in-progress work orders">Reserved (WIPs)</th>
             <th class="text-right" title="Available = Physical − Reserved">Available</th>
@@ -5983,6 +6049,22 @@ async function saveAdjustment(ingId) {
     showMsg('adj-msg', `✓ Adjusted ${res.ingredientCode} by ${qty > 0 ? '+' : ''}${qty}g`, 'success');
     setTimeout(() => nav('inventory'), 1200);
   } catch(e) { showMsg('adj-msg', e.message, 'error'); }
+}
+
+async function saveNewIngredient() {
+  const code    = (document.getElementById('ing-add-code')?.value || '').trim().toUpperCase();
+  const name    = (document.getElementById('ing-add-name')?.value || '').trim();
+  const cost    = parseFloat(document.getElementById('ing-add-cost')?.value || 0);
+  const reorder = parseFloat(document.getElementById('ing-add-reorder')?.value || 0);
+  const unit    = document.getElementById('ing-add-unit')?.value || 'kg';
+  const msgEl   = 'ing-add-msg';
+  if (!code) { showMsg(msgEl, 'Code is required', 'error'); return; }
+  if (!name) { showMsg(msgEl, 'Name is required', 'error'); return; }
+  try {
+    await POST('/api/ingredients', { code, name, cost_per_kg: cost, reorder_level: reorder, unit });
+    showMsg(msgEl, `✓ ${code} — ${name} added`, 'success');
+    setTimeout(() => nav('inventory'), 800);
+  } catch(e) { showMsg(msgEl, e.message, 'error'); }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -7286,7 +7368,7 @@ async function renderPrices() {
         <td class="num text-right">${priceCell(pm.distributor)}</td>
         <td class="num text-right">${priceCell(pm.retail_mrp)}</td>
         <td style="text-align:right;white-space:nowrap">
-          <button class="btn btn-xs btn-outline" onclick="editPrice(${v.id})" style="font-size:11px">✏ Edit</button>
+          <button class="btn btn-xs btn-outline" onclick="editPrice(${v.id}, ${JSON.stringify(pm)})" style="font-size:11px" title="Update price — pre-fills current values">✏ Update Price</button>
         </td>
       </tr>`).join('');
 
@@ -7320,7 +7402,10 @@ async function renderPrices() {
   return `
   <!-- ── Set Price Form ───────────────────────────────────────── -->
   <div class="card mb-20">
-    <div class="section-header" style="margin-bottom:14px"><h2>Set / Update Price</h2></div>
+    <div class="section-header" style="margin-bottom:8px"><h2>Set / Update Price</h2></div>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:14px">
+      ℹ️ Setting a price replaces the previous price for that SKU + price type. The old price is kept for historical records. Click <strong>✏ Update Price</strong> on any row below to pre-fill this form.
+    </div>
     <div id="price-msg"></div>
     <div class="form-row" style="align-items:flex-end">
       <div class="form-group" style="flex:2"><label>SKU *</label><select id="px-sku">${varOptions}</select></div>
@@ -7355,22 +7440,40 @@ async function savePrice() {
   } catch(e) { showMsg('price-msg', e.message, 'error'); }
 }
 
-function editPrice(variantId) {
+function editPrice(variantId, priceMap) {
   // Pre-select this variant in the Set Price form and scroll to it
-  const skuSel = document.getElementById('px-sku');
-  if (skuSel) {
-    skuSel.value = variantId;
-    document.getElementById('px-price').value = '';
-    document.getElementById('px-price').focus();
+  const skuSel  = document.getElementById('px-sku');
+  const typeSel = document.getElementById('px-type');
+  const priceEl = document.getElementById('px-price');
+  if (skuSel) skuSel.value = variantId;
+
+  // Pre-fill price with the first price type that has an existing value
+  if (priceMap && typeSel && priceEl) {
+    const ptCodeToId = {};
+    (state.ref.priceTypes||[]).forEach(pt => { ptCodeToId[pt.code] = pt.id; });
+    // Priority: retail_mrp → ex_factory → distributor → mfg_cost
+    const order = ['retail_mrp','ex_factory','distributor','mfg_cost'];
+    let filled = false;
+    for (const code of order) {
+      if (priceMap[code] != null) {
+        if (ptCodeToId[code]) typeSel.value = ptCodeToId[code];
+        priceEl.value = priceMap[code].toFixed(2);
+        filled = true;
+        break;
+      }
+    }
+    if (!filled) priceEl.value = '';
   }
+
   document.querySelector('#price-msg')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   // Highlight the form briefly
   const form = document.querySelector('[id="price-msg"]')?.closest('.card');
   if (form) {
     form.style.transition = 'box-shadow 0.3s';
     form.style.boxShadow = '0 0 0 3px var(--mac-blue)';
-    setTimeout(() => { form.style.boxShadow = ''; }, 1500);
+    setTimeout(() => { form.style.boxShadow = ''; form.style.transition = ''; }, 1500);
   }
+  if (priceEl) priceEl.focus();
 }
 
 // ═══════════════════════════════════════════════════════════════
