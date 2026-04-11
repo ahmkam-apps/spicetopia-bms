@@ -6336,15 +6336,26 @@ def import_prices_master(rows):
 
 
 def import_ingredients_master(rows):
-    """Upsert ingredients from master rows.
+    """Full-sync ingredients from master rows.
     Columns: code (required), cost_per_kg (required), name (optional),
              unit (optional), reorder_level (optional — ignored, set manually in app)
     Accepts 'name' or 'Ingredient Name (English)' as the name column.
-    Returns {imported, updated, errors}.
+
+    FULL SYNC behaviour: after upserting all rows in the file, any existing
+    active ingredient whose code is NOT in the file is deactivated. This means
+    uploading a fresh file always produces exactly the ingredients in that file —
+    no stale duplicates from previous uploads with different codes.
+
+    Returns {imported, updated, deactivated, errors}.
     """
-    imported = 0
-    updated  = 0
-    errors   = []
+    imported   = 0
+    updated    = 0
+    deactivated = 0
+    errors     = []
+    incoming_codes = set()
+
+    # ── Pass 1: validate all rows and collect codes ──────────────────
+    parsed = []
     for i, row in enumerate(rows, 1):
         code = row.get('code', '').strip().upper()
         if not code:
@@ -6356,16 +6367,20 @@ def import_ingredients_master(rows):
             errors.append(f"Row {i}: invalid cost_per_kg '{cost_str}'"); continue
         if cost < 0:
             errors.append(f"Row {i}: cost_per_kg cannot be negative"); continue
-        # Accept 'name' or 'Ingredient Name (English)' column
         name = str(row.get('name') or row.get('Ingredient Name (English)') or '').strip()
         unit = str(row.get('unit', 'kg')).strip() or 'kg'
+        incoming_codes.add(code)
+        parsed.append((i, code, cost, name, unit))
+
+    # ── Pass 2: upsert each valid row ────────────────────────────────
+    for i, code, cost, name, unit in parsed:
         existing = qry1("SELECT id FROM ingredients WHERE code=?", (code,))
         try:
             if existing:
                 c = _conn()
                 try:
                     c.execute("""UPDATE ingredients
-                                 SET cost_per_kg=?, unit=?, name=?, updated_at=?
+                                 SET cost_per_kg=?, unit=?, name=?, active=1, updated_at=?
                                  WHERE code=?""",
                               (cost, unit, name, today(), code))
                     c.commit()
@@ -6375,8 +6390,8 @@ def import_ingredients_master(rows):
             else:
                 c = _conn()
                 try:
-                    c.execute("""INSERT INTO ingredients (code, name, unit, cost_per_kg, reorder_level, created_at)
-                                 VALUES (?, ?, ?, ?, 0, ?)""",
+                    c.execute("""INSERT INTO ingredients (code, name, unit, cost_per_kg, reorder_level, active, created_at)
+                                 VALUES (?, ?, ?, ?, 0, 1, ?)""",
                               (code, name, unit, cost, today()))
                     c.commit()
                 finally:
@@ -6384,9 +6399,27 @@ def import_ingredients_master(rows):
                 imported += 1
         except Exception as e:
             errors.append(f"Row {i} ({code}): {e}")
+
+    # ── Pass 3: deactivate any active ingredient NOT in the new file ─
+    if incoming_codes:
+        existing_active = qry("SELECT code FROM ingredients WHERE COALESCE(active,1)=1")
+        stale = [r['code'] for r in existing_active if r['code'] not in incoming_codes]
+        for code in stale:
+            try:
+                c = _conn()
+                try:
+                    c.execute("UPDATE ingredients SET active=0, updated_at=? WHERE code=?",
+                              (today(), code))
+                    c.commit()
+                finally:
+                    c.close()
+                deactivated += 1
+            except Exception as e:
+                errors.append(f"Deactivate {code}: {e}")
+
     save_db()
     load_ref()
-    return {'imported': imported, 'updated': updated, 'errors': errors}
+    return {'imported': imported, 'updated': updated, 'deactivated': deactivated, 'errors': errors}
 
 
 def create_ingredient(data):

@@ -9614,10 +9614,12 @@ async function uploadMaster(type) {
     });
     const d = await r.json();
     if (d.ok) {
-      const added   = d.imported || 0;
-      const updated = d.updated  || 0;
-      const errs    = d.errors   || [];
+      const added       = d.imported    || 0;
+      const updated     = d.updated     || 0;
+      const deactivated = d.deactivated || 0;
+      const errs        = d.errors      || [];
       let html = `<span style="color:#4caf50">✓ ${added} added, ${updated} updated`;
+      if (deactivated) html += `, ${deactivated} deactivated`;
       if (d.rows_processed) html += ` (${d.rows_processed} rows processed)`;
       html += '</span>';
       if (errs.length) html += `<br><span style="color:var(--chili)">${errs.slice(0,3).join('<br>')}${errs.length>3?'<br>...and '+(errs.length-3)+' more':''}</span>`;
