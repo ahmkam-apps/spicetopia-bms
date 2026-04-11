@@ -3827,6 +3827,8 @@ def create_sale(data):
 
     gross_profit = r2(total - cogs_price)
 
+    _sync_counter_to_max('sale',    'sales',    'sale_id',        'SP-SALE-')
+    _sync_counter_to_max('invoice', 'invoices', 'invoice_number', 'SP-INV-')
     sale_id = next_id('sale', 'SALE')
     inv_num = next_id('invoice', 'INV')
 
@@ -3973,6 +3975,8 @@ def create_multi_sale(data):
     # Generate all IDs BEFORE opening the main transaction.
     # next_id() opens its own connection; calling it inside an open transaction
     # causes a write-lock deadlock (SQLite only allows one writer at a time).
+    _sync_counter_to_max('invoice', 'invoices', 'invoice_number', 'SP-INV-')
+    _sync_counter_to_max('sale',    'sales',    'sale_id',        'SP-SALE-')
     inv_num  = next_id('invoice', 'INV')
     sale_ids = [next_id('sale', 'SALE') for _ in resolved]
 
@@ -4654,6 +4658,8 @@ def generate_invoice_from_order(order_id, data):
     # next_id() opens its own write connection; calling it inside an open
     # transaction causes SQLite SQLITE_BUSY ("database is locked") in WAL mode
     # because only one writer is allowed at a time.
+    _sync_counter_to_max('invoice', 'invoices', 'invoice_number', 'SP-INV-')
+    _sync_counter_to_max('sale',    'sales',    'sale_id',        'SP-SALE-')
     inv_number   = next_id('invoice', 'INV')
     sale_ids_pre = [next_id('sale', 'SALE') for _ in resolved]
 
@@ -4765,6 +4771,7 @@ def record_customer_payment(data):
     if amount <= 0:
         raise ValueError("Payment amount must be positive")
 
+    _sync_counter_to_max('payment', 'customer_payments', 'payment_ref', 'SP-PAY-')
     pay_ref = next_id('payment', 'PAY')
     ops = [("""
         INSERT INTO customer_payments
@@ -4831,6 +4838,7 @@ def pay_invoice_direct(invoice_id, data):
         raise ValueError("Payment amount must be positive")
 
     # Record the payment
+    _sync_counter_to_max('payment', 'customer_payments', 'payment_ref', 'SP-PAY-')
     pay_ref  = next_id('payment', 'PAY')
     pay_date = data.get('paymentDate', today())
     ops = [("""INSERT INTO customer_payments
@@ -5188,6 +5196,10 @@ def update_purchase_order_status(po_id, new_status, data=None):
     if new_status not in allowed.get(po['status'], []):
         raise ValueError(f"Cannot move from {po['status']} to {new_status}")
 
+    # Sync bill counter BEFORE opening transaction (next_id uses conn= inside the tx)
+    if new_status in ('received', 'partial') and not po.get('bill_id'):
+        _sync_counter_to_max('bill', 'supplier_bills', 'bill_number', 'SP-BILL-')
+
     c = _conn()
     try:
         if new_status in ('received', 'partial'):
@@ -5478,6 +5490,7 @@ def record_supplier_payment(data):
     if amount <= 0:
         raise ValueError("Amount must be positive")
 
+    _sync_counter_to_max('spay', 'supplier_payments', 'payment_ref', 'SP-SPAY-')
     pay_ref = next_id('spay', 'SPAY')
     ops = [("""
         INSERT INTO supplier_payments
@@ -5556,6 +5569,7 @@ def pay_bill_direct(bill_id, data):
         save_db()
         bill_balance = amount  # effective balance = amount being paid
 
+    _sync_counter_to_max('spay', 'supplier_payments', 'payment_ref', 'SP-SPAY-')
     pay_ref  = next_id('spay', 'SPAY')
     pay_date = data.get('paymentDate', today())
     ops = [("""INSERT INTO supplier_payments
@@ -5801,6 +5815,7 @@ def create_work_order(data):
     if not var:
         raise ValueError("Product variant not found")
     feasibility = check_wo_feasibility(variant_id, qty_units)
+    _sync_counter_to_max('work_order', 'work_orders', 'wo_number', 'SP-WO-')
     wo_number = next_id('work_order', 'WO')
     c = _conn()
     try:
@@ -5974,6 +5989,7 @@ def create_production_batch(data, exclude_wo_id=None):
     if shortfalls:
         raise ValueError("Insufficient stock:\n" + "\n".join(shortfalls))
 
+    _sync_counter_to_max('batch', 'production_batches', 'batch_id', 'SP-BATCH-')
     batch_id   = next_id('batch', 'BATCH')
     batch_date = data.get('batchDate', today())
 
@@ -10738,6 +10754,7 @@ def create_field_order(data):
     notes         = data.get('notes','')
     cash_collected = float(data.get('cashCollected', 0))
     # Generate order_ref
+    _sync_counter_to_max('field_order', 'field_orders', 'order_ref', 'SP-FO-')
     order_ref = next_id('field_order', 'FO')
     c = _conn()
     try:
@@ -10825,6 +10842,7 @@ def create_invoice(inv_data):
     items = inv_data.get('items', [])
     if not items:
         raise ValueError("Invoice must have at least one item")
+    _sync_counter_to_max('invoice', 'invoices', 'invoice_number', 'SP-INV-')
     inv_num  = next_id('invoice', 'INV')
     inv_date = inv_data.get('invoiceDate', str(date.today()))
     terms    = int(cust.get('payment_terms_days', 30))
