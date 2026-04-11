@@ -651,6 +651,55 @@ def bootstrap_db():
 MAX_BACKUPS = 5   # keep the last 5 snapshots
 
 
+def _migrate_invoice_items_line_total():
+    """
+    Migration: if invoice_items has a 'total' column (old schema) but no 'line_total',
+    recreate the table with 'line_total'. Fixes 'no such column: line_total' on Railway
+    instances created before the column was renamed. Idempotent — safe to run every startup.
+    """
+    c = _conn()
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(invoice_items)").fetchall()]
+        if 'line_total' not in cols and 'total' in cols:
+            print("  ⚙ Migrating invoice_items: renaming 'total' → 'line_total'")
+            c.execute("PRAGMA foreign_keys=OFF")
+            c.execute("""
+                CREATE TABLE invoice_items_new (
+                    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                    invoice_id         INTEGER NOT NULL REFERENCES invoices(id),
+                    product_variant_id INTEGER REFERENCES product_variants(id),
+                    product_code       TEXT NOT NULL,
+                    product_name       TEXT NOT NULL,
+                    pack_size          TEXT NOT NULL,
+                    quantity           INTEGER NOT NULL,
+                    unit_price         REAL NOT NULL,
+                    line_total         REAL NOT NULL,
+                    sale_id            TEXT
+                )
+            """)
+            c.execute("""
+                INSERT INTO invoice_items_new
+                    (id, invoice_id, product_variant_id, product_code, product_name,
+                     pack_size, quantity, unit_price, line_total, sale_id)
+                SELECT
+                    id, invoice_id, product_variant_id, product_code, product_name,
+                    pack_size, quantity, unit_price, total, sale_id
+                FROM invoice_items
+            """)
+            c.execute("DROP TABLE invoice_items")
+            c.execute("ALTER TABLE invoice_items_new RENAME TO invoice_items")
+            c.execute("PRAGMA foreign_keys=ON")
+            c.commit()
+            print("  ✓ invoice_items migrated — 'line_total' column now in place")
+        else:
+            print("  ✓ invoice_items schema OK — 'line_total' column present")
+    except Exception as e:
+        print(f"  ⚠ invoice_items migration skipped: {e}")
+        c.rollback()
+    finally:
+        c.close()
+
+
 def ensure_full_schema():
     """
     Create ALL core tables on a fresh database (idempotent — safe to run on existing DBs).
@@ -11082,6 +11131,7 @@ if __name__ == '__main__':
     # ── Step 2: Bootstrap DB to /tmp ─────────────────────────────
     bootstrap_db()
     ensure_full_schema()   # creates ALL tables on fresh DB (idempotent)
+    _migrate_invoice_items_line_total()  # rename old 'total' col → 'line_total' if needed
     ensure_users_table()
     ensure_sessions_table()
     ensure_rate_limit_table()
