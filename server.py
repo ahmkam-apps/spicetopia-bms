@@ -6540,6 +6540,130 @@ def import_ingredients_master(rows):
     return {'imported': imported, 'updated': updated, 'deactivated': deactivated, 'errors': errors}
 
 
+def import_bom_master(rows):
+    """
+    Upload BOMs from a CSV/XLSX file.
+
+    Required columns: product_code, ing_code, quantity_grams
+    Optional columns: batch_size_grams (default 1000), notes, effective_from
+
+    One row per ingredient per product. Multiple rows with the same product_code
+    are grouped into a single BOM. Any existing active BOM for that product is
+    replaced with a new version.
+
+    Example:
+        product_code | batch_size_grams | ing_code | quantity_grams
+        SPCM         | 1000             | ING-001  | 300
+        SPCM         | 1000             | ING-002  | 700
+        SPGM         | 1000             | ING-003  | 400
+    """
+    from collections import defaultdict
+
+    errors   = []
+    imported = 0   # products with a new BOM created
+    skipped  = 0   # rows skipped due to errors
+
+    # Normalise column names (lowercase, strip spaces)
+    def _col(row, *names):
+        for n in names:
+            for k, v in row.items():
+                if k.strip().lower() == n.lower():
+                    return str(v).strip()
+        return ''
+
+    # Group rows by product_code
+    groups = defaultdict(list)
+    for i, row in enumerate(rows, 1):
+        pcode   = _col(row, 'product_code', 'product code').upper()
+        ing     = _col(row, 'ing_code', 'ingredient_code', 'ingredient code').upper()
+        qty_raw = _col(row, 'quantity_grams', 'qty_grams', 'grams')
+        if not pcode:
+            errors.append(f"Row {i}: missing product_code — skipped"); skipped += 1; continue
+        if not ing:
+            errors.append(f"Row {i}: missing ing_code — skipped"); skipped += 1; continue
+        try:
+            qty = float(qty_raw.replace(',', ''))
+            if qty <= 0: raise ValueError()
+        except (ValueError, AttributeError):
+            errors.append(f"Row {i}: invalid quantity_grams '{qty_raw}' — skipped"); skipped += 1; continue
+
+        batch_raw = _col(row, 'batch_size_grams', 'batch_size', 'batch size')
+        try:
+            batch_size = float(batch_raw.replace(',', '')) if batch_raw else 1000
+        except (ValueError, AttributeError):
+            batch_size = 1000
+
+        groups[pcode].append({
+            'ing_code':    ing,
+            'qty_g':       qty,
+            'batch_size':  batch_size,
+            'notes':       _col(row, 'notes'),
+            'eff_from':    _col(row, 'effective_from', 'effective from') or today(),
+        })
+
+    # Build one BOM per product
+    for pcode, items in groups.items():
+        prod = qry1("SELECT id, name FROM products WHERE code=?", (pcode,))
+        if not prod:
+            errors.append(f"Product not found: {pcode} — skipped")
+            skipped += len(items)
+            continue
+
+        # Use batch_size and effective_from from first row
+        batch_size = items[0]['batch_size']
+        eff_from   = items[0]['eff_from']
+        notes      = items[0]['notes']
+
+        # Resolve ingredient codes
+        resolved = []
+        bad = False
+        for it in items:
+            ing = qry1("SELECT id FROM ingredients WHERE code=? AND COALESCE(active,1)=1", (it['ing_code'],))
+            if not ing:
+                errors.append(f"Ingredient not found: {it['ing_code']} (product {pcode}) — BOM skipped")
+                bad = True; break
+            resolved.append({'ing_id': ing['id'], 'qty_g': it['qty_g']})
+        if bad:
+            skipped += len(items)
+            continue
+
+        # Create new BOM version (deactivate old)
+        c = _conn()
+        try:
+            c.execute("UPDATE bom_versions SET active_flag=0 WHERE product_id=? AND active_flag=1",
+                      (prod['id'],))
+            row_ver = c.execute("SELECT MAX(version_no) FROM bom_versions WHERE product_id=?",
+                                (prod['id'],)).fetchone()
+            next_ver = (row_ver[0] or 0) + 1
+            c.execute("""
+                INSERT INTO bom_versions
+                    (product_id, version_no, batch_size_grams, effective_from, active_flag, notes)
+                VALUES (?,?,?,?,1,?)
+            """, (prod['id'], next_ver, batch_size, eff_from, notes))
+            bom_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            for r in resolved:
+                c.execute("""
+                    INSERT INTO bom_items (bom_version_id, ingredient_id, quantity_grams)
+                    VALUES (?,?,?)
+                """, (bom_id, r['ing_id'], r['qty_g']))
+            c.commit()
+            imported += 1
+        except Exception as e:
+            c.rollback()
+            errors.append(f"DB error for {pcode}: {e}")
+            skipped += len(items)
+        finally:
+            c.close()
+
+    save_db()
+    return {
+        'imported': imported,
+        'skipped':  skipped,
+        'errors':   errors,
+        'message':  f"{imported} product BOM(s) created/updated, {skipped} rows skipped"
+    }
+
+
 def create_ingredient(data):
     """Create a new ingredient."""
     code = str(data.get('code', '')).strip().upper()
@@ -9573,7 +9697,7 @@ class Handler(BaseHTTPRequestHandler):
                 if sess['role'] != 'admin':
                     send_json(self, {'ok': False, 'error': 'Permission denied'}, 403); return
                 master_type = path.split('/')[-1]
-                if master_type not in ('customers', 'suppliers', 'products', 'prices', 'ingredients'):
+                if master_type not in ('customers', 'suppliers', 'products', 'prices', 'ingredients', 'bom'):
                     send_json(self, {'ok': False, 'error': f'Unknown master type: {master_type}'}, 400); return
                 try:
                     import cgi as _cgi
@@ -9601,6 +9725,8 @@ class Handler(BaseHTTPRequestHandler):
                         result = import_prices_master(rows)
                     elif master_type == 'ingredients':
                         result = import_ingredients_master(rows)
+                    elif master_type == 'bom':
+                        result = import_bom_master(rows)
                     send_json(self, {'ok': True, 'rows_processed': len(rows), **result})
                 except Exception as e:
                     send_json(self, {'ok': False, 'error': str(e)}, 500)
