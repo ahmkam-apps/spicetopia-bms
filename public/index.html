@@ -7890,6 +7890,7 @@ async function saveProductGroup(codes) {
 //  PRICES
 // ═══════════════════════════════════════════════════════════════
 async function renderPrices() {
+  const isAdmin = state.currentUser?.role === 'admin';
   const prods = state.ref.products || [];
 
   // Fetch all prices in parallel
@@ -7982,7 +7983,13 @@ async function renderPrices() {
     </div>`;
   });
 
-  return `
+  const adminBanner = isAdmin ? `
+  <div style="background:var(--saffron-pale);border:1px solid var(--saffron);border-radius:6px;padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+    <span style="font-size:13px;color:var(--text-2)">💰 <strong>Costing &amp; cost editing</strong> has moved to the new <strong>Prices &amp; Costs</strong> module. This page is now read-only.</span>
+    <button class="btn btn-sm" style="background:var(--saffron);color:#fff;border:none;margin-left:16px;white-space:nowrap" onclick="nav('prices-costs')">Go to Prices &amp; Costs →</button>
+  </div>` : '';
+
+  return adminBanner + `
   <!-- ── Set Price Form ───────────────────────────────────────── -->
   <div class="card mb-20">
     <div class="section-header" style="margin-bottom:8px"><h2>Set / Update Price</h2></div>
@@ -8062,7 +8069,7 @@ function editPrice(variantId, priceMap) {
 // ═══════════════════════════════════════════════════════════════
 //  PRICES & COSTS MODULE
 // ═══════════════════════════════════════════════════════════════
-let _pcTab = 'standard'; // 'standard' | 'ingredients' | 'config'
+let _pcTab = 'standard'; // 'standard' | 'ingredients' | 'config' | 'history' | 'alerts' | 'variance'
 
 function canEditCosts() {
   return state.currentUser?.role === 'admin';
@@ -8070,7 +8077,7 @@ function canEditCosts() {
 
 function _pcSwitchTab(tab) {
   _pcTab = tab;
-  ['standard','ingredients','config'].forEach(t => {
+  ['standard','ingredients','config','history','alerts','variance'].forEach(t => {
     const btn  = document.getElementById('pc-tab-' + t);
     const pane = document.getElementById('pc-pane-' + t);
     if (!btn || !pane) return;
@@ -8087,10 +8094,13 @@ async function renderPricesCosts() {
     return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
   }
 
-  let costs = [], cfg = {}, ings = [];
-  try { costs = await GET('/api/costing/standard-costs'); } catch(e) { costs = []; }
-  try { cfg   = await GET('/api/costing/config'); } catch(e) { cfg = {}; }
-  try { ings  = await GET('/api/admin/ingredients'); } catch(e) { ings = []; }
+  let costs = [], cfg = {}, ings = [], history = [], alerts = [], variances = [];
+  try { costs    = await GET('/api/costing/standard-costs'); } catch(e) { costs = []; }
+  try { cfg      = await GET('/api/costing/config'); } catch(e) { cfg = {}; }
+  try { ings     = await GET('/api/admin/ingredients'); } catch(e) { ings = []; }
+  try { history  = await GET('/api/costing/price-history?limit=150'); } catch(e) { history = []; }
+  try { alerts   = await GET('/api/costing/margin-alerts'); } catch(e) { alerts = []; }
+  try { variances= await GET('/api/costing/batch-variances?days=90'); } catch(e) { variances = []; }
 
   const activeIngs = ings.filter(i => i.active !== 0);
 
@@ -8277,6 +8287,118 @@ SP-ING003,950.00</pre>
     </div>
   </div>`;
 
+  // --- COST HISTORY TAB ---
+  const _histTypeLabel = { ingredient: 'Ingredient', config: 'Config' };
+  const _histTypeColor = { ingredient: 'var(--saffron)', config: 'var(--cardamom)' };
+  const histRows = history.length ? history.map(h => {
+    const pct    = h.pct_change != null ? (h.pct_change >= 0 ? '+' : '') + h.pct_change.toFixed(1) + '%' : '—';
+    const pctClr = h.pct_change > 0 ? 'var(--chili)' : h.pct_change < 0 ? 'var(--cardamom)' : 'var(--text-3)';
+    const typeClr= _histTypeColor[h.change_type] || 'var(--text-3)';
+    return `<tr>
+      <td>${fmtDate(h.changed_at)}<br><span style="font-size:11px;color:var(--text-3)">${(h.changed_at||'').slice(11,16)}</span></td>
+      <td><span style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;background:${typeClr}22;color:${typeClr}">${_histTypeLabel[h.change_type]||h.change_type}</span></td>
+      <td><strong style="font-family:monospace">${h.entity_code||'—'}</strong>${h.entity_name ? '<br><span style="font-size:11px;color:var(--text-3)">'+h.entity_name+'</span>' : ''}</td>
+      <td class="text-right">${h.old_value != null ? fmtPKR(h.old_value) : '—'}</td>
+      <td class="text-right">${h.new_value != null ? fmtPKR(h.new_value) : '—'}</td>
+      <td class="text-right" style="color:${pctClr};font-weight:700">${pct}</td>
+      <td>${h.changed_by||'—'}</td>
+      <td style="color:var(--text-3);font-size:12px">${h.note||''}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:24px">No cost changes recorded yet</td></tr>`;
+
+  const historyTab = `
+  <div id="pc-pane-history" style="display:none">
+    <div class="card">
+      <h3 style="margin-bottom:4px">Cost Change History</h3>
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">All ingredient cost updates and costing parameter changes — most recent first.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Type</th><th>Item</th><th class="text-right">Old Value</th><th class="text-right">New Value</th><th class="text-right">Change</th><th>Changed By</th><th>Note</th></tr></thead>
+          <tbody>${histRows}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  // --- MARGIN ALERTS TAB ---
+  const alertBadge = alerts.length > 0
+    ? ` <span style="background:var(--chili);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px">${alerts.length}</span>`
+    : '';
+  const alertRows = alerts.length ? alerts.map(a => {
+    const gapClr = a.gap > 10 ? 'var(--chili)' : 'var(--saffron)';
+    return `<tr id="pc-alert-row-${a.alertId}">
+      <td><strong style="font-family:monospace">${a.productCode||'—'}</strong></td>
+      <td>${a.productName||'—'}</td>
+      <td>${a.packSize||'—'}</td>
+      <td class="text-right" style="color:var(--chili);font-weight:700">${(a.margin_pct||0).toFixed(1)}%</td>
+      <td class="text-right">${(a.floor_pct||0).toFixed(1)}%</td>
+      <td class="text-right" style="color:${gapClr};font-weight:700">−${(a.gap||0).toFixed(1)}%</td>
+      <td>${a.exFactory != null ? fmtPKR(a.exFactory) : '—'}</td>
+      <td>${fmtDate(a.detectedAt)}</td>
+      <td><button class="btn btn-xs btn-outline" style="color:var(--cardamom);border-color:var(--cardamom)" onclick="pcDismissAlert(${a.alertId})">Dismiss</button></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="9" style="text-align:center;padding:24px">
+    <span style="font-size:28px">✓</span><br>
+    <strong style="color:var(--cardamom)">All margins are above the floor</strong><br>
+    <span style="font-size:12px;color:var(--text-3)">No active alerts · Floor is ${parseFloat((cfg.margin_floor_pct||{}).value||30)*100>=1 ? parseFloat((cfg.margin_floor_pct||{}).value||30).toFixed(0) : (parseFloat((cfg.margin_floor_pct||{}).value||0.30)*100).toFixed(0)}%</span>
+  </td></tr>`;
+
+  const alertsTab = `
+  <div id="pc-pane-alerts" style="display:none">
+    ${alerts.length > 0 ? `<div class="alert" style="background:var(--chili-pale);border:1px solid var(--chili);color:var(--chili);margin-bottom:16px">
+      ⚠ <strong>${alerts.length} SKU${alerts.length>1?'s':''} below the margin floor.</strong> Review and either update costs or dismiss if acknowledged.
+    </div>` : ''}
+    <div class="card">
+      <h3 style="margin-bottom:4px">Margin Alerts</h3>
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">SKUs where computed gross margin falls below the configured floor. Dismiss to acknowledge.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Code</th><th>Product</th><th>Pack Size</th><th class="text-right">Margin</th><th class="text-right">Floor</th><th class="text-right">Gap</th><th>Ex-Factory</th><th>Detected</th><th>Action</th></tr></thead>
+          <tbody id="pc-alerts-tbody">${alertRows}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  // --- BATCH VARIANCE TAB ---
+  const varRows = variances.length ? variances.map(v => {
+    const hasStd  = v.standard_mfg != null;
+    const varPct  = v.variance_pct;
+    const varClr  = !hasStd ? 'var(--text-3)' : v.favourable ? 'var(--cardamom)' : v.flag ? 'var(--chili)' : 'var(--text-2)';
+    const varTxt  = !hasStd ? '—' : (varPct >= 0 ? '+' : '') + varPct.toFixed(1) + '%';
+    const flagBadge = v.flag ? '<span style="font-size:10px;background:var(--chili-pale);color:var(--chili);padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px">FLAG</span>' : '';
+    const favBadge  = v.favourable ? '<span style="font-size:10px;background:var(--cardamom-pale);color:var(--cardamom);padding:1px 5px;border-radius:4px;font-weight:600;margin-left:4px">FAV</span>' : '';
+    return `<tr>
+      <td>${fmtDate(v.batchDate)}</td>
+      <td style="font-family:monospace;font-size:12px">${v.batchId||'—'}</td>
+      <td><strong>${v.productCode||'—'}</strong><br><span style="font-size:11px;color:var(--text-3)">${v.productName||''}</span></td>
+      <td>${v.packSize||'—'}</td>
+      <td class="text-right">${fmt(v.qtyUnits,0)}</td>
+      <td class="text-right">${hasStd ? fmtPKR(v.standard_mfg) : '<span style="color:var(--text-3)">No BOM</span>'}</td>
+      <td class="text-right">${v.actual_mfg > 0 ? fmtPKR(v.actual_mfg) : '—'}</td>
+      <td class="text-right" style="color:${varClr};font-weight:700">${v.variance != null ? fmtPKR(v.variance) : '—'}${flagBadge}${favBadge}</td>
+      <td class="text-right" style="color:${varClr};font-weight:700">${varTxt}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="9" style="text-align:center;color:var(--text-3);padding:24px">No production batches in the last 90 days</td></tr>`;
+
+  const varianceTab = `
+  <div id="pc-pane-variance" style="display:none">
+    <div class="card">
+      <h3 style="margin-bottom:4px">Batch Cost Variance — Last 90 Days</h3>
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">Compares actual cost recorded at posting vs computed standard cost. FLAG = adverse variance &gt;5%.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Batch ID</th><th>Product</th><th>Pack</th><th class="text-right">Units</th><th class="text-right">Standard</th><th class="text-right">Actual</th><th class="text-right">Variance (PKR)</th><th class="text-right">Var %</th></tr></thead>
+          <tbody>${varRows}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  const TS = 'padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;margin-bottom:-2px';
+  const activeStyle   = TS + ';border-bottom:3px solid var(--saffron);color:var(--saffron)';
+  const inactiveStyle = TS + ';border-bottom:2px solid transparent;color:var(--text-3)';
+
   return `
   <div class="section-header">
     <div>
@@ -8286,15 +8408,21 @@ SP-ING003,950.00</pre>
     <button class="btn btn-outline" onclick="nav('prices-costs')">↺ Refresh</button>
   </div>
 
-  <div style="border-bottom:2px solid var(--border);margin-bottom:20px">
-    <button id="pc-tab-standard"    onclick="_pcSwitchTab('standard')"    style="padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--saffron);color:var(--saffron);margin-bottom:-2px">Standard Costs</button>
-    <button id="pc-tab-ingredients" onclick="_pcSwitchTab('ingredients')" style="padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-3);margin-bottom:-2px">Ingredient Costs</button>
-    <button id="pc-tab-config"      onclick="_pcSwitchTab('config')"      style="padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-3);margin-bottom:-2px">Costing Config</button>
+  <div style="border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;white-space:nowrap">
+    <button id="pc-tab-standard"    onclick="_pcSwitchTab('standard')"    style="${activeStyle}">Standard Costs</button>
+    <button id="pc-tab-ingredients" onclick="_pcSwitchTab('ingredients')" style="${inactiveStyle}">Ingredient Costs</button>
+    <button id="pc-tab-config"      onclick="_pcSwitchTab('config')"      style="${inactiveStyle}">Costing Config</button>
+    <button id="pc-tab-history"     onclick="_pcSwitchTab('history')"     style="${inactiveStyle}">Cost History</button>
+    <button id="pc-tab-alerts"      onclick="_pcSwitchTab('alerts')"      style="${inactiveStyle}">Margin Alerts${alertBadge}</button>
+    <button id="pc-tab-variance"    onclick="_pcSwitchTab('variance')"    style="${inactiveStyle}">Batch Variance</button>
   </div>
 
   ${standardTab}
   ${ingredientsTab}
-  ${configTab}`;
+  ${configTab}
+  ${historyTab}
+  ${alertsTab}
+  ${varianceTab}`;
 }
 
 // --- Prices & Costs — Ingredient cost inline edit ---
@@ -8363,6 +8491,27 @@ async function pcCfgSave(key, scale) {
     }
   } catch(e) {
     if (msgEl) msgEl.innerHTML = `<span style="color:var(--chili)">${e.message}</span>`;
+  }
+}
+
+// --- Prices & Costs — Margin alert dismiss ---
+async function pcDismissAlert(alertId) {
+  try {
+    await POST('/api/costing/margin-alerts/' + alertId + '/dismiss', {});
+    const row = document.getElementById('pc-alert-row-' + alertId);
+    if (row) {
+      row.style.transition = 'opacity .4s';
+      row.style.opacity = '0';
+      setTimeout(() => {
+        row.remove();
+        const tbody = document.getElementById('pc-alerts-tbody');
+        if (tbody && !tbody.querySelector('tr[id^="pc-alert-row-"]')) {
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px"><span style="font-size:28px">✓</span><br><strong style="color:var(--cardamom)">All alerts dismissed</strong></td></tr>';
+        }
+      }, 420);
+    }
+  } catch(e) {
+    alert('Could not dismiss alert: ' + e.message);
   }
 }
 
