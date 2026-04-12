@@ -8734,6 +8734,7 @@ class Handler(BaseHTTPRequestHandler):
                 rows = qry("""
                     SELECT pb.*, p.code as product_code, p.name as product_name,
                            ps.label as pack_label,
+                           wo.wo_number,
                            COALESCE((
                                SELECT ROUND(SUM(pc.qty_grams / 1000.0 * i.cost_per_kg), 2)
                                FROM production_consumption pc
@@ -8744,6 +8745,7 @@ class Handler(BaseHTTPRequestHandler):
                     JOIN products p ON p.id = pb.product_id
                     LEFT JOIN product_variants pv ON pv.id = pb.product_variant_id
                     LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                    LEFT JOIN work_orders wo ON wo.batch_id = pb.batch_id
                     ORDER BY pb.batch_date DESC LIMIT 200
                 """)
                 for row in rows:
