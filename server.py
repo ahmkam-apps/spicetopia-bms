@@ -5705,7 +5705,7 @@ def check_wo_feasibility(variant_id, qty_units, wo_id=None):
     if not bom_ver:
         return {'feasible': False, 'shortfalls': ['No active BOM for this product'], 'requirements': []}
     bom_items_list = qry("""
-        SELECT bi.*, i.code as ing_code
+        SELECT bi.*, i.code as ing_code, i.name as ing_name
         FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
         WHERE bi.bom_version_id=?
     """, (bom_ver['id'],))
@@ -5724,6 +5724,7 @@ def check_wo_feasibility(variant_id, qty_units, wo_id=None):
         deficit   = max(0.0, needed - available)
         requirements.append({
             'ingCode':        b['ing_code'],
+            'ingName':        b['ing_name'] or b['ing_code'],
             'neededGrams':    needed,
             'physicalGrams':  physical,
             'reservedGrams':  reserved,
@@ -8982,7 +8983,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not bv:
                     send_json(self, {'version': None, 'items': []}); return
                 items = qry("""
-                    SELECT bi.*, i.code as ing_code
+                    SELECT bi.*, i.code as ing_code, i.name as ing_name
                     FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
                     WHERE bi.bom_version_id=?
                 """, (bv['id'],))
