@@ -2940,6 +2940,40 @@ def approve_order_with_edit(order_id, data):
     return detail
 
 
+def update_order_item_qty(order_id, item_id, new_qty):
+    """Update qty_ordered on a single order line item (admin/sales only).
+    Blocked if order is fully_invoiced or cancelled.
+    Cannot reduce below qty_invoiced + qty_in_production (already committed)."""
+    order = qry1("SELECT * FROM customer_orders WHERE id=?", (order_id,))
+    if not order:
+        raise ValueError("Order not found")
+    if order['status'] in ('fully_invoiced', 'cancelled'):
+        raise ValueError(f"Cannot edit items on a {order['status']} order")
+
+    item = qry1("SELECT * FROM customer_order_items WHERE id=? AND order_id=?", (item_id, order_id))
+    if not item:
+        raise ValueError(f"Item {item_id} not found on order {order_id}")
+
+    new_qty = int(new_qty)
+    if new_qty <= 0:
+        raise ValueError("Quantity must be greater than zero")
+
+    committed = (item['qty_in_production'] or 0) + (item['qty_invoiced'] or 0)
+    if new_qty < committed:
+        raise ValueError(
+            f"Cannot reduce below {committed} units "
+            f"({item['qty_in_production'] or 0} in production + {item['qty_invoiced'] or 0} invoiced)"
+        )
+
+    run("UPDATE customer_order_items SET qty_ordered=? WHERE id=?", (new_qty, item_id))
+
+    # Update soft hold to match new qty (only if order is still in draft/confirmed)
+    if order['status'] in ('draft', 'confirmed'):
+        run("UPDATE customer_order_items SET qty_soft_hold=? WHERE id=?", (new_qty, item_id))
+
+    return _order_detail(order_id)
+
+
 def reject_order(order_id, reason):
     """
     Admin rejects a pending_review order.
@@ -10076,6 +10110,20 @@ class Handler(BaseHTTPRequestHandler):
                 if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 result = set_product_price(data)
+                send_json(self, result)
+                return
+
+            # PUT /api/customer-orders/:id/items/:item_id  (admin, sales)
+            if path.startswith('/api/customer-orders/') and '/items/' in path and len(path.split('/')) == 6:
+                if not require(sess, 'admin', 'sales'):
+                    send_error(self, 'Permission denied', 403); return
+                parts    = path.split('/')
+                order_id = int(parts[3])
+                item_id  = int(parts[5])
+                new_qty  = data.get('qty')
+                if new_qty is None:
+                    send_error(self, 'qty is required', 400); return
+                result = update_order_item_qty(order_id, item_id, new_qty)
                 send_json(self, result)
                 return
 
