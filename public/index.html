@@ -6076,6 +6076,14 @@ async function renderProduction() {
     GET('/api/work-orders')
   ]);
 
+  // Pre-load BOMs for all products (for BOM setup panel)
+  const products = state.ref.products || [];
+  const bomMap = {};  // productCode → bom (or null)
+  await Promise.all(products.map(async p => {
+    try { bomMap[p.code] = await GET(`/api/bom/${p.code}`); }
+    catch(e) { bomMap[p.code] = null; }
+  }));
+
   // KPI counts
   const woPlanned    = workOrders.filter(w => w.status === 'planned').length;
   const woInProgress = workOrders.filter(w => w.status === 'in_progress').length;
@@ -6177,6 +6185,85 @@ async function renderProduction() {
     </div>
   </div>
 
+  <!-- ── BOM SETUP CARD ─────────────────────────────────── -->
+  <div class="card mb-16" id="bom-setup-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div>
+        <h3 style="margin:0">Bill of Materials (BOM)</h3>
+        <p style="font-size:12px;color:var(--text-3);margin:3px 0 0">Define ingredient recipes per product. Required before recording production batches.</p>
+      </div>
+      <button class="btn btn-xs btn-outline" onclick="toggleBomPanel()">⚙ Manage BOMs</button>
+    </div>
+
+    <!-- BOM Status Summary (always visible) -->
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+      ${products.map(p => {
+        const bom = bomMap[p.code];
+        const hasActive = bom && bom.version !== null && bom.id;
+        return `<span style="font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;cursor:pointer;
+          background:${hasActive ? '#eafaf1' : '#fff5f5'};
+          color:${hasActive ? '#1aaa55' : '#e03131'};
+          border:1px solid ${hasActive ? '#b2e8c8' : '#f5c0c0'}"
+          onclick="openBomForProduct('${p.code}')"
+          title="${hasActive ? 'BOM v'+bom.version_no+' active — click to edit' : 'No BOM — click to create'}">
+          ${hasActive ? '✓' : '+'} ${p.code}
+        </span>`;
+      }).join('')}
+    </div>
+
+    <!-- BOM Editor Panel (hidden until toggled) -->
+    <div id="bom-editor-panel" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:14px">
+      <div id="bom-editor-msg"></div>
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="form-group">
+          <label>Product *</label>
+          <select id="bom-prod-sel" onchange="loadBomForEditor()">
+            ${products.map(p => `<option value="${p.code}">${p.name} (${p.code})</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Batch Reference Size (grams) *</label>
+          <input id="bom-batch-size" type="number" min="1" value="1000" style="width:110px" title="The total grams your ingredient list below makes — e.g. 1000g if your recipe makes 1kg">
+        </div>
+        <div class="form-group">
+          <label>Effective From</label>
+          <input id="bom-eff-from" type="date" value="${today()}">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <input id="bom-notes" placeholder="Optional">
+        </div>
+      </div>
+
+      <!-- Current BOM version info -->
+      <div id="bom-current-info" style="margin-bottom:10px;font-size:12px;color:var(--text-3)"></div>
+
+      <!-- Ingredient rows table -->
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:12px;font-weight:600">Ingredients</span>
+          <button class="btn btn-xs btn-outline" onclick="addBomIngRow()">+ Add Row</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--surface);border-bottom:1px solid var(--border)">
+              <th style="padding:6px 8px;text-align:left;font-weight:600;font-size:11px">Ingredient Code</th>
+              <th style="padding:6px 8px;text-align:right;font-weight:600;font-size:11px">Grams in batch</th>
+              <th style="padding:6px 8px;width:32px"></th>
+            </tr>
+          </thead>
+          <tbody id="bom-ing-rows"></tbody>
+        </table>
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px" id="bom-total-g"></div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="saveBom()">Save BOM</button>
+        <button class="btn btn-outline" onclick="toggleBomPanel()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── NEW WORK ORDER FORM (collapsible) ───────────────── -->
   <div id="wo-form-panel" style="display:none" class="card mb-16" style="border-left:4px solid var(--mac-blue)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -6213,6 +6300,8 @@ async function renderProduction() {
   <!-- ── PRODUCTION WORKFLOW GUIDE ───────────────────────── -->
   <div style="background:#f8f9ff;border:1px solid #dde3f5;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span style="font-size:12px;font-weight:600;color:var(--text-2);margin-right:4px">How to complete a production run:</span>
+    <span style="font-size:12px;background:#f5f0ff;color:#7c3aed;border:1px solid #d4c2f7;border-radius:4px;padding:2px 8px;white-space:nowrap;cursor:pointer" onclick="openBomForProduct((state.ref.products||[{code:''}])[0].code)">0. Setup BOM ↑</span>
+    <span style="font-size:12px;color:var(--text-3)">→</span>
     <span style="font-size:12px;background:#f0f4ff;color:#3563e9;border:1px solid #c7d4f7;border-radius:4px;padding:2px 8px;white-space:nowrap">1. Create Work Order</span>
     <span style="font-size:12px;color:var(--text-3)">→</span>
     <span style="font-size:12px;background:#fff8e6;color:#e6a817;border:1px solid #f5dfa0;border-radius:4px;padding:2px 8px;white-space:nowrap">2. Click <strong>Start</strong> when production begins</span>
@@ -6325,6 +6414,134 @@ function hideDirectBatchForm() {
   if (f) f.style.display = 'none';
   const b = document.getElementById('direct-batch-btn');
   if (b) b.style.display = '';
+}
+
+// ── BOM Management ─────────────────────────────────────────────────
+function toggleBomPanel() {
+  const p = document.getElementById('bom-editor-panel');
+  if (!p) return;
+  const showing = p.style.display !== 'none';
+  p.style.display = showing ? 'none' : 'block';
+  if (!showing) {
+    loadBomForEditor();
+    p.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+}
+
+function openBomForProduct(code) {
+  const p = document.getElementById('bom-editor-panel');
+  if (!p) return;
+  p.style.display = 'block';
+  const sel = document.getElementById('bom-prod-sel');
+  if (sel) { sel.value = code; }
+  loadBomForEditor();
+  document.getElementById('bom-setup-card').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+async function loadBomForEditor() {
+  const sel = document.getElementById('bom-prod-sel');
+  if (!sel) return;
+  const code = sel.value;
+  const infoEl = document.getElementById('bom-current-info');
+  const rowsEl = document.getElementById('bom-ing-rows');
+  const batchEl = document.getElementById('bom-batch-size');
+  if (!infoEl || !rowsEl) return;
+
+  try {
+    const bom = await GET(`/api/bom/${code}`);
+    if (bom && bom.id) {
+      infoEl.innerHTML = `<span style="color:var(--cardamom);font-weight:600">Active: v${bom.version_no}</span>
+        — batch size ${bom.batch_size_grams}g — effective ${bom.effective_from}
+        &nbsp;<span style="color:var(--text-3)">(saving will create v${bom.version_no+1})</span>`;
+      if (batchEl) batchEl.value = bom.batch_size_grams;
+      // Populate rows from existing BOM
+      rowsEl.innerHTML = '';
+      (bom.items || []).forEach(it => addBomIngRow(it.ing_code, it.quantity_grams));
+      if ((bom.items||[]).length === 0) addBomIngRow();
+    } else {
+      infoEl.innerHTML = '<span style="color:var(--chili);font-weight:600">No active BOM</span> — define ingredients below to enable production.';
+      rowsEl.innerHTML = '';
+      addBomIngRow();
+    }
+    updateBomTotal();
+  } catch(e) {
+    infoEl.innerHTML = '<span style="color:var(--chili)">Could not load BOM</span>';
+    rowsEl.innerHTML = '';
+    addBomIngRow();
+  }
+}
+
+let _bomRowIdx = 0;
+function addBomIngRow(ingCode='', qtyG='') {
+  const tbody = document.getElementById('bom-ing-rows');
+  if (!tbody) return;
+  const idx = _bomRowIdx++;
+  const tr = document.createElement('tr');
+  tr.id = `bom-row-${idx}`;
+  tr.style.borderBottom = '1px solid var(--border)';
+  tr.innerHTML = `
+    <td style="padding:5px 4px">
+      <input class="bom-ing-code" type="text" value="${ingCode}" placeholder="e.g. ING-001"
+        style="width:140px;font-family:monospace;font-size:13px"
+        oninput="updateBomTotal()">
+    </td>
+    <td style="padding:5px 4px;text-align:right">
+      <input class="bom-ing-qty" type="number" value="${qtyG}" placeholder="grams" min="0.01" step="0.01"
+        style="width:100px;text-align:right"
+        oninput="updateBomTotal()">
+    </td>
+    <td style="padding:5px 4px;text-align:center">
+      <button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px"
+        onclick="document.getElementById('bom-row-${idx}').remove();updateBomTotal()">✕</button>
+    </td>`;
+  tbody.appendChild(tr);
+  updateBomTotal();
+}
+
+function updateBomTotal() {
+  const rows = document.querySelectorAll('#bom-ing-rows tr');
+  let total = 0;
+  rows.forEach(r => {
+    const qty = parseFloat((r.querySelector('.bom-ing-qty')||{}).value) || 0;
+    total += qty;
+  });
+  const el = document.getElementById('bom-total-g');
+  const batchSize = parseFloat((document.getElementById('bom-batch-size')||{}).value) || 0;
+  if (el) {
+    el.textContent = `Total ingredients: ${total.toFixed(1)}g${batchSize > 0 ? ` / ${batchSize}g batch size` : ''}`;
+    el.style.color = (batchSize > 0 && Math.abs(total - batchSize) > 0.5) ? 'var(--saffron)' : 'var(--text-3)';
+  }
+}
+
+async function saveBom() {
+  const prodCode    = (document.getElementById('bom-prod-sel')||{}).value;
+  const batchSize   = parseFloat((document.getElementById('bom-batch-size')||{}).value);
+  const effFrom     = (document.getElementById('bom-eff-from')||{}).value;
+  const notes       = (document.getElementById('bom-notes')||{}).value;
+  const msgEl       = document.getElementById('bom-editor-msg');
+
+  // Collect rows
+  const items = [];
+  document.querySelectorAll('#bom-ing-rows tr').forEach(r => {
+    const code = ((r.querySelector('.bom-ing-code')||{}).value||'').trim();
+    const qty  = parseFloat((r.querySelector('.bom-ing-qty')||{}).value) || 0;
+    if (code && qty > 0) items.push({ ingCode: code, quantityGrams: qty });
+  });
+
+  if (!prodCode) { showMsg('bom-editor-msg', 'Select a product', 'error'); return; }
+  if (!batchSize || batchSize <= 0) { showMsg('bom-editor-msg', 'Batch size must be > 0', 'error'); return; }
+  if (items.length === 0) { showMsg('bom-editor-msg', 'Add at least one ingredient', 'error'); return; }
+
+  try {
+    const res = await POST('/api/bom', { productCode: prodCode, batchSizeGrams: batchSize,
+                                          effectiveFrom: effFrom, notes, items });
+    showMsg('bom-editor-msg',
+      `✓ BOM v${res.version_no} saved for ${res.productName} — ${items.length} ingredient(s), ${res.batch_size_grams}g batch`,
+      'success');
+    setTimeout(() => nav('production'), 1500);
+  } catch(e) {
+    showMsg('bom-editor-msg', e.message, 'error');
+  }
 }
 
 let _woCheckTimer = null;
