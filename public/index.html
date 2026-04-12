@@ -1802,6 +1802,11 @@ async function loadSalesPrices() {
 // ═══════════════════════════════════════════════════════════════════
 
 let _oiFilter = 'all';   // current filter chip
+let _oiTab    = 'orders'; // 'orders' | 'invoices'
+let _invFilter = 'all';   // invoice status filter
+
+function _setOiTab(tab) { _oiTab = tab; render('orders-invoices'); }
+function _setInvFilter(f) { _invFilter = f; render('orders-invoices'); }
 
 async function renderOrdersInvoices() {
   const [orders, invs] = await Promise.all([
@@ -1928,12 +1933,89 @@ async function renderOrdersInvoices() {
     </tr>`;
   }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:32px">No orders match this filter</td></tr>`;
 
+  // ── Invoices tab content ──────────────────────────────────────────
+  const invStatusFilters = ['all','UNPAID','PARTIAL','PAID','VOID'];
+  const invStatusLabels  = { all:'All', UNPAID:'Unpaid', PARTIAL:'Partial', PAID:'Paid', VOID:'Void' };
+  const todayStr2 = new Date().toISOString().slice(0,10);
+
+  const filteredInvs = _invFilter === 'all' ? invs : invs.filter(i => i.status === _invFilter);
+  const invFilterChips = invStatusFilters.map(f => {
+    const count = f === 'all' ? invs.length : invs.filter(i => i.status === f).length;
+    const active = _invFilter === f ? 'active' : '';
+    return '<span class="filter-chip ' + active + '" onclick="_setInvFilter(\'' + f + '\')">' + invStatusLabels[f] + ' <span style="opacity:.7;font-size:11px">' + count + '</span></span>';
+  }).join('');
+
+  const _isAdminOrAccOI = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
+  const invTableRows = filteredInvs.map(inv => {
+    const isVoid    = inv.status === 'VOID';
+    const isOverdue = !isVoid && inv.status !== 'PAID' && inv.due_date && inv.due_date < todayStr2;
+    const canPay    = !isVoid && (inv.status === 'UNPAID' || inv.status === 'PARTIAL') && (inv.balance || 0) > 0;
+    const canVoid   = _isAdminOrAccOI && !isVoid && (inv.status === 'UNPAID' || inv.status === 'PARTIAL');
+    const rowOpacity = isVoid ? 'opacity:0.5' : '';
+    const strikeStyle = isVoid ? 'text-decoration:line-through;color:var(--text-3)' : '';
+    const statusBadge = isVoid ? '<span class="badge badge-void">VOID</span>'
+      : isOverdue ? '<span class="badge" style="background:#fee2e2;color:#b91c1c">⚠ Overdue</span>'
+      : '<span class="badge badge-' + (inv.status||'').toLowerCase() + '">' + (inv.status||'') + '</span>';
+    return '<tr style="' + rowOpacity + '">'
+      + '<td><strong style="font-family:monospace;' + strikeStyle + '">' + inv.invoice_number + '</strong></td>'
+      + '<td>' + (inv.customer_name || '—') + '</td>'
+      + '<td style="font-size:12px;color:var(--text-3)">' + (inv.order_number || '<span style="color:var(--text-3)">—</span>') + '</td>'
+      + '<td>' + fmtDate(inv.invoice_date) + '</td>'
+      + '<td>' + (inv.due_date ? fmtDate(inv.due_date) : '—') + '</td>'
+      + '<td class="num text-right">' + (isVoid ? '<span style="color:var(--text-3)">—</span>' : fmtPKR(inv.total || inv.subtotal || 0)) + '</td>'
+      + '<td class="num text-right" style="color:var(--cardamom)">' + (isVoid ? '—' : fmtPKR(inv.paid || 0)) + '</td>'
+      + '<td class="num text-right" style="color:' + ((inv.balance||0)>0?'var(--chili)':'var(--cardamom)') + ';font-weight:' + ((inv.balance||0)>0?'700':'400') + '">'
+        + (isVoid ? '—' : fmtPKR(inv.balance || 0)) + '</td>'
+      + '<td>' + statusBadge + '</td>'
+      + '<td style="white-space:nowrap">'
+        + (canPay  ? '<button class="btn btn-xs btn-primary" onclick="showOrderInvDetail(' + inv.id + ',\'global-inv-detail\')">💳 Pay</button> ' : '')
+        + (canVoid ? '<button class="btn btn-xs" style="background:var(--chili);color:#fff" onclick="voidInvoice(' + inv.id + ',\'' + inv.invoice_number + '\')">Void</button>' : '')
+        + (!canPay && !canVoid ? '<button class="btn btn-xs btn-outline" onclick="showOrderInvDetail(' + inv.id + ',\'global-inv-detail\')">View</button>' : '')
+      + '</td>'
+      + '</tr>';
+  }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text-3);padding:32px">No invoices match this filter</td></tr>';
+
+  const invTotals = filteredInvs.filter(i => i.status !== 'VOID');
+  const invSumTotal   = invTotals.reduce((s,i) => s + (i.total || i.subtotal || 0), 0);
+  const invSumPaid    = invTotals.reduce((s,i) => s + (i.paid || 0), 0);
+  const invSumBalance = invTotals.reduce((s,i) => s + (i.balance || 0), 0);
+
+  const invoicesTabContent = '<div class="filter-bar">' + invFilterChips + '</div>'
+    + '<div class="card mb-16">'
+    + '<div class="table-wrap">'
+    + '<table>'
+    + '<thead><tr>'
+    + '<th>Invoice #</th><th>Customer</th><th>Order #</th><th>Date</th><th>Due</th>'
+    + '<th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th>'
+    + '<th>Status</th><th>Actions</th>'
+    + '</tr></thead>'
+    + '<tbody>' + invTableRows + '</tbody>'
+    + '<tfoot><tr style="border-top:2px solid var(--border);font-weight:700;font-size:13px">'
+    + '<td colspan="5" style="text-align:right;padding:8px 4px">Totals (' + filteredInvs.filter(i=>i.status!=="VOID").length + ' invoices):</td>'
+    + '<td class="num text-right">' + fmtPKR(invSumTotal) + '</td>'
+    + '<td class="num text-right" style="color:var(--cardamom)">' + fmtPKR(invSumPaid) + '</td>'
+    + '<td class="num text-right" style="color:' + (invSumBalance>0?'var(--chili)':'var(--cardamom)') + '">' + fmtPKR(invSumBalance) + '</td>'
+    + '<td colspan="2"></td>'
+    + '</tr></tfoot>'
+    + '</table>'
+    + '</div></div>'
+    + '<div id="global-inv-detail"></div>';
+
+  // ── Subtab bar ────────────────────────────────────────────────────
+  const tabBar = '<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px">'
+    + '<button onclick="_setOiTab(\'orders\')" style="padding:10px 22px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:' + (_oiTab==='orders'?'3px solid var(--saffron);color:var(--saffron)':'2px solid transparent;color:var(--text-3)') + ';margin-bottom:-2px">📦 Orders (' + orders.length + ')</button>'
+    + '<button onclick="_setOiTab(\'invoices\')" style="padding:10px 22px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:' + (_oiTab==='invoices'?'3px solid var(--saffron);color:var(--saffron)':'2px solid transparent;color:var(--text-3)') + ';margin-bottom:-2px">🧾 Invoices (' + invs.length + ')</button>'
+    + '</div>';
+
   return `
   <div class="section-header">
     <h2>Orders &amp; Invoices</h2>
-    <button class="btn btn-primary" onclick="openNewOrderForm()">＋ New Order</button>
+    ${_oiTab === 'orders' ? '<button class="btn btn-primary" onclick="openNewOrderForm()">＋ New Order</button>' : ''}
   </div>
 
+  ${tabBar}
+
+  ${_oiTab === 'invoices' ? invoicesTabContent : `
   <!-- Filter chips -->
   <div class="filter-bar">${filterChips}</div>
 
@@ -1995,7 +2077,8 @@ async function renderOrdersInvoices() {
   ${orphanSection}
 
   <!-- Order detail panel -->
-  <div id="co-detail-panel"></div>`;
+  <div id="co-detail-panel"></div>`}
+  `;
 }
 
 function _setOiFilter(f) {
@@ -6861,8 +6944,29 @@ async function saveWorkOrder() {
   } catch(e) { showMsg('wo-msg', e.message, 'error'); }
 }
 
+// ── Procurement modal helpers ─────────────────────────────────────
+function _openProcModal(innerHtml) {
+  const existing = document.getElementById('proc-modal-overlay');
+  if (existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = 'proc-modal-overlay';
+  ov.className = 'modal-overlay';
+  ov.style.zIndex = '2000';
+  ov.innerHTML = '<div id="proc-modal-box" class="modal" style="min-width:340px;max-width:960px;width:92vw;max-height:92vh;overflow-y:auto">'
+    + innerHtml + '</div>';
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+function _closeProcModal() {
+  const ov = document.getElementById('proc-modal-overlay');
+  if (ov) ov.remove();
+}
+function _procModalBox() {
+  return document.getElementById('proc-modal-box');
+}
+
 async function convertWoToBatch(woId, woNum) {
-  // Step 1 — check feasibility first, show nice panel on shortfall
+  // Step 1 — check feasibility first; show shortfall modal if needed
   const feas = await GET(`/api/work-orders/${woId}/feasibility`);
   if (!feas.feasible) {
     showShortfallPanel(woId, woNum, feas.requirements);
@@ -6871,25 +6975,23 @@ async function convertWoToBatch(woId, woNum) {
   if (!confirm(`Convert Work Order ${woNum} to a Production Batch?\nThis will deduct ingredients from stock.`)) return;
   try {
     const res = await POST(`/api/work-orders/${woId}/convert`, {});
-    document.getElementById('procurement-panel').innerHTML = `
-      <div class="card mb-16" style="border-left:4px solid var(--cardamom)">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:22px">✅</span>
-          <div>
-            <strong>Batch ${res.batchId} created from Work Order ${res.woNumber}</strong><br>
-            <span style="font-size:13px;color:var(--text-2)">${res.qtyUnits} units produced · ${res.totalGrams}g total</span>
-          </div>
-          <button class="btn btn-xs btn-outline" style="margin-left:auto"
-            onclick="document.getElementById('procurement-panel').innerHTML=''">✕</button>
-        </div>
-      </div>`;
-    setTimeout(() => nav('production'), 2000);
+    _openProcModal(
+      '<div style="text-align:center;padding:24px 16px">'
+      + '<div style="font-size:40px;margin-bottom:12px">✅</div>'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Batch Created!</div>'
+      + '<div style="font-size:14px;color:var(--text-2)">Batch <strong>' + res.batchId + '</strong> created from Work Order <strong>' + res.woNumber + '</strong></div>'
+      + '<div style="font-size:13px;color:var(--text-3);margin-top:4px">' + res.qtyUnits + ' units produced · ' + res.totalGrams + 'g total</div>'
+      + '<button class="btn btn-primary" style="margin-top:20px" onclick="_closeProcModal();nav(\'production\')">Done</button>'
+      + '</div>'
+    );
   } catch(e) {
-    document.getElementById('procurement-panel').innerHTML = `
-      <div class="card mb-16" style="border-left:4px solid var(--chili)">
-        <strong style="color:var(--chili)">⚠ Production Failed</strong>
-        <p style="margin:6px 0 0;font-size:13px">${e.message}</p>
-      </div>`;
+    _openProcModal(
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'
+      + '<h3 style="color:var(--chili);margin:0">⚠ Production Failed</h3>'
+      + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()">✕</button>'
+      + '</div>'
+      + '<p style="margin:0;font-size:13px">' + e.message + '</p>'
+    );
   }
 }
 
@@ -6897,71 +6999,47 @@ function showShortfallPanel(woId, woNum, requirements) {
   const short  = requirements.filter(r => !r.ok);
   const ok     = requirements.filter(r =>  r.ok);
   const fmtKg  = g => (g / 1000).toFixed(2) + ' kg';
-  const fmtG   = g => g.toLocaleString() + 'g';
 
-  const shortRows = short.map(r => `
-    <tr style="background:#fff5f5">
-      <td><strong style="font-family:monospace">${r.ingCode}</strong></td>
-      <td class="num">${fmtKg(r.neededGrams)}</td>
-      <td class="num" style="color:var(--chili)">${fmtKg(r.availableGrams)}</td>
-      <td class="num" style="color:var(--chili);font-weight:700">−${fmtKg(r.deficitGrams)}</td>
-    </tr>`).join('');
+  const shortRows = short.map(r =>
+    '<tr style="background:#fff5f5">'
+    + '<td><strong style="font-family:monospace">' + r.ingCode + '</strong>'
+    + (r.ingName && r.ingName !== r.ingCode ? '<br><span style="font-size:11px;color:var(--text-3)">' + r.ingName + '</span>' : '') + '</td>'
+    + '<td class="num">' + fmtKg(r.neededGrams) + '</td>'
+    + '<td class="num" style="color:var(--chili)">' + fmtKg(r.availableGrams) + '</td>'
+    + '<td class="num" style="color:var(--chili);font-weight:700">−' + fmtKg(r.deficitGrams) + '</td>'
+    + '</tr>'
+  ).join('');
 
-  const okRows = ok.length ? ok.map(r => `
-    <tr style="background:#f5fff5">
-      <td style="font-family:monospace">${r.ingCode}</td>
-      <td class="num">${fmtKg(r.neededGrams)}</td>
-      <td class="num" style="color:var(--cardamom)">✓ ${fmtKg(r.availableGrams)}</td>
-      <td class="num" style="color:var(--text-3)">—</td>
-    </tr>`).join('') : '';
+  const okRows = ok.length ? ok.map(r =>
+    '<tr style="background:#f5fff5">'
+    + '<td style="font-family:monospace">' + r.ingCode + '</td>'
+    + '<td class="num">' + fmtKg(r.neededGrams) + '</td>'
+    + '<td class="num" style="color:var(--cardamom)">✓ ' + fmtKg(r.availableGrams) + '</td>'
+    + '<td class="num" style="color:var(--text-3)">—</td>'
+    + '</tr>'
+  ).join('') : '';
 
-  const panel = document.getElementById('procurement-panel');
-  panel.innerHTML = `
-    <div class="card mb-16" style="border-left:4px solid var(--chili)">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
-        <div>
-          <h3 style="margin:0 0 4px;color:var(--chili)">⚠ Ingredient Shortfall — ${woNum}</h3>
-          <p style="margin:0;font-size:13px;color:var(--text-2)">
-            ${short.length} ingredient${short.length>1?'s':''} below required level.
-            Raise a procurement order to restock before releasing this batch.
-          </p>
-        </div>
-        <button class="btn btn-xs btn-outline"
-          onclick="document.getElementById('procurement-panel').innerHTML=''">✕ Close</button>
-      </div>
-
-      <table class="data-table" style="margin-bottom:16px">
-        <thead>
-          <tr>
-            <th>Ingredient</th>
-            <th class="num">Required</th>
-            <th class="num">In Stock</th>
-            <th class="num">Shortfall</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${shortRows}
-          ${okRows}
-        </tbody>
-      </table>
-
-      <div id="wo-shortfall-msg-${woId}" style="margin-bottom:8px"></div>
-
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-primary"
-          onclick="showProcurementForm(${woId}, '${woNum}', ${JSON.stringify(short)})">
-          🛒 Create Procurement Order
-        </button>
-        <button class="btn btn-outline"
-          onclick="document.getElementById('procurement-panel').innerHTML=''">
-          Cancel
-        </button>
-      </div>
-
-      <div id="wo-procurement-form-${woId}" style="display:none;margin-top:16px"></div>
-    </div>`;
-
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  _openProcModal(
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
+    + '<div>'
+    + '<h3 style="margin:0 0 4px;color:var(--chili)">⚠ Ingredient Shortfall — ' + woNum + '</h3>'
+    + '<p style="margin:0;font-size:13px;color:var(--text-2)">'
+    + short.length + ' ingredient' + (short.length>1?'s':'') + ' below required level. '
+    + 'Raise a procurement order to restock before releasing this batch.</p>'
+    + '</div>'
+    + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()">✕</button>'
+    + '</div>'
+    + '<table class="data-table" style="margin-bottom:16px">'
+    + '<thead><tr><th>Ingredient</th><th class="num">Required</th><th class="num">In Stock</th><th class="num">Shortfall</th></tr></thead>'
+    + '<tbody>' + shortRows + okRows + '</tbody>'
+    + '</table>'
+    + '<div id="wo-shortfall-msg-' + woId + '" style="margin-bottom:8px"></div>'
+    + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
+    + '<button class="btn btn-primary" onclick="showProcurementForm(' + woId + ', \'' + woNum + '\', ' + JSON.stringify(short) + ')">🛒 Create Procurement Order</button>'
+    + '<button class="btn btn-outline" onclick="_closeProcModal()">Cancel</button>'
+    + '</div>'
+    + '<div id="wo-procurement-form-' + woId + '" style="display:none;margin-top:16px"></div>'
+  );
 }
 
 async function showProcurementForm(woId, woNum, shortItems) {
@@ -7199,92 +7277,83 @@ async function saveEditWorkOrder(woId) {
 }
 
 async function showProcurementList(woId, woNum) {
-  const panel = document.getElementById('procurement-panel');
-  if (!panel) return;
-  panel.innerHTML = `<div class="card mb-16" style="border-left:4px solid var(--saffron)">
-    <div style="color:var(--text-3);font-size:13px">Loading procurement list for ${woNum}…</div>
-  </div>`;
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Show modal immediately with a loading state
+  _openProcModal(
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+    + '<h3 style="margin:0">📋 Cost &amp; Procure — ' + woNum + '</h3>'
+    + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()">✕</button>'
+    + '</div>'
+    + '<div style="color:var(--text-3);font-size:13px;padding:20px 0;text-align:center">Loading…</div>'
+  );
 
   let pl;
   try {
     pl = await GET(`/api/work-orders/${woId}/procurement`);
   } catch(e) {
-    panel.innerHTML = `<div class="card mb-16"><div class="alert alert-error">${e.message}</div></div>`;
+    const box = _procModalBox();
+    if (box) box.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:12px">'
+      + '<h3 style="margin:0;color:var(--chili)">Error</h3>'
+      + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()">✕</button></div>'
+      + '<div class="alert alert-error">' + e.message + '</div>';
     return;
   }
 
-  const statusIcon = pl.allInStock ? '✅ All in stock — no purchasing needed' : `⚠️ ${pl.itemsToProc} ingredient(s) need to be procured`;
+  const statusIcon = pl.allInStock
+    ? '<span style="color:var(--cardamom)">✅ All in stock — no purchasing needed</span>'
+    : '<span style="color:var(--chili)">⚠️ ' + pl.itemsToProc + ' ingredient(s) need to be procured</span>';
 
-  const rows = pl.lines.map(l => {
+  const tableRows = pl.lines.map(l => {
     const needBuy = !l.inStock;
-    const rowStyle = needBuy ? 'background:#fff9f0' : '';
     const procureCell = needBuy
-      ? `<td class="num text-right" style="color:var(--chili);font-weight:600">${fmt(l.toProcureGrams, 0)}g<br><span style="font-size:10px;color:var(--text-3)">${l.toProcureKg.toFixed(3)} kg</span></td>
-         <td class="num text-right" style="color:var(--chili);font-weight:600">${fmtPKR(l.estimatedCostPKR)}</td>`
-      : `<td class="num text-right" style="color:var(--cardamom)">✓ In Stock</td>
-         <td class="num text-right" style="color:var(--text-3)">—</td>`;
-    return `<tr style="${rowStyle}">
-      <td><strong>${l.ingCode}</strong></td>
-      <td>${l.ingName}</td>
-      <td class="num text-right">${fmt(l.neededGrams, 0)}g</td>
-      <td class="num text-right" style="color:${l.availableGrams > 0 ? 'var(--cardamom)' : 'var(--chili)'}">
-        ${fmt(l.availableGrams, 0)}g</td>
-      ${procureCell}
-      <td class="num text-right" style="font-size:11px;color:var(--text-3)">PKR ${l.costPerKg.toLocaleString()}/kg</td>
-    </tr>`;
+      ? '<td class="num text-right" style="color:var(--chili);font-weight:600">' + fmt(l.toProcureGrams,0) + 'g<br><span style="font-size:10px;color:var(--text-3)">' + l.toProcureKg.toFixed(3) + ' kg</span></td>'
+        + '<td class="num text-right" style="color:var(--chili);font-weight:600">' + fmtPKR(l.estimatedCostPKR) + '</td>'
+      : '<td class="num text-right" style="color:var(--cardamom)">✓ In Stock</td>'
+        + '<td class="num text-right" style="color:var(--text-3)">—</td>';
+    return '<tr style="' + (needBuy ? 'background:#fff9f0' : '') + '">'
+      + '<td><strong style="font-family:monospace">' + l.ingCode + '</strong></td>'
+      + '<td>' + l.ingName + '</td>'
+      + '<td class="num text-right">' + fmt(l.neededGrams, 0) + 'g</td>'
+      + '<td class="num text-right" style="color:' + (l.availableGrams > 0 ? 'var(--cardamom)' : 'var(--chili)') + '">' + fmt(l.availableGrams, 0) + 'g</td>'
+      + procureCell
+      + '<td class="num text-right" style="font-size:11px;color:var(--text-3)">PKR ' + l.costPerKg.toLocaleString() + '/kg</td>'
+      + '</tr>';
   }).join('');
 
   const summaryColor = pl.allInStock ? 'var(--cardamom)' : 'var(--chili)';
 
-  panel.innerHTML = `
-  <div class="card mb-16" style="border-left:4px solid var(--saffron)" id="proc-panel-inner">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
-      <div>
-        <h3 style="margin-bottom:4px">📋 Procurement List — ${pl.woNumber}</h3>
-        <div style="font-size:12px;color:var(--text-3)">
-          ${pl.productName} · ${pl.packSize} · ${pl.qtyUnits} units (${fmt(pl.totalGrams,0)}g)
-          ${pl.targetDate ? ` · Target: ${fmtDate(pl.targetDate)}` : ''}
-          · BOM v${pl.bomVersion}
-        </div>
-        <div style="margin-top:6px;font-size:13px;font-weight:600">${statusIcon}</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0;margin-left:20px">
-        <div style="font-size:11px;color:var(--text-3)">Est. Procurement Cost</div>
-        <div style="font-size:22px;font-weight:800;color:${summaryColor}">${fmtPKR(pl.totalProcureCostPKR)}</div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:2px">Full ingredient cost: ${fmtPKR(pl.totalNeededCostPKR)}</div>
-      </div>
-    </div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Ingredient</th>
-            <th class="text-right">Required</th>
-            <th class="text-right">In Stock</th>
-            <th class="text-right">To Procure</th>
-            <th class="text-right">Est. Cost</th>
-            <th class="text-right">Rate</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-        <tfoot>
-          <tr style="border-top:2px solid var(--border);font-weight:700">
-            <td colspan="5" style="text-align:right;padding-top:8px">Total Procurement Cost:</td>
-            <td class="num text-right" style="padding-top:8px;color:${summaryColor}">${fmtPKR(pl.totalProcureCostPKR)}</td>
-            <td></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-
-    <div style="margin-top:14px;display:flex;gap:8px">
-      <button class="btn btn-outline btn-sm" onclick="printProcurementList(${woId})">🖨️ Print</button>
-      <button class="btn btn-outline btn-sm" onclick="document.getElementById('procurement-panel').innerHTML=''">✕ Close</button>
-    </div>
-  </div>`;
+  const box = _procModalBox();
+  if (!box) return;
+  box.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">'
+    + '<div>'
+    + '<h3 style="margin:0 0 4px">📋 Procurement List — ' + pl.woNumber + '</h3>'
+    + '<div style="font-size:12px;color:var(--text-3)">'
+    + pl.productName + ' · ' + pl.packSize + ' · ' + pl.qtyUnits + ' units (' + fmt(pl.totalGrams,0) + 'g)'
+    + (pl.targetDate ? ' · Target: ' + fmtDate(pl.targetDate) : '')
+    + ' · BOM v' + pl.bomVersion
+    + '</div>'
+    + '<div style="margin-top:6px;font-size:13px;font-weight:600">' + statusIcon + '</div>'
+    + '</div>'
+    + '<div style="text-align:right;flex-shrink:0;margin-left:20px">'
+    + '<div style="font-size:11px;color:var(--text-3)">Est. Procurement Cost</div>'
+    + '<div style="font-size:22px;font-weight:800;color:' + summaryColor + '">' + fmtPKR(pl.totalProcureCostPKR) + '</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:2px">Full ingredient cost: ' + fmtPKR(pl.totalNeededCostPKR) + '</div>'
+    + '</div>'
+    + '</div>'
+    + '<div class="table-wrap">'
+    + '<table>'
+    + '<thead><tr><th>Code</th><th>Ingredient</th><th class="text-right">Required</th><th class="text-right">In Stock</th><th class="text-right">To Procure</th><th class="text-right">Est. Cost</th><th class="text-right">Rate</th></tr></thead>'
+    + '<tbody>' + tableRows + '</tbody>'
+    + '<tfoot><tr style="border-top:2px solid var(--border);font-weight:700">'
+    + '<td colspan="5" style="text-align:right;padding-top:8px">Total Procurement Cost:</td>'
+    + '<td class="num text-right" style="padding-top:8px;color:' + summaryColor + '">' + fmtPKR(pl.totalProcureCostPKR) + '</td>'
+    + '<td></td></tr></tfoot>'
+    + '</table>'
+    + '</div>'
+    + '<div style="margin-top:16px;display:flex;gap:8px">'
+    + '<button class="btn btn-outline btn-sm" onclick="printProcurementList(' + woId + ')">🖨️ Print</button>'
+    + '<button class="btn btn-outline btn-sm" onclick="_closeProcModal()">✕ Close</button>'
+    + '</div>';
 }
 
 async function printProcurementList(woId) {
