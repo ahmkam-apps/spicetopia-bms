@@ -5347,7 +5347,10 @@ def bom_calculate_ingredients(variant_id, qty_units):
         ORDER BY version_no DESC LIMIT 1
     """, (var['product_id'],))
     if not bom_ver:
-        raise ValueError(f"No active BOM for {var['product_name']}")
+        raise ValueError(
+            f"No active BOM for {var['product_name']}. "
+            f"Go to Production → BOM Setup → click the red chip for {var.get('product_code', var['product_name'])} to define ingredients."
+        )
     bom_items_list = qry("""
         SELECT bi.*, i.id as ing_id, i.code as ing_code
         FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
@@ -5380,6 +5383,94 @@ def bom_calculate_ingredients(variant_id, qty_units):
         'ingredients': result,
         'anyShort':    any(r['toOrderKg'] >= 0.001 for r in result),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  BUSINESS LOGIC — BOM MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════
+
+def create_or_update_bom(data):
+    """
+    Create or replace the active BOM for a product.
+    data: {
+      productCode: str,
+      batchSizeGrams: float,      # e.g. 1000 for a 1kg reference batch
+      effectiveFrom: 'YYYY-MM-DD',
+      items: [{ ingCode: str, quantityGrams: float }]
+    }
+    Deactivates any existing active BOM for the product, then inserts a new
+    bom_version (version_no = prev_max + 1) and its bom_items.
+    """
+    prod = qry1("SELECT id, code, name FROM products WHERE code=?",
+                (data.get('productCode','').upper().strip(),))
+    if not prod:
+        raise ValueError(f"Product not found: {data.get('productCode')}")
+
+    items = data.get('items', [])
+    if not items:
+        raise ValueError("BOM must have at least one ingredient")
+
+    batch_size = float(data.get('batchSizeGrams', 1000) or 1000)
+    if batch_size <= 0:
+        raise ValueError("batchSizeGrams must be positive")
+
+    eff_from = data.get('effectiveFrom') or today()
+
+    # Resolve ingredient codes → ids
+    resolved_items = []
+    for it in items:
+        ing_code = str(it.get('ingCode', '')).strip()
+        qty_g    = float(it.get('quantityGrams', 0))
+        if not ing_code:
+            raise ValueError("Each item must have ingCode")
+        if qty_g <= 0:
+            raise ValueError(f"quantityGrams must be positive for {ing_code}")
+        ing = qry1("SELECT id, code FROM ingredients WHERE code=? AND COALESCE(active,1)=1", (ing_code,))
+        if not ing:
+            raise ValueError(f"Ingredient not found or inactive: {ing_code}")
+        resolved_items.append({'ing_id': ing['id'], 'qty_g': qty_g})
+
+    c = _conn()
+    try:
+        # Deactivate old BOMs for this product
+        c.execute("UPDATE bom_versions SET active_flag=0 WHERE product_id=? AND active_flag=1",
+                  (prod['id'],))
+
+        # Next version number
+        row = c.execute("SELECT MAX(version_no) FROM bom_versions WHERE product_id=?",
+                        (prod['id'],)).fetchone()
+        next_ver = (row[0] or 0) + 1
+
+        # Insert new BOM version
+        c.execute("""
+            INSERT INTO bom_versions (product_id, version_no, batch_size_grams, effective_from, active_flag, notes)
+            VALUES (?,?,?,?,1,?)
+        """, (prod['id'], next_ver, batch_size, eff_from, data.get('notes', '')))
+        bom_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Insert items
+        for it in resolved_items:
+            c.execute("""
+                INSERT INTO bom_items (bom_version_id, ingredient_id, quantity_grams)
+                VALUES (?,?,?)
+            """, (bom_id, it['ing_id'], it['qty_g']))
+
+        c.commit()
+    except Exception:
+        c.rollback()
+        raise
+    finally:
+        c.close()
+    save_db()
+
+    # Return full BOM
+    bv = qry1("SELECT * FROM bom_versions WHERE id=?", (bom_id,))
+    bi = qry("""
+        SELECT bi.*, i.code as ing_code, i.name as ing_name
+        FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
+        WHERE bi.bom_version_id=?
+    """, (bom_id,))
+    return {**bv, 'productCode': prod['code'], 'productName': prod['name'], 'items': bi}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -5673,11 +5764,14 @@ def get_procurement_list(wo_id):
         ORDER BY version_no DESC LIMIT 1
     """, (wo['product_id'],))
     if not bom_ver:
-        raise ValueError(f"No active BOM for {wo['product_name']}")
+        raise ValueError(
+            f"No active BOM for {wo['product_name']}. "
+            f"Go to Production → BOM Setup → click the red chip for {wo['product_code']} to define ingredients."
+        )
 
     bom_items_list = qry("""
         SELECT bi.quantity_grams,
-               i.id as ingredient_id, i.code as ing_code,
+               i.id as ingredient_id, i.code as ing_code, i.name as ing_name,
                i.cost_per_kg
         FROM bom_items bi JOIN ingredients i ON i.id = bi.ingredient_id
         WHERE bi.bom_version_id = ?
@@ -5702,6 +5796,7 @@ def get_procurement_list(wo_id):
         total_procure_cost += est_cost
         lines.append({
             'ingCode':          b['ing_code'],
+            'ingName':          b['ing_name'] or b['ing_code'],
             'neededGrams':      needed,
             'availableGrams':   avail,
             'toProcureGrams':   procure,
@@ -5945,7 +6040,10 @@ def create_production_batch(data, exclude_wo_id=None):
         ORDER BY version_no DESC LIMIT 1
     """, (var['product_id'],))
     if not bom_ver:
-        raise ValueError(f"No active BOM found for product {data.get('productCode')}")
+        raise ValueError(
+            f"No active BOM found for {var['product_name']}. "
+            f"Go to Production → BOM Setup → click the red chip for {data.get('productCode','this product')} to define ingredients."
+        )
 
     bom_items_list = qry("""
         SELECT bi.*, i.code as ing_code, i.id as ingredient_id
@@ -9436,6 +9534,14 @@ class Handler(BaseHTTPRequestHandler):
                 wo_id = int(path.split('/')[-2])
                 result = update_work_order_status(wo_id, data.get('status',''))
                 send_json(self, result)
+                return
+
+            # POST /api/bom  (admin only — create / replace active BOM for a product)
+            if path == '/api/bom':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                result = create_or_update_bom(data)
+                send_json(self, result, 201)
                 return
 
             # POST /api/production  (admin, warehouse)
