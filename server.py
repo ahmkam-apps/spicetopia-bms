@@ -1119,7 +1119,7 @@ def ensure_full_schema():
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 table_name TEXT NOT NULL,
                 record_id  TEXT NOT NULL,
-                action     TEXT NOT NULL CHECK(action IN ('INSERT','UPDATE','DELETE')),
+                action     TEXT NOT NULL CHECK(action IN ('INSERT','UPDATE','DELETE','VOID')),
                 old_value  TEXT DEFAULT NULL,
                 new_value  TEXT DEFAULT NULL,
                 changed_by TEXT DEFAULT 'system',
@@ -3678,6 +3678,48 @@ def _migrate_supplier_bills_void():
         c.commit()
     except Exception as e:
         print(f"  ⚠ supplier_bills migration error: {e}")
+        try: c.rollback()
+        except: pass
+    finally:
+        try: c.execute("PRAGMA foreign_keys=ON")
+        except: pass
+        c.close()
+
+
+def _migrate_change_log_void_action():
+    """Migration: widen change_log CHECK constraint to include 'VOID'.
+    SQLite doesn't allow ALTER TABLE to change a CHECK constraint, so we recreate the table."""
+    c = _conn()
+    try:
+        c.execute("PRAGMA foreign_keys=OFF")
+        tbl = c.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='change_log'"
+        ).fetchone()
+        if not tbl:
+            return  # table doesn't exist yet — schema creation handles it
+        tbl_sql = tbl[0] or ''
+        if "'VOID'" in tbl_sql or '"VOID"' in tbl_sql:
+            return  # already has VOID — nothing to do
+        # Recreate with the wider constraint
+        c.execute("""CREATE TABLE IF NOT EXISTS change_log_new (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_name TEXT NOT NULL,
+            record_id  TEXT NOT NULL,
+            action     TEXT NOT NULL CHECK(action IN ('INSERT','UPDATE','DELETE','VOID')),
+            old_value  TEXT DEFAULT NULL,
+            new_value  TEXT DEFAULT NULL,
+            changed_by TEXT DEFAULT 'system',
+            timestamp  TEXT DEFAULT (datetime('now'))
+        )""")
+        c.execute("""INSERT INTO change_log_new
+            SELECT id, table_name, record_id, action, old_value, new_value, changed_by, timestamp
+            FROM change_log""")
+        c.execute("DROP TABLE change_log")
+        c.execute("ALTER TABLE change_log_new RENAME TO change_log")
+        c.commit()
+        print("  ✓ change_log: widened CHECK constraint to include VOID action")
+    except Exception as e:
+        print(f"  ⚠ change_log migration error: {e}")
         try: c.rollback()
         except: pass
     finally:
@@ -11467,7 +11509,8 @@ if __name__ == '__main__':
     ensure_supplier_bills_schema()
     ensure_purchase_orders_schema()
     ensure_batch_cost_column()
-    _migrate_supplier_bills_void()   # adds VOID status + voided columns to supplier_bills
+    _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
+    _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
     ensure_review_queue_schema()
     ensure_master_schema()  # must run before load_ref() — adds active, credit_limit cols
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
