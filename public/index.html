@@ -1832,7 +1832,7 @@ async function renderOrdersInvoices() {
     const statusColor = inv.status === 'PAID' ? 'var(--cardamom)' : isOverdue ? 'var(--chili)' : 'var(--cinnamon)';
     const statusLabel = inv.status === 'PAID' ? 'Paid' : isOverdue ? '🔴 Overdue' : inv.status;
     return `<tr>
-      <td><strong style="font-family:monospace">${inv.invoice_number}</strong><br>
+      <td><a href="#" style="font-family:monospace;font-weight:700;color:var(--mac-blue);text-decoration:none" onclick="showInvoiceDetail(${inv.id});return false">${inv.invoice_number}</a><br>
           <span style="font-size:10px;color:var(--text-3)">${inv.invoice_date}</span></td>
       <td>${inv.customer_name || '—'}</td>
       <td><span style="font-size:11px;color:var(--text-3)">— no order —</span></td>
@@ -1957,7 +1957,7 @@ async function renderOrdersInvoices() {
       : isOverdue ? '<span class="badge" style="background:#fee2e2;color:#b91c1c">⚠ Overdue</span>'
       : '<span class="badge badge-' + (inv.status||'').toLowerCase() + '">' + (inv.status||'') + '</span>';
     return '<tr style="' + rowOpacity + '">'
-      + '<td><strong style="font-family:monospace;' + strikeStyle + '">' + inv.invoice_number + '</strong></td>'
+      + '<td><a href="#" style="font-family:monospace;font-weight:700;' + strikeStyle + ';color:var(--mac-blue);text-decoration:none" onclick="showOrderInvDetail(' + inv.id + ',\'global-inv-detail\');return false">' + inv.invoice_number + '</a></td>'
       + '<td>' + (inv.customer_name || '—') + '</td>'
       + '<td style="font-size:12px;color:var(--text-3)">' + (inv.order_number || '<span style="color:var(--text-3)">—</span>') + '</td>'
       + '<td>' + fmtDate(inv.invoice_date) + '</td>'
@@ -3232,7 +3232,7 @@ function _renderInvoiceRows(invs) {
     return `
     <tr style="${inv.status === 'VOID' ? 'opacity:0.5' : ''}">
       <td>
-        <strong>${inv.invoice_number}</strong>
+        <a href="#" style="font-family:monospace;font-weight:700;color:var(--mac-blue);text-decoration:none${inv.status==='VOID'?';text-decoration:line-through;color:var(--text-3)':''}" onclick="showInvoiceDetail(${inv.id});return false">${inv.invoice_number}</a>
         ${inv.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="nav('orders-invoices');setTimeout(()=>openOrderDetail(${inv.customer_order_id}),400)">📋 ${inv.customer_order_number}</span>` : ''}
       </td>
       <td>${fmtDate(inv.invoice_date)}</td>
@@ -3818,7 +3818,7 @@ async function renderReceiptsAging(tab) {
                 r.aging_bucket === '1_30'    ? 'aging-30' :
                 r.aging_bucket === '31_60'   ? 'aging-60' : 'aging-90';
     return `<tr class="${cls}">
-      <td>${r.invoice_number}</td>
+      <td><a href="#" style="font-family:monospace;font-weight:700;color:var(--mac-blue);text-decoration:none" onclick="nav('invoices');setTimeout(()=>showInvoiceDetail(${r.id}),400);return false">${r.invoice_number}</a></td>
       <td>${r.customer_name}<br><small>${r.cust_code}</small></td>
       <td><span class="badge badge-${(r.customer_type||'retail').toLowerCase()}">${r.customer_type}</span></td>
       <td>${fmtDate(r.due_date)}</td>
@@ -3970,7 +3970,7 @@ async function renderARAging() {
                 r.aging_bucket === '1_30'    ? 'aging-30' :
                 r.aging_bucket === '31_60'   ? 'aging-60' : 'aging-90';
     return `<tr class="${cls}">
-      <td>${r.invoice_number}</td>
+      <td><a href="#" style="font-family:monospace;font-weight:700;color:var(--mac-blue);text-decoration:none" onclick="nav('invoices');setTimeout(()=>showInvoiceDetail(${r.id}),400);return false">${r.invoice_number}</a></td>
       <td>${r.customer_name}<br><small>${r.cust_code}</small></td>
       <td><span class="badge badge-${(r.customer_type||'retail').toLowerCase()}">${r.customer_type}</span></td>
       <td>${fmtDate(r.due_date)}</td>
