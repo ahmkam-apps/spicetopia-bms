@@ -5845,98 +5845,20 @@ async function renderAPAging() {
 //  INVENTORY
 // ═══════════════════════════════════════════════════════════════
 async function renderInventory() {
-  const ings = await GET('/api/ingredients');
+  const ings    = await GET('/api/ingredients');
+  const isAdmin = state.currentUser?.role === 'admin';
 
-  // Only show real changes (not initial seed records) in the banner
+  // ── RM KPIs ──────────────────────────────────────────────────────
+  const rmTotal   = ings.length;
+  const rmOut     = ings.filter(i => i.status === 'OUT').length;
+  const rmLow     = ings.filter(i => i.status === 'LOW').length;
+  const rmOk      = ings.filter(i => i.status === 'OK').length;
+  const rmValue   = ings.reduce((s, i) => s + ((i.balanceGrams/1000) * (i.cost_per_kg||0)), 0);
+
+  // ── Price change banner ───────────────────────────────────────────
   const priceChanges = ings.filter(i =>
     i.cost_pct_change !== null && i.cost_pct_change !== undefined && i.price_source !== 'initial'
   );
-
-  const isAdmin = state.currentUser?.role === 'admin';
-  let rows = ings.map(i => {
-    const available = i.availableGrams ?? i.balanceGrams;
-    const pct      = i.reorder_level > 0 ? Math.min(100, Math.round(available/i.reorder_level*100)) : 100;
-    const barColor = i.status === 'OK' ? 'var(--cardamom)' : i.status === 'LOW' ? 'var(--cinnamon)' : 'var(--chili)';
-
-    // Cost / price change cells
-    const cost    = i.cost_per_kg || 0;
-    const prev    = i.prev_cost_per_kg;   // null = no previous price known
-    const chgPct  = i.cost_pct_change;
-    const isInitial = i.price_source === 'initial';
-    let costCell  = cost > 0 ? `<strong>${fmtPKR(cost)}</strong><span style="font-size:10px;color:var(--text-3)">/kg</span>` : '<span style="color:var(--text-3)">—</span>';
-    let prevCell  = '<span style="color:var(--text-3)">—</span>';
-    let chgCell   = '<span style="color:var(--text-3)">—</span>';
-
-    if (cost > 0 && i.has_price_history) {
-      if (prev !== null && prev !== undefined) {
-        prevCell = `<span style="color:var(--text-3)">${fmtPKR(prev)}</span>`;
-        if (chgPct !== null && chgPct !== undefined) {
-          const up     = chgPct > 0;
-          const chgCol = up ? 'var(--chili)' : 'var(--cardamom)';
-          const arrow  = up ? '↑' : '↓';
-          chgCell = `<span style="color:${chgCol};font-weight:700">${arrow} ${Math.abs(chgPct).toFixed(1)}%</span>`;
-        }
-      } else if (isInitial) {
-        // First recorded price — no prior baseline
-        prevCell = '<span style="color:var(--text-3)">—</span>';
-        chgCell  = `<span style="font-size:10px;font-weight:600;color:var(--mac-blue);background:rgba(0,122,255,.1);padding:2px 6px;border-radius:4px">SET</span>`;
-      }
-    }
-
-    const editRow = isAdmin ? `
-    <tr id="rm-edit-${i.id}" style="display:none">
-      <td colspan="13" style="padding:0">
-        <div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">
-          <div id="rm-edit-msg-${i.id}" style="margin-bottom:6px"></div>
-          <div class="form-row" style="align-items:flex-end;margin-bottom:0">
-            <div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="rm-cost-${i.id}" type="number" min="0" step="0.01" class="form-input" style="width:130px" value="${cost}"></div>
-            <div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="rm-reorder-${i.id}" type="number" min="0" step="1" class="form-input" style="width:130px" value="${i.reorder_level||0}"></div>
-            <div class="form-group"><label style="font-size:12px">Unit</label>
-              <select id="rm-unit-${i.id}" class="form-input" style="width:80px">
-                <option value="kg" ${(i.unit||'kg')==='kg'?'selected':''}>kg</option>
-                <option value="g"  ${(i.unit||'kg')==='g' ?'selected':''}>g</option>
-                <option value="L"  ${(i.unit||'kg')==='L' ?'selected':''}>L</option>
-                <option value="pcs"${(i.unit||'kg')==='pcs'?'selected':''}>pcs</option>
-              </select>
-            </div>
-            <div class="form-group" style="flex:0;display:flex;gap:8px">
-              <button class="btn btn-primary btn-sm" onclick="rmSubmitEdit(${i.id},'${i.code}')">Save</button>
-              <button class="btn btn-outline btn-sm" onclick="rmCancelEdit(${i.id})">Cancel</button>
-            </div>
-          </div>
-        </div>
-      </td>
-    </tr>` : '';
-
-    const reservedCell = i.reservedGrams > 0
-      ? `<span style="color:var(--cinnamon);font-weight:600">${fmt(i.reservedGrams,0)} g</span>`
-      : `<span style="color:var(--text-3)">—</span>`;
-    const availColor = i.status === 'OK' ? 'var(--text-1)' : i.status === 'LOW' ? 'var(--cinnamon)' : 'var(--chili)';
-
-    return `<tr>
-      <td><strong>${i.code}</strong></td>
-      <td>${i.name || ''}</td>
-      <td class="num text-right">${fmt(i.balanceGrams,0)} g</td>
-      <td class="num text-right">${reservedCell}</td>
-      <td class="num text-right" style="font-weight:600;color:${availColor}">${fmt(available,0)} g</td>
-      <td class="num text-right">${i.reorder_level > 0 ? fmt(i.reorder_level,0)+'g' : '—'}</td>
-      <td>
-        <div style="background:var(--border);border-radius:4px;height:8px;width:80px">
-          <div style="background:${barColor};border-radius:4px;height:8px;width:${pct}%"></div>
-        </div>
-      </td>
-      <td><span class="badge badge-${i.status === 'OK' ? 'ok' : i.status === 'LOW' ? 'low' : 'out'}">${i.status}</span></td>
-      <td class="num text-right">${costCell}</td>
-      <td class="num text-right">${prevCell}</td>
-      <td class="num text-right">${chgCell}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-xs btn-outline" onclick="showAdjForm(${i.id},'${i.code}',${i.balanceGrams})">Adjust</button>
-        ${isAdmin ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="rmShowEdit(${i.id})">Edit</button>` : ''}
-      </td>
-    </tr>${editRow}`;
-  }).join('');
-
-  // Price change summary banner (only shown if there are recent changes)
   let changeBanner = '';
   if (priceChanges.length > 0) {
     const up   = priceChanges.filter(i => i.cost_pct_change > 0);
@@ -5944,136 +5866,304 @@ async function renderInventory() {
     const items = priceChanges.slice(0, 5).map(i => {
       const dir = i.cost_pct_change > 0 ? '↑' : '↓';
       const col = i.cost_pct_change > 0 ? 'var(--chili)' : 'var(--cardamom)';
-      return `<span style="margin-right:12px">${i.name}: <strong style="color:${col}">${dir} ${Math.abs(i.cost_pct_change).toFixed(1)}%</strong></span>`;
+      return '<span style="margin-right:12px">' + i.name + ': <strong style="color:' + col + '">' + dir + ' ' + Math.abs(i.cost_pct_change).toFixed(1) + '%</strong></span>';
     }).join('');
-    changeBanner = `
-    <div style="background:var(--cinnamon-pale);border:1px solid var(--cinnamon);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;font-size:12px">
-      <strong style="color:var(--cinnamon)">⚡ Price changes since last sync:</strong>
-      <span style="margin-left:10px;color:var(--chili)">${up.length} up</span>
-      <span style="margin-left:8px;color:var(--cardamom)">${down.length} down</span>
-      <div style="margin-top:6px">${items}${priceChanges.length > 5 ? `<span style="color:var(--text-3)">+${priceChanges.length-5} more</span>` : ''}</div>
-    </div>`;
+    changeBanner = '<div style="background:var(--cinnamon-pale);border:1px solid var(--cinnamon);border-radius:var(--r);padding:10px 14px;margin-bottom:16px;font-size:12px">'
+      + '<strong style="color:var(--cinnamon)">⚡ Price changes since last sync:</strong>'
+      + '<span style="margin-left:10px;color:var(--chili)">' + up.length + ' up</span>'
+      + '<span style="margin-left:8px;color:var(--cardamom)">' + down.length + ' down</span>'
+      + '<div style="margin-top:6px">' + items + (priceChanges.length > 5 ? '<span style="color:var(--text-3)">+' + (priceChanges.length-5) + ' more</span>' : '') + '</div>'
+      + '</div>';
   }
 
-  // ── Finished Goods tab ──
-  const fgRows = (state.ref.products || []).flatMap(p =>
-    (p.variants || []).map(v => {
-      const stock = v.stockUnits || 0;
-      const barColor = stock === 0 ? 'var(--chili)' : stock < 10 ? 'var(--saffron)' : 'var(--cardamom)';
-      const barPct   = Math.min(100, stock * 5); // 20 units = 100%
-      const statusLabel = stock === 0 ? 'OUT' : stock < 10 ? 'LOW' : 'OK';
-      const badgeCls    = stock === 0 ? 'badge-out' : stock < 10 ? 'badge-low' : 'badge-ok';
-      return `<tr>
-        <td><strong>${p.code}</strong></td>
-        <td>${p.name}</td>
-        <td>${v.pack_size}</td>
-        <td class="num text-right" style="font-weight:${stock>0?'700':'400'};color:${stock>0?'var(--text-1)':'var(--text-3)'}">
-          ${stock > 0 ? stock + ' units' : '—'}
-        </td>
-        <td>
-          <div style="background:var(--border);border-radius:4px;height:8px;width:80px">
-            <div style="background:${barColor};border-radius:4px;height:8px;width:${barPct}%"></div>
-          </div>
-        </td>
-        <td><span class="badge ${badgeCls}">${statusLabel}</span></td>
-      </tr>`;
-    })
-  ).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:24px">No products defined yet</td></tr>';
+  // ── RM rows (all statuses, filtered client-side) ─────────────────
+  const allRmRows = ings.map(i => {
+    const available = i.availableGrams ?? i.balanceGrams;
+    const pct       = i.reorder_level > 0 ? Math.min(100, Math.round(available / i.reorder_level * 100)) : 100;
+    const barColor  = i.status === 'OK' ? 'var(--cardamom)' : i.status === 'LOW' ? 'var(--cinnamon)' : 'var(--chili)';
+    const availColor= i.status === 'OK' ? 'var(--text-1)' : i.status === 'LOW' ? 'var(--cinnamon)' : 'var(--chili)';
+    const cost      = i.cost_per_kg || 0;
+    const prev      = i.prev_cost_per_kg;
+    const chgPct    = i.cost_pct_change;
 
-  return `
-  <div class="section-header"><h2>Inventory</h2>
-    <span style="font-size:12px;color:var(--text-3);margin-right:auto;padding-left:8px">Raw material prices sync from <code>masters/ingredient_pricing.csv</code></span>
-  </div>
-  <div class="mod-tabs">
-    <div class="mod-tab active" id="inv-tab-rm" onclick="switchInvTab('rm')" style="display:none">🧂 Raw Materials</div>
-    <div class="mod-tab" id="inv-tab-fg" onclick="switchInvTab('fg')">📦 Finished Goods</div>
-  </div>
+    let costCell = cost > 0
+      ? '<strong>' + fmtPKR(cost) + '</strong><span style="font-size:10px;color:var(--text-3)">/kg</span>'
+      : '<span style="color:var(--text-3)">—</span>';
+    let chgCell = '<span style="color:var(--text-3)">—</span>';
+    if (cost > 0 && i.has_price_history) {
+      if (prev !== null && prev !== undefined && chgPct !== null && chgPct !== undefined) {
+        const up  = chgPct > 0;
+        chgCell = '<span style="color:' + (up?'var(--chili)':'var(--cardamom)') + ';font-weight:700">'
+          + (up?'↑':'↓') + ' ' + Math.abs(chgPct).toFixed(1) + '%</span>';
+      } else if (i.price_source === 'initial') {
+        chgCell = '<span style="font-size:10px;font-weight:600;color:var(--mac-blue);background:rgba(0,122,255,.1);padding:2px 6px;border-radius:4px">SET</span>';
+      }
+    }
 
-  <!-- Raw Materials pane -->
-  <div id="inv-pane-rm" class="mod-tab-pane active">
-    <div id="adj-form-area"></div>
-    ${isAdmin ? `
-    <div class="card mb-14" id="ing-add-card" style="display:none">
-      <h4 style="margin-bottom:12px">+ Add New Ingredient</h4>
-      <div id="ing-add-msg"></div>
-      <div class="form-row" style="align-items:flex-end">
-        <div class="form-group"><label style="font-size:12px">Code *</label><input id="ing-add-code" placeholder="e.g. ING-020SP" style="width:130px"></div>
-        <div class="form-group" style="flex:2"><label style="font-size:12px">Name *</label><input id="ing-add-name" placeholder="Ingredient name" style="min-width:200px"></div>
-        <div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="ing-add-cost" type="number" min="0" step="0.01" placeholder="0.00" style="width:120px"></div>
-        <div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="ing-add-reorder" type="number" min="0" step="1" placeholder="0" style="width:120px"></div>
-        <div class="form-group"><label style="font-size:12px">Unit</label>
-          <select id="ing-add-unit" class="form-input" style="width:70px">
-            <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="pcs">pcs</option>
-          </select>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:4px">
-          <button class="btn btn-primary btn-sm" onclick="saveNewIngredient()">Add</button>
-          <button class="btn btn-outline btn-sm" onclick="document.getElementById('ing-add-card').style.display='none'">Cancel</button>
-        </div>
-      </div>
-    </div>` : ''}
-    ${changeBanner}
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <span style="font-size:13px;font-weight:600">${ings.length} Ingredient${ings.length===1?'':'s'}</span>
-        ${isAdmin ? `<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById('ing-add-card');c.style.display=c.style.display==='none'?'':'none'">+ Add Ingredient</button>` : ''}
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>Code</th>
-            <th>Name</th>
-            <th class="text-right">Physical</th>
-            <th class="text-right" title="Grams reserved by planned/in-progress work orders">Reserved (WIPs)</th>
-            <th class="text-right" title="Available = Physical − Reserved">Available</th>
-            <th class="text-right">Reorder</th>
-            <th colspan="2">Status</th>
-            <th class="text-right">Current Cost</th>
-            <th class="text-right">Prev Cost</th>
-            <th class="text-right">Change</th>
-            <th></th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+    const reservedCell = i.reservedGrams > 0
+      ? '<span style="color:var(--cinnamon);font-weight:600">' + fmt(i.reservedGrams,0) + ' g</span>'
+      : '<span style="color:var(--text-3)">—</span>';
 
-  <!-- Finished Goods pane -->
-  <div id="inv-pane-fg" class="mod-tab-pane">
-    <div class="card">
-      <div style="font-size:12px;color:var(--text-3);margin-bottom:10px">
-        Stock increases via Production Batch releases. Stock decreases via sales/invoicing. No direct edits.
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>Code</th><th>Product</th><th>Pack Size</th>
-            <th class="text-right">Stock</th>
-            <th colspan="2">Status</th>
-          </tr></thead>
-          <tbody>${fgRows}</tbody>
-        </table>
-      </div>
-    </div>
-  </div>`;
+    const editFormHtml = isAdmin
+      ? '<tr id="rm-edit-' + i.id + '" style="display:none"><td colspan="10" style="padding:0">'
+        + '<div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">'
+        + '<div id="rm-edit-msg-' + i.id + '" style="margin-bottom:6px"></div>'
+        + '<div class="form-row" style="align-items:flex-end;margin-bottom:0">'
+        + '<div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="rm-cost-' + i.id + '" type="number" min="0" step="0.01" class="form-input" style="width:130px" value="' + cost + '"></div>'
+        + '<div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="rm-reorder-' + i.id + '" type="number" min="0" step="1" class="form-input" style="width:130px" value="' + (i.reorder_level||0) + '"></div>'
+        + '<div class="form-group"><label style="font-size:12px">Unit</label>'
+        + '<select id="rm-unit-' + i.id + '" class="form-input" style="width:80px">'
+        + '<option value="kg"' + ((i.unit||'kg')==='kg'?' selected':'') + '>kg</option>'
+        + '<option value="g"'  + ((i.unit||'kg')==='g' ?' selected':'') + '>g</option>'
+        + '<option value="L"'  + ((i.unit||'kg')==='L' ?' selected':'') + '>L</option>'
+        + '<option value="pcs"'+ ((i.unit||'kg')==='pcs'?' selected':'') + '>pcs</option>'
+        + '</select></div>'
+        + '<div class="form-group" style="flex:0;display:flex;gap:8px">'
+        + '<button class="btn btn-primary btn-sm" onclick="rmSubmitEdit(' + i.id + ',\'' + i.code + '\')">Save</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="rmCancelEdit(' + i.id + ')">Cancel</button>'
+        + '</div></div></div></td></tr>'
+      : '';
+
+    const rowHtml = '<tr data-rm-status="' + i.status + '">'
+      + '<td><strong style="font-family:monospace;font-size:12px">' + i.code + '</strong></td>'
+      + '<td>' + (i.name || '') + '</td>'
+      + '<td class="num text-right" style="color:var(--text-2)">' + fmt(i.balanceGrams,0) + ' g</td>'
+      + '<td class="num text-right">' + reservedCell + '</td>'
+      + '<td class="num text-right" style="font-weight:600;color:' + availColor + '">' + fmt(available,0) + ' g</td>'
+      + '<td class="num text-right" style="color:var(--text-3);font-size:12px">' + (i.reorder_level > 0 ? fmt(i.reorder_level,0)+'g' : '—') + '</td>'
+      + '<td>'
+        + '<div style="background:var(--border);border-radius:4px;height:6px;width:72px">'
+        + '<div style="background:' + barColor + ';border-radius:4px;height:6px;width:' + pct + '%"></div>'
+        + '</div>'
+      + '</td>'
+      + '<td><span class="badge badge-' + (i.status==='OK'?'ok':i.status==='LOW'?'low':'out') + '">' + i.status + '</span></td>'
+      + '<td class="num text-right">' + costCell + '</td>'
+      + '<td class="num text-right">' + chgCell + '</td>'
+      + '<td style="white-space:nowrap">'
+        + '<button class="btn btn-xs btn-outline" onclick="showAdjForm(' + i.id + ',\'' + i.code + '\',' + i.balanceGrams + ')">Adjust</button>'
+        + (isAdmin ? ' <button class="btn btn-xs btn-outline" onclick="rmShowEdit(' + i.id + ')">Edit</button>' : '')
+      + '</td>'
+      + '</tr>'
+      + editFormHtml;
+
+    return rowHtml;
+  }).join('');
+
+  // ── Add ingredient card (admin only) ─────────────────────────────
+  const addIngCard = isAdmin
+    ? '<div class="card mb-14" id="ing-add-card" style="display:none">'
+      + '<h4 style="margin-bottom:12px">＋ New Ingredient</h4>'
+      + '<div id="ing-add-msg"></div>'
+      + '<div class="form-row" style="align-items:flex-end">'
+      + '<div class="form-group"><label style="font-size:12px">Code *</label><input id="ing-add-code" placeholder="e.g. ING-020SP" style="width:140px"></div>'
+      + '<div class="form-group" style="flex:2"><label style="font-size:12px">Name *</label><input id="ing-add-name" placeholder="Ingredient name" style="min-width:200px"></div>'
+      + '<div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="ing-add-cost" type="number" min="0" step="0.01" placeholder="0.00" style="width:120px"></div>'
+      + '<div class="form-group"><label style="font-size:12px">Reorder (g)</label><input id="ing-add-reorder" type="number" min="0" step="1" placeholder="0" style="width:110px"></div>'
+      + '<div class="form-group"><label style="font-size:12px">Unit</label>'
+      + '<select id="ing-add-unit" class="form-input" style="width:70px">'
+      + '<option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="pcs">pcs</option>'
+      + '</select></div>'
+      + '<div style="display:flex;gap:8px;margin-bottom:4px">'
+      + '<button class="btn btn-primary btn-sm" onclick="saveNewIngredient()">Add</button>'
+      + '<button class="btn btn-outline btn-sm" onclick="document.getElementById(\'ing-add-card\').style.display=\'none\'">Cancel</button>'
+      + '</div></div></div>'
+    : '';
+
+  // ── RM KPI strip ─────────────────────────────────────────────────
+  const rmKpis = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">'
+    + _invKpi('Total', rmTotal, 'ingredients', 'var(--text-2)')
+    + _invKpi('OK', rmOk, 'well stocked', 'var(--cardamom)')
+    + _invKpi('Low', rmLow, 'need restocking', 'var(--cinnamon)')
+    + _invKpi('Out', rmOut, 'zero stock', 'var(--chili)')
+    + '</div>';
+
+  // ── RM filter chips ───────────────────────────────────────────────
+  const rmFilters = [
+    ['all', 'All (' + rmTotal + ')'],
+    ['OK',  'OK (' + rmOk + ')'],
+    ['LOW', 'Low (' + rmLow + ')'],
+    ['OUT', 'Out (' + rmOut + ')'],
+  ];
+  const rmChips = '<div class="filter-bar" style="margin-bottom:16px">'
+    + rmFilters.map(([val, label]) =>
+        '<span class="filter-chip' + (_rmFilter === val ? ' active' : '') + '" onclick="setRmFilter(\'' + val + '\')">' + label + '</span>'
+      ).join('')
+    + '</div>';
+
+  // ── FG data ───────────────────────────────────────────────────────
+  const products = state.ref.products || [];
+  const allVariants = products.flatMap(p => (p.variants||[]).map(v => ({ p, v })));
+  const fgTotal     = allVariants.length;
+  const fgInStock   = allVariants.filter(({v}) => (v.stockUnits||0) > 0).length;
+  const fgOut       = allVariants.filter(({v}) => (v.stockUnits||0) === 0).length;
+  const fgLow       = allVariants.filter(({v}) => { const s=v.stockUnits||0; return s>0&&s<10; }).length;
+  // Estimate total FG value using selling prices from ref
+  let fgValue = 0;
+  allVariants.forEach(({p,v}) => {
+    const priceObj = (state.ref.prices||[]).find(pr => pr.sku_code === (p.code+'-'+(v.pack_size||'').replace(/\s/g,'')));
+    if (priceObj) fgValue += (v.stockUnits||0) * (priceObj.price||0);
+  });
+
+  const fgKpis = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">'
+    + _invKpi('SKUs', fgTotal, 'total variants', 'var(--text-2)')
+    + _invKpi('In Stock', fgInStock, 'have units', 'var(--cardamom)')
+    + _invKpi('Low', fgLow, '< 10 units', 'var(--cinnamon)')
+    + _invKpi('Out', fgOut, 'zero units', 'var(--chili)')
+    + '</div>';
+
+  // ── FG rows — grouped by product ─────────────────────────────────
+  let fgRowsHtml = '';
+  if (products.length === 0) {
+    fgRowsHtml = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:32px">No products defined yet</td></tr>';
+  } else {
+    products.forEach(p => {
+      const variants = p.variants || [];
+      if (variants.length === 0) return;
+      // Product header row
+      const totalUnits = variants.reduce((s,v) => s+(v.stockUnits||0), 0);
+      fgRowsHtml += '<tr style="background:var(--surface-2,var(--saffron-pale));border-top:2px solid var(--border)">'
+        + '<td colspan="5" style="padding:8px 12px">'
+        + '<strong style="font-size:13px">' + p.name + '</strong>'
+        + '<span style="font-family:monospace;font-size:11px;color:var(--text-3);margin-left:8px">' + p.code + '</span>'
+        + '<span style="font-size:12px;color:var(--text-3);margin-left:12px">— ' + variants.length + ' SKU' + (variants.length!==1?'s':'') + ' · ' + totalUnits + ' units total</span>'
+        + '</td></tr>';
+      // Variant rows
+      variants.forEach(v => {
+        const stock    = v.stockUnits || 0;
+        const maxScale = Math.max(...variants.map(vv => vv.stockUnits||0), 20);
+        const barPct   = Math.min(100, Math.round(stock / maxScale * 100));
+        const barColor = stock === 0 ? 'var(--chili)' : stock < 10 ? 'var(--cinnamon)' : 'var(--cardamom)';
+        const statusLabel = stock === 0 ? 'OUT' : stock < 10 ? 'LOW' : 'OK';
+        const badgeCls    = stock === 0 ? 'badge-out' : stock < 10 ? 'badge-low' : 'badge-ok';
+        // Estimate value
+        const skuCode = p.code + '-' + (v.pack_size||'').replace(/\s/g,'');
+        const priceObj = (state.ref.prices||[]).find(pr => pr.sku_code === skuCode);
+        const unitPrice = priceObj ? (priceObj.price||0) : 0;
+        const lineVal   = stock * unitPrice;
+        fgRowsHtml += '<tr>'
+          + '<td style="padding-left:24px;font-family:monospace;font-size:12px;color:var(--text-3)">' + skuCode + '</td>'
+          + '<td style="color:var(--text-2)">' + (v.pack_size||'—') + '</td>'
+          + '<td class="num text-right" style="font-weight:' + (stock>0?'700':'400') + ';color:' + (stock>0?'var(--text-1)':'var(--text-3)') + '">'
+            + (stock > 0 ? stock + ' units' : '—') + '</td>'
+          + '<td class="num text-right" style="color:' + (lineVal>0?'var(--text-2)':'var(--text-3)') + ';font-size:12px">'
+            + (lineVal > 0 ? fmtPKR(lineVal) : '—') + '</td>'
+          + '<td style="width:160px">'
+            + '<div style="display:flex;align-items:center;gap:8px">'
+            + '<div style="flex:1;background:var(--border);border-radius:4px;height:6px">'
+            + '<div style="background:' + barColor + ';border-radius:4px;height:6px;width:' + barPct + '%"></div>'
+            + '</div>'
+            + '<span class="badge ' + badgeCls + '" style="flex-shrink:0">' + statusLabel + '</span>'
+            + '</div>'
+          + '</td>'
+          + '</tr>';
+      });
+    });
+  }
+
+  // ── Tab bar ───────────────────────────────────────────────────────
+  const rmActive = _invTab === 'rm';
+  const tabBar = '<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:24px">'
+    + (isAdmin
+        ? '<button id="inv-tab-rm" onclick="switchInvTab(\'rm\')" style="padding:10px 24px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:' + (rmActive?'3px solid var(--saffron);color:var(--saffron)':'2px solid transparent;color:var(--text-3)') + ';margin-bottom:-2px">🧂 Raw Materials <span style="font-size:11px;opacity:.7">(' + rmTotal + ')</span></button>'
+        : '')
+    + '<button id="inv-tab-fg" onclick="switchInvTab(\'fg\')" style="padding:10px 24px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:' + (!rmActive?'3px solid var(--saffron);color:var(--saffron)':'2px solid transparent;color:var(--text-3)') + ';margin-bottom:-2px">📦 Finished Goods <span style="font-size:11px;opacity:.7">(' + fgTotal + ')</span></button>'
+    + '</div>';
+
+  return '<div class="section-header"><h2>Inventory</h2>'
+    + (isAdmin ? '<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById(\'ing-add-card\');if(c)c.style.display=c.style.display===\'none\'?\'\':\'none\';switchInvTab(\'rm\')">＋ Ingredient</button>' : '')
+    + '</div>'
+    + tabBar
+
+    // ── Raw Materials pane ─────────────────────────────────────────
+    + '<div id="inv-pane-rm" style="display:' + (isAdmin && rmActive ? 'block' : 'none') + '">'
+    + '<div id="adj-form-area"></div>'
+    + addIngCard
+    + changeBanner
+    + rmKpis
+    + rmChips
+    + '<div class="card">'
+    + '<div class="table-wrap">'
+    + '<table>'
+    + '<thead><tr>'
+    + '<th>Code</th><th>Name</th>'
+    + '<th class="text-right">Physical</th>'
+    + '<th class="text-right" title="Reserved by WIPs">Reserved</th>'
+    + '<th class="text-right" title="Physical minus Reserved">Available</th>'
+    + '<th class="text-right">Reorder</th>'
+    + '<th colspan="2">Status</th>'
+    + '<th class="text-right">Cost/kg</th>'
+    + '<th class="text-right">Change</th>'
+    + '<th></th>'
+    + '</tr></thead>'
+    + '<tbody id="rm-tbody">' + allRmRows + '</tbody>'
+    + '</table></div></div>'
+    + '</div>'
+
+    // ── Finished Goods pane ────────────────────────────────────────
+    + '<div id="inv-pane-fg" style="display:' + (!rmActive || !isAdmin ? 'block' : 'none') + '">'
+    + fgKpis
+    + '<div style="font-size:12px;color:var(--text-3);margin-bottom:12px">Stock increases when production batches are released · Decreases when invoices are issued</div>'
+    + '<div class="card">'
+    + '<div class="table-wrap">'
+    + '<table>'
+    + '<thead><tr>'
+    + '<th>SKU</th><th>Pack Size</th>'
+    + '<th class="text-right">Stock</th>'
+    + '<th class="text-right">Est. Value</th>'
+    + '<th style="min-width:160px">Status</th>'
+    + '</tr></thead>'
+    + '<tbody>' + fgRowsHtml + '</tbody>'
+    + '</table></div></div>'
+    + '</div>';
 }
 
-let _invTab = 'rm';
+let _invTab   = 'rm';
+let _rmFilter = 'all';
+
+// Small KPI card used in Inventory header strips
+function _invKpi(label, value, sub, color) {
+  return '<div class="card" style="padding:14px 16px;text-align:center">'
+    + '<div style="font-size:22px;font-weight:800;color:' + color + '">' + value + '</div>'
+    + '<div style="font-size:12px;font-weight:600;margin-top:2px">' + label + '</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:1px">' + sub + '</div>'
+    + '</div>';
+}
+
 function switchInvTab(tab) {
-  // Non-admins can only see Finished Goods
-  const role = (window._currentUser && window._currentUser.role) || '';
+  const role = state.currentUser?.role || '';
   if (tab === 'rm' && role !== 'admin') tab = 'fg';
   _invTab = tab;
-  document.querySelectorAll('[id^="inv-tab-"]').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('[id^="inv-pane-"]').forEach(el => el.classList.remove('active'));
-  const t = document.getElementById('inv-tab-' + tab);
-  const p = document.getElementById('inv-pane-' + tab);
-  if (t) t.classList.add('active');
-  if (p) p.classList.add('active');
-  // Show Raw Materials tab only to admin
-  const rmTab = document.getElementById('inv-tab-rm');
-  if (rmTab) rmTab.style.display = role === 'admin' ? '' : 'none';
+  const rmPane = document.getElementById('inv-pane-rm');
+  const fgPane = document.getElementById('inv-pane-fg');
+  const rmBtn  = document.getElementById('inv-tab-rm');
+  const fgBtn  = document.getElementById('inv-tab-fg');
+  if (rmPane) rmPane.style.display = tab === 'rm' ? 'block' : 'none';
+  if (fgPane) fgPane.style.display = tab === 'fg' ? 'block' : 'none';
+  const activeStyle  = 'padding:10px 24px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--saffron);color:var(--saffron);margin-bottom:-2px';
+  const inactiveStyle= 'padding:10px 24px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-3);margin-bottom:-2px';
+  if (rmBtn) rmBtn.style.cssText = tab === 'rm' ? activeStyle : inactiveStyle;
+  if (fgBtn) fgBtn.style.cssText = tab === 'fg' ? activeStyle : inactiveStyle;
+}
+
+function setRmFilter(filter) {
+  _rmFilter = filter;
+  // Update chip active states
+  document.querySelectorAll('.filter-bar .filter-chip').forEach(el => {
+    const val = el.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    if (val) el.classList.toggle('active', val === filter);
+  });
+  // Show/hide rows
+  const tbody = document.getElementById('rm-tbody');
+  if (!tbody) return;
+  tbody.querySelectorAll('tr[data-rm-status]').forEach(tr => {
+    const status = tr.getAttribute('data-rm-status');
+    tr.style.display = (filter === 'all' || status === filter) ? '' : 'none';
+    // Also hide the inline edit row that follows if parent is hidden
+    const next = tr.nextElementSibling;
+    if (next && next.id && next.id.startsWith('rm-edit-')) {
+      next.style.display = 'none'; // always reset edit rows on filter change
+    }
+  });
 }
 
 function rmShowEdit(id) {
