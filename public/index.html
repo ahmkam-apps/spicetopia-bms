@@ -6532,7 +6532,7 @@ async function loadBomForEditor() {
       if (batchEl) batchEl.value = bom.batch_size_grams;
       // Populate rows from existing BOM
       rowsEl.innerHTML = '';
-      (bom.items || []).forEach(it => addBomIngRow(it.ing_code, it.quantity_grams));
+      (bom.items || []).forEach(it => addBomIngRow(it.ing_code, it.quantity_grams, it.ing_name));
       if ((bom.items||[]).length === 0) addBomIngRow();
     } else {
       infoEl.innerHTML = '<span style="color:var(--chili);font-weight:600">No active BOM</span> — define ingredients below to enable production.';
@@ -6548,18 +6548,22 @@ async function loadBomForEditor() {
 }
 
 let _bomRowIdx = 0;
-function addBomIngRow(ingCode='', qtyG='') {
+function addBomIngRow(ingCode='', qtyG='', ingName='') {
   const tbody = document.getElementById('bom-ing-rows');
   if (!tbody) return;
   const idx = _bomRowIdx++;
   const tr = document.createElement('tr');
   tr.id = `bom-row-${idx}`;
   tr.style.borderBottom = '1px solid var(--border)';
+  const nameLabel = (ingName && ingName !== ingCode)
+    ? '<div style="font-size:11px;color:var(--text-3);margin-top:2px">' + ingName + '</div>'
+    : '';
   tr.innerHTML = `
     <td style="padding:5px 4px">
       <input class="bom-ing-code" type="text" value="${ingCode}" placeholder="e.g. ING-001"
         style="width:140px;font-family:monospace;font-size:13px"
         oninput="updateBomTotal()">
+      ${nameLabel}
     </td>
     <td style="padding:5px 4px;text-align:right">
       <input class="bom-ing-qty" type="number" value="${qtyG}" placeholder="grams" min="0.01" step="0.01"
@@ -6650,7 +6654,10 @@ async function checkWoFeasibility() {
           ? `<span style="color:var(--cinnamon)">${reserved.toFixed(0)}g</span>`
           : '<span style="color:var(--text-3)">—</span>';
         return `<tr style="${needBuy ? 'background:#fff5f5' : ''}">
-          <td style="padding:5px 8px;font-size:12px;font-family:monospace">${r.ingCode}</td>
+          <td style="padding:5px 8px;font-size:12px">
+            <span style="font-family:monospace">${r.ingCode}</span>
+            ${r.ingName && r.ingName !== r.ingCode ? `<br><span style="font-size:11px;color:var(--text-3)">${r.ingName}</span>` : ''}
+          </td>
           <td style="padding:5px 8px;font-size:12px;text-align:right">${r.neededGrams.toFixed(0)}g</td>
           <td style="padding:5px 8px;font-size:12px;text-align:right;color:var(--text-3)">${physical.toFixed(0)}g</td>
           <td style="padding:5px 8px;font-size:12px;text-align:right">${resCell}</td>
