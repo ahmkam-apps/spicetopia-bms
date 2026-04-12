@@ -6212,8 +6212,18 @@ async function renderProduction() {
         <h3 style="margin:0">Bill of Materials (BOM)</h3>
         <p style="font-size:12px;color:var(--text-3);margin:3px 0 0">Define ingredient recipes per product. Required before recording production batches.</p>
       </div>
-      <button class="btn btn-xs btn-outline" onclick="toggleBomPanel()">⚙ Manage BOMs</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-xs btn-outline" onclick="downloadBomTemplate()">↓ Template</button>
+        <label class="btn btn-xs btn-primary" style="cursor:pointer;margin:0">
+          ↑ Upload CSV
+          <input type="file" accept=".csv,.xlsx" style="display:none" onchange="uploadBomCsv(this)">
+        </label>
+        <button class="btn btn-xs btn-outline" onclick="toggleBomPanel()">⚙ Manage BOMs</button>
+      </div>
     </div>
+
+    <!-- BOM upload result message -->
+    <div id="bom-upload-msg"></div>
 
     <!-- BOM Status Summary (always visible) -->
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">
@@ -6423,6 +6433,63 @@ function hideDirectBatchForm() {
   if (f) f.style.display = 'none';
   const b = document.getElementById('direct-batch-btn');
   if (b) b.style.display = '';
+}
+
+// ── BOM Upload / Template ──────────────────────────────────────────
+function downloadBomTemplate() {
+  const prods = state.ref.products || [];
+  const ings  = state.ref.ingredients || [];
+  // Header row
+  let csv = 'product_code,batch_size_grams,ing_code,quantity_grams\r\n';
+  if (prods.length === 0) {
+    // Fallback example rows when no products loaded yet
+    csv += 'SPCM,1000,ING-001,300\r\nSPCM,1000,ING-002,700\r\n';
+  } else {
+    // One example row per product using first ingredient as placeholder
+    prods.forEach(p => {
+      const exIng = ings[0] ? ings[0].code : 'ING-001';
+      csv += p.code + ',1000,' + exIng + ',0\r\n';
+    });
+  }
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bom_template.csv';
+  a.click();
+}
+
+async function uploadBomCsv(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';   // reset so same file can be re-uploaded
+  const msgEl = document.getElementById('bom-upload-msg');
+  if (msgEl) msgEl.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:6px 0">Uploading…</div>';
+
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/admin/masters/upload/bom', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd
+    });
+    const res = await r.json();
+    if (res.ok) {
+      const msg = res.message || (res.imported + ' BOM(s) created');
+      const errHtml = (res.errors||[]).length
+        ? '<ul style="margin:4px 0 0;padding-left:16px;font-size:11px;color:var(--chili)">'
+          + res.errors.map(e => '<li>' + e + '</li>').join('') + '</ul>'
+        : '';
+      if (msgEl) msgEl.innerHTML =
+        '<div style="background:#eafaf1;border:1px solid #b2e8c8;border-radius:6px;padding:8px 12px;margin:8px 0;font-size:13px">'
+        + '<strong style="color:#1aaa55">✓ ' + msg + '</strong>' + errHtml + '</div>';
+      setTimeout(() => nav('production'), 1800);
+    } else {
+      if (msgEl) showMsg('bom-upload-msg', res.error || 'Upload failed', 'error');
+    }
+  } catch(e) {
+    if (msgEl) showMsg('bom-upload-msg', e.message, 'error');
+  }
 }
 
 // ── BOM Management ─────────────────────────────────────────────────
