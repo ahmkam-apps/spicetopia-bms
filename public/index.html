@@ -6309,7 +6309,7 @@ async function renderProduction() {
     const canStart    = wo.status === 'planned';
     const canReset    = wo.status === 'in_progress';   // back to planned
     const canCancel   = canConvert;
-    return `<tr>
+    return `<tr data-wo-status="${wo.status}">
       <td style="font-weight:700;white-space:nowrap">
         ${wo.wo_number}
         ${wo.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="nav('orders-invoices');setTimeout(()=>openOrderDetail(${wo.customer_order_id}),400)">📋 ${wo.customer_order_number}</span>` : ''}
@@ -6360,23 +6360,23 @@ async function renderProduction() {
   </div>
 
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px">
-    <div class="card" style="padding:14px 16px;text-align:center">
+    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="filterWoTable('planned')" title="Show Planned work orders">
       <div style="font-size:22px;font-weight:800;color:var(--mac-blue)">${woPlanned}</div>
       <div style="font-size:11px;color:var(--text-3);margin-top:2px">Planned WOs</div>
     </div>
-    <div class="card" style="padding:14px 16px;text-align:center">
+    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="filterWoTable('in_progress')" title="Show In Progress work orders">
       <div style="font-size:22px;font-weight:800;color:var(--saffron)">${woInProgress}</div>
       <div style="font-size:11px;color:var(--text-3);margin-top:2px">In Progress</div>
     </div>
-    <div class="card" style="padding:14px 16px;text-align:center">
+    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="filterWoTable('completed')" title="Show Completed work orders">
       <div style="font-size:22px;font-weight:800;color:var(--cardamom)">${woCompleted}</div>
       <div style="font-size:11px;color:var(--text-3);margin-top:2px">Completed WOs</div>
     </div>
-    <div class="card" style="padding:14px 16px;text-align:center">
+    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="document.getElementById('batch-history-card').scrollIntoView({behavior:'smooth',block:'start'})" title="Scroll to Batch History">
       <div style="font-size:22px;font-weight:800;color:var(--cardamom)">${batchesThisMonth}</div>
       <div style="font-size:11px;color:var(--text-3);margin-top:2px">Batches This Month</div>
     </div>
-    <div class="card" style="padding:14px 16px;text-align:center">
+    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="document.getElementById('batch-history-card').scrollIntoView({behavior:'smooth',block:'start'})" title="Scroll to Batch History">
       <div style="font-size:18px;font-weight:800;color:var(--chili)">${fmtPKR(totalBatchCost)}</div>
       <div style="font-size:11px;color:var(--text-3);margin-top:2px">Total Ingredient Cost</div>
     </div>
@@ -6506,9 +6506,9 @@ async function renderProduction() {
   </div>
 
   <!-- ── WORK ORDERS TABLE ────────────────────────────────── -->
-  <div class="card mb-16">
+  <div class="card mb-16" id="wo-table-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <h3>Work Orders</h3>
+      <h3>Work Orders <span id="wo-filter-badge" style="display:none;font-size:11px;font-weight:500;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron);border-radius:10px;padding:2px 8px;margin-left:6px;cursor:pointer" onclick="filterWoTable(null)" title="Clear filter">× Clear filter</span></h3>
       <span style="font-size:12px;color:var(--text-3)">${workOrders.length} total</span>
     </div>
     <div class="table-wrap">
@@ -6536,7 +6536,7 @@ async function renderProduction() {
   <div id="batch-detail-panel"></div>
 
   <!-- ── BATCH HISTORY ────────────────────────────────────── -->
-  <div class="card">
+  <div class="card" id="batch-history-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <h3>Batch History</h3>
       <button class="btn btn-xs btn-outline" onclick="showDirectBatchForm()" id="direct-batch-btn">+ Record Batch Directly</button>
@@ -6590,6 +6590,28 @@ async function renderProduction() {
       </table>
     </div>
   </div>`;
+}
+
+function filterWoTable(status) {
+  const card  = document.getElementById('wo-table-card');
+  const badge = document.getElementById('wo-filter-badge');
+  if (!card) return;
+  const rows = card.querySelectorAll('tbody tr[data-wo-status]');
+  if (!status) {
+    // clear filter
+    rows.forEach(tr => tr.style.display = '');
+    if (badge) badge.style.display = 'none';
+  } else {
+    rows.forEach(tr => {
+      tr.style.display = (tr.getAttribute('data-wo-status') === status) ? '' : 'none';
+    });
+    if (badge) {
+      const labels = { planned:'Planned', in_progress:'In Progress', completed:'Completed' };
+      badge.textContent = '× ' + (labels[status] || status);
+      badge.style.display = 'inline';
+    }
+    card.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
 }
 
 function showWoForm() {
