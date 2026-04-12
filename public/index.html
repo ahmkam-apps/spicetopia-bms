@@ -6616,7 +6616,13 @@ function filterWoTable(status) {
 
 function showWoForm() {
   const p = document.getElementById('wo-form-panel');
-  if (p) { p.style.display = 'block'; p.scrollIntoView({ behavior:'smooth', block:'start' }); }
+  if (!p) return;
+  // re-enable controls in case they were disabled after a prior save
+  p.querySelectorAll('input,select,button').forEach(el => el.disabled = false);
+  const msg = document.getElementById('wo-msg');
+  if (msg) msg.innerHTML = '';
+  p.style.display = 'block';
+  p.scrollIntoView({ behavior:'smooth', block:'start' });
   checkWoFeasibility();
 }
 function hideWoForm() {
@@ -7057,7 +7063,13 @@ async function saveWorkOrder() {
       ? `Work order ${res.woNumber} created — all ingredients available.`
       : `Work order ${res.woNumber} created — ⚠ ingredient shortfall: ${res.shortfalls.join('; ')}`;
     showMsg('wo-msg', `${icon} ${msg}`, res.feasible ? 'success' : 'warning');
-    setTimeout(() => nav('production'), 1800);
+    // disable form controls so it can't be resubmitted while refreshing
+    ['wo-prod','wo-qty','wo-date','wo-notes'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = true;
+    });
+    document.querySelectorAll('#wo-form-panel button').forEach(b => b.disabled = true);
+    setTimeout(() => { hideWoForm(); nav('production'); }, 1800);
   } catch(e) { showMsg('wo-msg', e.message, 'error'); }
 }
 
