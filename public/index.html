@@ -6894,8 +6894,8 @@ async function showBatchDetail(batchDbId) {
 
   const rows = (b.consumption||[]).map(c => `
     <tr>
-      <td style="padding:6px 10px;font-size:12px">${c.ing_code}</td>
-      <td style="padding:6px 10px;font-size:12px">${c.ing_name}</td>
+      <td style="padding:6px 10px;font-size:12px;font-family:monospace">${c.ing_code}</td>
+      <td style="padding:6px 10px;font-size:12px">${c.ing_name || c.ing_code}</td>
       <td style="padding:6px 10px;font-size:12px;text-align:right">${c.qty_grams.toFixed(1)}g</td>
       <td style="padding:6px 10px;font-size:12px;text-align:right;color:var(--text-3)">PKR ${(c.cost_per_kg||0).toLocaleString()}/kg</td>
       <td style="padding:6px 10px;font-size:12px;text-align:right;font-weight:600">${fmtPKR(c.line_cost)}</td>
