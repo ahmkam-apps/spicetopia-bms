@@ -8713,7 +8713,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not batch:
                     send_error(self, "Batch not found", 404); return
                 consumption = qry("""
-                    SELECT pc.qty_grams, i.code as ing_code,
+                    SELECT pc.qty_grams, i.code as ing_code, i.name as ing_name,
                            i.cost_per_kg,
                            ROUND(pc.qty_grams / 1000.0 * i.cost_per_kg, 2) as line_cost
                     FROM production_consumption pc
