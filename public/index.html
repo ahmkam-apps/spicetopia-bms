@@ -6097,6 +6097,26 @@ async function renderProduction() {
       `<option value="${v.id}|${p.code}|${v.pack_size}|${v.pack_grams}">${p.name} — ${v.pack_size}</option>`)
   ).join('');
 
+  // BOM status chips — one per product, green if BOM exists, red if not
+  const bomChips = products.map(p => {
+    const bom = bomMap[p.code];
+    const hasActive = !!(bom && bom.id);
+    const bg    = hasActive ? '#eafaf1' : '#fff5f5';
+    const color = hasActive ? '#1aaa55' : '#e03131';
+    const border= hasActive ? '#b2e8c8' : '#f5c0c0';
+    const label = (hasActive ? '\u2713 ' : '+ ') + p.code;
+    const title = hasActive ? ('BOM v' + bom.version_no + ' active — click to edit') : 'No BOM — click to create';
+    return '<span style="font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;cursor:pointer;'
+      + 'background:' + bg + ';color:' + color + ';border:1px solid ' + border + '"'
+      + ' onclick="openBomForProduct(\'' + p.code + '\')"'
+      + ' title="' + title + '">' + label + '</span>';
+  }).join(' ');
+
+  // BOM product selector options
+  const bomProdOptions = products.map(p =>
+    '<option value="' + p.code + '">' + p.name + ' (' + p.code + ')</option>'
+  ).join('');
+
   // Status badge helper
   const woBadge = (status, feasible) => {
     const cfg = {
@@ -6197,18 +6217,7 @@ async function renderProduction() {
 
     <!-- BOM Status Summary (always visible) -->
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">
-      ${products.map(p => {
-        const bom = bomMap[p.code];
-        const hasActive = bom && bom.version !== null && bom.id;
-        return `<span style="font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;cursor:pointer;
-          background:${hasActive ? '#eafaf1' : '#fff5f5'};
-          color:${hasActive ? '#1aaa55' : '#e03131'};
-          border:1px solid ${hasActive ? '#b2e8c8' : '#f5c0c0'}"
-          onclick="openBomForProduct('${p.code}')"
-          title="${hasActive ? 'BOM v'+bom.version_no+' active — click to edit' : 'No BOM — click to create'}">
-          ${hasActive ? '✓' : '+'} ${p.code}
-        </span>`;
-      }).join('')}
+      ${bomChips}
     </div>
 
     <!-- BOM Editor Panel (hidden until toggled) -->
@@ -6218,7 +6227,7 @@ async function renderProduction() {
         <div class="form-group">
           <label>Product *</label>
           <select id="bom-prod-sel" onchange="loadBomForEditor()">
-            ${products.map(p => `<option value="${p.code}">${p.name} (${p.code})</option>`).join('')}
+            ${bomProdOptions}
           </select>
         </div>
         <div class="form-group">
