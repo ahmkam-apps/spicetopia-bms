@@ -2373,6 +2373,23 @@ function _renderOrderDetail(o) {
     const woBtn     = canCreateWO && remaining > 0
       ? `<button class="btn btn-xs btn-outline" onclick="createWOFromItem(${o.id},${item.id})">⚙ Create WO</button>`
       : '';
+    const committed = (item.qty_in_production || 0) + (item.qty_invoiced || 0);
+    const editBtn   = linesEditable
+      ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="coItemShowEdit(${o.id},${item.id})">Edit Qty</button>`
+      : '';
+    const editRow   = linesEditable ? `
+    <tr id="co-item-edit-${item.id}" style="display:none">
+      <td colspan="9" style="padding:0">
+        <div style="background:#f0f7ff;padding:10px 16px;border-top:2px solid var(--mac-blue);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:600">${item.product_name} ${item.pack_size}</span>
+          <span style="font-size:11px;color:var(--text-3)">Current: ${item.qty_ordered} units${committed > 0 ? ' · Min: ' + committed + ' (committed)' : ''}</span>
+          <div id="co-item-edit-msg-${item.id}" style="font-size:12px"></div>
+          <input id="co-item-qty-${item.id}" type="number" min="${committed || 1}" value="${item.qty_ordered}" style="width:80px;text-align:right" class="form-input">
+          <button class="btn btn-primary btn-sm" onclick="coItemSaveQty(${o.id},${item.id})">Save</button>
+          <button class="btn btn-outline btn-sm" onclick="coItemCancelEdit(${item.id})">Cancel</button>
+        </div>
+      </td>
+    </tr>` : '';
     return `<tr>
       <td>${item.product_name}</td>
       <td>${item.pack_size}</td>
@@ -2382,8 +2399,8 @@ function _renderOrderDetail(o) {
       <td class="num" style="color:${remaining>0?'var(--chili)':'var(--cardamom)'}">${remaining}</td>
       <td class="num">${fmtPKR(item.unit_price)}</td>
       <td class="num">${fmtPKR(item.line_total)}</td>
-      <td>${woBtn}</td>
-    </tr>`;
+      <td style="white-space:nowrap">${woBtn}${editBtn}</td>
+    </tr>${editRow}`;
   }).join('');
 
   // Work orders table — with inline status controls
@@ -2856,6 +2873,35 @@ async function doCancelOrder(orderId) {
     await POST(`/api/customer-orders/${orderId}/cancel`, {});
     nav('orders-invoices');
   } catch(e) { alert('Error: ' + e.message); }
+}
+
+function coItemShowEdit(orderId, itemId) {
+  // Close any other open item edit rows in this order detail
+  document.querySelectorAll('[id^="co-item-edit-"]').forEach(el => {
+    if (!el.id.endsWith('-msg-' + itemId)) el.style.display = 'none';
+  });
+  const row = document.getElementById('co-item-edit-' + itemId);
+  if (row) {
+    row.style.display = '';
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const inp = document.getElementById('co-item-qty-' + itemId);
+    if (inp) inp.focus();
+  }
+}
+function coItemCancelEdit(itemId) {
+  const row = document.getElementById('co-item-edit-' + itemId);
+  if (row) row.style.display = 'none';
+}
+async function coItemSaveQty(orderId, itemId) {
+  const inp = document.getElementById('co-item-qty-' + itemId);
+  const msgEl = 'co-item-edit-msg-' + itemId;
+  const qty = parseInt(inp?.value || 0);
+  if (!qty || qty < 1) { showMsg(msgEl, 'Invalid quantity', 'error'); return; }
+  try {
+    await PUT(`/api/customer-orders/${orderId}/items/${itemId}`, { qty });
+    coItemCancelEdit(itemId);
+    openOrderDetail(orderId);
+  } catch(e) { showMsg(msgEl, e.message, 'error'); }
 }
 
 function createWOFromItem(orderId, itemId) {
@@ -5945,11 +5991,22 @@ async function renderInventory() {
       + '<td class="num text-right">' + costCell + '</td>'
       + '<td class="num text-right">' + chgCell + '</td>'
       + '<td style="white-space:nowrap">'
-        + '<button class="btn btn-xs btn-outline" onclick="showAdjForm(' + i.id + ',\'' + i.code + '\',' + i.balanceGrams + ')">Adjust</button>'
+        + '<button class="btn btn-xs btn-outline" onclick="rmShowAdj(' + i.id + ')">Adjust</button>'
         + (isAdmin ? ' <button class="btn btn-xs btn-outline" onclick="rmShowEdit(' + i.id + ')">Edit</button>' : '')
       + '</td>'
       + '</tr>'
-      + editFormHtml;
+      + editFormHtml
+      + '<tr id="rm-adj-' + i.id + '" style="display:none"><td colspan="11" style="padding:0">'
+        + '<div style="background:#f0f7ff;padding:12px 16px;border-top:2px solid var(--mac-blue)">'
+        + '<div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">Adjust Stock — <span style="font-family:monospace">' + i.code + '</span> &nbsp;<span style="font-weight:400;color:var(--text-3)">Current: ' + fmt(i.balanceGrams,0) + ' g</span></div>'
+        + '<div id="rm-adj-msg-' + i.id + '" style="margin-bottom:6px"></div>'
+        + '<div class="form-row" style="align-items:flex-end;margin-bottom:0">'
+        + '<div class="form-group"><label style="font-size:12px">Adjustment (grams, +/−)</label><input id="rm-adj-qty-' + i.id + '" type="number" step="0.01" placeholder="+500 or −200" class="form-input" style="width:160px"></div>'
+        + '<div class="form-group" style="flex:2"><label style="font-size:12px">Reason *</label><input id="rm-adj-notes-' + i.id + '" placeholder="Required for audit trail" class="form-input" style="min-width:240px"></div>'
+        + '<div class="form-group" style="flex:0;display:flex;gap:8px">'
+        + '<button class="btn btn-primary btn-sm" onclick="saveAdjInline(' + i.id + ')">Save</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="rmCancelAdj(' + i.id + ')">Cancel</button>'
+        + '</div></div></div></td></tr>';
 
     return rowHtml;
   }).join('');
@@ -6201,26 +6258,45 @@ async function rmSubmitEdit(id, code) {
   } catch(e) { showMsg(msgEl, e.message, 'error'); }
 }
 
-function showAdjForm(ingId, ingCode, currentBalance) {
-  document.getElementById('adj-form-area').innerHTML = `
-  <div class="card mb-16" style="border-left:4px solid var(--saffron)">
-    <h3>Adjust Inventory — <span style="font-family:monospace">${ingCode}</span></h3>
-    <div style="color:var(--text-3);font-size:12px;margin-bottom:10px">Current balance: ${fmt(currentBalance,0)}g</div>
-    <div id="adj-msg"></div>
-    <div class="form-row">
-      <div class="form-group"><label>Adjustment (grams, +/−)</label><input id="adj-qty" type="number" step="0.01" placeholder="+500 or -200"></div>
-      <div class="form-group"><label>Notes *</label><input id="adj-notes" placeholder="Reason for adjustment" style="width:280px"></div>
-    </div>
-    <div style="display:flex;gap:10px">
-      <button class="btn btn-orange" onclick="saveAdjustment(${ingId})">Save Adjustment</button>
-      <button class="btn btn-outline" onclick="document.getElementById('adj-form-area').innerHTML=''">Cancel</button>
-    </div>
-  </div>`;
+function rmShowAdj(id) {
+  // Close any other open adj or edit rows
+  document.querySelectorAll('[id^="rm-adj-"]').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('[id^="rm-edit-"]').forEach(el => el.style.display = 'none');
+  const row = document.getElementById('rm-adj-' + id);
+  if (row) {
+    row.style.display = '';
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const qtyEl = document.getElementById('rm-adj-qty-' + id);
+    if (qtyEl) { qtyEl.value = ''; qtyEl.focus(); }
+    const notesEl = document.getElementById('rm-adj-notes-' + id);
+    if (notesEl) notesEl.value = '';
+  }
 }
 
+function rmCancelAdj(id) {
+  const row = document.getElementById('rm-adj-' + id);
+  if (row) row.style.display = 'none';
+}
+
+async function saveAdjInline(ingId) {
+  const qty   = parseFloat(document.getElementById('rm-adj-qty-' + ingId)?.value || '');
+  const notes = (document.getElementById('rm-adj-notes-' + ingId)?.value || '').trim();
+  const msgEl = 'rm-adj-msg-' + ingId;
+  if (isNaN(qty) || qty === 0) { showMsg(msgEl, 'Enter a non-zero adjustment amount', 'error'); return; }
+  if (!notes) { showMsg(msgEl, 'Reason is required for the audit trail', 'error'); return; }
+  try {
+    const res = await POST('/api/inventory/adjustment', { ingredientId: ingId, qtyGrams: qty, notes });
+    showMsg(msgEl, '✓ Adjusted ' + res.ingredientCode + ' by ' + (qty > 0 ? '+' : '') + qty + 'g', 'success');
+    setTimeout(() => { rmCancelAdj(ingId); nav('inventory'); }, 900);
+  } catch(e) { showMsg(msgEl, e.message, 'error'); }
+}
+
+// Legacy — kept for any remaining callers
+function showAdjForm(ingId, ingCode, currentBalance) { rmShowAdj(ingId); }
+
 async function saveAdjustment(ingId) {
-  const qty = parseFloat(document.getElementById('adj-qty').value);
-  const notes = document.getElementById('adj-notes').value.trim();
+  const qty = parseFloat(document.getElementById('adj-qty')?.value || '');
+  const notes = (document.getElementById('adj-notes')?.value || '').trim();
   if (!notes) { showMsg('adj-msg','Reason is required for audit','error'); return; }
   try {
     const res = await POST('/api/inventory/adjustment', { ingredientId: ingId, qtyGrams: qty, notes });
