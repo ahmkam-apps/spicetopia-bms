@@ -6470,7 +6470,7 @@ async function uploadBomCsv(input) {
   try {
     const r = await fetch('/api/admin/masters/upload/bom', {
       method: 'POST',
-      headers: authHeaders(),
+      headers: { 'Authorization': 'Bearer ' + authToken() },
       body: fd
     });
     const res = await r.json();
