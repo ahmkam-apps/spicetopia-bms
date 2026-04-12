@@ -947,41 +947,46 @@ async function renderDashboard() {
   <!-- ── KPI Tiles ────────────────────────────────────────────── -->
   <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:22px">
 
-    <div class="card" style="border-top:3px solid var(--saffron)">
+    <div class="card" style="border-top:3px solid var(--saffron);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('orders-invoices')" title="View today's orders">
       <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Today's Sales</div>
       <div class="card-value" style="font-size:20px;font-weight:700;color:var(--saffron);margin:6px 0 4px">${fmtPKR(sd.revenue||0)}</div>
       <div class="card-sub" style="font-size:11px;color:var(--text-3)">${sd.count||0} order${(sd.count||0)===1?'':'s'}</div>
+      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View orders →</div>
     </div>
 
-    <div class="card" style="border-top:3px solid var(--cardamom)">
+    <div class="card" style="border-top:3px solid var(--cardamom);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('pl-report')" title="View P&amp;L report">
       <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Month-to-Date Sales</div>
       <div class="card-value" style="font-size:20px;font-weight:700;color:var(--cardamom);margin:6px 0 4px">${fmtPKR(sm.revenue||0)}</div>
       <div class="card-sub" style="font-size:11px;color:var(--text-3)">${sm.count||0} order${(sm.count||0)===1?'':'s'}</div>
       <div style="font-size:10px;margin-top:4px;color:${momColor}">${momText}</div>
     </div>
 
-    <div class="card" style="border-top:3px solid var(--cinnamon)">
+    <div class="card" style="border-top:3px solid var(--cinnamon);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('margins')" title="View product margins">
       <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Gross Margin %</div>
       <div class="card-value" style="font-size:20px;font-weight:700;color:var(--cinnamon);margin:6px 0 4px">${gpm}%</div>
       <div class="card-sub" style="font-size:11px;color:var(--text-3)">GP: ${fmtPKR(sm.grossProfit||0)}</div>
+      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View margins →</div>
     </div>
 
-    <div class="card" style="border-top:3px solid ${cpColor}">
+    <div class="card" style="border-top:3px solid ${cpColor};cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('pl-report')" title="View P&amp;L report">
       <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Cash Position</div>
       <div class="card-value" style="font-size:20px;font-weight:700;color:${cpColor};margin:6px 0 4px">${fmtPKR(cp)}</div>
       <div class="card-sub" style="font-size:11px;color:var(--text-3)">Received − Paid out</div>
+      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View P&amp;L →</div>
     </div>
 
-    <div class="card" style="border-top:3px solid var(--mac-blue)">
+    <div class="card" style="border-top:3px solid var(--mac-blue);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('ar-aging')" title="View AR aging">
       <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Receivables (AR)</div>
       <div class="card-value" style="font-size:20px;font-weight:700;color:var(--mac-blue);margin:6px 0 4px">${fmtPKR(dash.ar.outstanding)}</div>
       <div class="card-sub" style="font-size:11px;color:var(--text-3)">${dash.ar.unpaidCount} unpaid invoice${dash.ar.unpaidCount===1?'':'s'}</div>
+      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View aging →</div>
     </div>
 
-    <div class="card" style="border-top:3px solid var(--chili)">
+    <div class="card" style="border-top:3px solid var(--chili);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('ap-aging')" title="View AP aging">
       <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Payables (AP)</div>
       <div class="card-value" style="font-size:20px;font-weight:700;color:var(--chili);margin:6px 0 4px">${fmtPKR(dash.ap.outstanding)}</div>
       <div class="card-sub" style="font-size:11px;color:var(--text-3)">${dash.ap.unpaidCount} unpaid bill${dash.ap.unpaidCount===1?'':'s'}</div>
+      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View aging →</div>
     </div>
 
   </div>
@@ -990,22 +995,22 @@ async function renderDashboard() {
   ${alertBanners}
 
   <div class="grid-3">
-    <div class="card">
-      <div class="section-header"><h2>Finished Goods Stock</h2></div>
+    <div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('inventory')">
+      <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>Finished Goods Stock</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View inventory →</span></div>
       <table>
         <thead><tr><th>Product</th><th>Pack</th><th class="text-right">Units</th></tr></thead>
         <tbody>${fgRows || '<tr><td colspan="3" style="text-align:center;color:var(--text-3)">No finished goods</td></tr>'}</tbody>
       </table>
     </div>
-    <div class="card">
-      <div class="section-header"><h2>${alertRows ? '⚠️ Low Stock Alerts' : '✅ Stock Levels'}</h2></div>
+    <div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('inventory')">
+      <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>${alertRows ? '⚠️ Low Stock Alerts' : '✅ Stock Levels'}</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View inventory →</span></div>
       <table>
         <thead><tr><th>Code</th><th>Ingredient</th><th class="text-right">Balance</th><th>Reorder</th></tr></thead>
         <tbody>${alertRows || '<tr><td colspan="4" style="text-align:center;color:var(--cardamom)">All stock levels OK</td></tr>'}</tbody>
       </table>
     </div>
-    <div class="card">
-      <div class="section-header"><h2>Sales by Customer Type</h2></div>
+    <div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('customers')">
+      <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>Sales by Customer Type</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View customers →</span></div>
       <table>
         <thead><tr><th>Type</th><th class="text-right">Orders</th><th class="text-right">Revenue</th></tr></thead>
         <tbody>${byTypeHtml || '<tr><td colspan="3" style="text-align:center;color:var(--text-3)">No sales this month</td></tr>'}</tbody>
