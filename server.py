@@ -8288,7 +8288,7 @@ class Handler(BaseHTTPRequestHandler):
                         'balanceGrams': r2(bal),
                         'status':       'INACTIVE' if not active else (
                                         'OK' if bal > float(i.get('reorder_level') or 0) else
-                                        ('LOW' if bal > 0 else 'OUT_OF_STOCK')),
+                                        ('LOW' if bal > 0 else 'OUT')),
                     })
                 send_json(self, result)
                 return
@@ -8391,7 +8391,7 @@ class Handler(BaseHTTPRequestHandler):
                     bal = stock_map.get(iid['id'], 0) if iid else 0
                     ingredients.append({**i, 'balanceGrams': r2(bal),
                                         'status': ('OK' if bal > i.get('reorder_level',0)
-                                                   else ('LOW' if bal > 0 else 'OUT_OF_STOCK'))})
+                                                   else ('LOW' if bal > 0 else 'OUT'))})
                 send_json(self, {
                     'products':    products,
                     'customers':   ref.get('customers', []),
@@ -8727,7 +8727,7 @@ class Handler(BaseHTTPRequestHandler):
                         'balanceGrams':      r2(bal),
                         'reservedGrams':     r2(reserved),
                         'availableGrams':    available,
-                        'status':            'OK' if available > rl else ('LOW' if available > 0 else 'OUT_OF_STOCK'),
+                        'status':            'OK' if available > rl else ('LOW' if available > 0 else 'OUT'),
                         'cost_per_kg':       cost,
                         'prev_cost_per_kg':  old_cost,          # None = no previous data
                         'cost_pct_change':   round(pct_chg, 2) if pct_chg is not None else None,
