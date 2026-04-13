@@ -4144,8 +4144,8 @@ async function renderSuppliers() {
 function escQ(s) { return (s||'').replace(/'/g,"&#39;").replace(/"/g,'&quot;'); }
 
 function editSupplier(id) {
-  // Collapse any other open edit rows first
-  document.querySelectorAll('[id^="sup-edit-"]').forEach(el => el.style.display = 'none');
+  // Collapse any other open edit rows first — tr[] prevents hiding child elements
+  document.querySelectorAll('tr[id^="sup-edit-"]').forEach(el => el.style.display = 'none');
   document.getElementById('sup-edit-' + id).style.display = '';
   document.getElementById('sup-edit-' + id).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   document.getElementById('se-name-' + id).focus();
@@ -4175,8 +4175,8 @@ async function saveEditSupplier(id) {
 }
 
 function showNewSupplierForm() {
-  // Collapse any open edit rows
-  document.querySelectorAll('[id^="sup-edit-"]').forEach(el => el.style.display = 'none');
+  // Collapse any open edit rows — tr[] prevents hiding child elements
+  document.querySelectorAll('tr[id^="sup-edit-"]').forEach(el => el.style.display = 'none');
   const zoneOpts = window._supplierZoneOpts || '<option value="">— No Zone —</option>';
   document.getElementById('supplier-form-area').innerHTML = `
   <div class="card mb-16">
@@ -6233,8 +6233,8 @@ function setRmFilter(filter) {
 }
 
 function rmShowEdit(id) {
-  // Close any other open edit rows in this tab
-  document.querySelectorAll('[id^="rm-edit-"]').forEach(el => el.style.display = 'none');
+  // Close any other open edit rows in this tab — tr[] selector prevents hiding child elements
+  document.querySelectorAll('tr[id^="rm-edit-"]').forEach(el => el.style.display = 'none');
   const row = document.getElementById('rm-edit-' + id);
   if (row) {
     row.style.display = '';
@@ -6263,9 +6263,9 @@ async function rmSubmitEdit(id, code) {
 }
 
 function rmShowAdj(id) {
-  // Close any other open adj or edit rows
-  document.querySelectorAll('[id^="rm-adj-"]').forEach(el => el.style.display = 'none');
-  document.querySelectorAll('[id^="rm-edit-"]').forEach(el => el.style.display = 'none');
+  // Close any other open adj or edit rows — use tr[] selector so child elements aren't hidden
+  document.querySelectorAll('tr[id^="rm-adj-"]').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('tr[id^="rm-edit-"]').forEach(el => el.style.display = 'none');
   const row = document.getElementById('rm-adj-' + id);
   if (row) {
     row.style.display = '';
@@ -10682,7 +10682,7 @@ async function ingSubmitAdd() {
 }
 
 function ingShowEdit(id, code, cost, reorder, unit, name) {
-  document.querySelectorAll('[id^="ing-edit-"]').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('tr[id^="ing-edit-"]').forEach(el => el.style.display = 'none');
   const row = document.getElementById('ing-edit-' + id);
   if (!row) return;
   row.style.display = '';
