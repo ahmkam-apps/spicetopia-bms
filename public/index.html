@@ -1793,7 +1793,7 @@ async function loadSalesPrices() {
   try {
     const prices = await GET('/api/prices');
     _salePriceMap = {};
-    const TYPE_RANK = { retail_mrp: 0, distributor: 1, ex_factory: 2, mfg_cost: 3 };
+    const TYPE_RANK = { retail_mrp: 0, distributor: 1, ex_factory: 2, direct_sale: 2, mfg_cost: 3 };
     prices.forEach(p => {
       const key = p.product_code + '|' + p.pack_size;
       const rank = TYPE_RANK[p.price_type_code] !== undefined ? TYPE_RANK[p.price_type_code] : 99;
@@ -7948,7 +7948,7 @@ async function renderPrices() {
         <td style="font-size:11px;color:var(--text-3)">${v.sku_code}</td>
         <td style="font-size:11px;color:var(--text-3)">${p.code}</td>
         <td class="num text-right">${priceCell(pm.mfg_cost)}</td>
-        <td class="num text-right">${priceCell(pm.ex_factory)}</td>
+        <td class="num text-right">${priceCell(pm.ex_factory||pm.direct_sale)}</td>
         <td class="num text-right">${priceCell(pm.distributor)}</td>
         <td class="num text-right">${priceCell(pm.retail_mrp)}</td>
         <td style="text-align:right;white-space:nowrap">
@@ -7971,10 +7971,10 @@ async function renderPrices() {
             <th style="text-align:left;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Pack</th>
             <th style="text-align:left;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">SKU</th>
             <th style="text-align:left;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Code</th>
-            <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Mfg Cost</th>
-            <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Ex-Factory</th>
+            <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Cost to Make</th>
+            <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Direct Sale</th>
             <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Distributor</th>
-            <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Retail MRP</th>
+            <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">MRP</th>
             <th style="padding-bottom:7px"></th>
           </tr>
         </thead>
@@ -8041,8 +8041,8 @@ function editPrice(variantId, priceMap) {
   if (priceMap && typeSel && priceEl) {
     const ptCodeToId = {};
     (state.ref.priceTypes||[]).forEach(pt => { ptCodeToId[pt.code] = pt.id; });
-    // Priority: retail_mrp → ex_factory → distributor → mfg_cost
-    const order = ['retail_mrp','ex_factory','distributor','mfg_cost'];
+    // Priority: retail_mrp → direct_sale/ex_factory → distributor → mfg_cost
+    const order = ['retail_mrp','direct_sale','ex_factory','distributor','mfg_cost'];
     let filled = false;
     for (const code of order) {
       if (priceMap[code] != null) {
@@ -8096,6 +8096,7 @@ async function renderPricesCosts() {
 
   let costs = [], cfg = {}, ings = [], history = [], alerts = [], variances = [];
   try { costs    = await GET('/api/costing/standard-costs'); } catch(e) { costs = []; }
+  window._pcCostsCache = costs;
   try { cfg      = await GET('/api/costing/config'); } catch(e) { cfg = {}; }
   try { ings     = await GET('/api/admin/ingredients'); } catch(e) { ings = []; }
   try { history  = await GET('/api/costing/price-history?limit=150'); } catch(e) { history = []; }
@@ -8117,7 +8118,7 @@ async function renderPricesCosts() {
   const kpiRow = `
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
     ${_invKpi('SKUs Costed', skusCosted + ' / ' + skusTotal, 'with active BOMs', 'var(--cardamom)')}
-    ${_invKpi('Below Floor', belowFloor, 'margin < ' + floorPct + '%', belowFloor > 0 ? 'var(--chili)' : 'var(--cardamom)')}
+    ${_invKpi('Below Min Profit Margin', belowFloor, 'margin < ' + floorPct + '%', belowFloor > 0 ? 'var(--chili)' : 'var(--cardamom)')}
     ${_invKpi('Avg Gross Margin', avgMargin + '%', 'across all costed SKUs', avgMargin >= floorPct ? 'var(--cardamom)' : 'var(--chili)')}
     ${_invKpi('Config Keys', Object.keys(cfg).length, 'costing parameters set', 'var(--saffron)')}
   </div>`;
@@ -8134,12 +8135,13 @@ async function renderPricesCosts() {
       <td>${c.packSize||'—'}</td>
       <td>${bomBadge}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.rm_cost) : '—'}</td>
-      <td class="text-right">${c.has_bom ? fmtPKR(c.total_mfg) : '—'}</td>
-      <td class="text-right">${c.has_bom ? fmtPKR(c.ex_factory) : '—'}</td>
+      <td class="text-right">${c.has_bom && c.wastage_adj > 0 ? fmtPKR(c.wastage_adj) : '—'}</td>
+      <td class="text-right">${c.has_bom ? fmtPKR(c.cost_to_make) : '—'}</td>
+      <td class="text-right">${c.has_bom ? fmtPKR(c.direct_sale) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.distributor) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.mrp) : '—'}</td>
       <td class="text-right" style="${flagStyle}">${c.has_bom ? (c.gross_margin_pct||0).toFixed(1)+'%' : '—'}</td>
-      <td>${c.has_bom && c.below_floor ? '<span style="color:var(--chili);font-size:13px">⚠ Below floor</span>' : ''}</td>
+      <td>${c.has_bom && c.below_floor ? '<span style="color:var(--chili);font-size:13px">⚠ Below min profit margin</span>' : ''}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="11" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>`;
 
@@ -8154,8 +8156,9 @@ async function renderPricesCosts() {
           <thead><tr>
             <th>Code</th><th>Product</th><th>Pack Size</th><th>BOM</th>
             <th class="text-right">RM Cost</th>
-            <th class="text-right">Mfg Cost</th>
-            <th class="text-right">Ex-Factory</th>
+            <th class="text-right">Wastage Adj</th>
+            <th class="text-right">Cost to Make</th>
+            <th class="text-right">Direct Sale</th>
             <th class="text-right">Distributor</th>
             <th class="text-right">MRP</th>
             <th class="text-right">Gross Margin</th>
@@ -8232,24 +8235,41 @@ SP-ING003,950.00</pre>
     </div>
   </div>`;
 
-  // --- CONFIG TAB ---
+  // --- COST PARAMETERS TAB ---
+  // Color tag helper: Per Unit=blue, % Based=orange, Pricing=green
+  const _cfgTag = (type) => {
+    const tags = {
+      'per-unit': { label: 'Per Unit',  bg: '#e8f0fe', color: '#1a73e8' },
+      'pct':      { label: '% Based',  bg: '#fff3e0', color: '#e65100' },
+      'pricing':  { label: 'Pricing',  bg: '#e8f5e9', color: '#2e7d32' },
+    };
+    const t = tags[type] || tags['pricing'];
+    return '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:' + t.bg + ';color:' + t.color + '">' + t.label + '</span>';
+  };
+
   const cfgLabels = {
-    packaging_cost_per_unit: { label: 'Packaging Cost per Unit', unit: 'PKR', note: 'Applied to every unit regardless of pack size' },
-    overhead_pct:            { label: 'Overhead % of RM Cost',   unit: '%', note: 'Covers utilities, labour, depreciation', scale: 100 },
-    margin_mfr:              { label: 'Manufacturer Margin',     unit: '×', note: 'Ex-Factory = Mfg Cost × this multiplier' },
-    margin_dist:             { label: 'Distributor Margin',      unit: '×', note: 'Distributor price = Ex-Factory × this' },
-    margin_mrp:              { label: 'MRP Margin',              unit: '×', note: 'MRP = Distributor × this' },
-    margin_floor_pct:        { label: 'Minimum Margin Floor',    unit: '%', note: 'Alert fires if gross margin drops below this' },
+    packaging_cost_per_unit: { label: 'Packaging Cost per Unit',   unit: 'PKR', note: 'Applied to every unit regardless of pack size', tag: 'per-unit' },
+    labour_cost_per_unit:    { label: 'Labour Cost per Unit',      unit: 'PKR', note: 'Enter ₨/batch ÷ units produced. Update when batch sizes change.', tag: 'per-unit' },
+    overhead_pct:            { label: 'Overhead % of RM Cost',     unit: '%',   note: 'Covers utilities e.g. gas, electricity', scale: 100, tag: 'pct' },
+    margin_mfr:              { label: 'Direct Sale Margin',        unit: '×',   note: 'Direct Sale = Cost to Make × this multiplier', tag: 'pricing' },
+    margin_dist:             { label: 'Distributor Margin',        unit: '×',   note: 'Distributor price = Direct Sale × this', tag: 'pricing' },
+    margin_mrp:              { label: 'MRP Margin',                unit: '×',   note: 'MRP = Distributor × this', tag: 'pricing' },
+    margin_floor_pct:        { label: 'Minimum Profit Margin',     unit: '%',   note: 'Profit Margin Alert fires if gross margin drops below this', tag: 'pricing' },
   };
 
   const cfgRows = Object.entries(cfgLabels).map(([key, meta]) => {
-    const row   = cfg[key] || {};
-    const rawVal= parseFloat(row.value || 0);
+    const row    = cfg[key] || {};
+    const rawVal = parseFloat(row.value || 0);
     const dispVal = meta.scale ? (rawVal * meta.scale).toFixed(1) : rawVal;
     const updatedAt = row.updated_at ? ' · updated ' + fmtDate(row.updated_at) + (row.updated_by ? ' by ' + row.updated_by : '') : '';
     return `
     <tr id="pc-cfg-row-${key}">
-      <td><strong>${meta.label}</strong><br><span style="font-size:11px;color:var(--text-3)">${meta.note}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+          <strong>${meta.label}</strong>${_cfgTag(meta.tag)}
+        </div>
+        <span style="font-size:11px;color:var(--text-3)">${meta.note}</span>
+      </td>
       <td class="text-right"><strong style="font-size:16px">${dispVal} ${meta.unit}</strong><br><span style="font-size:11px;color:var(--text-3)">${updatedAt}</span></td>
       <td style="white-space:nowrap">
         <button class="btn btn-xs btn-outline" onclick="pcCfgShowEdit('${key}',${rawVal})">Edit</button>
@@ -8263,7 +8283,7 @@ SP-ING003,950.00</pre>
             <div>
               <label style="font-size:12px;display:block;margin-bottom:4px">${meta.label} (${meta.unit})</label>
               <input id="pc-cfg-val-${key}" type="number" min="0" step="${meta.unit==='%'?'0.1':'0.01'}" class="form-input" style="width:140px" value="${dispVal}">
-              ${meta.scale ? `<span style="font-size:11px;color:var(--text-3);display:block;margin-top:2px">Stored as decimal (${dispVal} ${meta.unit} = ${rawVal})</span>` : ''}
+              ${meta.scale ? '<span style="font-size:11px;color:var(--text-3);display:block;margin-top:2px">Stored as decimal (' + dispVal + ' ' + meta.unit + ' = ' + rawVal + ')</span>' : ''}
             </div>
             <button class="btn btn-primary btn-sm" onclick="pcCfgSave('${key}',${meta.scale||1})">Save</button>
             <button class="btn btn-outline btn-sm" onclick="pcCfgCancelEdit('${key}')">Cancel</button>
@@ -8276,12 +8296,67 @@ SP-ING003,950.00</pre>
   const configTab = `
   <div id="pc-pane-config" style="display:none">
     <div class="card">
-      <h3 style="margin-bottom:4px">Costing Parameters</h3>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:4px">
+        <h3 style="margin:0">Cost Parameters</h3>
+        <div style="display:flex;gap:8px">
+          <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f0fe;color:#1a73e8">Per Unit</span>
+          <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100">% Based</span>
+          <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32">Pricing</span>
+        </div>
+      </div>
       <p style="font-size:12px;color:var(--text-3);margin-bottom:16px">Changes take effect immediately on all new standard cost calculations. All changes are logged.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Parameter</th><th class="text-right">Current Value</th><th>Action</th></tr></thead>
           <tbody>${cfgRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3 style="margin-bottom:4px">Wastage % by Product</h3>
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">
+        Total raw material lost per batch (roasting, blending, handling). Applied to RM cost in standard cost calculation.
+        <br>Enter as a percentage e.g. <strong>12</strong> means 12% of RM is lost per batch.
+        Update as you collect real batch data.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Product</th><th>SKU</th><th>Pack Size</th>
+            <th class="text-right">Wastage %</th><th>Action</th>
+          </tr></thead>
+          <tbody>
+            ${costs.map(c => {
+              const wpct = ((c.wastage_pct||0)*100).toFixed(1);
+              const vid  = costs.indexOf(c); // placeholder — use skuCode as key
+              return '<tr id="pc-wst-row-' + c.skuCode + '">' +
+                '<td><strong>' + (c.productName||'—') + '</strong></td>' +
+                '<td style="font-family:monospace;font-size:12px">' + (c.skuCode||'—') + '</td>' +
+                '<td>' + (c.packSize||'—') + '</td>' +
+                '<td class="text-right"><strong>' + wpct + '%</strong></td>' +
+                '<td><button class="btn btn-xs btn-outline" onclick="pcWastageEdit(\'' + c.skuCode + '\',' + (c.wastage_pct||0) + ')">Edit</button></td>' +
+              '</tr>' +
+              '<tr id="pc-wst-edit-' + c.skuCode + '" style="display:none">' +
+                '<td colspan="5" style="padding:0">' +
+                  '<div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">' +
+                    '<div id="pc-wst-msg-' + c.skuCode + '" style="margin-bottom:6px"></div>' +
+                    '<div style="display:flex;align-items:flex-end;gap:12px">' +
+                      '<div><label style="font-size:12px;display:block;margin-bottom:4px">Wastage % for ' + (c.productName||c.skuCode) + '</label>' +
+                        '<div style="display:flex;align-items:center;gap:6px">' +
+                          '<input id="pc-wst-val-' + c.skuCode + '" type="number" min="0" max="99" step="0.1" class="form-input" style="width:100px" value="' + wpct + '">' +
+                          '<span style="font-size:13px">%</span>' +
+                        '</div>' +
+                        '<span style="font-size:11px;color:var(--text-3);display:block;margin-top:2px">0 = no wastage · stored as decimal internally</span>' +
+                      '</div>' +
+                      '<button class="btn btn-primary btn-sm" onclick="pcWastageSave(\'' + c.skuCode + '\')">Save</button>' +
+                      '<button class="btn btn-outline btn-sm" onclick="pcWastageCancel(\'' + c.skuCode + '\')">Cancel</button>' +
+                    '</div>' +
+                  '</div>' +
+                '</td>' +
+              '</tr>';
+            }).join('')}
+          </tbody>
         </table>
       </div>
     </div>
@@ -8333,27 +8408,27 @@ SP-ING003,950.00</pre>
       <td class="text-right" style="color:var(--chili);font-weight:700">${(a.margin_pct||0).toFixed(1)}%</td>
       <td class="text-right">${(a.floor_pct||0).toFixed(1)}%</td>
       <td class="text-right" style="color:${gapClr};font-weight:700">−${(a.gap||0).toFixed(1)}%</td>
-      <td>${a.exFactory != null ? fmtPKR(a.exFactory) : '—'}</td>
+      <td>${a.direct_sale != null ? fmtPKR(a.direct_sale) : (a.exFactory != null ? fmtPKR(a.exFactory) : '—')}</td>
       <td>${fmtDate(a.detectedAt)}</td>
       <td><button class="btn btn-xs btn-outline" style="color:var(--cardamom);border-color:var(--cardamom)" onclick="pcDismissAlert(${a.alertId})">Dismiss</button></td>
     </tr>`;
   }).join('') : `<tr><td colspan="9" style="text-align:center;padding:24px">
     <span style="font-size:28px">✓</span><br>
     <strong style="color:var(--cardamom)">All margins are above the floor</strong><br>
-    <span style="font-size:12px;color:var(--text-3)">No active alerts · Floor is ${parseFloat((cfg.margin_floor_pct||{}).value||30)*100>=1 ? parseFloat((cfg.margin_floor_pct||{}).value||30).toFixed(0) : (parseFloat((cfg.margin_floor_pct||{}).value||0.30)*100).toFixed(0)}%</span>
+    <span style="font-size:12px;color:var(--text-3)">No active alerts · Minimum Profit Margin is ${parseFloat((cfg.margin_floor_pct||{}).value||30)*100>=1 ? parseFloat((cfg.margin_floor_pct||{}).value||30).toFixed(0) : (parseFloat((cfg.margin_floor_pct||{}).value||0.30)*100).toFixed(0)}%</span>
   </td></tr>`;
 
   const alertsTab = `
   <div id="pc-pane-alerts" style="display:none">
-    ${alerts.length > 0 ? `<div class="alert" style="background:var(--chili-pale);border:1px solid var(--chili);color:var(--chili);margin-bottom:16px">
-      ⚠ <strong>${alerts.length} SKU${alerts.length>1?'s':''} below the margin floor.</strong> Review and either update costs or dismiss if acknowledged.
-    </div>` : ''}
+    ${alerts.length > 0 ? '<div class="alert" style="background:var(--chili-pale);border:1px solid var(--chili);color:var(--chili);margin-bottom:16px">' +
+      '⚠ <strong>' + alerts.length + ' SKU' + (alerts.length>1?'s':'') + ' below the Minimum Profit Margin.</strong> Review and either update costs or dismiss if acknowledged.' +
+    '</div>' : ''}
     <div class="card">
-      <h3 style="margin-bottom:4px">Margin Alerts</h3>
-      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">SKUs where computed gross margin falls below the configured floor. Dismiss to acknowledge.</p>
+      <h3 style="margin-bottom:4px">Profit Margin Alerts</h3>
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">SKUs where computed gross margin falls below the configured Minimum Profit Margin. Dismiss to acknowledge.</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Code</th><th>Product</th><th>Pack Size</th><th class="text-right">Margin</th><th class="text-right">Floor</th><th class="text-right">Gap</th><th>Ex-Factory</th><th>Detected</th><th>Action</th></tr></thead>
+          <thead><tr><th>Code</th><th>Product</th><th>Pack Size</th><th class="text-right">Margin</th><th class="text-right">Min Profit Margin</th><th class="text-right">Gap</th><th>Direct Sale</th><th>Detected</th><th>Action</th></tr></thead>
           <tbody id="pc-alerts-tbody">${alertRows}</tbody>
         </table>
       </div>
@@ -8411,9 +8486,9 @@ SP-ING003,950.00</pre>
   <div style="border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;white-space:nowrap">
     <button id="pc-tab-standard"    onclick="_pcSwitchTab('standard')"    style="${activeStyle}">Standard Costs</button>
     <button id="pc-tab-ingredients" onclick="_pcSwitchTab('ingredients')" style="${inactiveStyle}">Ingredient Costs</button>
-    <button id="pc-tab-config"      onclick="_pcSwitchTab('config')"      style="${inactiveStyle}">Costing Config</button>
+    <button id="pc-tab-config"      onclick="_pcSwitchTab('config')"      style="${inactiveStyle}">Cost Parameters</button>
     <button id="pc-tab-history"     onclick="_pcSwitchTab('history')"     style="${inactiveStyle}">Cost History</button>
-    <button id="pc-tab-alerts"      onclick="_pcSwitchTab('alerts')"      style="${inactiveStyle}">Margin Alerts${alertBadge}</button>
+    <button id="pc-tab-alerts"      onclick="_pcSwitchTab('alerts')"      style="${inactiveStyle}">Profit Margin Alerts${alertBadge}</button>
     <button id="pc-tab-variance"    onclick="_pcSwitchTab('variance')"    style="${inactiveStyle}">Batch Variance</button>
   </div>
 
@@ -8485,12 +8560,57 @@ async function pcCfgSave(key, scale) {
     // Update the display cell
     const row = document.getElementById('pc-cfg-row-' + key);
     if (row) {
-      const meta = { packaging_cost_per_unit:'PKR', overhead_pct:'%', margin_mfr:'×', margin_dist:'×', margin_mrp:'×', margin_floor_pct:'%' };
+      const meta = { packaging_cost_per_unit:'PKR', labour_cost_per_unit:'PKR', overhead_pct:'%', margin_mfr:'×', margin_dist:'×', margin_mrp:'×', margin_floor_pct:'%' };
       const valCell = row.querySelector('td:nth-child(2) strong');
       if (valCell) valCell.textContent = dispVal + ' ' + (meta[key]||'');
     }
   } catch(e) {
     if (msgEl) msgEl.innerHTML = `<span style="color:var(--chili)">${e.message}</span>`;
+  }
+}
+
+// --- Prices & Costs — Wastage % inline edit ---
+function pcWastageEdit(skuCode, currentPct) {
+  document.querySelectorAll('[id^="pc-wst-edit-"]').forEach(el => el.style.display = 'none');
+  const el = document.getElementById('pc-wst-edit-' + skuCode);
+  if (el) {
+    el.style.display = 'table-row';
+    const inp = document.getElementById('pc-wst-val-' + skuCode);
+    if (inp) { inp.value = (currentPct * 100).toFixed(1); inp.focus(); inp.select(); }
+  }
+}
+function pcWastageCancel(skuCode) {
+  const el = document.getElementById('pc-wst-edit-' + skuCode);
+  if (el) el.style.display = 'none';
+}
+async function pcWastageSave(skuCode) {
+  const inp   = document.getElementById('pc-wst-val-' + skuCode);
+  const msgEl = document.getElementById('pc-wst-msg-' + skuCode);
+  const pct   = parseFloat(inp?.value);
+  if (isNaN(pct) || pct < 0 || pct >= 100) {
+    if (msgEl) msgEl.innerHTML = '<span style="color:var(--chili)">Enter a value between 0 and 99</span>';
+    return;
+  }
+  const wastage_pct = parseFloat((pct / 100).toFixed(6));
+  // Find variant id from costs data — look up by skuCode
+  const costs = window._pcCostsCache || [];
+  const sku   = costs.find(c => c.skuCode === skuCode);
+  if (!sku || !sku.variantId) {
+    if (msgEl) msgEl.innerHTML = '<span style="color:var(--chili)">Variant not found — refresh and try again</span>';
+    return;
+  }
+  try {
+    await PUT('/api/products/variants/' + sku.variantId + '/wastage', { wastage_pct });
+    pcWastageCancel(skuCode);
+    const row = document.getElementById('pc-wst-row-' + skuCode);
+    if (row) {
+      const cell = row.querySelector('td:nth-child(4)');
+      if (cell) cell.innerHTML = '<strong>' + pct.toFixed(1) + '%</strong>';
+    }
+    const editBtn = document.querySelector('#pc-wst-row-' + skuCode + ' button');
+    if (editBtn) editBtn.setAttribute('onclick', 'pcWastageEdit(\'' + skuCode + '\',' + wastage_pct + ')');
+  } catch(e) {
+    if (msgEl) msgEl.innerHTML = '<span style="color:var(--chili)">' + e.message + '</span>';
   }
 }
 
