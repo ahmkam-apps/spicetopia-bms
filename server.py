@@ -8264,6 +8264,7 @@ class Handler(BaseHTTPRequestHandler):
                           AND pp.price_type_id = pt.id
                           AND pp.active_flag = 1
                     WHERE   pv.active_flag = 1
+                      AND   pt.code != 'mfg_cost'
                     ORDER   BY p.name, ps.grams, pt.id
                 """)
                 send_json(self, rows)
@@ -10196,6 +10197,31 @@ class Handler(BaseHTTPRequestHandler):
             if not sess:
                 send_json(self, {'error': 'Unauthorized'}, 401); return
 
+            # PUT /api/products/variants/:id/wastage  (admin only)
+            parts = path.split('/')
+            if (path.startswith('/api/products/variants/') and
+                    len(parts) == 6 and parts[5] == 'wastage'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                variant_id  = int(parts[4])
+                wastage_pct = data.get('wastage_pct')
+                if wastage_pct is None:
+                    send_error(self, 'wastage_pct required', 400); return
+                wpct = float(wastage_pct)
+                if not (0 <= wpct < 1):
+                    send_error(self, 'wastage_pct must be between 0 and 0.99', 400); return
+                c = _conn()
+                try:
+                    c.execute(
+                        "UPDATE product_variants SET wastage_pct=? WHERE id=?",
+                        (wpct, variant_id)
+                    )
+                    c.commit()
+                finally:
+                    c.close()
+                send_json(self, {'ok': True, 'variant_id': variant_id, 'wastage_pct': wpct})
+                return
+
             # PUT /api/costing/config  (admin only)
             if path == '/api/costing/config':
                 if not require(sess, 'admin'):
@@ -10812,19 +10838,57 @@ def ensure_costing_config():
         """)
         defaults = [
             ('packaging_cost_per_unit', '15.00', 'Packaging Cost per Unit (Rs)'),
-            ('overhead_pct',            '0.29',  'Overhead % of RM Cost'),
-            ('margin_mfr',              '1.30',  'Manufacturer Margin Multiplier'),
+            ('overhead_pct',            '0.10',  'Overhead % of RM Cost'),
+            ('margin_mfr',              '1.30',  'Direct Sale Margin Multiplier'),
             ('margin_dist',             '1.10',  'Distributor Margin Multiplier'),
             ('margin_mrp',              '1.22',  'MRP Margin Multiplier'),
-            ('margin_floor_pct',        '30.00', 'Minimum Acceptable Margin % (alert threshold)'),
+            ('margin_floor_pct',        '30.00', 'Minimum Profit Margin % (alert threshold)'),
+            ('labour_cost_per_unit',    '5.00',  'Labour Cost per Unit (Rs)'),
         ]
         for key, value, label in defaults:
             c.execute(
                 "INSERT OR IGNORE INTO costing_config (key, value, label) VALUES (?,?,?)",
                 (key, value, label)
             )
+        # Update overhead if still at old placeholder 0.29
+        c.execute("UPDATE costing_config SET value='0.10' WHERE key='overhead_pct' AND value='0.29'")
+        # Update stale labels
+        c.execute("UPDATE costing_config SET label='Direct Sale Margin Multiplier' WHERE key='margin_mfr'")
+        c.execute("UPDATE costing_config SET label='Minimum Profit Margin % (alert threshold)' WHERE key='margin_floor_pct'")
         c.commit()
         print("  \u2713 Costing config table ready")
+    finally:
+        c.close()
+
+
+def ensure_variant_wastage_pct():
+    """Add wastage_pct column to product_variants. Idempotent."""
+    c = _conn()
+    try:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(product_variants)").fetchall()}
+        if 'wastage_pct' not in existing:
+            c.execute("ALTER TABLE product_variants ADD COLUMN wastage_pct REAL DEFAULT 0")
+            print("  \u2713 product_variants: added wastage_pct")
+        c.commit()
+    finally:
+        c.close()
+
+
+def ensure_price_types_sprint6():
+    """Update price_type labels for Sprint 6 terminology + add bulk. Idempotent."""
+    c = _conn()
+    try:
+        updates = [
+            ('mfg_cost',    'Cost to Make'),
+            ('ex_factory',  'Direct Sale'),
+            ('retail_mrp',  'MRP'),
+            ('distributor', 'Distributor'),
+        ]
+        for code, label in updates:
+            c.execute("UPDATE price_types SET label=? WHERE code=?", (label, code))
+        c.execute("INSERT OR IGNORE INTO price_types (code, label) VALUES ('bulk', 'Bulk')")
+        c.commit()
+        print("  \u2713 price_types: Sprint 6 labels updated + bulk added")
     finally:
         c.close()
 
@@ -10872,17 +10936,19 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
     if cfg is None:
         cfg = get_costing_config()
 
-    packaging   = _get_config_val(cfg, 'packaging_cost_per_unit', 15.0)
-    overhead_pct= _get_config_val(cfg, 'overhead_pct', 0.29)
-    margin_mfr  = _get_config_val(cfg, 'margin_mfr', 1.30)
-    margin_dist = _get_config_val(cfg, 'margin_dist', 1.10)
-    margin_mrp  = _get_config_val(cfg, 'margin_mrp', 1.22)
-    floor_pct   = _get_config_val(cfg, 'margin_floor_pct', 30.0)
+    packaging    = _get_config_val(cfg, 'packaging_cost_per_unit', 15.0)
+    overhead_pct = _get_config_val(cfg, 'overhead_pct', 0.10)
+    margin_mfr   = _get_config_val(cfg, 'margin_mfr', 1.30)
+    margin_dist  = _get_config_val(cfg, 'margin_dist', 1.10)
+    margin_mrp   = _get_config_val(cfg, 'margin_mrp', 1.22)
+    floor_pct    = _get_config_val(cfg, 'margin_floor_pct', 30.0)
+    labour       = _get_config_val(cfg, 'labour_cost_per_unit', 5.0)
 
-    # Fetch variant
+    # Fetch variant (include wastage_pct)
     variant = qry1("""
         SELECT pv.id, pv.sku_code, p.code as product_code, p.name as product_name,
-               ps.label as pack_size, ps.grams as pack_grams, pv.product_id
+               ps.label as pack_size, ps.grams as pack_grams, pv.product_id,
+               COALESCE(pv.wastage_pct, 0) as wastage_pct
         FROM product_variants pv
         JOIN products p   ON p.id = pv.product_id
         JOIN pack_sizes ps ON ps.id = pv.pack_size_id
@@ -10890,6 +10956,8 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
     """, (product_code, pack_size_label))
     if not variant:
         return None
+
+    wastage_pct = float(variant['wastage_pct'] or 0)
 
     # Fetch active BOM
     bom_ver = qry1("""
@@ -10900,10 +10968,14 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
         return {
             'productCode': product_code, 'productName': variant['product_name'],
             'packSize': pack_size_label, 'skuCode': variant['sku_code'],
+            'variantId': variant['id'],
             'has_bom': False, 'ingredients': [],
-            'rm_cost': 0, 'overhead': 0, 'packaging': packaging,
-            'total_mfg': packaging, 'ex_factory': 0, 'distributor': 0, 'mrp': 0,
+            'rm_cost': 0, 'wastage_adj': 0, 'overhead': 0,
+            'packaging': packaging, 'labour': labour,
+            'cost_to_make': round(packaging + labour, 2),
+            'direct_sale': 0, 'distributor': 0, 'mrp': 0,
             'gross_margin_pct': 0, 'below_floor': True,
+            'wastage_pct': wastage_pct,
         }
 
     # Scale BOM to 1 unit of this pack size
@@ -10920,12 +10992,12 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
     """, (bom_ver['id'],))
 
     ingredients = []
-    rm_cost = 0.0
+    rm_cost_raw = 0.0
     for b in bom_items:
         qty_kg   = round(b['quantity_grams'] * scale / 1000.0, 6)
         cpkg     = float(b['cost_per_kg'] or 0)
         line_cost= round(qty_kg * cpkg, 4)
-        rm_cost += line_cost
+        rm_cost_raw += line_cost
         ingredients.append({
             'code':       b['ing_code'],
             'name':       b['ing_name'],
@@ -10934,26 +11006,37 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
             'line_cost':  line_cost,
         })
 
-    rm_cost    = round(rm_cost, 2)
-    overhead   = round(rm_cost * overhead_pct, 2)
-    total_mfg  = round(rm_cost + overhead + packaging, 2)
-    ex_factory = round(total_mfg * margin_mfr, 2)
-    distributor= round(ex_factory * margin_dist, 2)
-    mrp        = round(distributor * margin_mrp, 2)
-    margin_pct = round((mrp - total_mfg) / mrp * 100, 1) if mrp > 0 else 0
+    # Apply product-level wastage to total RM cost
+    rm_cost_raw = round(rm_cost_raw, 2)
+    if wastage_pct > 0 and wastage_pct < 1:
+        rm_cost_adjusted = round(rm_cost_raw / (1 - wastage_pct), 2)
+    else:
+        rm_cost_adjusted = rm_cost_raw
+    wastage_adj  = round(rm_cost_adjusted - rm_cost_raw, 2)
+
+    overhead     = round(rm_cost_adjusted * overhead_pct, 2)
+    cost_to_make = round(rm_cost_adjusted + overhead + packaging + labour, 2)
+    direct_sale  = round(cost_to_make * margin_mfr, 2)
+    distributor  = round(direct_sale * margin_dist, 2)
+    mrp          = round(distributor * margin_mrp, 2)
+    margin_pct   = round((mrp - cost_to_make) / mrp * 100, 1) if mrp > 0 else 0
 
     return {
         'productCode':      product_code,
         'productName':      variant['product_name'],
         'packSize':         pack_size_label,
         'skuCode':          variant['sku_code'],
+        'variantId':        variant['id'],
         'has_bom':          True,
         'ingredients':      ingredients,
-        'rm_cost':          rm_cost,
+        'rm_cost':          rm_cost_adjusted,
+        'wastage_adj':      wastage_adj,
+        'wastage_pct':      wastage_pct,
         'overhead':         overhead,
         'packaging':        packaging,
-        'total_mfg':        total_mfg,
-        'ex_factory':       ex_factory,
+        'labour':           labour,
+        'cost_to_make':     cost_to_make,
+        'direct_sale':      direct_sale,
         'distributor':      distributor,
         'mrp':              mrp,
         'gross_margin_pct': margin_pct,
@@ -12222,11 +12305,13 @@ if __name__ == '__main__':
     ensure_supplier_bills_schema()
     ensure_purchase_orders_schema()
     ensure_batch_cost_column()
-    ensure_costing_config()              # costing_config table + 6 seed rows
+    ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
+    ensure_variant_wastage_pct()         # wastage_pct column on product_variants
     _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
     _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
     ensure_review_queue_schema()
     ensure_master_schema()  # must run before load_ref() — adds active, credit_limit cols
+    ensure_price_types_sprint6()         # update price_type labels + add bulk
     ensure_price_history_extended()      # adds change_type, config_key, changed_by, note to price_history
     ensure_margin_alerts_table()         # margin_alerts table for floor breach tracking
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
