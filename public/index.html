@@ -618,7 +618,7 @@ function applyRoleUI(role) {
   const perms = (u && u.permissions) || [];
   const isAdmin = role === 'admin';
 
-  // Admin-only nav items (including all master data + pricing now under Admin/Owner)
+  // Admin-only nav items (master data + pricing + system all under Admin/Owner section)
   const adminOnlyIds = [
     'nav-section-admin',
     'nav-customers','nav-suppliers','nav-products','nav-prices','nav-sales-reps','nav-zones-routes',
@@ -630,21 +630,23 @@ function applyRoleUI(role) {
     if (el) el.style.display = isAdmin ? '' : 'none';
   });
 
-  // Per-module nav items — hide if user doesn't have permission
-  const adminOnlyModules = new Set([
+  // For admin: everything above is already handled — skip permission loop entirely
+  if (isAdmin) return;
+
+  // For non-admin: show/hide remaining nav items based on user permissions
+  const adminOnlySet = new Set([
     'customers','suppliers','products','prices','sales-reps','zones-routes',
-    'price-master','prices-costs',
-    'payroll','audit','users','master-data','ingredients-admin','system'
+    'price-master','prices-costs','payroll','audit','users','master-data','ingredients-admin','system'
   ]);
   ALL_MODULES.forEach(m => {
-    if (adminOnlyModules.has(m.id)) return; // handled above
+    if (adminOnlySet.has(m.id)) return;
     const el = document.getElementById('nav-' + m.id);
     if (!el) return;
-    el.style.display = (isAdmin || perms.includes(m.id)) ? '' : 'none';
+    el.style.display = perms.includes(m.id) ? '' : 'none';
   });
-  // P&L report: admin + accountant only
+  // P&L report: accountant only (for non-admin)
   const plNav = document.getElementById('nav-pl-report');
-  if (plNav) plNav.style.display = (isAdmin || role === 'accountant') ? '' : 'none';
+  if (plNav) plNav.style.display = (role === 'accountant') ? '' : 'none';
 }
 
 async function doLogin() {
