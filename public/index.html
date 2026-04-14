@@ -128,7 +128,8 @@ html, body {
   color: #fff; font-weight: 600;
   box-shadow: 0 2px 8px rgba(232,144,26,0.35);
 }
-.nav-item .icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+.nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; display:flex; align-items:center; justify-content:center; }
+.nav-item .icon svg { width: 16px; height: 16px; }
 .sidebar-footer {
   padding: 10px 14px; margin-top: auto;
   border-top: 1px solid #EDE0D4;
@@ -471,55 +472,55 @@ input[type="radio"]    { accent-color: var(--saffron); }
     <nav class="sidebar-nav" style="flex:1; padding: 8px 0;">
 
       <!-- Dashboard — always visible at top -->
-      <div class="nav-item active" onclick="nav('dashboard')" id="nav-dashboard"><span class="icon">📊</span> Dashboard</div>
+      <div class="nav-item active" onclick="nav('dashboard')" id="nav-dashboard"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
 
       <!-- ── DAILY USE ──────────────────────────────────────────── -->
       <div class="nav-section">Sales</div>
-      <div class="nav-item" onclick="nav('orders-invoices')" id="nav-orders-invoices"><span class="icon">📋</span> Orders &amp; Invoices</div>
-      <div class="nav-item" onclick="nav('field-orders')" id="nav-field-orders"><span class="icon">📝</span> Field Orders</div>
-      <div class="nav-item" onclick="nav('review-queue')" id="nav-review-queue"><span class="icon">🔎</span> Review Queue <span id="rq-badge" style="display:none;background:var(--chili);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:2px"></span></div>
+      <div class="nav-item" onclick="nav('orders-invoices')" id="nav-orders-invoices"><span class="icon" data-icon="file-text"></span> Orders &amp; Invoices</div>
+      <div class="nav-item" onclick="nav('field-orders')" id="nav-field-orders"><span class="icon" data-icon="pencil-line"></span> Field Orders</div>
+      <div class="nav-item" onclick="nav('review-queue')" id="nav-review-queue"><span class="icon" data-icon="search"></span> Review Queue <span id="rq-badge" style="display:none;background:var(--chili);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:2px"></span></div>
 
       <div class="nav-section">Money In</div>
-      <div class="nav-item" onclick="nav('receipts-aging')" id="nav-receipts-aging"><span class="icon">💰</span> Receipts &amp; AR</div>
+      <div class="nav-item" onclick="nav('receipts-aging')" id="nav-receipts-aging"><span class="icon" data-icon="banknote"></span> Receipts &amp; AR</div>
 
       <div class="nav-section">Procurement &amp; AP</div>
-      <div class="nav-item" onclick="nav('purchase-orders')" id="nav-purchase-orders"><span class="icon">🛒</span> Purchase Orders</div>
-      <div class="nav-item" onclick="nav('bills')" id="nav-bills"><span class="icon">📋</span> Supplier Bills</div>
-      <div class="nav-item" onclick="nav('ap-payments')" id="nav-ap-payments"><span class="icon">💸</span> Payments</div>
-      <div class="nav-item" onclick="nav('ap-aging')" id="nav-ap-aging"><span class="icon">📆</span> AP Aging</div>
+      <div class="nav-item" onclick="nav('purchase-orders')" id="nav-purchase-orders"><span class="icon" data-icon="shopping-cart"></span> Purchase Orders</div>
+      <div class="nav-item" onclick="nav('bills')" id="nav-bills"><span class="icon" data-icon="receipt"></span> Supplier Bills</div>
+      <div class="nav-item" onclick="nav('ap-payments')" id="nav-ap-payments"><span class="icon" data-icon="credit-card"></span> Payments</div>
+      <div class="nav-item" onclick="nav('ap-aging')" id="nav-ap-aging"><span class="icon" data-icon="calendar"></span> AP Aging</div>
 
       <div class="nav-section">Operations</div>
-      <div class="nav-item" onclick="nav('inventory')" id="nav-inventory"><span class="icon">🏺</span> Inventory</div>
-      <div class="nav-item" onclick="nav('production')" id="nav-production"><span class="icon">⚙️</span> Production</div>
+      <div class="nav-item" onclick="nav('inventory')" id="nav-inventory"><span class="icon" data-icon="archive"></span> Inventory</div>
+      <div class="nav-item" onclick="nav('production')" id="nav-production"><span class="icon" data-icon="settings-2"></span> Production</div>
 
       <!-- ── DIVIDER: daily above / admin below ────────────────── -->
       <div class="nav-divider"></div>
 
       <!-- Reports -->
       <div class="nav-section">Reports</div>
-      <div class="nav-item" onclick="nav('pl-report')" id="nav-pl-report"><span class="icon">📊</span> P&amp;L Report</div>
-      <div class="nav-item" onclick="nav('margins')" id="nav-margins"><span class="icon">📈</span> Margins</div>
-      <div class="nav-item" onclick="nav('rep-performance')" id="nav-rep-performance"><span class="icon">🏆</span> Rep Performance</div>
+      <div class="nav-item" onclick="nav('pl-report')" id="nav-pl-report"><span class="icon" data-icon="trending-up"></span> P&amp;L Report</div>
+      <div class="nav-item" onclick="nav('margins')" id="nav-margins"><span class="icon" data-icon="bar-chart-2"></span> Margins</div>
+      <div class="nav-item" onclick="nav('rep-performance')" id="nav-rep-performance"><span class="icon" data-icon="award"></span> Rep Performance</div>
 
       <!-- Admin / Owner — admin only ──────────────────────────── -->
       <div class="nav-section" id="nav-section-admin" style="display:none">Admin / Owner</div>
       <!-- Master data (setup & reference) -->
-      <div class="nav-item" onclick="nav('customers')" id="nav-customers" style="display:none"><span class="icon">👥</span> Customers</div>
-      <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers" style="display:none"><span class="icon">🏭</span> Suppliers</div>
-      <div class="nav-item" onclick="nav('products')" id="nav-products" style="display:none"><span class="icon">📦</span> Products</div>
-      <div class="nav-item" onclick="nav('prices')" id="nav-prices" style="display:none"><span class="icon">🏷️</span> Prices</div>
-      <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon">🧑‍💼</span> Sales Reps</div>
-      <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes" style="display:none"><span class="icon">🗺️</span> Zones &amp; Routes</div>
+      <div class="nav-item" onclick="nav('customers')" id="nav-customers" style="display:none"><span class="icon" data-icon="users"></span> Customers</div>
+      <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers" style="display:none"><span class="icon" data-icon="factory"></span> Suppliers</div>
+      <div class="nav-item" onclick="nav('products')" id="nav-products" style="display:none"><span class="icon" data-icon="package"></span> Products</div>
+      <div class="nav-item" onclick="nav('prices')" id="nav-prices" style="display:none"><span class="icon" data-icon="tag"></span> Prices</div>
+      <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon" data-icon="briefcase"></span> Sales Reps</div>
+      <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes" style="display:none"><span class="icon" data-icon="map"></span> Zones &amp; Routes</div>
       <!-- Pricing -->
-      <div class="nav-item" onclick="nav('price-master')" id="nav-price-master" style="display:none"><span class="icon">🏷️</span> Price Master</div>
-      <div class="nav-item" onclick="nav('prices-costs')" id="nav-prices-costs" style="display:none"><span class="icon">💰</span> Prices &amp; Costs</div>
+      <div class="nav-item" onclick="nav('price-master')" id="nav-price-master" style="display:none"><span class="icon" data-icon="tags"></span> Price Master</div>
+      <div class="nav-item" onclick="nav('prices-costs')" id="nav-prices-costs" style="display:none"><span class="icon" data-icon="dollar-sign"></span> Prices &amp; Costs</div>
       <!-- System / config -->
-      <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><span class="icon">🔐</span> Users</div>
-      <div class="nav-item" onclick="nav('payroll')" id="nav-payroll" style="display:none"><span class="icon">💵</span> Payroll</div>
-      <div class="nav-item" onclick="nav('master-data')" id="nav-master-data" style="display:none"><span class="icon">📥</span> Master Data Import</div>
-      <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon">🔒</span> Ingredients</div>
-      <div class="nav-item" onclick="nav('audit')" id="nav-audit" style="display:none"><span class="icon">🔍</span> Audit Log</div>
-      <div class="nav-item" onclick="nav('system')" id="nav-system" style="display:none"><span class="icon">🖥️</span> System</div>
+      <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><span class="icon" data-icon="shield"></span> Users</div>
+      <div class="nav-item" onclick="nav('payroll')" id="nav-payroll" style="display:none"><span class="icon" data-icon="wallet"></span> Payroll</div>
+      <div class="nav-item" onclick="nav('master-data')" id="nav-master-data" style="display:none"><span class="icon" data-icon="database"></span> Master Data Import</div>
+      <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon" data-icon="lock"></span> Ingredients</div>
+      <div class="nav-item" onclick="nav('audit')" id="nav-audit" style="display:none"><span class="icon" data-icon="clipboard-list"></span> Audit Log</div>
+      <div class="nav-item" onclick="nav('system')" id="nav-system" style="display:none"><span class="icon" data-icon="monitor"></span> System</div>
 
     </nav>
     <div class="sidebar-footer">Spicetopia BMS © 2026</div>
@@ -534,6 +535,48 @@ input[type="radio"]    { accent-color: var(--saffron); }
 </div><!-- #app -->
 
 <script>
+// ═══════════════════════════════════════════════════════════════
+//  LUCIDE SVG ICON ENGINE  (sidebar nav icons)
+// ═══════════════════════════════════════════════════════════════
+const LUCIDE_ICONS = {
+  'layout-dashboard': '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  'file-text':        '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  'pencil-line':      '<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/>',
+  'search':           '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  'banknote':         '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>',
+  'shopping-cart':    '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
+  'receipt':          '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8H8"/><path d="M16 12H8"/><path d="M12 16H8"/>',
+  'credit-card':      '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+  'calendar':         '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  'archive':          '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+  'settings-2':       '<path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>',
+  'trending-up':      '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+  'bar-chart-2':      '<line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/>',
+  'award':            '<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>',
+  'users':            '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  'factory':          '<path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/>',
+  'package':          '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  'tag':              '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+  'briefcase':        '<path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/>',
+  'map':              '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>',
+  'tags':             '<path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"/><path d="M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l4.58-4.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="6.5" cy="9.5" r=".5" fill="currentColor"/>',
+  'dollar-sign':      '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  'shield':           '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  'wallet':           '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  'database':         '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+  'lock':             '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  'clipboard-list':   '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+  'monitor':          '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+};
+
+function initNavIcons() {
+  const SVG_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px">';
+  document.querySelectorAll('.icon[data-icon]').forEach(el => {
+    const paths = LUCIDE_ICONS[el.dataset.icon];
+    if (paths) el.innerHTML = SVG_OPEN + paths + '</svg>';
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  MODULE REGISTRY  (used for nav filtering + permission UI)
 // ═══════════════════════════════════════════════════════════════
@@ -9773,6 +9816,7 @@ async function loadAndRender() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  initNavIcons();
   const token = authToken();
   if (!token) { showLoginScreen(); return; }
   try {
