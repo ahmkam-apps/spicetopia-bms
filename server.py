@@ -8762,6 +8762,28 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, list_work_orders())
                 return
 
+            # GET /api/work-orders/:id  — single WO detail
+            if path.startswith('/api/work-orders/') and path.count('/') == 3 and path.split('/')[-1].isdigit():
+                wo_id = int(path.split('/')[-1])
+                wo = qry1("""
+                    SELECT wo.*, p.name as product_name, p.code as product_code,
+                           ps.label as pack_size, pv.sku_code,
+                           co.order_number as customer_order_number,
+                           wo.customer_order_id
+                    FROM work_orders wo
+                    JOIN product_variants pv ON pv.id = wo.product_variant_id
+                    JOIN products p ON p.id = pv.product_id
+                    LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                    LEFT JOIN customer_orders co ON co.id = wo.customer_order_id
+                    WHERE wo.id=?
+                """, (wo_id,))
+                if not wo:
+                    send_error(self, "Work order not found", 404); return
+                procurement = get_procurement_list(wo_id)
+                wo['ingredients'] = procurement.get('ingredients', [])
+                send_json(self, wo)
+                return
+
             # GET /api/work-orders/:id/procurement
             if path.startswith('/api/work-orders/') and path.endswith('/procurement'):
                 wo_id = int(path.split('/')[-2])
