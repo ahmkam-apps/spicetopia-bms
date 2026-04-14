@@ -2155,9 +2155,7 @@ async function renderOrdersInvoices() {
   </div>
 
   ${orphanSection}
-
-  <!-- Order detail panel -->
-  <div id="co-detail-panel"></div>`}
+`}
   `;
 }
 
@@ -2299,8 +2297,7 @@ async function renderCustomerOrders() {
     </div>
   </div>
 
-  <!-- Order Detail Panel -->
-  <div id="co-detail-panel"></div>`;
+  `;
 }
 
 let _coLines = [];
@@ -2310,7 +2307,7 @@ function openNewOrderForm() {
   _coLines = [];
   _coLinesNext = 1;
   document.getElementById('co-new-form').style.display = 'block';
-  document.getElementById('co-detail-panel').innerHTML = '';
+  _closeProcModal();
   document.getElementById('co-form-msg').innerHTML = '';
   addCoLine();
   document.getElementById('co-new-form').scrollIntoView({ behavior: 'smooth' });
@@ -2419,16 +2416,14 @@ async function submitNewOrder() {
 
 async function openOrderDetail(orderId) {
   _coDetailId = orderId;
+  // Open modal containing co-detail-panel so all sub-functions keep working
+  _openProcModal('<div id="co-detail-panel"><div style="padding:32px;text-align:center;color:var(--text-3)">Loading order…</div></div>');
   const panel = document.getElementById('co-detail-panel');
-  if (!panel) { nav('orders-invoices'); return; }
-  panel.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3)">Loading…</div>';
-  panel.scrollIntoView({ behavior: 'smooth' });
-
   try {
     const o = await GET(`/api/customer-orders/${orderId}`);
     panel.innerHTML = _renderOrderDetail(o);
   } catch(e) {
-    panel.innerHTML = `<div class="card" style="color:var(--chili)">Error loading order: ${e.message}</div>`;
+    panel.innerHTML = `<div style="color:var(--chili);padding:16px">Error loading order: ${e.message}</div>`;
   }
 }
 
@@ -2638,7 +2633,7 @@ function _renderOrderDetail(o) {
         ${linesEditable ? `<button class="btn btn-outline btn-sm" style="color:var(--cardamom)" onclick="showAddItemForm(${o.id})">+ Add Product</button>` : ''}
         ${canInvoice  ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('co-inv-form').style.display='block';document.getElementById('co-edit-form-${o.id}').style.display='none'">🧾 Generate Invoice</button>` : ''}
         ${canCancel   ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="doCancelOrder(${o.id})">✕ Cancel</button>` : ''}
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('co-detail-panel').innerHTML=''">Close</button>
+        <button class="btn btn-outline btn-sm" onclick="_closeProcModal()">Close</button>
       </div>
     </div>
 
@@ -6689,7 +6684,6 @@ async function renderProduction() {
 
   <!-- ── DETAIL PANELS (shown on demand) ─────────────────── -->
   <div id="procurement-panel"></div>
-  <div id="batch-detail-panel"></div>
 
   <!-- ── BATCH HISTORY ────────────────────────────────────── -->
   <div class="card" id="batch-history-card">
@@ -7068,13 +7062,14 @@ async function checkWoFeasibility() {
 }
 
 async function showBatchDetail(batchDbId) {
-  const panel = document.getElementById('batch-detail-panel');
-  if (!panel) return;
-  panel.innerHTML = `<div class="card mb-16" style="border-left:4px solid var(--mac-blue)"><div style="color:var(--text-3);font-size:13px">Loading batch detail…</div></div>`;
-  panel.scrollIntoView({ behavior:'smooth', block:'start' });
+  _openProcModal('<div style="padding:32px;text-align:center;color:var(--text-3)">Loading batch detail…</div>');
   let b;
   try { b = await GET('/api/production/' + batchDbId); }
-  catch(e) { panel.innerHTML = `<div class="card mb-16"><div class="alert alert-error">${e.message}</div></div>`; return; }
+  catch(e) {
+    const box = _procModalBox();
+    if (box) box.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
+    return;
+  }
 
   const rows = (b.consumption||[]).map(c => `
     <tr>
@@ -7085,8 +7080,10 @@ async function showBatchDetail(batchDbId) {
       <td style="padding:6px 10px;font-size:12px;text-align:right;font-weight:600">${fmtPKR(c.line_cost)}</td>
     </tr>`).join('');
 
-  panel.innerHTML = `
-  <div class="card mb-16" style="border-left:4px solid var(--mac-blue)">
+  const box = _procModalBox();
+  if (!box) return;
+  box.innerHTML = `
+  <div style="border-left:4px solid var(--mac-blue);padding:4px 0">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
       <div>
         <h3 style="margin-bottom:4px">${b.batch_id} — ${b.product_name}</h3>
@@ -7121,7 +7118,7 @@ async function showBatchDetail(batchDbId) {
 
     <div style="margin-top:14px;display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" onclick="printBatchDetail(${batchDbId})">🖨️ Print</button>
-      <button class="btn btn-outline btn-sm" onclick="document.getElementById('batch-detail-panel').innerHTML=''">✕ Close</button>
+      <button class="btn btn-outline btn-sm" onclick="_closeProcModal()">✕ Close</button>
     </div>
   </div>`;
 }
