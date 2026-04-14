@@ -6460,10 +6460,10 @@ async function renderProduction() {
     const canStart    = wo.status === 'planned';
     const canReset    = wo.status === 'in_progress';   // back to planned
     const canCancel   = canConvert;
-    return `<tr data-wo-status="${wo.status}">
+    return `<tr data-wo-status="${wo.status}" onclick="showWoDetail(${wo.id})" style="cursor:pointer">
       <td style="font-weight:700;white-space:nowrap">
         ${wo.wo_number}
-        ${wo.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="nav('orders-invoices');setTimeout(()=>openOrderDetail(${wo.customer_order_id}),400)">📋 ${wo.customer_order_number}</span>` : ''}
+        ${wo.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="event.stopPropagation();nav('orders-invoices');setTimeout(()=>openOrderDetail(${wo.customer_order_id}),400)">📋 ${wo.customer_order_number}</span>` : ''}
       </td>
       <td>${wo.product_name}<br><span style="font-size:11px;color:var(--text-3)">${wo.pack_size||''} · ${wo.qty_units} units</span></td>
       <td style="text-align:center">${woBadge(wo.status, !!wo.feasibility_ok)}</td>
@@ -6472,12 +6472,12 @@ async function renderProduction() {
         ? `<span style="font-size:11px;color:var(--cardamom);font-weight:600">${wo.batch_id}</span>`
         : '<span style="color:var(--text-3);font-size:11px">—</span>'}</td>
       <td style="text-align:right;white-space:nowrap">
-        <button class="btn btn-xs btn-outline" onclick="showProcurementList(${wo.id},'${wo.wo_number}')" title="Ingredient &amp; Procurement List">📋 Cost &amp; Procure</button>
-        ${canConvert ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="convertWoToBatch(${wo.id},'${wo.wo_number}')" title="Mark production complete and record the batch">✓ Complete &amp; Record Batch</button>` : ''}
-        ${canStart   ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron)" onclick="setWoStatus(${wo.id},'in_progress')" title="Mark this work order as In Progress — production has started">▶ Start Production</button>` : ''}
-        ${canReset && state.currentUser?.role === 'admin' ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--saffron-deep)" onclick="resetWoToPlanned(${wo.id},'${wo.wo_number}')" title="Reset back to Planned — production has not started yet">↩ Reset to Planned</button>` : ''}
-        ${canConvert ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="editWorkOrder(${wo.id},'${wo.wo_number}',${wo.qty_units},'${wo.target_date||''}','${(wo.notes||'').replace(/'/g,"\\'")}')">Edit</button>` : ''}
-        ${canCancel  ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="setWoStatus(${wo.id},'cancelled')">✕</button>` : ''}
+        <button class="btn btn-xs btn-outline" onclick="event.stopPropagation();showProcurementList(${wo.id},'${wo.wo_number}')" title="Ingredient &amp; Procurement List">📋 Cost &amp; Procure</button>
+        ${canConvert ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="event.stopPropagation();convertWoToBatch(${wo.id},'${wo.wo_number}')" title="Mark production complete and record the batch">✓ Complete &amp; Record Batch</button>` : ''}
+        ${canStart   ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron)" onclick="event.stopPropagation();setWoStatus(${wo.id},'in_progress')" title="Mark this work order as In Progress — production has started">▶ Start Production</button>` : ''}
+        ${canReset && state.currentUser?.role === 'admin' ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--saffron-deep)" onclick="event.stopPropagation();resetWoToPlanned(${wo.id},'${wo.wo_number}')" title="Reset back to Planned — production has not started yet">↩ Reset to Planned</button>` : ''}
+        ${canConvert ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="event.stopPropagation();editWorkOrder(${wo.id},'${wo.wo_number}',${wo.qty_units},'${wo.target_date||''}','${(wo.notes||'').replace(/'/g,"\\'")}')">Edit</button>` : ''}
+        ${canCancel  ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="event.stopPropagation();setWoStatus(${wo.id},'cancelled')">✕</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -7059,6 +7059,84 @@ async function checkWoFeasibility() {
       el.innerHTML = `<div class="alert alert-error" style="font-size:12px">${e.message}</div>`;
     }
   }, 400);
+}
+
+async function showWoDetail(woId) {
+  _openProcModal('<div style="padding:32px;text-align:center;color:var(--text-3)">Loading work order…</div>');
+  let wo;
+  try { wo = await GET('/api/work-orders/' + woId); }
+  catch(e) {
+    const box = _procModalBox();
+    if (box) box.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
+    return;
+  }
+  const statusCfg = {
+    planned:     { bg:'#f0f4ff', color:'#3563e9', label:'Planned' },
+    in_progress: { bg:'#fff8e6', color:'#e6a817', label:'In Progress' },
+    completed:   { bg:'#eafaf1', color:'#1aaa55', label:'Completed' },
+    cancelled:   { bg:'#fff0f0', color:'#e03131', label:'Cancelled' },
+  }[wo.status] || { bg:'#f5f5f5', color:'#888', label: wo.status };
+  const badge = '<span style="background:' + statusCfg.bg + ';color:' + statusCfg.color + ';padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">' + statusCfg.label + '</span>';
+
+  const ingRows = (wo.ingredients || []).map(i =>
+    '<tr>' +
+    '<td style="padding:6px 10px;font-size:12px;font-family:monospace">' + i.ing_code + '</td>' +
+    '<td style="padding:6px 10px;font-size:12px">' + (i.ing_name || i.ing_code) + '</td>' +
+    '<td style="padding:6px 10px;font-size:12px;text-align:right">' + (i.required_grams||0).toFixed(1) + 'g</td>' +
+    '<td style="padding:6px 10px;font-size:12px;text-align:right">' + (i.available_grams||0).toFixed(1) + 'g</td>' +
+    '<td style="padding:6px 10px;font-size:12px;text-align:center">' +
+      (i.shortfall > 0
+        ? '<span style="color:var(--chili);font-weight:700">⚠ Short ' + i.shortfall.toFixed(1) + 'g</span>'
+        : '<span style="color:var(--cardamom)">✓ OK</span>') +
+    '</td>' +
+    '</tr>'
+  ).join('');
+
+  const ingTable = ingRows ? (
+    '<table style="width:100%;border-collapse:collapse;margin-top:12px">' +
+    '<thead><tr style="background:var(--surface-2)">' +
+    '<th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--text-3);text-transform:uppercase">Code</th>' +
+    '<th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--text-3);text-transform:uppercase">Ingredient</th>' +
+    '<th style="padding:6px 10px;text-align:right;font-size:11px;color:var(--text-3);text-transform:uppercase">Required</th>' +
+    '<th style="padding:6px 10px;text-align:right;font-size:11px;color:var(--text-3);text-transform:uppercase">In Stock</th>' +
+    '<th style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text-3);text-transform:uppercase">Status</th>' +
+    '</tr></thead><tbody>' + ingRows + '</tbody></table>'
+  ) : '<div style="color:var(--text-3);font-size:13px;padding:12px 0">No BOM ingredients found.</div>';
+
+  const box = _procModalBox();
+  if (!box) return;
+  box.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">' +
+      '<div>' +
+        '<div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Work Order</div>' +
+        '<h3 style="font-size:18px;font-weight:700;letter-spacing:-.3px;margin-bottom:6px">' + wo.wo_number + '</h3>' +
+        badge +
+      '</div>' +
+      '<button class="btn btn-outline btn-sm" onclick="_closeProcModal()">✕ Close</button>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px">' +
+      '<div class="card" style="padding:12px 14px">' +
+        '<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px">Product</div>' +
+        '<div style="font-weight:600;margin-top:3px">' + wo.product_name + '</div>' +
+        '<div style="font-size:12px;color:var(--text-3)">' + (wo.pack_size||'') + ' · ' + wo.qty_units + ' units</div>' +
+      '</div>' +
+      '<div class="card" style="padding:12px 14px">' +
+        '<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px">Target Date</div>' +
+        '<div style="font-weight:600;margin-top:3px">' + (fmtDate(wo.target_date) || '—') + '</div>' +
+      '</div>' +
+      '<div class="card" style="padding:12px 14px">' +
+        '<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px">Batch Result</div>' +
+        '<div style="font-weight:600;margin-top:3px;color:' + (wo.batch_id ? 'var(--cardamom)' : 'var(--text-3)') + '">' + (wo.batch_id || '—') + '</div>' +
+      '</div>' +
+    '</div>' +
+    (wo.customer_order_number ? (
+      '<div style="margin-bottom:14px;padding:8px 12px;background:var(--saffron-pale);border-radius:6px;font-size:13px">' +
+      '📋 Linked to Customer Order: <strong style="cursor:pointer;color:var(--saffron-deep)" onclick="_closeProcModal();nav(\'orders-invoices\');setTimeout(()=>openOrderDetail(' + wo.customer_order_id + '),400)">' + wo.customer_order_number + ' →</strong>' +
+      '</div>'
+    ) : '') +
+    (wo.notes ? '<div style="margin-bottom:14px;padding:8px 12px;background:var(--surface-2);border-radius:6px;font-size:13px;color:var(--text-2)">📝 ' + wo.notes + '</div>' : '') +
+    '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:4px">Ingredient Requirements</div>' +
+    ingTable;
 }
 
 async function showBatchDetail(batchDbId) {
