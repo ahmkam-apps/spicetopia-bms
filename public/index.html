@@ -201,14 +201,14 @@ html, body {
 .table-wrap { overflow-x: auto; margin-top: 14px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th {
-  padding: 9px 12px; text-align: left;
+  padding: 10px 12px; text-align: left;
   font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
   color: var(--text-3); white-space: nowrap;
   background: var(--surface-2);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 1;
 }
-td { padding: 10px 12px; border-bottom: 1px solid var(--surface-3); vertical-align: middle; }
+td { padding: 11px 12px; border-bottom: 1px solid var(--surface-3); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--surface-2); }
 .text-right  { text-align: right; }
@@ -301,13 +301,45 @@ input[type="radio"]    { accent-color: var(--saffron); }
 /* ── Section header ─────────────────────────────────────────────── */
 .section-header {
   display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 .section-header h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.4px; color: var(--text-1); }
 .section-title {
   font-size: 13px; font-weight: 600; color: var(--text-2);
-  margin: 20px 0 10px; padding-bottom: 6px;
+  margin: 24px 0 10px; padding-bottom: 6px;
   border-bottom: 1px solid var(--border);
+}
+
+/* ── Segmented pill tabs ─────────────────────────────────────────── */
+.seg-tabs {
+  display: inline-flex;
+  background: var(--surface-2);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+  margin-bottom: 24px;
+}
+.seg-tab {
+  padding: 7px 20px;
+  border-radius: 7px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.seg-tab.active {
+  background: var(--saffron);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+.seg-tab:not(.active):hover {
+  background: rgba(230,126,34,0.08);
+  color: var(--text-1);
 }
 
 /* ── Aging colors ────────────────────────────────────────────────── */
@@ -2108,9 +2140,9 @@ async function renderOrdersInvoices() {
     + '<div id="global-inv-detail"></div>';
 
   // ── Subtab bar ────────────────────────────────────────────────────
-  const tabBar = '<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px">'
-    + '<button onclick="_setOiTab(\'orders\')" style="padding:10px 22px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:' + (_oiTab==='orders'?'3px solid var(--saffron);color:var(--saffron)':'2px solid transparent;color:var(--text-3)') + ';margin-bottom:-2px">📦 Orders (' + orders.length + ')</button>'
-    + '<button onclick="_setOiTab(\'invoices\')" style="padding:10px 22px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:' + (_oiTab==='invoices'?'3px solid var(--saffron);color:var(--saffron)':'2px solid transparent;color:var(--text-3)') + ';margin-bottom:-2px">🧾 Invoices (' + invs.length + ')</button>'
+  const tabBar = '<div class="seg-tabs">'
+    + '<button class="seg-tab' + (_oiTab==='orders'?' active':'') + '" onclick="_setOiTab(\'orders\')">📦 Orders (' + orders.length + ')</button>'
+    + '<button class="seg-tab' + (_oiTab==='invoices'?' active':'') + '" onclick="_setOiTab(\'invoices\')">🧾 Invoices (' + invs.length + ')</button>'
     + '</div>';
 
   return `
@@ -6220,11 +6252,11 @@ async function renderInventory() {
 
   // ── Tab bar ───────────────────────────────────────────────────────
   const rmActive = _invTab === 'rm';
-  const tabBar = '<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:24px">'
+  const tabBar = '<div class="seg-tabs">'
     + (isAdmin
-        ? '<button id="inv-tab-rm" onclick="switchInvTab(\'rm\')" style="padding:10px 24px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:' + (rmActive?'3px solid var(--saffron);color:var(--saffron)':'2px solid transparent;color:var(--text-3)') + ';margin-bottom:-2px">🧂 Raw Materials <span style="font-size:11px;opacity:.7">(' + rmTotal + ')</span></button>'
+        ? '<button id="inv-tab-rm" class="seg-tab' + (rmActive?' active':'') + '" onclick="switchInvTab(\'rm\')">🧂 Raw Materials <span style="font-size:11px;opacity:.85">(' + rmTotal + ')</span></button>'
         : '')
-    + '<button id="inv-tab-fg" onclick="switchInvTab(\'fg\')" style="padding:10px 24px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:' + (!rmActive?'3px solid var(--saffron);color:var(--saffron)':'2px solid transparent;color:var(--text-3)') + ';margin-bottom:-2px">📦 Finished Goods <span style="font-size:11px;opacity:.7">(' + fgTotal + ')</span></button>'
+    + '<button id="inv-tab-fg" class="seg-tab' + (!rmActive?' active':'') + '" onclick="switchInvTab(\'fg\')">📦 Finished Goods <span style="font-size:11px;opacity:.85">(' + fgTotal + ')</span></button>'
     + '</div>';
 
   return '<div class="section-header"><h2>Inventory</h2>'
@@ -6297,10 +6329,8 @@ function switchInvTab(tab) {
   const fgBtn  = document.getElementById('inv-tab-fg');
   if (rmPane) rmPane.style.display = tab === 'rm' ? 'block' : 'none';
   if (fgPane) fgPane.style.display = tab === 'fg' ? 'block' : 'none';
-  const activeStyle  = 'padding:10px 24px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--saffron);color:var(--saffron);margin-bottom:-2px';
-  const inactiveStyle= 'padding:10px 24px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-3);margin-bottom:-2px';
-  if (rmBtn) rmBtn.style.cssText = tab === 'rm' ? activeStyle : inactiveStyle;
-  if (fgBtn) fgBtn.style.cssText = tab === 'fg' ? activeStyle : inactiveStyle;
+  if (rmBtn) rmBtn.classList.toggle('active', tab === 'rm');
+  if (fgBtn) fgBtn.classList.toggle('active', tab === 'fg');
 }
 
 function setRmFilter(filter) {
