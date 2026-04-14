@@ -7080,14 +7080,14 @@ async function showWoDetail(woId) {
 
   const ingRows = (wo.ingredients || []).map(i =>
     '<tr>' +
-    '<td style="padding:6px 10px;font-size:12px;font-family:monospace">' + i.ing_code + '</td>' +
-    '<td style="padding:6px 10px;font-size:12px">' + (i.ing_name || i.ing_code) + '</td>' +
-    '<td style="padding:6px 10px;font-size:12px;text-align:right">' + (i.required_grams||0).toFixed(1) + 'g</td>' +
-    '<td style="padding:6px 10px;font-size:12px;text-align:right">' + (i.available_grams||0).toFixed(1) + 'g</td>' +
+    '<td style="padding:6px 10px;font-size:12px;font-family:monospace">' + (i.ingCode||'') + '</td>' +
+    '<td style="padding:6px 10px;font-size:12px">' + (i.ingName || i.ingCode || '') + '</td>' +
+    '<td style="padding:6px 10px;font-size:12px;text-align:right">' + (i.neededGrams||0).toFixed(1) + 'g</td>' +
+    '<td style="padding:6px 10px;font-size:12px;text-align:right">' + (i.availableGrams||0).toFixed(1) + 'g</td>' +
     '<td style="padding:6px 10px;font-size:12px;text-align:center">' +
-      (i.shortfall > 0
-        ? '<span style="color:var(--chili);font-weight:700">⚠ Short ' + i.shortfall.toFixed(1) + 'g</span>'
-        : '<span style="color:var(--cardamom)">✓ OK</span>') +
+      (i.inStock
+        ? '<span style="color:var(--cardamom)">✓ OK</span>'
+        : '<span style="color:var(--chili);font-weight:700">⚠ Short ' + (i.toProcureGrams||0).toFixed(1) + 'g</span>') +
     '</td>' +
     '</tr>'
   ).join('');
