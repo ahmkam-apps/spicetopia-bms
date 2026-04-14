@@ -8780,7 +8780,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not wo:
                     send_error(self, "Work order not found", 404); return
                 procurement = get_procurement_list(wo_id)
-                wo['ingredients'] = procurement.get('ingredients', [])
+                wo['ingredients'] = procurement.get('lines', [])
                 send_json(self, wo)
                 return
 
