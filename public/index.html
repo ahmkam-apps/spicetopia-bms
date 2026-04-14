@@ -86,7 +86,8 @@ html, body {
 
 #sidebar {
   width: var(--sidebar-w);
-  background: var(--pepper);
+  background: #FAF5F0;
+  border-right: 1px solid #EDE0D4;
   display: flex; flex-direction: column; flex-shrink: 0;
   overflow-y: auto; overflow-x: hidden;
 }
@@ -96,7 +97,7 @@ html, body {
 /* ── Sidebar ─────────────────────────────────────────────────────── */
 .sidebar-logo {
   padding: 16px 14px 13px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid #EDE0D4;
   display: flex; align-items: center; gap: 10px;
 }
 .sidebar-logo-icon {
@@ -106,54 +107,40 @@ html, body {
   font-size: 18px; flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(232,144,26,0.4);
 }
-.sidebar-logo-text h1 { font-size: 14px; font-weight: 600; color: #fff; letter-spacing: -0.2px; }
-.sidebar-logo-text p  { font-size: 10px; color: rgba(255,255,255,0.38); letter-spacing: 0.6px; text-transform: uppercase; margin-top: 1px; }
+.sidebar-logo-text h1 { font-size: 14px; font-weight: 700; color: #2D1810; letter-spacing: -0.2px; }
+.sidebar-logo-text p  { font-size: 10px; color: #C4A882; letter-spacing: 0.6px; text-transform: uppercase; margin-top: 1px; }
 
 .nav-section {
-  padding: 14px 12px 3px;
-  font-size: 10px; font-weight: 600; letter-spacing: 0.8px;
-  color: rgba(255,255,255,0.32); text-transform: uppercase;
+  padding: 14px 12px 4px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.9px;
+  color: #9CA3AF; text-transform: uppercase;
 }
 .nav-item {
   display: flex; align-items: center; gap: 8px;
-  padding: 7px 10px; margin: 1px 7px;
+  padding: 8px 11px; margin: 1px 7px;
   cursor: pointer; border-radius: var(--r-sm);
-  font-size: 13px; color: rgba(255,255,255,0.62);
-  transition: background 0.1s, color 0.1s;
+  font-size: 13px; font-weight: 400; color: #4B2E1A;
+  transition: background 0.12s, color 0.12s;
 }
-.nav-item:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.92); }
+.nav-item:hover { background: rgba(230,126,34,0.08); color: #2D1810; }
 .nav-item.active {
   background: var(--saffron);
-  color: #fff; font-weight: 500;
+  color: #fff; font-weight: 600;
   box-shadow: 0 2px 8px rgba(232,144,26,0.35);
 }
 .nav-item .icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
 .sidebar-footer {
   padding: 10px 14px; margin-top: auto;
-  border-top: 1px solid rgba(255,255,255,0.07);
-  font-size: 10px; color: rgba(255,255,255,0.25); letter-spacing: 0.3px;
+  border-top: 1px solid #EDE0D4;
+  font-size: 10px; color: #C4A882; letter-spacing: 0.3px;
 }
 
 /* ── Nav divider (daily / setup separator) ───────────────────────── */
 .nav-divider {
   height: 1px;
-  background: rgba(255,255,255,0.08);
+  background: #EDE0D4;
   margin: 10px 14px 6px;
 }
-
-/* ── Collapsible nav section header ─────────────────────────────── */
-.nav-section-toggle {
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: space-between;
-  user-select: none;
-}
-.nav-section-toggle:hover { color: rgba(255,255,255,0.55); }
-.nav-chevron {
-  font-size: 9px; opacity: 0.55;
-  transition: transform 0.2s ease;
-  margin-left: auto;
-}
-.nav-chevron.open { transform: rotate(180deg); }
 
 /* ── Topbar ─────────────────────────────────────────────────────── */
 #page-title { font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: -0.2px; }
@@ -505,26 +492,8 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('inventory')" id="nav-inventory"><span class="icon">🏺</span> Inventory</div>
       <div class="nav-item" onclick="nav('production')" id="nav-production"><span class="icon">⚙️</span> Production</div>
 
-      <!-- ── DIVIDER: daily above / setup below ────────────────── -->
+      <!-- ── DIVIDER: daily above / admin below ────────────────── -->
       <div class="nav-divider"></div>
-
-      <!-- ── SETUP & REFERENCE (collapsible) ───────────────────── -->
-      <div class="nav-section nav-section-toggle" id="nav-section-master-data" onclick="toggleMasterData()">
-        <span>Master Data</span><span id="md-chevron" class="nav-chevron">▾</span>
-      </div>
-      <div id="master-data-items" style="display:none">
-        <div class="nav-item" onclick="nav('customers')" id="nav-customers"><span class="icon">👥</span> Customers</div>
-        <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers"><span class="icon">🏭</span> Suppliers</div>
-        <div class="nav-item" onclick="nav('products')" id="nav-products"><span class="icon">📦</span> Products</div>
-        <div class="nav-item" onclick="nav('prices')" id="nav-prices"><span class="icon">🏷️</span> Prices</div>
-        <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps"><span class="icon">🧑‍💼</span> Sales Reps</div>
-        <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes"><span class="icon">🗺️</span> Zones &amp; Routes</div>
-      </div>
-
-      <!-- Pricing — admin only -->
-      <div class="nav-section" id="nav-section-pricing" style="display:none">Pricing</div>
-      <div class="nav-item" onclick="nav('price-master')" id="nav-price-master" style="display:none"><span class="icon">🏷️</span> Price Master</div>
-      <div class="nav-item" onclick="nav('prices-costs')" id="nav-prices-costs" style="display:none"><span class="icon">💰</span> Prices &amp; Costs</div>
 
       <!-- Reports -->
       <div class="nav-section">Reports</div>
@@ -532,8 +501,19 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('margins')" id="nav-margins"><span class="icon">📈</span> Margins</div>
       <div class="nav-item" onclick="nav('rep-performance')" id="nav-rep-performance"><span class="icon">🏆</span> Rep Performance</div>
 
-      <!-- Admin — admin only -->
-      <div class="nav-section" id="nav-section-admin" style="display:none">Admin</div>
+      <!-- Admin / Owner — admin only ──────────────────────────── -->
+      <div class="nav-section" id="nav-section-admin" style="display:none">Admin / Owner</div>
+      <!-- Master data (setup & reference) -->
+      <div class="nav-item" onclick="nav('customers')" id="nav-customers" style="display:none"><span class="icon">👥</span> Customers</div>
+      <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers" style="display:none"><span class="icon">🏭</span> Suppliers</div>
+      <div class="nav-item" onclick="nav('products')" id="nav-products" style="display:none"><span class="icon">📦</span> Products</div>
+      <div class="nav-item" onclick="nav('prices')" id="nav-prices" style="display:none"><span class="icon">🏷️</span> Prices</div>
+      <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon">🧑‍💼</span> Sales Reps</div>
+      <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes" style="display:none"><span class="icon">🗺️</span> Zones &amp; Routes</div>
+      <!-- Pricing -->
+      <div class="nav-item" onclick="nav('price-master')" id="nav-price-master" style="display:none"><span class="icon">🏷️</span> Price Master</div>
+      <div class="nav-item" onclick="nav('prices-costs')" id="nav-prices-costs" style="display:none"><span class="icon">💰</span> Prices &amp; Costs</div>
+      <!-- System / config -->
       <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><span class="icon">🔐</span> Users</div>
       <div class="nav-item" onclick="nav('payroll')" id="nav-payroll" style="display:none"><span class="icon">💵</span> Payroll</div>
       <div class="nav-item" onclick="nav('master-data')" id="nav-master-data" style="display:none"><span class="icon">📥</span> Master Data Import</div>
@@ -615,11 +595,13 @@ function canAccess(pageId) {
   const u = state.currentUser;
   if (!u) return false;
   if (u.role === 'admin') return true;           // admin always has full access
-  if (pageId === 'users') return false;          // admin-only
-  if (pageId === 'price-master') return false;   // admin-only
-  if (pageId === 'master-data') return false;    // admin-only
-  if (pageId === 'payroll') return false;        // admin-only
-  if (pageId === 'audit') return false;          // admin-only
+  // Admin/Owner-only pages
+  const adminPages = new Set([
+    'users','price-master','master-data','payroll','audit',
+    'customers','suppliers','products','prices','sales-reps','zones-routes',
+    'prices-costs','ingredients-admin','system'
+  ]);
+  if (adminPages.has(pageId)) return false;
   if (pageId === 'pl-report') return u.role === 'accountant'; // admin + accountant only
   // Unified screens: check any of their constituent permissions
   const aliasMap = {
@@ -631,47 +613,29 @@ function canAccess(pageId) {
   return perms.includes(pageId);
 }
 
-function toggleMasterData() {
-  const items   = document.getElementById('master-data-items');
-  const chevron = document.getElementById('md-chevron');
-  if (!items) return;
-  const isOpen = items.style.display !== 'none';
-  items.style.display = isOpen ? 'none' : '';
-  if (chevron) chevron.classList.toggle('open', !isOpen);
-  try { localStorage.setItem('spicetopia-md-open', isOpen ? '0' : '1'); } catch(e) {}
-}
-
-function initMasterDataCollapse() {
-  let open = false;
-  try { open = localStorage.getItem('spicetopia-md-open') === '1'; } catch(e) {}
-  const items   = document.getElementById('master-data-items');
-  const chevron = document.getElementById('md-chevron');
-  if (!items) return;
-  items.style.display = open ? '' : 'none';
-  if (chevron) chevron.classList.toggle('open', open);
-}
-
 function applyRoleUI(role) {
   const u = state.currentUser;
   const perms = (u && u.permissions) || [];
   const isAdmin = role === 'admin';
 
-  // Admin-only nav items
-  const adminOnlyIds = ['nav-users','nav-price-master','nav-master-data',
-                        'nav-ingredients-admin','nav-system','nav-section-admin',
-                        'nav-payroll','nav-audit','nav-section-pricing'];
+  // Admin-only nav items (including all master data + pricing now under Admin/Owner)
+  const adminOnlyIds = [
+    'nav-section-admin',
+    'nav-customers','nav-suppliers','nav-products','nav-prices','nav-sales-reps','nav-zones-routes',
+    'nav-price-master','nav-prices-costs',
+    'nav-users','nav-payroll','nav-master-data','nav-ingredients-admin','nav-audit','nav-system'
+  ];
   adminOnlyIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isAdmin ? '' : 'none';
   });
 
-  // Prices & Costs — admin only
-  const pricesCostsNav = document.getElementById('nav-prices-costs');
-  if (pricesCostsNav) pricesCostsNav.style.display = isAdmin ? '' : 'none';
-
   // Per-module nav items — hide if user doesn't have permission
-  // (payroll and audit are now admin-only above, skip them in ALL_MODULES loop)
-  const adminOnlyModules = new Set(['payroll','audit','users','price-master','master-data','ingredients-admin','system']);
+  const adminOnlyModules = new Set([
+    'customers','suppliers','products','prices','sales-reps','zones-routes',
+    'price-master','prices-costs',
+    'payroll','audit','users','master-data','ingredients-admin','system'
+  ]);
   ALL_MODULES.forEach(m => {
     if (adminOnlyModules.has(m.id)) return; // handled above
     const el = document.getElementById('nav-' + m.id);
@@ -698,7 +662,6 @@ async function doLogin() {
     state.currentUser = data;
     setTopbarUser(data);
     applyRoleUI(data.role);
-    initMasterDataCollapse();
     hideLoginScreen();
     document.getElementById('l-pass').value = '';
     await loadAndRender();
@@ -828,17 +791,7 @@ function nav(page, arg) {
   const navPage = navMap[page] || page;
   const ni = document.getElementById('nav-' + navPage);
   if (ni) ni.classList.add('active');
-  // Auto-expand Master Data group if navigating to an item inside it
-  const masterDataPages = new Set(['customers','suppliers','products','prices','sales-reps','zones-routes']);
-  if (masterDataPages.has(navPage)) {
-    const items = document.getElementById('master-data-items');
-    const chevron = document.getElementById('md-chevron');
-    if (items && items.style.display === 'none') {
-      items.style.display = '';
-      if (chevron) chevron.classList.add('open');
-      try { localStorage.setItem('spicetopia-md-open', '1'); } catch(e) {}
-    }
-  }
+
   const titles = {
     dashboard:'Dashboard', customers:'Customers',
     'orders-invoices':'Orders & Invoices', 'customer-orders':'Orders & Invoices',
