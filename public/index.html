@@ -641,24 +641,17 @@ function initNavIcons() {
 //  MODULE REGISTRY  (used for nav filtering + permission UI)
 // ═══════════════════════════════════════════════════════════════
 const ALL_MODULES = [
-  { id:'dashboard',   label:'Dashboard',      section:'Overview' },
-  { id:'customers',   label:'Customers',      section:'Sales & AR' },
-  { id:'sales',       label:'Sales',          section:'Sales & AR' },
-  { id:'invoices',    label:'Invoices',       section:'Sales & AR' },
-  { id:'ar-payments', label:'Receipts',       section:'Sales & AR' },
-  { id:'ar-aging',    label:'AR Aging',       section:'Sales & AR' },
-  { id:'suppliers',        label:'Suppliers',        section:'Procurement' },
-  { id:'purchase-orders',  label:'Purchase Orders',  section:'Procurement' },
-  { id:'bills',            label:'Supplier Bills',   section:'Procurement' },
-  { id:'ap-payments',      label:'Payments',         section:'Procurement' },
-  { id:'ap-aging',         label:'AP Aging',         section:'Procurement' },
-  { id:'inventory',   label:'Inventory',      section:'Operations' },
-  { id:'production',  label:'Production',     section:'Operations' },
-  { id:'products',    label:'Products & SKUs',section:'Catalog' },
-  { id:'prices',      label:'Prices',         section:'Catalog' },
-  { id:'pl-report',   label:'P&L Report',     section:'Reports' },
-  { id:'margins',     label:'Margin Report',  section:'Reports' },
-  { id:'audit',       label:'Audit Log',      section:'Reports' },
+  { id:'dashboard',        label:'Dashboard',          section:'Overview' },
+  { id:'orders-invoices',  label:'Orders & Invoices',  section:'Sales & AR' },
+  { id:'receipts-aging',   label:'Receipts & AR',      section:'Sales & AR' },
+  { id:'purchase-orders',  label:'Purchase Orders',    section:'Procurement' },
+  { id:'bills',            label:'Supplier Bills',     section:'Procurement' },
+  { id:'ap-payments',      label:'Payments',           section:'Procurement' },
+  { id:'ap-aging',         label:'AP Aging',           section:'Procurement' },
+  { id:'inventory',        label:'Inventory',          section:'Operations' },
+  { id:'production',       label:'Production',         section:'Operations' },
+  { id:'pl-report',        label:'P&L Report',         section:'Reports' },
+  { id:'margins',          label:'Margin Report',      section:'Reports' },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -706,10 +699,10 @@ function canAccess(pageId) {
   ]);
   if (adminPages.has(pageId)) return false;
   if (pageId === 'pl-report') return u.role === 'accountant'; // admin + accountant only
-  // Unified screens: check any of their constituent permissions
+  // Unified screens: check any of their constituent permissions (incl. legacy names)
   const aliasMap = {
-    'orders-invoices':  ['customer-orders', 'sales', 'invoices', 'orders-invoices'],
-    'receipts-aging':   ['ar-payments', 'ar-aging', 'receipts-aging'],
+    'orders-invoices':  ['orders-invoices', 'customer-orders', 'sales', 'invoices'],
+    'receipts-aging':   ['receipts-aging', 'ar-payments', 'ar-aging'],
   };
   const perms = u.permissions || [];
   if (aliasMap[pageId]) return aliasMap[pageId].some(p => perms.includes(p));
