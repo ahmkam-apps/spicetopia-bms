@@ -271,6 +271,33 @@ input[type="radio"]    { accent-color: var(--saffron); }
 .alert-warning { background: var(--cinnamon-pale); color: var(--cinnamon); border-left: 3px solid var(--cinnamon); }
 .alert-info    { background: var(--saffron-pale);  color: var(--saffron);  border-left: 3px solid var(--saffron); }
 
+/* ── Toast notification system (Sprint C) ────────────────────────── */
+#toast-container {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  display: flex; flex-direction: column-reverse; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  min-width: 280px; max-width: 420px;
+  padding: 11px 14px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 500; line-height: 1.4;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+  pointer-events: all;
+  transform: translateX(calc(100% + 32px)); opacity: 0;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+.toast.toast-show { transform: translateX(0); opacity: 1; }
+.toast-success { background: var(--cardamom); color: #fff; }
+.toast-error   { background: var(--chili);    color: #fff; }
+.toast-warning { background: var(--cinnamon); color: #fff; }
+.toast-info    { background: var(--saffron);  color: #fff; }
+.toast-close {
+  background: none; border: none; color: #fff; opacity: 0.75;
+  font-size: 17px; line-height: 1; cursor: pointer; padding: 0; flex-shrink: 0;
+}
+.toast-close:hover { opacity: 1; }
+
 /* ── Section header ─────────────────────────────────────────────── */
 .section-header {
   display: flex; justify-content: space-between; align-items: center;
@@ -533,6 +560,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
 
 </div><!-- #body-row -->
 </div><!-- #app -->
+<div id="toast-container"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -9790,11 +9818,36 @@ async function saveChangePassword(id) {
 // ═══════════════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════════════
+function showToast(msg, type, duration) {
+  type = type || 'success';
+  duration = duration || 3500;
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.innerHTML = msg + '<button class="toast-close" onclick="this.parentElement.remove()">&#x2715;</button>';
+  container.appendChild(t);
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('toast-show')));
+  setTimeout(() => {
+    t.classList.remove('toast-show');
+    setTimeout(() => { if (t.parentElement) t.remove(); }, 280);
+  }, duration);
+}
+
 function showMsg(id, msg, type) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const cls = type === 'success' ? 'alert-success' : type === 'error' ? 'alert-error' : type === 'warning' ? 'alert-warning' : 'alert-info';
-  el.innerHTML = `<div class="alert ${cls}">${msg}</div>`;
+  // Support both string ID and direct element reference
+  const el = (typeof id === 'string') ? document.getElementById(id) : id;
+  // Clear message
+  if (!msg) { if (el) el.innerHTML = ''; return; }
+  // Show inline (keep errors/warnings next to the form field)
+  if (el) {
+    const cls = type === 'success' ? 'alert-success' : type === 'error' ? 'alert-error' : type === 'warning' ? 'alert-warning' : 'alert-info';
+    el.innerHTML = '<div class="alert ' + cls + '">' + msg + '</div>';
+  }
+  // Toast: always on success; also when no inline target found (fallback)
+  if (type === 'success' || !el) {
+    showToast(msg, type || 'info');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
