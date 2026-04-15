@@ -567,7 +567,6 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('customers')" id="nav-customers" style="display:none"><span class="icon" data-icon="users"></span> Customers</div>
       <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers" style="display:none"><span class="icon" data-icon="factory"></span> Suppliers</div>
       <div class="nav-item" onclick="nav('products')" id="nav-products" style="display:none"><span class="icon" data-icon="package"></span> Products</div>
-      <div class="nav-item" onclick="nav('prices')" id="nav-prices" style="display:none"><span class="icon" data-icon="tag"></span> Prices</div>
       <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon" data-icon="briefcase"></span> Sales Reps</div>
       <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes" style="display:none"><span class="icon" data-icon="map"></span> Zones &amp; Routes</div>
       <!-- Pricing -->
@@ -694,7 +693,7 @@ function canAccess(pageId) {
   // Admin/Owner-only pages
   const adminPages = new Set([
     'users','price-master','master-data','payroll','audit',
-    'customers','suppliers','products','prices','sales-reps','zones-routes',
+    'customers','suppliers','products','sales-reps','zones-routes',
     'prices-costs','ingredients-admin','system'
   ]);
   if (adminPages.has(pageId)) return false;
@@ -717,7 +716,7 @@ function applyRoleUI(role) {
   // Admin-only nav items (master data + pricing + system all under Admin/Owner section)
   const adminOnlyIds = [
     'nav-section-admin',
-    'nav-customers','nav-suppliers','nav-products','nav-prices','nav-sales-reps','nav-zones-routes',
+    'nav-customers','nav-suppliers','nav-products','nav-sales-reps','nav-zones-routes',
     'nav-price-master','nav-prices-costs',
     'nav-users','nav-payroll','nav-master-data','nav-ingredients-admin','nav-audit','nav-system'
   ];
@@ -731,7 +730,7 @@ function applyRoleUI(role) {
 
   // For non-admin: show/hide remaining nav items based on user permissions
   const adminOnlySet = new Set([
-    'customers','suppliers','products','prices','sales-reps','zones-routes',
+    'customers','suppliers','products','sales-reps','zones-routes',
     'price-master','prices-costs','payroll','audit','users','master-data','ingredients-admin','system'
   ]);
   ALL_MODULES.forEach(m => {
@@ -938,7 +937,6 @@ async function render(page, arg) {
       case 'inventory':   c.innerHTML = await renderInventory();   break;
       case 'production':  c.innerHTML = await renderProduction();  break;
       case 'products':      c.innerHTML = await renderProducts();      break;
-      case 'prices':        c.innerHTML = await renderPrices();       break;
       case 'prices-costs':  c.innerHTML = await renderPricesCosts();  break;
       case 'pl-report':       c.innerHTML = await renderPLReport(arg);    break;
       case 'margins':         c.innerHTML = await renderMargins();         break;
@@ -8221,7 +8219,7 @@ async function savePrice() {
       effectiveFrom:    document.getElementById('px-eff').value,
     });
     showMsg('price-msg', `✓ Price set: ${res.sku_code} — ${res.price_type_label}: ${fmtPKR(res.price)}`, 'success');
-    setTimeout(() => nav('prices'), 1200);
+    setTimeout(() => nav('price-master'), 1200);
   } catch(e) { showMsg('price-msg', e.message, 'error'); }
 }
 
@@ -9916,7 +9914,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 let _pmImportRows = [];    // parsed CSV rows pending import confirmation
 
 async function renderPriceMaster() {
+  // Fetch price matrix + standard costs in parallel; costs degrade gracefully
+  const stdCostsRaw = await GET('/api/costing/standard-costs').catch(() => []);
   const rows = await GET('/api/admin/price-master');
+
+  // Build cost lookup by variantId (API returns camelCase)
+  const costByVariant = {};
+  (stdCostsRaw || []).forEach(function(sc) {
+    if (sc.variantId) costByVariant[sc.variantId] = sc;
+  });
+
+  // Margin floor (mirrors costing_config seed value)
+  const MARGIN_FLOOR = 30;
 
   // Collect unique price types from the data
   const ptCodes  = [...new Set(rows.map(r => r.price_type_code))];
@@ -9940,50 +9949,77 @@ async function renderPriceMaster() {
 
   // Header columns for each price type
   const ptHeaders = ptCodes.map(pt =>
-    `<th style="padding:8px 12px;text-align:right;font-weight:600;min-width:110px">${ptLabels[pt]}</th>`
+    '<th style="padding:8px 12px;text-align:right;font-weight:600;min-width:110px">' + ptLabels[pt] + '</th>'
   ).join('');
 
   // Build table rows
   let lastProduct = '';
-  const tableRows = variants.map(v => {
+  const tableRows = variants.map(function(v) {
     const isNewProduct = v.product_code !== lastProduct;
     lastProduct = v.product_code;
 
-    const priceCells = ptCodes.map(pt => {
+    const priceCells = ptCodes.map(function(pt) {
       const entry = v.prices[pt] || {};
       const val   = entry.price || 0;
       const pvId  = v.variant_id;
       const ptId  = entry.price_type_id || rows.find(r => r.price_type_code === pt)?.price_type_id;
-      return `<td style="padding:6px 8px;text-align:right">
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
-          <input type="number" min="0" step="0.01"
-            id="pm-${pvId}-${ptId}"
-            value="${val > 0 ? val : ''}" placeholder="—"
-            style="width:95px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:13px"
-            onchange="pmMarkChanged(this,'${pvId}','${ptId}')">
-        </div>
-      </td>`;
+      return '<td style="padding:6px 8px;text-align:right">' +
+        '<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">' +
+          '<input type="number" min="0" step="0.01"' +
+            ' id="pm-' + pvId + '-' + ptId + '"' +
+            ' value="' + (val > 0 ? val : '') + '" placeholder="—"' +
+            ' style="width:95px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:13px"' +
+            ' onchange="pmMarkChanged(this,\'' + pvId + '\',\'' + ptId + '\')">' +
+        '</div>' +
+      '</td>';
     }).join('');
 
-    const productCell = isNewProduct
-      ? `<td style="padding:8px 10px;font-weight:700;color:var(--text-1);border-top:2px solid var(--border)">${v.product_name}<br>
-           <span style="font-size:11px;font-weight:400;color:var(--text-3)">${v.product_code}</span></td>`
-      : `<td style="padding:8px 10px;color:var(--text-3)"></td>`;
+    // Cost to Make + Margin columns
+    const sc = costByVariant[v.variant_id];
+    let costCell, marginCell;
+    if (!sc || sc.hasBom === false) {
+      costCell  = '<td style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:12px">— no BOM</td>';
+      marginCell = '<td style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:12px">—</td>';
+    } else {
+      const ctm = sc.costToMake || 0;
+      costCell = '<td style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text-2)">₨' + ctm.toFixed(2) + '</td>';
+      // Margin based on Direct Sale price (price_type_code = 'ex_factory') in Price Master
+      const dsPrice = (v.prices['ex_factory'] && v.prices['ex_factory'].price) || 0;
+      if (dsPrice > 0 && ctm > 0) {
+        const marginPct = ((dsPrice - ctm) / dsPrice * 100);
+        const mColor = marginPct >= MARGIN_FLOOR ? '#2F855A' : (marginPct >= 0 ? '#C05621' : '#C53030');
+        const mBg    = marginPct >= MARGIN_FLOOR ? '#F0FFF4' : (marginPct >= 0 ? '#FFFAF0' : '#FFF5F5');
+        marginCell = '<td style="padding:8px 10px;text-align:right">' +
+          '<span style="font-weight:600;font-size:12px;color:' + mColor + ';background:' + mBg + ';border-radius:4px;padding:2px 6px">' +
+            marginPct.toFixed(1) + '%' +
+          '</span>' +
+        '</td>';
+      } else {
+        marginCell = '<td style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:12px">—</td>';
+      }
+    }
 
-    return `<tr style="${isNewProduct ? 'border-top:2px solid var(--border)' : 'border-top:1px solid #f0f0f0'}">
-      ${productCell}
-      <td style="padding:8px 10px;color:var(--text-2);font-size:13px">${v.pack_size}</td>
-      ${priceCells}
-      <td style="padding:6px 8px;text-align:center">
-        <button class="btn btn-xs btn-outline" id="pm-save-${v.variant_id}"
-          onclick="pmSaveRow('${v.variant_id}')" style="display:none;color:var(--cardamom);border-color:var(--cardamom)">Save</button>
-      </td>
-    </tr>`;
+    const productCell = isNewProduct
+      ? '<td style="padding:8px 10px;font-weight:700;color:var(--text-1);border-top:2px solid var(--border)">' + v.product_name + '<br>' +
+          '<span style="font-size:11px;font-weight:400;color:var(--text-3)">' + v.product_code + '</span></td>'
+      : '<td style="padding:8px 10px;color:var(--text-3)"></td>';
+
+    return '<tr style="' + (isNewProduct ? 'border-top:2px solid var(--border)' : 'border-top:1px solid #f0f0f0') + '">' +
+      productCell +
+      '<td style="padding:8px 10px;color:var(--text-2);font-size:13px">' + v.pack_size + '</td>' +
+      priceCells +
+      costCell +
+      marginCell +
+      '<td style="padding:6px 8px;text-align:center">' +
+        '<button class="btn btn-xs btn-outline" id="pm-save-' + v.variant_id + '"' +
+          ' onclick="pmSaveRow(\'' + v.variant_id + '\')" style="display:none;color:var(--cardamom);border-color:var(--cardamom)">Save</button>' +
+      '</td>' +
+    '</tr>';
   }).join('');
 
   return `
   <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
-    <div><h2>Price Master</h2><p style="color:var(--text-3);font-size:13px;margin:0">Admin only · Edit inline or import/export CSV</p></div>
+    <div><h2>Price Master</h2><p style="color:var(--text-3);font-size:13px;margin:0">Admin only · Edit inline or import/export CSV · Margin % based on Direct Sale vs Cost to Make</p></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" onclick="pmExportCSV()">⬇ Export CSV</button>
       <button class="btn btn-outline btn-sm" onclick="pmShowImport()">⬆ Import CSV</button>
@@ -10017,6 +10053,8 @@ async function renderPriceMaster() {
             <th style="padding:8px 10px;text-align:left;font-weight:600">Product</th>
             <th style="padding:8px 10px;text-align:left;font-weight:600">Pack Size</th>
             ${ptHeaders}
+            <th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--text-2);min-width:90px">Cost to Make</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--text-2);min-width:80px" title="Direct Sale margin vs Cost to Make. Green ≥ 30%, orange ≥ 0%, red = loss.">Margin %</th>
             <th style="padding:8px 10px;width:60px"></th>
           </tr>
         </thead>
