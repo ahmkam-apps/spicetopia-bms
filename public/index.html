@@ -9772,6 +9772,8 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
     </div>
   </div>`;
   document.getElementById('user-form-area').scrollIntoView({ behavior:'smooth', block:'start' });
+  // Apply role defaults if user has no permissions set yet (fires _pmRoleChange which checks anyChecked)
+  if (role !== 'admin') _pmRoleChange('eu', role);
 }
 
 async function saveEditUser(id) {
