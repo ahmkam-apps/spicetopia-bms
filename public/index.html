@@ -643,6 +643,8 @@ const ALL_MODULES = [
   { id:'dashboard',        label:'Dashboard',          section:'Overview' },
   { id:'orders-invoices',  label:'Orders & Invoices',  section:'Sales & AR' },
   { id:'receipts-aging',   label:'Receipts & AR',      section:'Sales & AR' },
+  { id:'field-orders',     label:'Field Orders',       section:'Sales & AR' },
+  { id:'review-queue',     label:'Review Queue',       section:'Sales & AR' },
   { id:'purchase-orders',  label:'Purchase Orders',    section:'Procurement' },
   { id:'bills',            label:'Supplier Bills',     section:'Procurement' },
   { id:'ap-payments',      label:'Payments',           section:'Procurement' },
@@ -9566,10 +9568,10 @@ function selectAllPerms(prefix, val) {
 }
 
 const _ROLE_DEFAULTS = {
-  sales:      ['dashboard','orders-invoices','receipts-aging'],
+  sales:      ['dashboard','orders-invoices','receipts-aging','review-queue'],
   warehouse:  ['dashboard','inventory','production','purchase-orders','bills'],
   accountant: ['dashboard','orders-invoices','receipts-aging','purchase-orders','bills','ap-payments','ap-aging','pl-report','margins'],
-  field_rep:  ['dashboard','orders-invoices'],
+  field_rep:  ['dashboard','field-orders','orders-invoices'],
   user:       [],
 };
 
