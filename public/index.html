@@ -9630,7 +9630,7 @@ async function renderUsers() {
       <td>${permSummary}</td>
       <td>${u.created_at ? u.created_at.slice(0,10) : '—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-outline btn-xs" onclick="showEditUserForm(${u.id},'${u.username}','${(u.display_name||'').replace(/'/g,'&#39;')}','${u.role}',${u.active},'${(u.permissions||'[]').replace(/'/g,'&apos;')}')">Edit / Permissions</button>
+        <button class="btn btn-outline btn-xs" onclick="showEditUserForm(${u.id},'${u.username}','${(u.display_name||'').replace(/'/g,'&#39;')}','${u.role}',${u.active},'${encodeURIComponent(u.permissions||'[]')}')">Edit / Permissions</button>
         <button class="btn btn-outline-red btn-xs" style="margin-left:4px" onclick="showChangePassword(${u.id},'${u.username}')">Change PW</button>
         ${u.active
           ? `<button class="btn btn-xs" style="margin-left:4px;background:#fff3f3;color:var(--chili);border:1px solid var(--chili)" onclick="toggleUserActive(${u.id},'${u.username}',true)">Deactivate</button>`
