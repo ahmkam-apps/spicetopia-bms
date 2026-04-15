@@ -9560,9 +9560,36 @@ function getPermGridValues(prefix) {
 
 function selectAllPerms(prefix, val) {
   ALL_MODULES.forEach(m => {
-    const el = document.getElementById(`${prefix}-perm-${m.id}`);
+    const el = document.getElementById(prefix + '-perm-' + m.id);
     if (el) el.checked = val;
   });
+}
+
+const _ROLE_DEFAULTS = {
+  sales:      ['dashboard','orders-invoices','receipts-aging'],
+  warehouse:  ['dashboard','inventory','production','purchase-orders','bills'],
+  accountant: ['dashboard','orders-invoices','receipts-aging','purchase-orders','bills','ap-payments','ap-aging','pl-report','margins'],
+  field_rep:  ['dashboard','orders-invoices'],
+  user:       [],
+};
+
+function _pmRoleChange(prefix, role) {
+  const section = document.getElementById(prefix + '-perm-section');
+  if (!section) return;
+  if (role === 'admin') { section.style.display = 'none'; return; }
+  section.style.display = '';
+  // Pre-check role defaults only if no boxes are currently checked
+  const anyChecked = ALL_MODULES.some(function(m) {
+    const el = document.getElementById(prefix + '-perm-' + m.id);
+    return el && el.checked;
+  });
+  if (!anyChecked) {
+    const defaults = new Set(_ROLE_DEFAULTS[role] || []);
+    ALL_MODULES.forEach(function(m) {
+      const el = document.getElementById(prefix + '-perm-' + m.id);
+      if (el) el.checked = defaults.has(m.id);
+    });
+  }
 }
 
 async function renderUsers() {
@@ -9685,8 +9712,8 @@ function showNewUserForm() {
       <div class="form-group"><label>Display Name</label><input id="nu-disp" placeholder="Full name"></div>
       <div class="form-group"><label>Password * (min 6 chars)</label><input id="nu-pw" type="password" placeholder="Password"></div>
       <div class="form-group"><label>Role</label>
-        <select id="nu-role" onchange="document.getElementById('nu-perm-section').style.display=(this.value==='user')?'':'none'">
-          <option value="user">Viewer (read-only)</option>
+        <select id="nu-role" onchange="_pmRoleChange('nu',this.value)">
+          <option value="user">Viewer (custom access)</option>
           <option value="sales">Sales</option>
           <option value="warehouse">Warehouse</option>
           <option value="accountant">Accountant</option>
@@ -9719,7 +9746,7 @@ async function saveNewUser() {
   const password = document.getElementById('nu-pw').value;
   const role     = document.getElementById('nu-role').value;
   if (!username || !password) { showMsg('user-msg','Username and password are required','error'); return; }
-  const perms = role === 'user' ? getPermGridValues('nu') : [];
+  const perms = role !== 'admin' ? getPermGridValues('nu') : [];
   const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   try {
     const res = await POST('/api/users', {
@@ -9744,8 +9771,8 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
     <div class="form-row">
       <div class="form-group"><label>Display Name</label><input id="eu-disp" value="${displayName}"></div>
       <div class="form-group"><label>Role</label>
-        <select id="eu-role" onchange="document.getElementById('eu-perm-section').style.display=(this.value==='user')?'':'none'">
-          <option value="user" ${role==='user'?'selected':''}>Viewer (read-only)</option>
+        <select id="eu-role" onchange="_pmRoleChange('eu',this.value)">
+          <option value="user" ${role==='user'?'selected':''}>Viewer (custom access)</option>
           <option value="sales" ${role==='sales'?'selected':''}>Sales</option>
           <option value="warehouse" ${role==='warehouse'?'selected':''}>Warehouse</option>
           <option value="accountant" ${role==='accountant'?'selected':''}>Accountant</option>
@@ -9760,7 +9787,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
         </select>
       </div>
     </div>
-    <div id="eu-perm-section" ${role!=='user'?'style="display:none"':''}>
+    <div id="eu-perm-section" ${role==='admin'?'style="display:none"':''}>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <strong style="font-size:13px">Module Access</strong>
         <div style="display:flex;gap:8px">
@@ -9782,7 +9809,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
 
 async function saveEditUser(id) {
   const role  = document.getElementById('eu-role').value;
-  const perms = role === 'user' ? getPermGridValues('eu') : [];
+  const perms = role !== 'admin' ? getPermGridValues('eu') : [];
   const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   try {
     await PUT('/api/users/' + id, {
