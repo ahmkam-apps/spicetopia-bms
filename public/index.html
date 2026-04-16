@@ -4,53 +4,77 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Spicetopia — Business Management System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════════════
-   Spicetopia ERP — macOS-style UI with Spice Blend palette
+   Spicetopia ERP — IBM Carbon Design System (Option A re-skin)
+   Typography: IBM Plex Sans + IBM Plex Mono
+   Palette: Carbon Gray 10 theme + Spicetopia brand sidebar
+   Sprint A1 applied: 2026-04-15
    ══════════════════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* ── Spice Palette ────────────────────────────────────────────── */
-  --saffron:        #E8901A;   /* primary accent – turmeric/saffron  */
-  --saffron-lt:     #F5AB47;
-  --saffron-pale:   #FEF3E2;
-  --saffron-deep:   #C97610;
-  --cardamom:       #3D7A5A;   /* success / positive                 */
-  --cardamom-lt:    #52A876;
-  --cardamom-pale:  #E6F4EC;
-  --chili:          #C0392B;   /* danger / overdue                   */
-  --chili-pale:     #FDECEA;
-  --cinnamon:       #C47A45;   /* warning / partial                  */
-  --cinnamon-pale:  #FDF0E6;
-  --pepper:         #1C0E04;   /* sidebar bg – dark spice wood       */
-  --pepper-mid:     #2E1A0A;
-  --cumin:          #8B6345;   /* muted brown text                   */
-  --cream:          #F5EFE8;   /* page background                    */
-  --cream-warm:     #FAF5F0;   /* card / surface background          */
+  /* ── Carbon Design System — IBM Plex + Gray 10 theme ─────────── */
 
-  /* ── macOS Semantic Tokens ────────────────────────────────────── */
-  --bg:             #F2EBE3;
-  --surface:        #FFFFFF;
-  --surface-2:      #FAF6F1;
-  --surface-3:      #F3EDE5;
-  --border:         #E8DDD3;
-  --border-strong:  #D5C8BC;
-  --text-1:         #1A0D05;
-  --text-2:         #5C4230;
-  --text-3:         #9E8270;
-  --mac-blue:       #007AFF;   /* macOS system blue for neutral btns */
+  /* Primary interactive (Carbon Blue 60) */
+  --saffron:        #0f62fe;
+  --saffron-lt:     #4589ff;   /* Blue 50 */
+  --saffron-pale:   #d0e2ff;   /* Blue 20 — highlight */
+  --saffron-deep:   #0043ce;   /* Blue 70 — hover */
+
+  /* Success (Carbon Green 50) */
+  --cardamom:       #24a148;
+  --cardamom-lt:    #42be65;   /* Green 40 */
+  --cardamom-pale:  #defbe6;   /* Green 10 */
+
+  /* Danger (Carbon Red 60) */
+  --chili:          #da1e28;
+  --chili-pale:     #fff1f1;   /* Red 10 */
+
+  /* Warning (Carbon Yellow 30 / Orange 40) */
+  --cinnamon:       #f1c21b;   /* Yellow 30 */
+  --cinnamon-pale:  #fcf4d6;   /* Yellow 10 */
+
+  /* Sidebar — Dark Slate */
+  --pepper:         #2d3748;
+  --pepper-mid:     #3a4a5c;
+  --cumin:          #7a8fa6;
+  --cream:          #F5EFE8;
+  --cream-warm:     #FAF5F0;
+
+  /* ── Carbon Semantic Tokens (Gray 10 theme) ───────────────────── */
+  --bg:             #f4f4f4;   /* cds-background — Gray 10 */
+  --surface:        #ffffff;   /* cds-layer-01 */
+  --surface-2:      #f4f4f4;   /* cds-layer-02 */
+  --surface-3:      #e8e8e8;   /* cds-layer-03 */
+  --border:         #e0e0e0;   /* cds-border-subtle-01 — Gray 20 */
+  --border-strong:  #8d8d8d;   /* cds-border-strong-01 — Gray 50 */
+  --text-1:         #161616;   /* cds-text-primary — Gray 100 */
+  --text-2:         #525252;   /* cds-text-secondary — Gray 70 */
+  --text-3:         #a8a8a8;   /* cds-text-placeholder — Gray 40 */
+  --mac-blue:       #0f62fe;   /* Carbon Blue 60 */
+
+  /* ── Layout ──────────────────────────────────────────────────── */
   --sidebar-w:      218px;
   --topbar-h:       72px;
-  --r-sm:           6px;
-  --r:              10px;
-  --r-lg:           14px;
-  --r-xl:           18px;
-  --sh-sm:          0 1px 3px rgba(28,14,4,.07), 0 1px 2px rgba(28,14,4,.05);
-  --sh-md:          0 3px 10px rgba(28,14,4,.09), 0 1px 4px rgba(28,14,4,.06);
-  --sh-lg:          0 8px 28px rgba(28,14,4,.12), 0 3px 8px rgba(28,14,4,.08);
-  --font:           -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono:      'SF Mono', 'Menlo', 'Courier New', monospace;
+
+  /* ── Radii — Carbon uses 0–4px (we keep subtle rounding) ─────── */
+  --r-sm:           2px;
+  --r:              4px;
+  --r-lg:           4px;
+  --r-xl:           4px;
+
+  /* ── Shadows — Carbon uses very subtle elevation ─────────────── */
+  --sh-sm:          0 1px 2px rgba(0,0,0,.1);
+  --sh-md:          0 2px 6px rgba(0,0,0,.12);
+  --sh-lg:          0 4px 16px rgba(0,0,0,.16);
+
+  /* ── Typography — IBM Plex ───────────────────────────────────── */
+  --font:           'IBM Plex Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  --font-mono:      'IBM Plex Mono', 'SF Mono', 'Menlo', 'Courier New', monospace;
 }
 
 html, body {
@@ -68,17 +92,15 @@ html, body {
 
 /* Topbar spans full width at the very top */
 #topbar {
-  background: rgba(250,245,240,0.95);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 10px 24px 8px;
+  padding: 0 24px;
+  height: 48px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   flex-shrink: 0;
   position: sticky; top: 0; z-index: 50;
-  box-shadow: 0 1px 12px rgba(0,0,0,0.06);
 }
 
 /* Body row: sidebar + content side by side, below topbar */
@@ -86,259 +108,298 @@ html, body {
 
 #sidebar {
   width: var(--sidebar-w);
-  background: #FAF5F0;
-  border-right: 1px solid #EDE0D4;
+  background: var(--pepper);
+  border-right: 1px solid var(--pepper-mid);
   display: flex; flex-direction: column; flex-shrink: 0;
   overflow-y: auto; overflow-x: hidden;
 }
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-#content { flex: 1; overflow-y: auto; padding: 22px 24px; }
+#content { flex: 1; overflow-y: auto; padding: 24px; }
 
-/* ── Sidebar ─────────────────────────────────────────────────────── */
+/* ── Sidebar — Carbon Shell Left Panel ───────────────────────────── */
 .sidebar-logo {
-  padding: 16px 14px 13px;
-  border-bottom: 1px solid #EDE0D4;
+  padding: 0 16px;
+  height: 48px;
+  border-bottom: 1px solid var(--pepper-mid);
   display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
 }
 .sidebar-logo-icon {
-  width: 34px; height: 34px; border-radius: 8px;
-  background: linear-gradient(135deg, var(--saffron) 0%, var(--saffron-deep) 100%);
+  width: 24px; height: 24px; border-radius: 4px;
+  background: var(--saffron);
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(232,144,26,0.4);
+  font-size: 14px; flex-shrink: 0;
 }
-.sidebar-logo-text h1 { font-size: 14px; font-weight: 700; color: #2D1810; letter-spacing: -0.2px; }
-.sidebar-logo-text p  { font-size: 10px; color: #C4A882; letter-spacing: 0.6px; text-transform: uppercase; margin-top: 1px; }
+.sidebar-logo-text h1 { font-size: 14px; font-weight: 600; color: var(--cream); letter-spacing: 0.1px; }
+.sidebar-logo-text p  { font-size: 10px; color: var(--cumin); letter-spacing: 0.6px; text-transform: uppercase; margin-top: 1px; }
 
 .nav-section {
-  padding: 14px 12px 4px;
-  font-size: 10px; font-weight: 600; letter-spacing: 0.9px;
-  color: #8B6040; text-transform: uppercase;
+  padding: 16px 16px 4px;
+  font-size: 11px; font-weight: 400; letter-spacing: 0.32px;
+  color: var(--cumin); text-transform: uppercase;
 }
 .nav-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 11px; margin: 1px 7px;
-  cursor: pointer; border-radius: var(--r-sm);
-  font-size: 13px; font-weight: 500; color: #2D1810;
-  transition: background 0.12s, color 0.12s;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px; height: 40px; margin: 0;
+  cursor: pointer; border-radius: 0;
+  font-size: 14px; font-weight: 400; color: var(--cream-warm);
+  transition: background 0.1s;
+  border-left: 3px solid transparent;
 }
-.nav-item:hover { background: rgba(230,126,34,0.08); color: #2D1810; }
+.nav-item:hover { background: rgba(255,255,255,0.07); color: var(--cream); }
 .nav-item.active {
   background: var(--saffron);
-  color: #fff; font-weight: 600;
-  box-shadow: 0 2px 8px rgba(232,144,26,0.35);
+  color: #fff; font-weight: 400;
+  border-left: 3px solid #fff;
 }
 .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; display:flex; align-items:center; justify-content:center; }
 .nav-item .icon svg { width: 16px; height: 16px; }
 .sidebar-footer {
-  padding: 10px 14px; margin-top: auto;
-  border-top: 1px solid #EDE0D4;
-  font-size: 10px; color: #C4A882; letter-spacing: 0.3px;
+  padding: 12px 16px; margin-top: auto;
+  border-top: 1px solid var(--pepper-mid);
+  font-size: 11px; color: var(--cumin); letter-spacing: 0.3px;
 }
 
-/* ── Nav divider (daily / setup separator) ───────────────────────── */
+/* ── Nav divider ─────────────────────────────────────────────────── */
 .nav-divider {
   height: 1px;
-  background: #EDE0D4;
-  margin: 10px 14px 6px;
+  background: var(--pepper-mid);
+  margin: 8px 0;
 }
 
-/* ── Topbar ─────────────────────────────────────────────────────── */
-#page-title { font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: -0.2px; }
+/* ── Topbar — Carbon Shell Header ────────────────────────────────── */
+#page-title { font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: 0.1px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 
-/* ── Buttons ─────────────────────────────────────────────────────── */
+/* ── Buttons — Carbon spec ───────────────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 6px 14px; border-radius: var(--r-sm); border: none;
-  cursor: pointer; font-size: 13px; font-weight: 500;
-  font-family: var(--font); letter-spacing: -0.1px;
-  transition: filter 0.1s, transform 0.08s;
-  white-space: nowrap; line-height: 1.4;
+  padding: 0 15px; min-height: 40px; border-radius: 0; border: none;
+  cursor: pointer; font-size: 14px; font-weight: 400;
+  font-family: var(--font); letter-spacing: 0.16px;
+  transition: background 0.1s ease;
+  white-space: nowrap; line-height: 1;
+  text-decoration: none;
 }
-.btn:hover  { filter: brightness(0.93); }
-.btn:active { transform: scale(0.97); }
-.btn:disabled { opacity: 0.38; cursor: not-allowed; }
-.btn-primary     { background: var(--saffron); color: #fff; }
-.btn-orange      { background: var(--saffron); color: #fff; }
-.btn-blue        { background: var(--mac-blue); color: #fff; }
-.btn-danger      { background: var(--chili); color: #fff; }
-.btn-outline     { background: var(--surface); color: var(--text-1); border: 1px solid var(--border); }
-.btn-outline:hover { filter: none; background: var(--surface-2); }
-.btn-outline-red { background: var(--surface); color: var(--chili); border: 1px solid var(--border); }
-.btn-outline-red:hover { filter: none; background: var(--chili-pale); }
-.btn-sm { padding: 5px 11px; font-size: 12px; }
-.btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 5px; }
+.btn:focus-visible { outline: 2px solid var(--saffron); outline-offset: 2px; }
+.btn:disabled, .btn[disabled] { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
 
-/* ── Cards ──────────────────────────────────────────────────────── */
+/* Carbon Primary */
+.btn-primary  { background: var(--saffron); color: #fff; }
+.btn-primary:hover { background: var(--saffron-deep); }
+
+/* Carbon Secondary (same as primary for this palette) */
+.btn-orange   { background: var(--saffron); color: #fff; }
+.btn-orange:hover { background: var(--saffron-deep); }
+
+/* Carbon Blue (alias) */
+.btn-blue     { background: var(--mac-blue); color: #fff; }
+.btn-blue:hover { background: var(--saffron-deep); }
+
+/* Carbon Danger */
+.btn-danger   { background: var(--chili); color: #fff; }
+.btn-danger:hover { background: #b81922; }
+
+/* Carbon Ghost / Tertiary */
+.btn-outline  { background: transparent; color: var(--saffron); border: 1px solid var(--saffron); }
+.btn-outline:hover { background: var(--saffron-pale); }
+
+/* Carbon Ghost Danger */
+.btn-outline-red { background: transparent; color: var(--chili); border: 1px solid var(--chili); }
+.btn-outline-red:hover { background: var(--chili-pale); }
+
+/* Carbon Small (32px) */
+.btn-sm { min-height: 32px; padding: 0 13px; font-size: 13px; }
+
+/* Carbon Extra Small (24px — toolbar/inline use) */
+.btn-xs { min-height: 24px; padding: 0 10px; font-size: 12px; border-radius: 0; }
+
+/* ── Cards — Carbon Tile spec ────────────────────────────────────── */
 .card {
   background: var(--surface);
-  border-radius: var(--r);
+  border-radius: 0;
   border: 1px solid var(--border);
-  box-shadow: var(--sh-sm);
-  padding: 18px 20px;
+  padding: 16px;
 }
-.card-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-3); margin-bottom: 5px; }
-.card-value { font-size: 24px; font-weight: 700; letter-spacing: -0.6px; }
-.card-sub   { font-size: 11px; color: var(--text-3); margin-top: 3px; }
-.card-green  { border-top: 2.5px solid var(--cardamom); }
-.card-orange { border-top: 2.5px solid var(--saffron); }
-.card-yellow { border-top: 2.5px solid var(--cinnamon); }
-.card-red    { border-top: 2.5px solid var(--chili); }
-.card-blue   { border-top: 2.5px solid var(--mac-blue); }
-.card-purple { border-top: 2.5px solid #AF52DE; }
+.card-title { font-size: 12px; font-weight: 400; letter-spacing: 0.32px; color: var(--text-2); margin-bottom: 4px; }
+.card-value { font-size: 28px; font-weight: 300; letter-spacing: -0.5px; color: var(--text-1); }
+.card-sub   { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+.card-green  { border-top: 3px solid var(--cardamom); }
+.card-orange { border-top: 3px solid var(--saffron); }
+.card-yellow { border-top: 3px solid var(--cinnamon); }
+.card-red    { border-top: 3px solid var(--chili); }
+.card-blue   { border-top: 3px solid var(--saffron); }
+.card-purple { border-top: 3px solid #8a3ffc; }
 
 /* ── Grids ───────────────────────────────────────────────────────── */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
-.grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
-.grid-6 { display: grid; grid-template-columns: repeat(6,1fr); gap: 14px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; }
+.grid-6 { display: grid; grid-template-columns: repeat(6,1fr); gap: 1px; }
 .mb-16  { margin-bottom: 16px; }
-.mb-24  { margin-bottom: 20px; }
+.mb-24  { margin-bottom: 24px; }
 .mt-16  { margin-top: 16px; }
 
-/* ── Tables ──────────────────────────────────────────────────────── */
-.table-wrap { overflow-x: auto; margin-top: 14px; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* ── Tables — Carbon Data Table spec ────────────────────────────── */
+.table-wrap { overflow-x: auto; margin-top: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th {
-  padding: 10px 12px; text-align: left;
-  font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
-  color: var(--text-3); white-space: nowrap;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  padding: 0 16px; height: 40px; text-align: left;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.32px;
+  color: var(--text-1); white-space: nowrap;
+  background: var(--surface-3);
+  border-top: none;
+  border-bottom: 2px solid var(--saffron);
   position: sticky; top: 0; z-index: 1;
 }
-td { padding: 11px 12px; border-bottom: 1px solid var(--surface-3); vertical-align: middle; }
-tr:last-child td { border-bottom: none; }
+td { padding: 0 16px; height: 48px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text-1); }
+tr:last-child td { border-bottom: 1px solid var(--border); }
 tr:hover td { background: var(--surface-2); }
 .text-right  { text-align: right; }
 .text-center { text-align: center; }
-.num { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: -0.3px; }
+.num { font-family: var(--font-mono); font-size: 13px; letter-spacing: -0.2px; }
 
-/* ── Badges ──────────────────────────────────────────────────────── */
+/* ── Badges — Carbon Tag spec ────────────────────────────────────── */
 .badge {
   display: inline-flex; align-items: center;
-  padding: 2px 8px; border-radius: 20px;
-  font-size: 11px; font-weight: 500;
+  padding: 0 8px; height: 24px; border-radius: 1rem;
+  font-size: 12px; font-weight: 400; line-height: 1;
+  white-space: nowrap;
 }
 .badge-retail  { background: var(--cardamom-pale); color: var(--cardamom); }
-.badge-direct  { background: #EAF3FF; color: var(--mac-blue); }
+.badge-direct  { background: var(--saffron-pale);  color: var(--saffron-deep); }
 .badge-paid    { background: var(--cardamom-pale); color: var(--cardamom); }
 .badge-partial { background: var(--cinnamon-pale); color: var(--cinnamon); }
 .badge-unpaid  { background: var(--chili-pale);    color: var(--chili); }
-.badge-void    { background: #f3f4f6;              color: #6b7280; text-decoration: line-through; }
+.badge-void    { background: var(--surface-3);     color: var(--text-3); text-decoration: line-through; }
 .badge-draft   { background: var(--surface-3);     color: var(--text-3); }
 .badge-ok      { background: var(--cardamom-pale); color: var(--cardamom); }
 .badge-low     { background: var(--cinnamon-pale); color: var(--cinnamon); }
 .badge-out     { background: var(--chili-pale);    color: var(--chili); }
 
-/* ── Forms ───────────────────────────────────────────────────────── */
-.form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
-.form-group { display: flex; flex-direction: column; gap: 5px; }
-.form-group label { font-size: 11px; font-weight: 600; color: var(--text-2); letter-spacing: 0.1px; }
+/* ── Forms — Carbon Field spec ───────────────────────────────────── */
+.form-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 12px; font-weight: 400; color: var(--text-2); letter-spacing: 0.32px; }
 .form-group input, .form-group select, .form-group textarea {
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  font-size: 13px; font-family: var(--font);
-  background: var(--surface); color: var(--text-1);
-  min-width: 130px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  padding: 0 16px;
+  height: 40px;
+  border: none;
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0;
+  font-size: 14px; font-family: var(--font);
+  background: var(--surface-2); color: var(--text-1);
+  min-width: 140px;
+  transition: border-color 0.1s, background 0.1s;
   -webkit-appearance: none; appearance: none;
 }
+.form-group textarea {
+  height: auto; padding: 10px 16px; resize: vertical; min-height: 80px;
+}
 .form-group select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%235C4230' stroke-width='1.5' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 10px center;
-  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%23161616' stroke-width='1.5' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+  padding-right: 32px;
 }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-  outline: none; border-color: var(--saffron);
-  box-shadow: 0 0 0 3px rgba(232,144,26,0.18);
+  outline: none;
+  border-bottom: 2px solid var(--saffron);
+  background: var(--surface);
 }
-.radio-group { display: flex; gap: 14px; align-items: center; padding: 6px 0; }
-.radio-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 400; color: var(--text-1); cursor: pointer; }
-input[type="checkbox"] { accent-color: var(--saffron); width: 13px; height: 13px; }
+.form-group input:hover, .form-group select:hover, .form-group textarea:hover {
+  background: var(--surface-3);
+}
+.radio-group { display: flex; gap: 16px; align-items: center; padding: 6px 0; }
+.radio-group label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 400; color: var(--text-1); cursor: pointer; }
+input[type="checkbox"] { accent-color: var(--saffron); width: 14px; height: 14px; }
 input[type="radio"]    { accent-color: var(--saffron); }
 
-/* ── Alerts ──────────────────────────────────────────────────────── */
+/* ── Alerts — Carbon Inline Notification ─────────────────────────── */
 .alert {
-  padding: 9px 13px; border-radius: var(--r-sm);
-  font-size: 13px; margin-bottom: 12px;
-  display: flex; align-items: flex-start; gap: 7px;
+  padding: 12px 16px; border-radius: 0;
+  font-size: 14px; margin-bottom: 16px;
+  display: flex; align-items: flex-start; gap: 8px;
+  border-left: 3px solid transparent;
 }
-.alert-success { background: var(--cardamom-pale); color: var(--cardamom); border-left: 3px solid var(--cardamom); }
-.alert-error   { background: var(--chili-pale);    color: var(--chili);    border-left: 3px solid var(--chili); }
-.alert-warning { background: var(--cinnamon-pale); color: var(--cinnamon); border-left: 3px solid var(--cinnamon); }
-.alert-info    { background: var(--saffron-pale);  color: var(--saffron);  border-left: 3px solid var(--saffron); }
+.alert-success { background: var(--cardamom-pale); color: var(--cardamom); border-left-color: var(--cardamom); }
+.alert-error   { background: var(--chili-pale);    color: var(--chili);    border-left-color: var(--chili); }
+.alert-warning { background: var(--cinnamon-pale); color: var(--cinnamon); border-left-color: var(--cinnamon); }
+.alert-info    { background: var(--saffron-pale);  color: var(--saffron-deep); border-left-color: var(--saffron); }
 
-/* ── Toast notification system (Sprint C) ────────────────────────── */
+/* ── Toast — Carbon Toast Notification ───────────────────────────── */
 #toast-container {
-  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-  display: flex; flex-direction: column-reverse; gap: 8px;
+  position: fixed; bottom: 0; right: 0; z-index: 9999;
+  display: flex; flex-direction: column-reverse; gap: 0;
   pointer-events: none;
 }
 .toast {
-  min-width: 280px; max-width: 420px;
-  padding: 11px 14px; border-radius: var(--r-sm);
-  font-size: 13px; font-weight: 500; line-height: 1.4;
+  min-width: 288px; max-width: 480px;
+  padding: 14px 16px; border-radius: 0;
+  font-size: 14px; font-weight: 400; line-height: 1.4;
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  border-left: 3px solid transparent;
   pointer-events: all;
-  transform: translateX(calc(100% + 32px)); opacity: 0;
-  transition: transform 0.22s ease, opacity 0.22s ease;
+  transform: translateY(100%); opacity: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
-.toast.toast-show { transform: translateX(0); opacity: 1; }
-.toast-success { background: var(--cardamom); color: #fff; }
-.toast-error   { background: var(--chili);    color: #fff; }
-.toast-warning { background: var(--cinnamon); color: #fff; }
-.toast-info    { background: var(--saffron);  color: #fff; }
+.toast.toast-show { transform: translateY(0); opacity: 1; }
+.toast-success { background: #defbe6; color: #044317; border-left-color: var(--cardamom); }
+.toast-error   { background: #fff1f1; color: #750e13; border-left-color: var(--chili); }
+.toast-warning { background: #fdf4db; color: #5c3d11; border-left-color: var(--cinnamon); }
+.toast-info    { background: var(--saffron-pale); color: var(--saffron-deep); border-left-color: var(--saffron); }
 .toast-close {
-  background: none; border: none; color: #fff; opacity: 0.75;
-  font-size: 17px; line-height: 1; cursor: pointer; padding: 0; flex-shrink: 0;
+  background: none; border: none; color: currentColor; opacity: 0.6;
+  font-size: 16px; line-height: 1; cursor: pointer; padding: 0; flex-shrink: 0;
 }
 .toast-close:hover { opacity: 1; }
 
-/* ── Section header ─────────────────────────────────────────────── */
+/* ── Section header — Carbon Page Header ─────────────────────────── */
 .section-header {
   display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 22px;
-}
-.section-header h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.4px; color: var(--text-1); }
-.section-title {
-  font-size: 13px; font-weight: 600; color: var(--text-2);
-  margin: 24px 0 10px; padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-}
-
-/* ── Segmented pill tabs ─────────────────────────────────────────── */
-.seg-tabs {
-  display: inline-flex;
-  background: var(--surface-2);
-  border-radius: 9px;
-  padding: 3px;
-  gap: 2px;
   margin-bottom: 24px;
 }
-.seg-tab {
-  padding: 7px 20px;
-  border-radius: 7px;
-  border: none;
-  background: none;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-3);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
+.section-header h2 { font-size: 20px; font-weight: 400; letter-spacing: 0; color: var(--text-1); }
+.section-title {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.32px; color: var(--text-2);
+  margin: 24px 0 8px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
 }
+
+/* ── Tabs — Carbon Content Switcher ──────────────────────────────── */
+.seg-tabs {
+  display: inline-flex;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  gap: 0;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+}
+.seg-tab {
+  padding: 0 16px;
+  height: 40px;
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+  display: inline-flex; align-items: center;
+}
+.seg-tab:last-child { border-right: none; }
 .seg-tab.active {
   background: var(--saffron);
   color: #fff;
-  font-weight: 600;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  font-weight: 400;
 }
 .seg-tab:not(.active):hover {
-  background: rgba(230,126,34,0.08);
+  background: var(--surface-2);
   color: var(--text-1);
 }
 
@@ -348,98 +409,114 @@ input[type="radio"]    { accent-color: var(--saffron); }
 .aging-60 td      { background: rgba(232,144,26,.06); }
 .aging-90 td      { background: rgba(192,57,43,.05); }
 
-/* ── Modal ───────────────────────────────────────────────────────── */
+/* ── Modal — Carbon Modal ─────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0;
-  background: rgba(28,14,4,0.4);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  background: rgba(22,22,22,0.5);
   z-index: 1000; display: flex; align-items: center; justify-content: center;
 }
 .modal {
-  background: var(--surface); border-radius: var(--r-lg);
-  border: 1px solid var(--border); box-shadow: var(--sh-lg);
-  padding: 24px; min-width: 440px; max-width: 600px;
+  background: var(--surface); border-radius: 0;
+  border: none; box-shadow: 0 12px 32px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.2);
+  padding: 0; min-width: 480px; max-width: 640px;
   max-height: 90vh; overflow-y: auto;
+  display: flex; flex-direction: column;
 }
-.modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 18px; letter-spacing: -0.2px; }
-.modal-footer { margin-top: 20px; display: flex; gap: 8px; justify-content: flex-end; }
+.modal h3 {
+  font-size: 20px; font-weight: 400; margin: 0;
+  padding: 16px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0;
+}
+.modal > *:not(h3):not(.modal-footer) { padding: 24px; }
+.modal-footer {
+  margin-top: 0; display: flex; gap: 0; justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+.modal-footer .btn { border-radius: 0; min-width: 120px; }
 
 /* ── Login Screen ─────────────────────────────────────────────────── */
 #login-screen {
   position: fixed; inset: 0;
-  background: radial-gradient(ellipse at 30% 40%, #3D1E0A 0%, #1C0E04 55%, #0E0602 100%);
+  background: var(--pepper);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
 }
 .login-box {
-  background: rgba(255,255,255,0.97);
-  border-radius: var(--r-xl);
-  padding: 40px 44px; width: 390px;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.12) inset;
+  background: var(--surface);
+  border-radius: 0;
+  padding: 40px 48px; width: 400px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.35);
 }
-.login-logo { font-size: 38px; margin-bottom: 8px; display: block; }
-.login-box h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
-.login-box p  { font-size: 12px; color: var(--text-3); margin-bottom: 24px; }
-.login-box .form-group { margin-bottom: 14px; }
-.login-box .form-group input { width: 100%; font-size: 14px; padding: 9px 12px; }
-.login-hint { font-size: 11px; color: var(--text-3); margin-top: 12px; text-align: center; }
-.login-box .btn-primary { padding: 10px 14px; font-size: 14px; letter-spacing: -0.1px; }
+.login-logo { font-size: 32px; margin-bottom: 12px; display: block; }
+.login-box h2 { font-size: 28px; font-weight: 300; letter-spacing: 0; margin-bottom: 4px; color: var(--text-1); }
+.login-box p  { font-size: 14px; color: var(--text-2); margin-bottom: 32px; }
+.login-box .form-group { margin-bottom: 16px; }
+.login-box .form-group input { width: 100%; box-sizing: border-box; }
+.login-hint { font-size: 12px; color: var(--text-3); margin-top: 16px; text-align: center; }
+.login-box .btn-primary { width: 100%; justify-content: center; margin-top: 8px; }
 
 /* ── Topbar user chip ─────────────────────────────────────────────── */
 .user-chip {
-  display: flex; align-items: center; gap: 6px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 20px; padding: 3px 10px 3px 3px;
-  font-size: 12px; font-weight: 500; color: var(--text-2);
+  display: flex; align-items: center; gap: 8px;
+  background: transparent; border: none;
+  border-radius: 0; padding: 0 8px;
+  height: 48px;
+  font-size: 14px; font-weight: 400; color: var(--text-1);
+  cursor: pointer;
+  transition: background 0.1s;
 }
+.user-chip:hover { background: var(--surface-2); }
 .user-chip .avatar {
-  width: 22px; height: 22px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--saffron), var(--saffron-deep));
-  color: #fff; font-size: 10px; font-weight: 700;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--saffron);
+  color: #fff; font-size: 11px; font-weight: 600;
   display: flex; align-items: center; justify-content: center;
 }
 
-/* ── Scrollbar (macOS webkit) ─────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* ── Scrollbar ───────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(28,14,4,0.18); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(28,14,4,0.28); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
 
-/* ── Module Tab Bar ──────────────────────────────────────────────── */
+/* ── Module Tab Bar — Carbon Tab spec ────────────────────────────── */
 .mod-tabs {
-  display: flex; gap: 0; margin-bottom: 18px;
-  border-bottom: 2px solid var(--border);
+  display: flex; gap: 0; margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
 }
 .mod-tab {
-  padding: 8px 18px; cursor: pointer; font-size: 13px; font-weight: 500;
-  color: var(--text-2); border-bottom: 2px solid transparent; margin-bottom: -2px;
+  padding: 0 16px; height: 40px; cursor: pointer; font-size: 14px; font-weight: 400;
+  color: var(--text-2); border-bottom: 2px solid transparent; margin-bottom: -1px;
+  display: inline-flex; align-items: center;
   transition: color 0.1s, border-color 0.1s;
 }
-.mod-tab:hover { color: var(--saffron); }
-.mod-tab.active { color: var(--saffron); border-bottom-color: var(--saffron); font-weight: 600; }
+.mod-tab:hover { color: var(--text-1); background: var(--surface-2); }
+.mod-tab.active { color: var(--text-1); border-bottom-color: var(--saffron); font-weight: 400; }
 .mod-tab-pane { display: none; }
 .mod-tab-pane.active { display: block; }
 
-/* ── Status pill colours for orders ─────────────────────────────── */
-.pill-draft    { background:#f3f4f6; color:#6b7280; }
-.pill-confirmed { background:#dbeafe; color:#1d4ed8; }
-.pill-in_production { background:#fef3c7; color:#b45309; }
-.pill-partially_invoiced { background:#ede9fe; color:#7c3aed; }
-.pill-invoiced { background:#d1fae5; color:#065f46; }
-.pill-cancelled { background:#fee2e2; color:#991b1b; }
-.pill-pending_review { background:#fef3c7; color:#92400e; }
-.pill-rejected  { background:#fee2e2; color:#991b1b; }
-.pill-expired   { background:#f3f4f6; color:#6b7280; }
+/* ── Status pills — Carbon Tag palette ───────────────────────────── */
+.pill-draft             { background: var(--surface-3);    color: var(--text-3); }
+.pill-confirmed         { background: var(--saffron-pale);  color: var(--saffron-deep); }
+.pill-in_production     { background: var(--cinnamon-pale); color: var(--cinnamon); }
+.pill-partially_invoiced{ background: #e8daff;              color: #6929c4; }
+.pill-invoiced          { background: var(--cardamom-pale); color: var(--cardamom); }
+.pill-cancelled         { background: var(--chili-pale);    color: var(--chili); }
+.pill-pending_review    { background: var(--cinnamon-pale); color: var(--cinnamon); }
+.pill-rejected          { background: var(--chili-pale);    color: var(--chili); }
+.pill-expired           { background: var(--surface-3);     color: var(--text-3); }
 
-/* ── Order filter bar ────────────────────────────────────────────── */
+/* ── Order filter bar — Carbon Tag Filter ────────────────────────── */
 .filter-bar {
-  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+  display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px;
 }
 .filter-chip {
-  padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 12px;
+  padding: 0 12px; height: 32px; border-radius: 1rem; cursor: pointer; font-size: 12px;
   border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
-  transition: all 0.1s;
+  display: inline-flex; align-items: center;
+  transition: border-color 0.1s, background 0.1s, color 0.1s;
 }
-.filter-chip:hover { border-color: var(--saffron); color: var(--saffron); }
+.filter-chip:hover { border-color: var(--saffron); color: var(--saffron-deep); background: var(--saffron-pale); }
 .filter-chip.active { background: var(--saffron); color: #fff; border-color: var(--saffron); }
 
 /* ── Print-friendly styles ────────────────────────────────────────── */
@@ -503,12 +580,22 @@ input[type="radio"]    { accent-color: var(--saffron); }
 <!-- ── TOPBAR — full width across the very top ───────────────────── -->
 <div id="topbar">
   <!-- Left: current page -->
-  <div id="page-title" style="font-size:13px;font-weight:600;color:var(--text-2);">Dashboard</div>
+  <div id="page-title">Dashboard</div>
 
-  <!-- Centre: logo + subtitle -->
-  <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-    <img src="/img/spicetopia-logo.svg" alt="Spicetopia" style="height:38px;display:block">
-    <span style="font-size:8.5px;font-weight:700;letter-spacing:3.5px;color:var(--text-3);text-transform:uppercase">Business Management System</span>
+  <!-- Centre: inline SVG logo so IBM Plex Sans renders correctly -->
+  <div style="display:flex;align-items:center;justify-content:center">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 90" style="height:26px;display:block" aria-label="Spicetopia">
+      <defs>
+        <linearGradient id="chiliGrad" x1="0.5" y1="0" x2="0.5" y2="1">
+          <stop offset="0%"   stop-color="#FA7B1A"/>
+          <stop offset="55%"  stop-color="#D43510"/>
+          <stop offset="100%" stop-color="#A81408"/>
+        </linearGradient>
+      </defs>
+      <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif" font-weight="700" font-size="54" fill="#161616" letter-spacing="1"><tspan x="36" y="68">SP</tspan></text>
+      <path d="M128,16 C138,26 140,46 135,58 Q128,67 121,58 C116,46 118,26 128,16 Z" fill="url(#chiliGrad)"/>
+      <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif" font-weight="700" font-size="54" fill="#161616" letter-spacing="1"><tspan x="144" y="68">CETOPIA</tspan></text>
+    </svg>
   </div>
 
   <!-- Right: controls -->
@@ -806,14 +893,14 @@ function showWelcomeModal(user) {
     ">
       <img src="/img/spicetopia-logo-white.svg" alt="Spicetopia"
         style="width:180px;margin-bottom:32px;display:block;margin-left:auto;margin-right:auto;opacity:0.85">
-      <div style="font-size:11px;color:#E8901A;letter-spacing:2.5px;text-transform:uppercase;font-weight:600;margin-bottom:10px">${greeting}</div>
+      <div style="font-size:11px;color:#4589ff;letter-spacing:2.5px;text-transform:uppercase;font-weight:600;margin-bottom:10px">${greeting}</div>
       <div style="font-size:28px;font-weight:700;letter-spacing:-.5px;margin-bottom:28px">${displayName}</div>
       <div style="font-size:42px;font-weight:300;letter-spacing:2px;margin-bottom:6px;color:#fff">${timeStr}</div>
       <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:36px;letter-spacing:.3px">${dateStr}</div>
       <button onclick="document.getElementById('welcome-modal-overlay').remove()"
-        style="background:#E8901A;color:#1C0E04;font-weight:700;font-size:14px;
-               padding:12px 48px;border-radius:10px;border:none;cursor:pointer;
-               box-shadow:0 4px 20px rgba(232,144,26,.35);
+        style="background:#0f62fe;color:#fff;font-weight:400;font-size:14px;
+               padding:12px 48px;border-radius:0;border:none;cursor:pointer;
+               letter-spacing:0.16px;
                transition:opacity .15s;"
         onmouseover="this.style.opacity='.85'"
         onmouseout="this.style.opacity='1'"
