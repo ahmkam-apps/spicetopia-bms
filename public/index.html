@@ -241,23 +241,24 @@ html, body {
 .mb-24  { margin-bottom: 20px; }
 .mt-16  { margin-top: 16px; }
 
-/* ── Tables ──────────────────────────────────────────────────────── */
-.table-wrap { overflow-x: auto; margin-top: 14px; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* ── Tables — Carbon Data Table spec ────────────────────────────── */
+.table-wrap { overflow-x: auto; margin-top: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th {
-  padding: 10px 12px; text-align: left;
-  font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
-  color: var(--text-3); white-space: nowrap;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  padding: 0 16px; height: 40px; text-align: left;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.32px;
+  color: var(--text-1); white-space: nowrap;
+  background: var(--surface-3);
+  border-top: none;
+  border-bottom: 2px solid var(--saffron);
   position: sticky; top: 0; z-index: 1;
 }
-td { padding: 11px 12px; border-bottom: 1px solid var(--surface-3); vertical-align: middle; }
-tr:last-child td { border-bottom: none; }
+td { padding: 0 16px; height: 48px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text-1); }
+tr:last-child td { border-bottom: 1px solid var(--border); }
 tr:hover td { background: var(--surface-2); }
 .text-right  { text-align: right; }
 .text-center { text-align: center; }
-.num { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: -0.3px; }
+.num { font-family: var(--font-mono); font-size: 13px; letter-spacing: -0.2px; }
 
 /* ── Badges — Carbon Tag spec ────────────────────────────────────── */
 .badge {
