@@ -2775,6 +2775,33 @@ def create_customer_order_external(data):
     if source not in ('consumer_website', 'retailer_self_service', 'field_rep', 'rep_assisted'):
         raise ValueError(f"Invalid order_source: {source}")
 
+    # ── Translate portal format → internal format ─────────────────
+    # Portal sends: customerId (int) + items:[{variantId, qty, unitPrice}]
+    # create_customer_order expects: custCode (str) + lines:[{productCode, packSize, qty, unitPrice}]
+    if 'customerId' in data and 'custCode' not in data:
+        cust_row = qry1("SELECT code FROM customers WHERE id=?", (int(data['customerId']),))
+        if not cust_row:
+            raise ValueError(f"Customer not found: id={data['customerId']}")
+        data['custCode'] = cust_row['code']
+
+    if 'items' in data and 'lines' not in data:
+        lines = []
+        for item in data.get('items', []):
+            vid = item.get('variantId')
+            var = qry1("""
+                SELECT pv.sku_code as productCode, pv.pack_size as packSize
+                FROM product_variants pv WHERE pv.id=?
+            """, (vid,))
+            if not var:
+                raise ValueError(f"Product variant not found: variantId={vid}")
+            lines.append({
+                'productCode': var['productCode'],
+                'packSize':    var['packSize'],
+                'qty':         item.get('qty', 1),
+                'unitPrice':   item.get('unitPrice', 0),
+            })
+        data['lines'] = lines
+
     # ── Idempotency check (rep_assisted orders) ───────────────────
     idem_key = data.get('idempotency_key')
     rep_id   = data.get('created_by_rep_id') or data.get('placed_by_rep_id')
