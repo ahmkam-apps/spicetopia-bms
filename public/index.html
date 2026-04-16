@@ -4,53 +4,77 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Spicetopia — Business Management System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════════════
-   Spicetopia ERP — macOS-style UI with Spice Blend palette
+   Spicetopia ERP — IBM Carbon Design System (Option A re-skin)
+   Typography: IBM Plex Sans + IBM Plex Mono
+   Palette: Carbon Gray 10 theme + Spicetopia brand sidebar
+   Sprint A1 applied: 2026-04-15
    ══════════════════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* ── Spice Palette ────────────────────────────────────────────── */
-  --saffron:        #E8901A;   /* primary accent – turmeric/saffron  */
-  --saffron-lt:     #F5AB47;
-  --saffron-pale:   #FEF3E2;
-  --saffron-deep:   #C97610;
-  --cardamom:       #3D7A5A;   /* success / positive                 */
-  --cardamom-lt:    #52A876;
-  --cardamom-pale:  #E6F4EC;
-  --chili:          #C0392B;   /* danger / overdue                   */
-  --chili-pale:     #FDECEA;
-  --cinnamon:       #C47A45;   /* warning / partial                  */
-  --cinnamon-pale:  #FDF0E6;
-  --pepper:         #1C0E04;   /* sidebar bg – dark spice wood       */
-  --pepper-mid:     #2E1A0A;
-  --cumin:          #8B6345;   /* muted brown text                   */
-  --cream:          #F5EFE8;   /* page background                    */
-  --cream-warm:     #FAF5F0;   /* card / surface background          */
+  /* ── Carbon Design System — IBM Plex + Gray 10 theme ─────────── */
 
-  /* ── macOS Semantic Tokens ────────────────────────────────────── */
-  --bg:             #F2EBE3;
-  --surface:        #FFFFFF;
-  --surface-2:      #FAF6F1;
-  --surface-3:      #F3EDE5;
-  --border:         #E8DDD3;
-  --border-strong:  #D5C8BC;
-  --text-1:         #1A0D05;
-  --text-2:         #5C4230;
-  --text-3:         #9E8270;
-  --mac-blue:       #007AFF;   /* macOS system blue for neutral btns */
+  /* Primary interactive (Carbon Blue 60) */
+  --saffron:        #0f62fe;
+  --saffron-lt:     #4589ff;   /* Blue 50 */
+  --saffron-pale:   #d0e2ff;   /* Blue 20 — highlight */
+  --saffron-deep:   #0043ce;   /* Blue 70 — hover */
+
+  /* Success (Carbon Green 50) */
+  --cardamom:       #24a148;
+  --cardamom-lt:    #42be65;   /* Green 40 */
+  --cardamom-pale:  #defbe6;   /* Green 10 */
+
+  /* Danger (Carbon Red 60) */
+  --chili:          #da1e28;
+  --chili-pale:     #fff1f1;   /* Red 10 */
+
+  /* Warning (Carbon Yellow 30 / Orange 40) */
+  --cinnamon:       #f1c21b;   /* Yellow 30 */
+  --cinnamon-pale:  #fcf4d6;   /* Yellow 10 */
+
+  /* Sidebar — keep Spicetopia brand identity */
+  --pepper:         #1C0E04;
+  --pepper-mid:     #2E1A0A;
+  --cumin:          #8B6345;
+  --cream:          #F5EFE8;
+  --cream-warm:     #FAF5F0;
+
+  /* ── Carbon Semantic Tokens (Gray 10 theme) ───────────────────── */
+  --bg:             #f4f4f4;   /* cds-background — Gray 10 */
+  --surface:        #ffffff;   /* cds-layer-01 */
+  --surface-2:      #f4f4f4;   /* cds-layer-02 */
+  --surface-3:      #e8e8e8;   /* cds-layer-03 */
+  --border:         #e0e0e0;   /* cds-border-subtle-01 — Gray 20 */
+  --border-strong:  #8d8d8d;   /* cds-border-strong-01 — Gray 50 */
+  --text-1:         #161616;   /* cds-text-primary — Gray 100 */
+  --text-2:         #525252;   /* cds-text-secondary — Gray 70 */
+  --text-3:         #a8a8a8;   /* cds-text-placeholder — Gray 40 */
+  --mac-blue:       #0f62fe;   /* Carbon Blue 60 */
+
+  /* ── Layout ──────────────────────────────────────────────────── */
   --sidebar-w:      218px;
   --topbar-h:       72px;
-  --r-sm:           6px;
-  --r:              10px;
-  --r-lg:           14px;
-  --r-xl:           18px;
-  --sh-sm:          0 1px 3px rgba(28,14,4,.07), 0 1px 2px rgba(28,14,4,.05);
-  --sh-md:          0 3px 10px rgba(28,14,4,.09), 0 1px 4px rgba(28,14,4,.06);
-  --sh-lg:          0 8px 28px rgba(28,14,4,.12), 0 3px 8px rgba(28,14,4,.08);
-  --font:           -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono:      'SF Mono', 'Menlo', 'Courier New', monospace;
+
+  /* ── Radii — Carbon uses 0–4px (we keep subtle rounding) ─────── */
+  --r-sm:           2px;
+  --r:              4px;
+  --r-lg:           4px;
+  --r-xl:           4px;
+
+  /* ── Shadows — Carbon uses very subtle elevation ─────────────── */
+  --sh-sm:          0 1px 2px rgba(0,0,0,.1);
+  --sh-md:          0 2px 6px rgba(0,0,0,.12);
+  --sh-lg:          0 4px 16px rgba(0,0,0,.16);
+
+  /* ── Typography — IBM Plex ───────────────────────────────────── */
+  --font:           'IBM Plex Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  --font-mono:      'IBM Plex Mono', 'SF Mono', 'Menlo', 'Courier New', monospace;
 }
 
 html, body {
