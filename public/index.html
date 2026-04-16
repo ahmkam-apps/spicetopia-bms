@@ -9345,7 +9345,7 @@ function _rqSourceBadge(src) {
   const map = {
     consumer_website:     ['🛒 Website', '#EAF3FF', 'var(--mac-blue)'],
     retailer_self_service:['🏪 Retailer', '#F0FDF4', 'var(--cardamom)'],
-    field_rep:            ['👤 Field Rep', '#FEF3E2', 'var(--saffron)'],
+    field_rep:            ['👤 Sales Rep', '#FEF3E2', 'var(--saffron)'],
     internal:             ['🖥 Internal', '#F3F4F6', '#6b7280'],
   };
   const [label, bg, col] = map[src] || [src, '#F3F4F6', '#6b7280'];
@@ -9693,7 +9693,7 @@ async function renderUsers() {
     field_rep:  {bg:'#fff3e0',            fg:'#c06400'},
     user:       {bg:'var(--blue-pale)',    fg:'var(--mac-blue)'},
   };
-  const ROLE_LABELS = {admin:'Admin',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
+  const ROLE_LABELS = {admin:'Admin',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
   const users = await GET('/api/users');
   let rows = users.map(u => {
     let perms = [];
@@ -9773,7 +9773,7 @@ function showNewUserForm() {
           <option value="sales">Sales</option>
           <option value="warehouse">Warehouse</option>
           <option value="accountant">Accountant</option>
-          <option value="field_rep">Field Rep</option>
+          <option value="field_rep">Sales Rep</option>
           <option value="admin">Administrator (full access)</option>
         </select>
       </div>
@@ -9803,7 +9803,7 @@ async function saveNewUser() {
   const role     = document.getElementById('nu-role').value;
   if (!username || !password) { showMsg('user-msg','Username and password are required','error'); return; }
   const perms = role !== 'admin' ? getPermGridValues('nu') : [];
-  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
+  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
   try {
     const res = await POST('/api/users', {
       username,
@@ -9832,7 +9832,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
           <option value="sales" ${role==='sales'?'selected':''}>Sales</option>
           <option value="warehouse" ${role==='warehouse'?'selected':''}>Warehouse</option>
           <option value="accountant" ${role==='accountant'?'selected':''}>Accountant</option>
-          <option value="field_rep" ${role==='field_rep'?'selected':''}>Field Rep</option>
+          <option value="field_rep" ${role==='field_rep'?'selected':''}>Sales Rep</option>
           <option value="admin" ${role==='admin'?'selected':''}>Administrator (full access)</option>
         </select>
       </div>
@@ -9868,7 +9868,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
 async function saveEditUser(id) {
   const role  = document.getElementById('eu-role').value;
   const perms = role !== 'admin' ? getPermGridValues('eu') : [];
-  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
+  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
   try {
     await PUT('/api/users/' + id, {
       displayName: document.getElementById('eu-disp').value.trim(),

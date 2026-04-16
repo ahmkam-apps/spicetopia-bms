@@ -1522,7 +1522,7 @@ ROLE_LABELS = {
     'sales':       'Sales',
     'warehouse':   'Warehouse',
     'accountant':  'Accountant',
-    'field_rep':   'Field Rep',
+    'field_rep':   'Sales Rep',
     'user':        'Viewer (read-only)',
 }
 
@@ -2687,7 +2687,7 @@ def _wa_notify_order_queued(order_id):
     if not o:
         return
     src = {'consumer_website': '🛒 Website', 'retailer_self_service': '🏪 Retailer',
-           'field_rep': '👤 Field Rep'}.get(o['order_source'], o['order_source'])
+           'field_rep': '👤 Sales Rep'}.get(o['order_source'], o['order_source'])
     _wa_admin(
         f"🔔 *NEW ORDER IN QUEUE*\n"
         f"Order: {o['order_number']}\n"
