@@ -1119,7 +1119,7 @@ def ensure_full_schema():
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 table_name TEXT NOT NULL,
                 record_id  TEXT NOT NULL,
-                action     TEXT NOT NULL CHECK(action IN ('INSERT','UPDATE','DELETE')),
+                action     TEXT NOT NULL CHECK(action IN ('INSERT','UPDATE','DELETE','VOID')),
                 old_value  TEXT DEFAULT NULL,
                 new_value  TEXT DEFAULT NULL,
                 changed_by TEXT DEFAULT 'system',
@@ -2940,6 +2940,40 @@ def approve_order_with_edit(order_id, data):
     return detail
 
 
+def update_order_item_qty(order_id, item_id, new_qty):
+    """Update qty_ordered on a single order line item (admin/sales only).
+    Blocked if order is fully_invoiced or cancelled.
+    Cannot reduce below qty_invoiced + qty_in_production (already committed)."""
+    order = qry1("SELECT * FROM customer_orders WHERE id=?", (order_id,))
+    if not order:
+        raise ValueError("Order not found")
+    if order['status'] in ('fully_invoiced', 'cancelled'):
+        raise ValueError(f"Cannot edit items on a {order['status']} order")
+
+    item = qry1("SELECT * FROM customer_order_items WHERE id=? AND order_id=?", (item_id, order_id))
+    if not item:
+        raise ValueError(f"Item {item_id} not found on order {order_id}")
+
+    new_qty = int(new_qty)
+    if new_qty <= 0:
+        raise ValueError("Quantity must be greater than zero")
+
+    committed = (item['qty_in_production'] or 0) + (item['qty_invoiced'] or 0)
+    if new_qty < committed:
+        raise ValueError(
+            f"Cannot reduce below {committed} units "
+            f"({item['qty_in_production'] or 0} in production + {item['qty_invoiced'] or 0} invoiced)"
+        )
+
+    run("UPDATE customer_order_items SET qty_ordered=? WHERE id=?", (new_qty, item_id))
+
+    # Update soft hold to match new qty (only if order is still in draft/confirmed)
+    if order['status'] in ('draft', 'confirmed'):
+        run("UPDATE customer_order_items SET qty_soft_hold=? WHERE id=?", (new_qty, item_id))
+
+    return _order_detail(order_id)
+
+
 def reject_order(order_id, reason):
     """
     Admin rejects a pending_review order.
@@ -3686,6 +3720,48 @@ def _migrate_supplier_bills_void():
         c.close()
 
 
+def _migrate_change_log_void_action():
+    """Migration: widen change_log CHECK constraint to include 'VOID'.
+    SQLite doesn't allow ALTER TABLE to change a CHECK constraint, so we recreate the table."""
+    c = _conn()
+    try:
+        c.execute("PRAGMA foreign_keys=OFF")
+        tbl = c.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='change_log'"
+        ).fetchone()
+        if not tbl:
+            return  # table doesn't exist yet — schema creation handles it
+        tbl_sql = tbl[0] or ''
+        if "'VOID'" in tbl_sql or '"VOID"' in tbl_sql:
+            return  # already has VOID — nothing to do
+        # Recreate with the wider constraint
+        c.execute("""CREATE TABLE IF NOT EXISTS change_log_new (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_name TEXT NOT NULL,
+            record_id  TEXT NOT NULL,
+            action     TEXT NOT NULL CHECK(action IN ('INSERT','UPDATE','DELETE','VOID')),
+            old_value  TEXT DEFAULT NULL,
+            new_value  TEXT DEFAULT NULL,
+            changed_by TEXT DEFAULT 'system',
+            timestamp  TEXT DEFAULT (datetime('now'))
+        )""")
+        c.execute("""INSERT INTO change_log_new
+            SELECT id, table_name, record_id, action, old_value, new_value, changed_by, timestamp
+            FROM change_log""")
+        c.execute("DROP TABLE change_log")
+        c.execute("ALTER TABLE change_log_new RENAME TO change_log")
+        c.commit()
+        print("  ✓ change_log: widened CHECK constraint to include VOID action")
+    except Exception as e:
+        print(f"  ⚠ change_log migration error: {e}")
+        try: c.rollback()
+        except: pass
+    finally:
+        try: c.execute("PRAGMA foreign_keys=ON")
+        except: pass
+        c.close()
+
+
 def _ensure_supplier_zone_col():
     """Safe migration: add zone_id column to suppliers if not present.
     Also syncs the supplier id_counter to the actual max existing supplier number."""
@@ -3827,6 +3903,8 @@ def create_sale(data):
 
     gross_profit = r2(total - cogs_price)
 
+    _sync_counter_to_max('sale',    'sales',    'sale_id',        'SP-SALE-')
+    _sync_counter_to_max('invoice', 'invoices', 'invoice_number', 'SP-INV-')
     sale_id = next_id('sale', 'SALE')
     inv_num = next_id('invoice', 'INV')
 
@@ -3973,6 +4051,8 @@ def create_multi_sale(data):
     # Generate all IDs BEFORE opening the main transaction.
     # next_id() opens its own connection; calling it inside an open transaction
     # causes a write-lock deadlock (SQLite only allows one writer at a time).
+    _sync_counter_to_max('invoice', 'invoices', 'invoice_number', 'SP-INV-')
+    _sync_counter_to_max('sale',    'sales',    'sale_id',        'SP-SALE-')
     inv_num  = next_id('invoice', 'INV')
     sale_ids = [next_id('sale', 'SALE') for _ in resolved]
 
@@ -4654,6 +4734,8 @@ def generate_invoice_from_order(order_id, data):
     # next_id() opens its own write connection; calling it inside an open
     # transaction causes SQLite SQLITE_BUSY ("database is locked") in WAL mode
     # because only one writer is allowed at a time.
+    _sync_counter_to_max('invoice', 'invoices', 'invoice_number', 'SP-INV-')
+    _sync_counter_to_max('sale',    'sales',    'sale_id',        'SP-SALE-')
     inv_number   = next_id('invoice', 'INV')
     sale_ids_pre = [next_id('sale', 'SALE') for _ in resolved]
 
@@ -4765,6 +4847,7 @@ def record_customer_payment(data):
     if amount <= 0:
         raise ValueError("Payment amount must be positive")
 
+    _sync_counter_to_max('payment', 'customer_payments', 'payment_ref', 'SP-PAY-')
     pay_ref = next_id('payment', 'PAY')
     ops = [("""
         INSERT INTO customer_payments
@@ -4831,6 +4914,7 @@ def pay_invoice_direct(invoice_id, data):
         raise ValueError("Payment amount must be positive")
 
     # Record the payment
+    _sync_counter_to_max('payment', 'customer_payments', 'payment_ref', 'SP-PAY-')
     pay_ref  = next_id('payment', 'PAY')
     pay_date = data.get('paymentDate', today())
     ops = [("""INSERT INTO customer_payments
@@ -5188,6 +5272,10 @@ def update_purchase_order_status(po_id, new_status, data=None):
     if new_status not in allowed.get(po['status'], []):
         raise ValueError(f"Cannot move from {po['status']} to {new_status}")
 
+    # Sync bill counter BEFORE opening transaction (next_id uses conn= inside the tx)
+    if new_status in ('received', 'partial') and not po.get('bill_id'):
+        _sync_counter_to_max('bill', 'supplier_bills', 'bill_number', 'SP-BILL-')
+
     c = _conn()
     try:
         if new_status in ('received', 'partial'):
@@ -5335,7 +5423,10 @@ def bom_calculate_ingredients(variant_id, qty_units):
         ORDER BY version_no DESC LIMIT 1
     """, (var['product_id'],))
     if not bom_ver:
-        raise ValueError(f"No active BOM for {var['product_name']}")
+        raise ValueError(
+            f"No active BOM for {var['product_name']}. "
+            f"Go to Production → BOM Setup → click the red chip for {var.get('product_code', var['product_name'])} to define ingredients."
+        )
     bom_items_list = qry("""
         SELECT bi.*, i.id as ing_id, i.code as ing_code
         FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
@@ -5368,6 +5459,94 @@ def bom_calculate_ingredients(variant_id, qty_units):
         'ingredients': result,
         'anyShort':    any(r['toOrderKg'] >= 0.001 for r in result),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  BUSINESS LOGIC — BOM MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════
+
+def create_or_update_bom(data):
+    """
+    Create or replace the active BOM for a product.
+    data: {
+      productCode: str,
+      batchSizeGrams: float,      # e.g. 1000 for a 1kg reference batch
+      effectiveFrom: 'YYYY-MM-DD',
+      items: [{ ingCode: str, quantityGrams: float }]
+    }
+    Deactivates any existing active BOM for the product, then inserts a new
+    bom_version (version_no = prev_max + 1) and its bom_items.
+    """
+    prod = qry1("SELECT id, code, name FROM products WHERE code=?",
+                (data.get('productCode','').upper().strip(),))
+    if not prod:
+        raise ValueError(f"Product not found: {data.get('productCode')}")
+
+    items = data.get('items', [])
+    if not items:
+        raise ValueError("BOM must have at least one ingredient")
+
+    batch_size = float(data.get('batchSizeGrams', 1000) or 1000)
+    if batch_size <= 0:
+        raise ValueError("batchSizeGrams must be positive")
+
+    eff_from = data.get('effectiveFrom') or today()
+
+    # Resolve ingredient codes → ids
+    resolved_items = []
+    for it in items:
+        ing_code = str(it.get('ingCode', '')).strip()
+        qty_g    = float(it.get('quantityGrams', 0))
+        if not ing_code:
+            raise ValueError("Each item must have ingCode")
+        if qty_g <= 0:
+            raise ValueError(f"quantityGrams must be positive for {ing_code}")
+        ing = qry1("SELECT id, code FROM ingredients WHERE code=? AND COALESCE(active,1)=1", (ing_code,))
+        if not ing:
+            raise ValueError(f"Ingredient not found or inactive: {ing_code}")
+        resolved_items.append({'ing_id': ing['id'], 'qty_g': qty_g})
+
+    c = _conn()
+    try:
+        # Deactivate old BOMs for this product
+        c.execute("UPDATE bom_versions SET active_flag=0 WHERE product_id=? AND active_flag=1",
+                  (prod['id'],))
+
+        # Next version number
+        row = c.execute("SELECT MAX(version_no) FROM bom_versions WHERE product_id=?",
+                        (prod['id'],)).fetchone()
+        next_ver = (row[0] or 0) + 1
+
+        # Insert new BOM version
+        c.execute("""
+            INSERT INTO bom_versions (product_id, version_no, batch_size_grams, effective_from, active_flag, notes)
+            VALUES (?,?,?,?,1,?)
+        """, (prod['id'], next_ver, batch_size, eff_from, data.get('notes', '')))
+        bom_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Insert items
+        for it in resolved_items:
+            c.execute("""
+                INSERT INTO bom_items (bom_version_id, ingredient_id, quantity_grams)
+                VALUES (?,?,?)
+            """, (bom_id, it['ing_id'], it['qty_g']))
+
+        c.commit()
+    except Exception:
+        c.rollback()
+        raise
+    finally:
+        c.close()
+    save_db()
+
+    # Return full BOM
+    bv = qry1("SELECT * FROM bom_versions WHERE id=?", (bom_id,))
+    bi = qry("""
+        SELECT bi.*, i.code as ing_code, i.name as ing_name
+        FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
+        WHERE bi.bom_version_id=?
+    """, (bom_id,))
+    return {**bv, 'productCode': prod['code'], 'productName': prod['name'], 'items': bi}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -5478,6 +5657,7 @@ def record_supplier_payment(data):
     if amount <= 0:
         raise ValueError("Amount must be positive")
 
+    _sync_counter_to_max('spay', 'supplier_payments', 'payment_ref', 'SP-SPAY-')
     pay_ref = next_id('spay', 'SPAY')
     ops = [("""
         INSERT INTO supplier_payments
@@ -5556,6 +5736,7 @@ def pay_bill_direct(bill_id, data):
         save_db()
         bill_balance = amount  # effective balance = amount being paid
 
+    _sync_counter_to_max('spay', 'supplier_payments', 'payment_ref', 'SP-SPAY-')
     pay_ref  = next_id('spay', 'SPAY')
     pay_date = data.get('paymentDate', today())
     ops = [("""INSERT INTO supplier_payments
@@ -5600,7 +5781,7 @@ def check_wo_feasibility(variant_id, qty_units, wo_id=None):
     if not bom_ver:
         return {'feasible': False, 'shortfalls': ['No active BOM for this product'], 'requirements': []}
     bom_items_list = qry("""
-        SELECT bi.*, i.code as ing_code
+        SELECT bi.*, i.code as ing_code, i.name as ing_name
         FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
         WHERE bi.bom_version_id=?
     """, (bom_ver['id'],))
@@ -5619,6 +5800,7 @@ def check_wo_feasibility(variant_id, qty_units, wo_id=None):
         deficit   = max(0.0, needed - available)
         requirements.append({
             'ingCode':        b['ing_code'],
+            'ingName':        b['ing_name'] or b['ing_code'],
             'neededGrams':    needed,
             'physicalGrams':  physical,
             'reservedGrams':  reserved,
@@ -5659,11 +5841,14 @@ def get_procurement_list(wo_id):
         ORDER BY version_no DESC LIMIT 1
     """, (wo['product_id'],))
     if not bom_ver:
-        raise ValueError(f"No active BOM for {wo['product_name']}")
+        raise ValueError(
+            f"No active BOM for {wo['product_name']}. "
+            f"Go to Production → BOM Setup → click the red chip for {wo['product_code']} to define ingredients."
+        )
 
     bom_items_list = qry("""
         SELECT bi.quantity_grams,
-               i.id as ingredient_id, i.code as ing_code,
+               i.id as ingredient_id, i.code as ing_code, i.name as ing_name,
                i.cost_per_kg
         FROM bom_items bi JOIN ingredients i ON i.id = bi.ingredient_id
         WHERE bi.bom_version_id = ?
@@ -5688,6 +5873,7 @@ def get_procurement_list(wo_id):
         total_procure_cost += est_cost
         lines.append({
             'ingCode':          b['ing_code'],
+            'ingName':          b['ing_name'] or b['ing_code'],
             'neededGrams':      needed,
             'availableGrams':   avail,
             'toProcureGrams':   procure,
@@ -5801,6 +5987,7 @@ def create_work_order(data):
     if not var:
         raise ValueError("Product variant not found")
     feasibility = check_wo_feasibility(variant_id, qty_units)
+    _sync_counter_to_max('work_order', 'work_orders', 'wo_number', 'SP-WO-')
     wo_number = next_id('work_order', 'WO')
     c = _conn()
     try:
@@ -5930,7 +6117,10 @@ def create_production_batch(data, exclude_wo_id=None):
         ORDER BY version_no DESC LIMIT 1
     """, (var['product_id'],))
     if not bom_ver:
-        raise ValueError(f"No active BOM found for product {data.get('productCode')}")
+        raise ValueError(
+            f"No active BOM found for {var['product_name']}. "
+            f"Go to Production → BOM Setup → click the red chip for {data.get('productCode','this product')} to define ingredients."
+        )
 
     bom_items_list = qry("""
         SELECT bi.*, i.code as ing_code, i.id as ingredient_id
@@ -5974,6 +6164,7 @@ def create_production_batch(data, exclude_wo_id=None):
     if shortfalls:
         raise ValueError("Insufficient stock:\n" + "\n".join(shortfalls))
 
+    _sync_counter_to_max('batch', 'production_batches', 'batch_id', 'SP-BATCH-')
     batch_id   = next_id('batch', 'BATCH')
     batch_date = data.get('batchDate', today())
 
@@ -6426,6 +6617,130 @@ def import_ingredients_master(rows):
     return {'imported': imported, 'updated': updated, 'deactivated': deactivated, 'errors': errors}
 
 
+def import_bom_master(rows):
+    """
+    Upload BOMs from a CSV/XLSX file.
+
+    Required columns: product_code, ing_code, quantity_grams
+    Optional columns: batch_size_grams (default 1000), notes, effective_from
+
+    One row per ingredient per product. Multiple rows with the same product_code
+    are grouped into a single BOM. Any existing active BOM for that product is
+    replaced with a new version.
+
+    Example:
+        product_code | batch_size_grams | ing_code | quantity_grams
+        SPCM         | 1000             | ING-001  | 300
+        SPCM         | 1000             | ING-002  | 700
+        SPGM         | 1000             | ING-003  | 400
+    """
+    from collections import defaultdict
+
+    errors   = []
+    imported = 0   # products with a new BOM created
+    skipped  = 0   # rows skipped due to errors
+
+    # Normalise column names (lowercase, strip spaces)
+    def _col(row, *names):
+        for n in names:
+            for k, v in row.items():
+                if k.strip().lower() == n.lower():
+                    return str(v).strip()
+        return ''
+
+    # Group rows by product_code
+    groups = defaultdict(list)
+    for i, row in enumerate(rows, 1):
+        pcode   = _col(row, 'product_code', 'product code').upper()
+        ing     = _col(row, 'ing_code', 'ingredient_code', 'ingredient code').upper()
+        qty_raw = _col(row, 'quantity_grams', 'qty_grams', 'grams')
+        if not pcode:
+            errors.append(f"Row {i}: missing product_code — skipped"); skipped += 1; continue
+        if not ing:
+            errors.append(f"Row {i}: missing ing_code — skipped"); skipped += 1; continue
+        try:
+            qty = float(qty_raw.replace(',', ''))
+            if qty <= 0: raise ValueError()
+        except (ValueError, AttributeError):
+            errors.append(f"Row {i}: invalid quantity_grams '{qty_raw}' — skipped"); skipped += 1; continue
+
+        batch_raw = _col(row, 'batch_size_grams', 'batch_size', 'batch size')
+        try:
+            batch_size = float(batch_raw.replace(',', '')) if batch_raw else 1000
+        except (ValueError, AttributeError):
+            batch_size = 1000
+
+        groups[pcode].append({
+            'ing_code':    ing,
+            'qty_g':       qty,
+            'batch_size':  batch_size,
+            'notes':       _col(row, 'notes'),
+            'eff_from':    _col(row, 'effective_from', 'effective from') or today(),
+        })
+
+    # Build one BOM per product
+    for pcode, items in groups.items():
+        prod = qry1("SELECT id, name FROM products WHERE code=?", (pcode,))
+        if not prod:
+            errors.append(f"Product not found: {pcode} — skipped")
+            skipped += len(items)
+            continue
+
+        # Use batch_size and effective_from from first row
+        batch_size = items[0]['batch_size']
+        eff_from   = items[0]['eff_from']
+        notes      = items[0]['notes']
+
+        # Resolve ingredient codes
+        resolved = []
+        bad = False
+        for it in items:
+            ing = qry1("SELECT id FROM ingredients WHERE code=? AND COALESCE(active,1)=1", (it['ing_code'],))
+            if not ing:
+                errors.append(f"Ingredient not found: {it['ing_code']} (product {pcode}) — BOM skipped")
+                bad = True; break
+            resolved.append({'ing_id': ing['id'], 'qty_g': it['qty_g']})
+        if bad:
+            skipped += len(items)
+            continue
+
+        # Create new BOM version (deactivate old)
+        c = _conn()
+        try:
+            c.execute("UPDATE bom_versions SET active_flag=0 WHERE product_id=? AND active_flag=1",
+                      (prod['id'],))
+            row_ver = c.execute("SELECT MAX(version_no) FROM bom_versions WHERE product_id=?",
+                                (prod['id'],)).fetchone()
+            next_ver = (row_ver[0] or 0) + 1
+            c.execute("""
+                INSERT INTO bom_versions
+                    (product_id, version_no, batch_size_grams, effective_from, active_flag, notes)
+                VALUES (?,?,?,?,1,?)
+            """, (prod['id'], next_ver, batch_size, eff_from, notes))
+            bom_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            for r in resolved:
+                c.execute("""
+                    INSERT INTO bom_items (bom_version_id, ingredient_id, quantity_grams)
+                    VALUES (?,?,?)
+                """, (bom_id, r['ing_id'], r['qty_g']))
+            c.commit()
+            imported += 1
+        except Exception as e:
+            c.rollback()
+            errors.append(f"DB error for {pcode}: {e}")
+            skipped += len(items)
+        finally:
+            c.close()
+
+    save_db()
+    return {
+        'imported': imported,
+        'skipped':  skipped,
+        'errors':   errors,
+        'message':  f"{imported} product BOM(s) created/updated, {skipped} rows skipped"
+    }
+
+
 def create_ingredient(data):
     """Create a new ingredient."""
     code = str(data.get('code', '')).strip().upper()
@@ -6477,13 +6792,15 @@ def update_ingredient(code, data):
         pct = round(((new_cost - old_cost) / old_cost * 100), 2) if old_cost > 0 else None
         set_parts.append("cost_per_kg=?"); vals.append(new_cost)
         # Log price history immediately (separate connection to avoid nesting)
+        changed_by = data.get('changed_by', 'admin')
         c2 = _conn()
         try:
             c2.execute("""
                 INSERT INTO ingredient_price_history
-                    (ingredient_id, old_cost_per_kg, new_cost_per_kg, pct_change, source)
-                VALUES (?, ?, ?, ?, 'manual')
-            """, (ing['id'], old_cost if old_cost > 0 else None, new_cost, pct))
+                    (ingredient_id, old_cost_per_kg, new_cost_per_kg, pct_change,
+                     change_type, changed_by, source)
+                VALUES (?, ?, ?, ?, 'ingredient', ?, 'manual')
+            """, (ing['id'], old_cost if old_cost > 0 else None, new_cost, pct, changed_by))
             c2.commit()
         finally:
             c2.close()
@@ -6506,6 +6823,58 @@ def update_ingredient(code, data):
     save_db()
     load_ref()
     return qry1("SELECT * FROM ingredients WHERE code=?", (code,))
+
+
+def bulk_update_ingredient_costs(rows, username):
+    """
+    Bulk update cost_per_kg for multiple ingredients.
+    rows: list of {code, cost_per_kg}
+    Logs each change to ingredient_price_history.
+    Returns {updated, skipped, errors}.
+    """
+    updated, skipped, errors = 0, 0, []
+    for row in rows:
+        code = str(row.get('code', '')).strip()
+        if not code:
+            skipped += 1
+            continue
+        try:
+            new_cost = float(str(row.get('cost_per_kg', '')).replace(',', '') or 0)
+        except (ValueError, TypeError):
+            errors.append({'code': code, 'error': 'Invalid cost_per_kg'})
+            continue
+        if new_cost < 0:
+            errors.append({'code': code, 'error': 'Cost cannot be negative'})
+            continue
+        ing = qry1("SELECT id, cost_per_kg FROM ingredients WHERE code=? AND COALESCE(active,1)=1", (code,))
+        if not ing:
+            skipped += 1
+            continue
+        old_cost = float(ing['cost_per_kg'] or 0)
+        if old_cost == new_cost:
+            skipped += 1
+            continue
+        pct = round(((new_cost - old_cost) / old_cost * 100), 2) if old_cost > 0 else None
+        c = _conn()
+        try:
+            c.execute("UPDATE ingredients SET cost_per_kg=?, updated_at=? WHERE code=?",
+                      (new_cost, today(), code))
+            c.execute("""
+                INSERT INTO ingredient_price_history
+                    (ingredient_id, old_cost_per_kg, new_cost_per_kg, pct_change,
+                     change_type, changed_by, source)
+                VALUES (?, ?, ?, ?, 'ingredient', ?, 'bulk')
+            """, (ing['id'], old_cost if old_cost > 0 else None, new_cost, pct, username))
+            c.commit()
+            updated += 1
+        except Exception as e:
+            errors.append({'code': code, 'error': str(e)})
+        finally:
+            c.close()
+    if updated > 0:
+        save_db()
+        load_ref()
+    return {'updated': updated, 'skipped': skipped, 'errors': errors}
 
 
 def deactivate_ingredient(code):
@@ -7895,6 +8264,7 @@ class Handler(BaseHTTPRequestHandler):
                           AND pp.price_type_id = pt.id
                           AND pp.active_flag = 1
                     WHERE   pv.active_flag = 1
+                      AND   pt.code != 'mfg_cost'
                     ORDER   BY p.name, ps.grams, pt.id
                 """)
                 send_json(self, rows)
@@ -7918,7 +8288,7 @@ class Handler(BaseHTTPRequestHandler):
                         'balanceGrams': r2(bal),
                         'status':       'INACTIVE' if not active else (
                                         'OK' if bal > float(i.get('reorder_level') or 0) else
-                                        ('LOW' if bal > 0 else 'OUT_OF_STOCK')),
+                                        ('LOW' if bal > 0 else 'OUT')),
                     })
                 send_json(self, result)
                 return
@@ -8021,7 +8391,7 @@ class Handler(BaseHTTPRequestHandler):
                     bal = stock_map.get(iid['id'], 0) if iid else 0
                     ingredients.append({**i, 'balanceGrams': r2(bal),
                                         'status': ('OK' if bal > i.get('reorder_level',0)
-                                                   else ('LOW' if bal > 0 else 'OUT_OF_STOCK'))})
+                                                   else ('LOW' if bal > 0 else 'OUT'))})
                 send_json(self, {
                     'products':    products,
                     'customers':   ref.get('customers', []),
@@ -8357,7 +8727,7 @@ class Handler(BaseHTTPRequestHandler):
                         'balanceGrams':      r2(bal),
                         'reservedGrams':     r2(reserved),
                         'availableGrams':    available,
-                        'status':            'OK' if available > rl else ('LOW' if available > 0 else 'OUT_OF_STOCK'),
+                        'status':            'OK' if available > rl else ('LOW' if available > 0 else 'OUT'),
                         'cost_per_kg':       cost,
                         'prev_cost_per_kg':  old_cost,          # None = no previous data
                         'cost_pct_change':   round(pct_chg, 2) if pct_chg is not None else None,
@@ -8390,6 +8760,28 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/work-orders
             if path == '/api/work-orders':
                 send_json(self, list_work_orders())
+                return
+
+            # GET /api/work-orders/:id  — single WO detail
+            if path.startswith('/api/work-orders/') and path.count('/') == 3 and path.split('/')[-1].isdigit():
+                wo_id = int(path.split('/')[-1])
+                wo = qry1("""
+                    SELECT wo.*, p.name as product_name, p.code as product_code,
+                           ps.label as pack_size, pv.sku_code,
+                           co.order_number as customer_order_number,
+                           wo.customer_order_id
+                    FROM work_orders wo
+                    JOIN product_variants pv ON pv.id = wo.product_variant_id
+                    JOIN products p ON p.id = pv.product_id
+                    LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                    LEFT JOIN customer_orders co ON co.id = wo.customer_order_id
+                    WHERE wo.id=?
+                """, (wo_id,))
+                if not wo:
+                    send_error(self, "Work order not found", 404); return
+                procurement = get_procurement_list(wo_id)
+                wo['ingredients'] = procurement.get('lines', [])
+                send_json(self, wo)
                 return
 
             # GET /api/work-orders/:id/procurement
@@ -8432,7 +8824,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not batch:
                     send_error(self, "Batch not found", 404); return
                 consumption = qry("""
-                    SELECT pc.qty_grams, i.code as ing_code,
+                    SELECT pc.qty_grams, i.code as ing_code, i.name as ing_name,
                            i.cost_per_kg,
                            ROUND(pc.qty_grams / 1000.0 * i.cost_per_kg, 2) as line_cost
                     FROM production_consumption pc
@@ -8453,6 +8845,7 @@ class Handler(BaseHTTPRequestHandler):
                 rows = qry("""
                     SELECT pb.*, p.code as product_code, p.name as product_name,
                            ps.label as pack_label,
+                           wo.wo_number,
                            COALESCE((
                                SELECT ROUND(SUM(pc.qty_grams / 1000.0 * i.cost_per_kg), 2)
                                FROM production_consumption pc
@@ -8463,6 +8856,7 @@ class Handler(BaseHTTPRequestHandler):
                     JOIN products p ON p.id = pb.product_id
                     LEFT JOIN product_variants pv ON pv.id = pb.product_variant_id
                     LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                    LEFT JOIN work_orders wo ON wo.batch_id = pb.batch_id
                     ORDER BY pb.batch_date DESC LIMIT 200
                 """)
                 for row in rows:
@@ -8710,6 +9104,63 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_ap_aging())
                 return
 
+            # GET /api/costing/config  (admin only)
+            if path == '/api/costing/config':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                send_json(self, get_costing_config())
+                return
+
+            # GET /api/costing/standard-costs  (admin only)
+            if path == '/api/costing/standard-costs':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                send_json(self, get_all_standard_costs())
+                return
+
+            # GET /api/costing/standard-costs/:productCode/:packSize  (admin only)
+            if path.startswith('/api/costing/standard-costs/') and len(path.split('/')) == 6:
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                parts = path.split('/')
+                result = compute_standard_cost(parts[4], parts[5])
+                if not result:
+                    send_error(self, 'SKU not found', 404); return
+                send_json(self, result)
+                return
+
+            # GET /api/costing/batch-variances  (admin only)
+            if path == '/api/costing/batch-variances':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                days = int(qs.get('days', ['90'])[0])
+                send_json(self, get_batch_variances(days))
+                return
+
+            # GET /api/costing/price-history  (admin only)
+            if path == '/api/costing/price-history':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                limit = int(qs.get('limit', ['100'])[0])
+                change_type = qs.get('type', [None])[0]
+                days = qs.get('days', [None])[0]
+                days = int(days) if days else None
+                send_json(self, get_price_history(limit=limit, change_type=change_type, days=days))
+                return
+
+            # GET /api/costing/margin-alerts  (admin only)
+            if path == '/api/costing/margin-alerts':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                include_dismissed = qs.get('dismissed', ['false'])[0].lower() == 'true'
+                alerts = get_margin_alerts(include_dismissed=include_dismissed)
+                # Optionally trigger email for new unsent alerts
+                unsent = [a for a in alerts if not a.get('dismissed') and not a.get('emailSent')]
+                if unsent:
+                    send_margin_alert_email(unsent)
+                send_json(self, alerts)
+                return
+
             # GET /api/reports/pl?year=YYYY
             if path == '/api/reports/pl':
                 sess = get_session(self, qs)
@@ -8744,7 +9195,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not bv:
                     send_json(self, {'version': None, 'items': []}); return
                 items = qry("""
-                    SELECT bi.*, i.code as ing_code
+                    SELECT bi.*, i.code as ing_code, i.name as ing_name
                     FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
                     WHERE bi.bom_version_id=?
                 """, (bv['id'],))
@@ -9155,6 +9606,29 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
+            # POST /api/ingredients/costs/bulk  (admin only — bulk cost update)
+            if path == '/api/ingredients/costs/bulk':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                rows = data.get('rows', [])
+                if not rows:
+                    send_error(self, 'rows array required', 400); return
+                result = bulk_update_ingredient_costs(rows, sess.get('username', 'admin'))
+                send_json(self, result)
+                return
+
+            # POST /api/costing/margin-alerts/:id/dismiss  (admin only)
+            if path.startswith('/api/costing/margin-alerts/') and path.endswith('/dismiss'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                try:
+                    alert_id = int(path.split('/')[-2])
+                    result = dismiss_margin_alert(alert_id, sess.get('username', 'admin'))
+                    send_json(self, result)
+                except (ValueError, IndexError) as e:
+                    send_error(self, str(e), 400)
+                return
+
             # POST /api/customers/:id/reactivate  (admin only)
             if path.startswith('/api/customers/') and path.endswith('/reactivate'):
                 if sess['role'] != 'admin':
@@ -9422,6 +9896,14 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
+            # POST /api/bom  (admin only — create / replace active BOM for a product)
+            if path == '/api/bom':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                result = create_or_update_bom(data)
+                send_json(self, result, 201)
+                return
+
             # POST /api/production  (admin, warehouse)
             if path == '/api/production':
                 if not require(sess, 'admin', 'warehouse'):
@@ -9451,7 +9933,7 @@ class Handler(BaseHTTPRequestHandler):
                 if sess['role'] != 'admin':
                     send_json(self, {'ok': False, 'error': 'Permission denied'}, 403); return
                 master_type = path.split('/')[-1]
-                if master_type not in ('customers', 'suppliers', 'products', 'prices', 'ingredients'):
+                if master_type not in ('customers', 'suppliers', 'products', 'prices', 'ingredients', 'bom'):
                     send_json(self, {'ok': False, 'error': f'Unknown master type: {master_type}'}, 400); return
                 try:
                     import cgi as _cgi
@@ -9479,6 +9961,8 @@ class Handler(BaseHTTPRequestHandler):
                         result = import_prices_master(rows)
                     elif master_type == 'ingredients':
                         result = import_ingredients_master(rows)
+                    elif master_type == 'bom':
+                        result = import_bom_master(rows)
                     send_json(self, {'ok': True, 'rows_processed': len(rows), **result})
                 except Exception as e:
                     send_json(self, {'ok': False, 'error': str(e)}, 500)
@@ -9735,6 +10219,46 @@ class Handler(BaseHTTPRequestHandler):
             if not sess:
                 send_json(self, {'error': 'Unauthorized'}, 401); return
 
+            # PUT /api/products/variants/:id/wastage  (admin only)
+            parts = path.split('/')
+            if (path.startswith('/api/products/variants/') and
+                    len(parts) == 6 and parts[5] == 'wastage'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                variant_id  = int(parts[4])
+                wastage_pct = data.get('wastage_pct')
+                if wastage_pct is None:
+                    send_error(self, 'wastage_pct required', 400); return
+                wpct = float(wastage_pct)
+                if not (0 <= wpct < 1):
+                    send_error(self, 'wastage_pct must be between 0 and 0.99', 400); return
+                c = _conn()
+                try:
+                    c.execute(
+                        "UPDATE product_variants SET wastage_pct=? WHERE id=?",
+                        (wpct, variant_id)
+                    )
+                    c.commit()
+                finally:
+                    c.close()
+                send_json(self, {'ok': True, 'variant_id': variant_id, 'wastage_pct': wpct})
+                return
+
+            # PUT /api/costing/config  (admin only)
+            if path == '/api/costing/config':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                key   = data.get('key')
+                value = data.get('value')
+                if not key or value is None:
+                    send_error(self, 'key and value required', 400); return
+                try:
+                    result = update_costing_config(key, str(value), sess.get('username', 'admin'))
+                    send_json(self, result)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
             # PUT /api/users/:id
             if path.startswith('/api/users/') and len(path.split('/')) == 4:
                 uid    = int(path.split('/')[3])
@@ -9783,6 +10307,20 @@ class Handler(BaseHTTPRequestHandler):
                 if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 result = set_product_price(data)
+                send_json(self, result)
+                return
+
+            # PUT /api/customer-orders/:id/items/:item_id  (admin, sales)
+            if path.startswith('/api/customer-orders/') and '/items/' in path and len(path.split('/')) == 6:
+                if not require(sess, 'admin', 'sales'):
+                    send_error(self, 'Permission denied', 403); return
+                parts    = path.split('/')
+                order_id = int(parts[3])
+                item_id  = int(parts[5])
+                new_qty  = data.get('qty')
+                if new_qty is None:
+                    send_error(self, 'qty is required', 400); return
+                result = update_order_item_qty(order_id, item_id, new_qty)
                 send_json(self, result)
                 return
 
@@ -10292,6 +10830,577 @@ def get_ingredient_price_history(ingredient_id=None, limit=50):
 
 
 # ═══════════════════════════════════════════════════════════════════
+#  COSTING CONFIG — table, seed, get, update
+# ═══════════════════════════════════════════════════════════════════
+
+def ensure_costing_config():
+    """Create costing_config + costing_config_history tables and seed defaults. Idempotent."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS costing_config (
+                key        TEXT PRIMARY KEY,
+                value      TEXT NOT NULL,
+                label      TEXT,
+                updated_at TEXT,
+                updated_by TEXT
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS costing_config_history (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                config_key TEXT NOT NULL,
+                old_value  TEXT,
+                new_value  TEXT NOT NULL,
+                pct_change REAL,
+                changed_by TEXT,
+                changed_at TEXT DEFAULT (datetime('now')),
+                note       TEXT
+            )
+        """)
+        defaults = [
+            ('packaging_cost_per_unit', '15.00', 'Packaging Cost per Unit (Rs)'),
+            ('overhead_pct',            '0.10',  'Overhead % of RM Cost'),
+            ('margin_mfr',              '1.30',  'Direct Sale Margin Multiplier'),
+            ('margin_dist',             '1.10',  'Distributor Margin Multiplier'),
+            ('margin_mrp',              '1.22',  'MRP Margin Multiplier'),
+            ('margin_floor_pct',        '30.00', 'Minimum Profit Margin % (alert threshold)'),
+            ('labour_cost_per_unit',    '5.00',  'Labour Cost per Unit (Rs)'),
+        ]
+        for key, value, label in defaults:
+            c.execute(
+                "INSERT OR IGNORE INTO costing_config (key, value, label) VALUES (?,?,?)",
+                (key, value, label)
+            )
+        # Update overhead if still at old placeholder 0.29
+        c.execute("UPDATE costing_config SET value='0.10' WHERE key='overhead_pct' AND value='0.29'")
+        # Update stale labels
+        c.execute("UPDATE costing_config SET label='Direct Sale Margin Multiplier' WHERE key='margin_mfr'")
+        c.execute("UPDATE costing_config SET label='Minimum Profit Margin % (alert threshold)' WHERE key='margin_floor_pct'")
+        c.commit()
+        print("  \u2713 Costing config table ready")
+    finally:
+        c.close()
+
+
+def ensure_variant_wastage_pct():
+    """Add wastage_pct column to product_variants. Idempotent."""
+    c = _conn()
+    try:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(product_variants)").fetchall()}
+        if 'wastage_pct' not in existing:
+            c.execute("ALTER TABLE product_variants ADD COLUMN wastage_pct REAL DEFAULT 0")
+            print("  \u2713 product_variants: added wastage_pct")
+        c.commit()
+    finally:
+        c.close()
+
+
+def ensure_price_types_sprint6():
+    """Update price_type labels for Sprint 6 terminology + add bulk. Idempotent."""
+    c = _conn()
+    try:
+        updates = [
+            ('mfg_cost',    'Cost to Make'),
+            ('ex_factory',  'Direct Sale'),
+            ('retail_mrp',  'MRP'),
+            ('distributor', 'Distributor'),
+        ]
+        for code, label in updates:
+            c.execute("UPDATE price_types SET label=? WHERE code=?", (label, code))
+        c.execute("INSERT OR IGNORE INTO price_types (code, label) VALUES ('bulk', 'Bulk')")
+        c.commit()
+        print("  \u2713 price_types: Sprint 6 labels updated + bulk added")
+    finally:
+        c.close()
+
+
+def ensure_price_history_extended():
+    """Add change_type, config_key, changed_by, note columns to ingredient_price_history. Idempotent."""
+    c = _conn()
+    try:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(ingredient_price_history)").fetchall()}
+        additions = [
+            ('change_type', "TEXT DEFAULT 'ingredient'"),
+            ('config_key',  'TEXT'),
+            ('changed_by',  "TEXT DEFAULT 'system'"),
+            ('note',        'TEXT'),
+        ]
+        for col, typedef in additions:
+            if col not in existing:
+                c.execute("ALTER TABLE ingredient_price_history ADD COLUMN {} {}".format(col, typedef))
+                print("  \u2713 price_history: added {}".format(col))
+        c.commit()
+    finally:
+        c.close()
+
+
+def get_costing_config():
+    """Return all costing config values as a dict keyed by config key."""
+    rows = qry("SELECT key, value, label, updated_at, updated_by FROM costing_config ORDER BY key")
+    return {r['key']: dict(r) for r in rows}
+
+
+def _get_config_val(cfg, key, default):
+    """Helper — extract float from costing_config dict."""
+    try:
+        return float(cfg[key]['value'])
+    except (KeyError, TypeError, ValueError):
+        return default
+
+
+def compute_standard_cost(product_code, pack_size_label, cfg=None):
+    """
+    Compute standard cost for one SKU using current BOM + ingredient costs + costing_config.
+    Returns dict with full cost breakdown, or None if no active BOM.
+    pack_size_label: e.g. '50g', '100g', '1000g'
+    """
+    if cfg is None:
+        cfg = get_costing_config()
+
+    packaging    = _get_config_val(cfg, 'packaging_cost_per_unit', 15.0)
+    overhead_pct = _get_config_val(cfg, 'overhead_pct', 0.10)
+    margin_mfr   = _get_config_val(cfg, 'margin_mfr', 1.30)
+    margin_dist  = _get_config_val(cfg, 'margin_dist', 1.10)
+    margin_mrp   = _get_config_val(cfg, 'margin_mrp', 1.22)
+    floor_pct    = _get_config_val(cfg, 'margin_floor_pct', 30.0)
+    labour       = _get_config_val(cfg, 'labour_cost_per_unit', 5.0)
+
+    # Fetch variant (include wastage_pct)
+    variant = qry1("""
+        SELECT pv.id, pv.sku_code, p.code as product_code, p.name as product_name,
+               ps.label as pack_size, ps.grams as pack_grams, pv.product_id,
+               COALESCE(pv.wastage_pct, 0) as wastage_pct
+        FROM product_variants pv
+        JOIN products p   ON p.id = pv.product_id
+        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+        WHERE p.code=? AND ps.label=? AND pv.active_flag=1
+    """, (product_code, pack_size_label))
+    if not variant:
+        return None
+
+    wastage_pct = float(variant['wastage_pct'] or 0)
+
+    # Fetch active BOM
+    bom_ver = qry1("""
+        SELECT * FROM bom_versions WHERE product_id=? AND active_flag=1
+        ORDER BY version_no DESC LIMIT 1
+    """, (variant['product_id'],))
+    if not bom_ver:
+        return {
+            'productCode': product_code, 'productName': variant['product_name'],
+            'packSize': pack_size_label, 'skuCode': variant['sku_code'],
+            'variantId': variant['id'],
+            'has_bom': False, 'ingredients': [],
+            'rm_cost': 0, 'wastage_adj': 0, 'overhead': 0,
+            'packaging': packaging, 'labour': labour,
+            'cost_to_make': round(packaging + labour, 2),
+            'direct_sale': 0, 'distributor': 0, 'mrp': 0,
+            'gross_margin_pct': 0, 'below_floor': True,
+            'wastage_pct': wastage_pct,
+        }
+
+    # Scale BOM to 1 unit of this pack size
+    pack_grams = float(variant['pack_grams'] or 0)
+    scale = pack_grams / float(bom_ver['batch_size_grams']) if bom_ver['batch_size_grams'] else 0
+
+    bom_items = qry("""
+        SELECT bi.quantity_grams, i.id as ing_id, i.code as ing_code, i.name as ing_name,
+               i.cost_per_kg
+        FROM bom_items bi
+        JOIN ingredients i ON i.id = bi.ingredient_id
+        WHERE bi.bom_version_id=?
+        ORDER BY i.code
+    """, (bom_ver['id'],))
+
+    ingredients = []
+    rm_cost_raw = 0.0
+    for b in bom_items:
+        qty_kg   = round(b['quantity_grams'] * scale / 1000.0, 6)
+        cpkg     = float(b['cost_per_kg'] or 0)
+        line_cost= round(qty_kg * cpkg, 4)
+        rm_cost_raw += line_cost
+        ingredients.append({
+            'code':       b['ing_code'],
+            'name':       b['ing_name'],
+            'qty_kg':     qty_kg,
+            'cost_per_kg':cpkg,
+            'line_cost':  line_cost,
+        })
+
+    # Apply product-level wastage to total RM cost
+    rm_cost_raw = round(rm_cost_raw, 2)
+    if wastage_pct > 0 and wastage_pct < 1:
+        rm_cost_adjusted = round(rm_cost_raw / (1 - wastage_pct), 2)
+    else:
+        rm_cost_adjusted = rm_cost_raw
+    wastage_adj  = round(rm_cost_adjusted - rm_cost_raw, 2)
+
+    overhead     = round(rm_cost_adjusted * overhead_pct, 2)
+    cost_to_make = round(rm_cost_adjusted + overhead + packaging + labour, 2)
+    direct_sale  = round(cost_to_make * margin_mfr, 2)
+    distributor  = round(direct_sale * margin_dist, 2)
+    mrp          = round(distributor * margin_mrp, 2)
+    margin_pct   = round((mrp - cost_to_make) / mrp * 100, 1) if mrp > 0 else 0
+
+    return {
+        'productCode':      product_code,
+        'productName':      variant['product_name'],
+        'packSize':         pack_size_label,
+        'skuCode':          variant['sku_code'],
+        'variantId':        variant['id'],
+        'has_bom':          True,
+        'ingredients':      ingredients,
+        'rm_cost':          rm_cost_adjusted,
+        'wastage_adj':      wastage_adj,
+        'wastage_pct':      wastage_pct,
+        'overhead':         overhead,
+        'packaging':        packaging,
+        'labour':           labour,
+        'cost_to_make':     cost_to_make,
+        'direct_sale':      direct_sale,
+        'distributor':      distributor,
+        'mrp':              mrp,
+        'gross_margin_pct': margin_pct,
+        'below_floor':      margin_pct < floor_pct,
+    }
+
+
+def get_all_standard_costs():
+    """Return standard costs for all active SKUs."""
+    cfg = get_costing_config()
+    variants = qry("""
+        SELECT p.code as product_code, ps.label as pack_size
+        FROM product_variants pv
+        JOIN products p   ON p.id = pv.product_id
+        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+        WHERE pv.active_flag=1 AND p.active=1
+        ORDER BY p.code, ps.grams
+    """)
+    results = []
+    for v in variants:
+        cost = compute_standard_cost(v['product_code'], v['pack_size'], cfg)
+        if cost:
+            results.append(cost)
+    return results
+
+
+def get_batch_variances(days=90):
+    """Compare unit_cost_at_posting vs computed standard cost for recent batches."""
+    cfg = get_costing_config()
+    batches = qry("""
+        SELECT pb.id, pb.batch_id, pb.batch_date, pb.qty_units,
+               pb.unit_cost_at_posting,
+               p.code as product_code, p.name as product_name,
+               ps.label as pack_size
+        FROM production_batches pb
+        JOIN products p ON p.id = pb.product_id
+        LEFT JOIN product_variants pv ON pv.id = pb.product_variant_id
+        LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+        WHERE pb.batch_date >= date('now', ? || ' days')
+        ORDER BY pb.batch_date DESC
+        LIMIT 200
+    """, ('-' + str(days),))
+
+    results = []
+    for b in batches:
+        actual = float(b['unit_cost_at_posting'] or 0)
+        std_data = compute_standard_cost(b['product_code'], b['pack_size'] or '', cfg) if b['pack_size'] else None
+        standard = std_data['total_mfg'] if std_data and std_data.get('has_bom') else None
+        variance = round(actual - standard, 2) if standard is not None else None
+        variance_pct = round((variance / standard) * 100, 1) if standard and variance is not None else None
+        results.append({
+            'batchId':       b['batch_id'],
+            'batchDate':     b['batch_date'],
+            'productCode':   b['product_code'],
+            'productName':   b['product_name'],
+            'packSize':      b['pack_size'],
+            'qtyUnits':      b['qty_units'],
+            'actual_mfg':    actual,
+            'standard_mfg':  standard,
+            'variance':      variance,
+            'variance_pct':  variance_pct,
+            'favourable':    variance_pct is not None and variance_pct < 0,
+            'flag':          variance_pct is not None and variance_pct > 5,
+        })
+    return results
+
+
+def update_costing_config(key, value, username):
+    """Update a single costing config key. Logs change to price_history. Returns full config."""
+    row = qry1("SELECT * FROM costing_config WHERE key=?", (key,))
+    if not row:
+        raise ValueError("Unknown config key: {}".format(key))
+    old_val = float(row['value'])
+    new_val = float(value)
+    pct     = round((new_val - old_val) / old_val * 100, 2) if old_val != 0 else 0
+    c = _conn()
+    try:
+        # Log to costing_config_history
+        c.execute("""
+            INSERT INTO costing_config_history
+                (config_key, old_value, new_value, pct_change, changed_by)
+            VALUES (?, ?, ?, ?, ?)
+        """, (key, str(old_val), str(new_val), pct, username))
+        c.execute("""
+            UPDATE costing_config
+            SET value=?, updated_at=datetime('now'), updated_by=?
+            WHERE key=?
+        """, (str(new_val), username, key))
+        c.commit()
+    finally:
+        c.close()
+    save_db()
+    return get_costing_config()
+
+
+def ensure_margin_alerts_table():
+    """Create margin_alerts table if not present (idempotent)."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS margin_alerts (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_code TEXT NOT NULL,
+                pack_size    TEXT NOT NULL,
+                sku_code     TEXT,
+                margin_pct   REAL NOT NULL,
+                floor_pct    REAL NOT NULL,
+                detected_at  TEXT DEFAULT (datetime('now')),
+                dismissed_at TEXT,
+                dismissed_by TEXT,
+                email_sent   INTEGER DEFAULT 0
+            )
+        """)
+        c.commit()
+    finally:
+        c.close()
+
+
+def get_price_history(limit=100, change_type=None, days=None):
+    """
+    Return unified price history: ingredient cost changes + config changes.
+    Merges ingredient_price_history (change_type='ingredient') and
+    costing_config_history (change_type='config').
+    """
+    rows = []
+
+    # --- Ingredient price history ---
+    ing_where = "WHERE 1=1"
+    ing_params = []
+    if change_type and change_type != 'config':
+        ing_where += " AND COALESCE(iph.change_type, 'ingredient') = ?"
+        ing_params.append(change_type)
+    if days:
+        ing_where += " AND iph.changed_at >= datetime('now', ? || ' days')"
+        ing_params.append('-' + str(days))
+
+    ing_rows = qry("""
+        SELECT
+            'ingredient'           AS change_type,
+            iph.id                 AS id,
+            i.code                 AS entity_code,
+            i.name                 AS entity_name,
+            iph.old_cost_per_kg    AS old_value,
+            iph.new_cost_per_kg    AS new_value,
+            iph.pct_change,
+            COALESCE(iph.changed_by, 'system') AS changed_by,
+            iph.changed_at,
+            COALESCE(iph.source, 'manual') AS source,
+            iph.note
+        FROM ingredient_price_history iph
+        JOIN ingredients i ON i.id = iph.ingredient_id
+        {where}
+        ORDER BY iph.changed_at DESC
+        LIMIT ?
+    """.format(where=ing_where), ing_params + [limit])
+
+    for r in ing_rows:
+        rows.append(dict(r))
+
+    # --- Config history ---
+    if change_type in (None, 'config'):
+        cfg_where = "WHERE 1=1"
+        cfg_params = []
+        if days:
+            cfg_where += " AND changed_at >= datetime('now', ? || ' days')"
+            cfg_params.append('-' + str(days))
+
+        cfg_rows = qry("""
+            SELECT
+                'config'     AS change_type,
+                cch.id       AS id,
+                cch.config_key   AS entity_code,
+                cc.label     AS entity_name,
+                cch.old_value,
+                cch.new_value,
+                cch.pct_change,
+                COALESCE(cch.changed_by, 'system') AS changed_by,
+                cch.changed_at,
+                'manual'     AS source,
+                cch.note
+            FROM costing_config_history cch
+            LEFT JOIN costing_config cc ON cc.key = cch.config_key
+            {where}
+            ORDER BY cch.changed_at DESC
+            LIMIT ?
+        """.format(where=cfg_where), cfg_params + [limit])
+
+        for r in cfg_rows:
+            rows.append(dict(r))
+
+    # Merge + sort by changed_at desc, return top `limit`
+    rows.sort(key=lambda x: x.get('changed_at') or '', reverse=True)
+    return rows[:limit]
+
+
+def get_margin_alerts(include_dismissed=False):
+    """
+    Compute current margin alerts by checking all active SKUs against floor.
+    Also checks margin_alerts table for already-logged/dismissed alerts.
+    Returns list of active (undismissed) alerts.
+    """
+    ensure_margin_alerts_table()
+    all_costs = get_all_standard_costs()
+    cfg = get_costing_config()
+    floor_pct = _get_config_val(cfg, 'margin_floor_pct', 30.0)
+
+    alerts = []
+    for sku in all_costs:
+        if not sku.get('has_bom'):
+            continue
+        gm = sku.get('gross_margin_pct', 0)
+        if gm < floor_pct:
+            # Check if already dismissed
+            existing = qry1("""
+                SELECT * FROM margin_alerts
+                WHERE product_code=? AND pack_size=? AND dismissed_at IS NULL
+                ORDER BY detected_at DESC LIMIT 1
+            """, (sku['productCode'], sku['packSize']))
+
+            if not existing:
+                # Log new alert
+                c = _conn()
+                try:
+                    c.execute("""
+                        INSERT INTO margin_alerts
+                            (product_code, pack_size, sku_code, margin_pct, floor_pct)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (sku['productCode'], sku['packSize'],
+                          sku.get('skuCode'), round(gm, 2), floor_pct))
+                    c.commit()
+                    existing = qry1("""
+                        SELECT * FROM margin_alerts
+                        WHERE product_code=? AND pack_size=? AND dismissed_at IS NULL
+                        ORDER BY id DESC LIMIT 1
+                    """, (sku['productCode'], sku['packSize']))
+                finally:
+                    c.close()
+
+            if existing:
+                alerts.append({
+                    'alertId':      existing['id'],
+                    'productCode':  sku['productCode'],
+                    'productName':  sku['productName'],
+                    'packSize':     sku['packSize'],
+                    'skuCode':      sku.get('skuCode'),
+                    'margin_pct':   round(gm, 2),
+                    'floor_pct':    floor_pct,
+                    'gap':          round(floor_pct - gm, 2),
+                    'detectedAt':   existing['detected_at'],
+                    'emailSent':    bool(existing['email_sent']),
+                    'exFactory':    sku.get('ex_factory'),
+                })
+
+    if include_dismissed:
+        dismissed = qry("""
+            SELECT * FROM margin_alerts WHERE dismissed_at IS NOT NULL
+            ORDER BY dismissed_at DESC LIMIT 50
+        """)
+        for d in dismissed:
+            cost_data = compute_standard_cost(d['product_code'], d['pack_size'])
+            alerts.append({
+                'alertId':      d['id'],
+                'productCode':  d['product_code'],
+                'packSize':     d['pack_size'],
+                'skuCode':      d['sku_code'],
+                'margin_pct':   d['margin_pct'],
+                'floor_pct':    d['floor_pct'],
+                'detectedAt':   d['detected_at'],
+                'dismissedAt':  d['dismissed_at'],
+                'dismissedBy':  d['dismissed_by'],
+                'dismissed':    True,
+            })
+
+    return alerts
+
+
+def dismiss_margin_alert(alert_id, username):
+    """Mark a margin alert as dismissed."""
+    ensure_margin_alerts_table()
+    row = qry1("SELECT * FROM margin_alerts WHERE id=?", (alert_id,))
+    if not row:
+        raise ValueError("Alert not found: {}".format(alert_id))
+    run("""
+        UPDATE margin_alerts
+        SET dismissed_at=datetime('now'), dismissed_by=?
+        WHERE id=?
+    """, (username, alert_id))
+    save_db()
+    return {'ok': True, 'alertId': alert_id}
+
+
+def send_margin_alert_email(alerts):
+    """
+    Send email notification for margin alerts.
+    Reads ALERT_EMAIL env var. Returns True if sent, False if not configured.
+    """
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    to_addr  = os.environ.get('ALERT_EMAIL', '')
+    smtp_host= os.environ.get('SMTP_HOST', '')
+    smtp_port= int(os.environ.get('SMTP_PORT', '587'))
+    smtp_user= os.environ.get('SMTP_USER', '')
+    smtp_pass= os.environ.get('SMTP_PASS', '')
+
+    if not to_addr or not smtp_host:
+        return False  # not configured
+
+    subject = 'Spicetopia: %d Margin Alert(s) Below Floor' % len(alerts)
+    lines = ['The following SKUs are below the margin floor:\n']
+    for a in alerts:
+        lines.append('  • %s %s — margin %.1f%% (floor %.1f%%, gap %.1f%%)' % (
+            a['productCode'], a['packSize'],
+            a['margin_pct'], a['floor_pct'], a['gap']))
+    lines.append('\nLog in to review: Prices & Costs → Margin Alerts')
+
+    msg = MIMEMultipart()
+    msg['From']    = smtp_user or 'noreply@spicetopia.com'
+    msg['To']      = to_addr
+    msg['Subject'] = subject
+    msg.attach(MIMEText('\n'.join(lines), 'plain'))
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as s:
+            s.starttls()
+            if smtp_user:
+                s.login(smtp_user, smtp_pass)
+            s.send_message(msg)
+
+        # Mark alerts as email_sent
+        for a in alerts:
+            run("UPDATE margin_alerts SET email_sent=1 WHERE id=?", (a['alertId'],))
+
+        _log('info', 'margin_alert_email_sent', count=len(alerts), to=to_addr)
+        return True
+    except Exception as e:
+        _log('error', 'margin_alert_email_failed', error=str(e))
+        return False
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  BUSINESS LOGIC — ZONES & ROUTES
 # ═══════════════════════════════════════════════════════════════════
 
@@ -10738,6 +11847,7 @@ def create_field_order(data):
     notes         = data.get('notes','')
     cash_collected = float(data.get('cashCollected', 0))
     # Generate order_ref
+    _sync_counter_to_max('field_order', 'field_orders', 'order_ref', 'SP-FO-')
     order_ref = next_id('field_order', 'FO')
     c = _conn()
     try:
@@ -10825,6 +11935,7 @@ def create_invoice(inv_data):
     items = inv_data.get('items', [])
     if not items:
         raise ValueError("Invoice must have at least one item")
+    _sync_counter_to_max('invoice', 'invoices', 'invoice_number', 'SP-INV-')
     inv_num  = next_id('invoice', 'INV')
     inv_date = inv_data.get('invoiceDate', str(date.today()))
     terms    = int(cust.get('payment_terms_days', 30))
@@ -11216,9 +12327,15 @@ if __name__ == '__main__':
     ensure_supplier_bills_schema()
     ensure_purchase_orders_schema()
     ensure_batch_cost_column()
-    _migrate_supplier_bills_void()   # adds VOID status + voided columns to supplier_bills
+    ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
+    ensure_variant_wastage_pct()         # wastage_pct column on product_variants
+    _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
+    _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
     ensure_review_queue_schema()
     ensure_master_schema()  # must run before load_ref() — adds active, credit_limit cols
+    ensure_price_types_sprint6()         # update price_type labels + add bulk
+    ensure_price_history_extended()      # adds change_type, config_key, changed_by, note to price_history
+    ensure_margin_alerts_table()         # margin_alerts table for floor breach tracking
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
     generate_master_templates()
