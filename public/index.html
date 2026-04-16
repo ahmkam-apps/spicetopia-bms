@@ -928,7 +928,7 @@ async function renderDashboard() {
         <strong style="color:#c2410c">${apO.count} supplier bill${apO.count === 1 ? '' : 's'} overdue</strong>
         <span style="color:#7c2d12;margin-left:6px">${fmtPKR(apO.amount)} outstanding</span>
       </div>
-      <button onclick="nav('supplier-bills')" style="margin-left:auto;background:#c2410c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
+      <button onclick="nav('bills')" style="margin-left:auto;background:#c2410c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
     </div>`;
   }
 
@@ -939,7 +939,7 @@ async function renderDashboard() {
         <strong style="color:#a16207">${apDS.count} bill${apDS.count === 1 ? '' : 's'} due within 7 days</strong>
         <span style="color:#713f12;margin-left:6px">${fmtPKR(apDS.amount)} payable</span>
       </div>
-      <button onclick="nav('supplier-bills')" style="margin-left:auto;background:#ca8a04;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
+      <button onclick="nav('bills')" style="margin-left:auto;background:#ca8a04;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">View Bills →</button>
     </div>`;
   }
 
@@ -998,7 +998,7 @@ async function renderDashboard() {
       </table>
     </div>
     <div class="card">
-      <div class="section-header"><h2>⚠️ Low Stock Alerts</h2></div>
+      <div class="section-header"><h2>${alertRows ? '⚠️ Low Stock Alerts' : '✅ Stock Levels'}</h2></div>
       <table>
         <thead><tr><th>Code</th><th>Ingredient</th><th class="text-right">Balance</th><th>Reorder</th></tr></thead>
         <tbody>${alertRows || '<tr><td colspan="4" style="text-align:center;color:var(--cardamom)">All stock levels OK</td></tr>'}</tbody>
@@ -1906,9 +1906,11 @@ async function renderOrdersInvoices() {
       return variant && (variant.stockUnits || 0) >= item.qty_ordered;
     });
 
+    const canAddItem = ['draft','confirmed'].includes(o.status);
     const actions = `
       ${canConfirm && !allInStock ? `<button class="btn btn-xs btn-outline" style="color:var(--mac-blue)" onclick="event.stopPropagation();_oiConfirmOrder(${o.id})">✓ Confirm</button>` : ''}
       ${allInStock ? `<button class="btn btn-xs btn-primary" onclick="event.stopPropagation();_oiConfirmAndInvoice(${o.id})" title="All items in stock — confirm and invoice in one step">⚡ Confirm & Invoice</button>` : ''}
+      ${canAddItem ? `<button class="btn btn-xs btn-outline" style="color:var(--cardamom)" onclick="event.stopPropagation();openOrderDetail(${o.id}).then(()=>showAddItemForm(${o.id}))" title="Add another product to this order">+ Product</button>` : ''}
       ${canInvoice ? `<button class="btn btn-xs" style="background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="event.stopPropagation();_oiOpenInvoiceForm(${o.id})">🧾 Invoice</button>` : ''}
       ${inProd ? `<span style="font-size:11px;color:var(--cinnamon)">⚙ In Production</span>` : ''}
     `;
@@ -2453,6 +2455,7 @@ function _renderOrderDetail(o) {
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${canConfirm  ? `<button class="btn btn-primary btn-sm" onclick="doConfirmOrder(${o.id})">✓ Confirm Order</button>` : ''}
         ${canEdit     ? `<button class="btn btn-outline btn-sm" onclick="guardEditOrder(${o.id}, ${productionInProgress})">✏ Edit</button>` : ''}
+        ${linesEditable ? `<button class="btn btn-outline btn-sm" style="color:var(--cardamom)" onclick="showAddItemForm(${o.id})">+ Add Product</button>` : ''}
         ${canInvoice  ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('co-inv-form').style.display='block';document.getElementById('co-edit-form-${o.id}').style.display='none'">🧾 Generate Invoice</button>` : ''}
         ${canCancel   ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="doCancelOrder(${o.id})">✕ Cancel</button>` : ''}
         <button class="btn btn-outline btn-sm" onclick="document.getElementById('co-detail-panel').innerHTML=''">Close</button>
@@ -2497,6 +2500,58 @@ function _renderOrderDetail(o) {
     <!-- Inline invoice detail / payment panel -->
     <div id="co-inv-detail-${o.id}"></div>
   </div>`;
+}
+
+function showAddItemForm(orderId) {
+  // Remove existing form if open (toggle)
+  const existing = document.getElementById(`co-add-item-form-${orderId}`);
+  if (existing) { existing.remove(); return; }
+  // Build product dropdown from ref
+  const prods = (state.ref?.products || []);
+  const opts = prods.map(p =>
+    `<optgroup label="${p.name}">${(p.variants||[]).map(v =>
+      `<option value="${p.code}|||${v.pack_size}">${p.name} — ${v.pack_size} (${v.sku_code})</option>`
+    ).join('')}</optgroup>`
+  ).join('');
+
+  const panel = document.getElementById('co-detail-panel');
+  const insertAfter = panel.querySelector(`[class*="card"]`);
+  const formHtml = `
+  <div id="co-add-item-form-${orderId}" class="card mb-14" style="border-top:3px solid var(--cardamom)">
+    <h4 style="margin-bottom:12px">+ Add Product to Order</h4>
+    <div id="co-add-item-msg-${orderId}"></div>
+    <div class="form-row" style="gap:10px;align-items:flex-end">
+      <div class="form-group" style="flex:2"><label style="font-size:12px">Product *</label>
+        <select id="co-ai-variant-${orderId}">${opts}</select>
+      </div>
+      <div class="form-group"><label style="font-size:12px">Qty *</label>
+        <input type="number" id="co-ai-qty-${orderId}" min="1" step="1" value="1" style="width:80px">
+      </div>
+      <div class="form-group"><label style="font-size:12px">Unit Price (PKR)</label>
+        <input type="number" id="co-ai-price-${orderId}" min="0" step="0.01" value="0" style="width:120px" placeholder="0.00">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="submitAddOrderItem(${orderId})">Add Line</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('co-add-item-form-${orderId}').remove()">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+  panel.insertAdjacentHTML('afterbegin', formHtml);
+}
+
+async function submitAddOrderItem(orderId) {
+  const sel    = document.getElementById(`co-ai-variant-${orderId}`)?.value || '';
+  const [productCode, packSize] = sel.split('|||');
+  const qty    = parseInt(document.getElementById(`co-ai-qty-${orderId}`)?.value || 0);
+  const price  = parseFloat(document.getElementById(`co-ai-price-${orderId}`)?.value || 0);
+  const msgEl  = `co-add-item-msg-${orderId}`;
+  if (!productCode || !packSize) { showMsg(msgEl, 'Select a product', 'error'); return; }
+  if (qty <= 0) { showMsg(msgEl, 'Quantity must be positive', 'error'); return; }
+  try {
+    await POST(`/api/customer-orders/${orderId}/items`, { productCode, packSize, qty, unitPrice: price });
+    document.getElementById(`co-add-item-form-${orderId}`)?.remove();
+    await openOrderDetail(orderId);
+  } catch(e) { showMsg(msgEl, 'Error: ' + e.message, 'error'); }
 }
 
 // Show invoice detail inside order/customer panel by injecting an invoice-detail-area target
@@ -2861,9 +2916,11 @@ function renderSaleLines() {
   const body = document.getElementById('sale-lines-body');
   if (!body) return;
   const prodOptions = (state.ref.products||[]).flatMap(p =>
-    (p.variants||[])
-      .filter(v => (v.stockUnits || 0) > 0)
-      .map(v => `<option value="${p.code}|${v.pack_size}">${p.name} — ${v.pack_size} (${v.stockUnits} in stock)</option>`)
+    (p.variants||[]).map(v => {
+      const stock = v.stockUnits || 0;
+      const stockLabel = stock > 0 ? `${stock} in stock` : '⚠ no stock';
+      return `<option value="${p.code}|${v.pack_size}">${p.name} — ${v.pack_size} (${stockLabel})</option>`;
+    })
   ).join('');
 
   body.innerHTML = _saleLines.map((line, idx) => {
@@ -4586,6 +4643,7 @@ async function openPODetail(poId) {
 }
 
 function _renderPODetail(po) {
+  _lastPOData = po;
   const statusBadge = s => {
     const map = { draft:'secondary', sent:'warning', partial:'warning', received:'success', cancelled:'secondary' };
     return `<span class="badge badge-${map[s]||'secondary'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
@@ -4613,12 +4671,17 @@ function _renderPODetail(po) {
   // Receipt form for received items
   const receiptRows = po.items.map(item => `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:7px 10px;font-family:monospace">${item.ing_code}</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${item.ing_code}${item.ing_name ? `<br><span style="font-family:sans-serif;color:var(--text-2);font-size:11px">${item.ing_name}</span>` : ''}</td>
       <td style="padding:7px 10px;text-align:right">${fmt(item.quantity_kg,3)} kg</td>
       <td style="padding:7px 10px;text-align:right">
         <input type="number" id="rcv-qty-${item.id}" class="form-input"
           style="width:90px;text-align:right;padding:4px 6px"
           value="${fmt(item.quantity_kg,3)}" min="0" step="0.001" max="${fmt(item.quantity_kg,3)}">
+      </td>
+      <td style="padding:7px 10px;text-align:right">
+        <input type="number" id="rcv-cost-${item.id}" class="form-input"
+          style="width:100px;text-align:right;padding:4px 6px"
+          value="${item.unit_cost_kg > 0 ? fmt(item.unit_cost_kg,2) : ''}" min="0" step="0.01" placeholder="0.00">
       </td>
     </tr>`).join('');
 
@@ -4639,6 +4702,7 @@ function _renderPODetail(po) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         <div style="display:flex;gap:6px">
+          ${['draft','sent'].includes(po.status) ? `<button class="btn btn-outline btn-sm" onclick="editPOHeader(${po.id})" style="font-size:12px">✏ Edit</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="downloadPOPDF(${po.id})" style="font-size:12px">⬇ Download PO PDF</button>
           <button class="btn btn-outline btn-sm" id="copy-po-btn-${po.id}" onclick="copyPOText(${po.id})" style="font-size:12px">📋 Copy for WhatsApp</button>
         </div>
@@ -4688,12 +4752,17 @@ function _renderPODetail(po) {
           <th style="padding:7px 10px;text-align:left">Ingredient</th>
           <th style="padding:7px 10px;text-align:right">Ordered (kg)</th>
           <th style="padding:7px 10px;text-align:right">Received (kg)</th>
+          <th style="padding:7px 10px;text-align:right">Actual Cost/kg (PKR) *</th>
         </tr></thead>
         <tbody>${receiptRows}</tbody>
       </table>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="font-size:11px;color:#166534;margin-bottom:8px">* Enter actual unit cost at time of delivery — this is used to calculate the supplier bill amount.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" style="background:#16a34a;border-color:#16a34a" onclick="receiveGoodsPO(${po.id})">
           ✓ Confirm Receipt &amp; Update Inventory
+        </button>
+        <button class="btn btn-outline btn-sm" style="color:#16a34a;border-color:#16a34a" onclick="quickReceiveAllPO(${po.id})" title="Pre-fill all quantities &amp; costs from this PO — then click Confirm">
+          ⚡ Use PO Quantities &amp; Costs
         </button>
         ${canCancel ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="setPOStatus(${po.id},'cancelled')">✕ Cancel PO</button>` : ''}
       </div>
@@ -4754,11 +4823,101 @@ async function setPOStatus(poId, status) {
   }
 }
 
+function editPOHeader(poId) {
+  const area = document.getElementById('po-detail-area');
+  const po = _lastPOData && _lastPOData.id === poId ? _lastPOData : null;
+  area.insertAdjacentHTML('afterbegin', `
+  <div id="po-edit-form-${poId}" class="card mb-16" style="border-top:3px solid var(--mac-blue)">
+    <h4 style="margin-bottom:12px">Edit Purchase Order</h4>
+    <div id="po-edit-msg-${poId}"></div>
+    <div class="form-row" style="gap:10px">
+      <div class="form-group"><label style="font-size:12px">Expected Date</label>
+        <input type="date" id="po-edit-expected-${poId}" value="${po?.expected_date||''}">
+      </div>
+      <div class="form-group"><label style="font-size:12px">Payment Terms</label>
+        <select id="po-edit-terms-${poId}">
+          <option value="CREDIT" ${(po?.payment_terms||'CREDIT')==='CREDIT'?'selected':''}>Credit</option>
+          <option value="COD" ${po?.payment_terms==='COD'?'selected':''}>Cash on Delivery</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1"><label style="font-size:12px">Notes</label>
+        <input id="po-edit-notes-${poId}" value="${(po?.notes||'').replace(/"/g,'&quot;')}" placeholder="Optional notes">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-primary btn-sm" onclick="savePOEdit(${poId})">Save Changes</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('po-edit-form-${poId}').remove()">Cancel</button>
+    </div>
+  </div>`);
+}
+
+let _lastPOData = null;
+
+async function savePOEdit(poId) {
+  const expectedDate   = document.getElementById(`po-edit-expected-${poId}`).value;
+  const notes          = document.getElementById(`po-edit-notes-${poId}`).value;
+  const paymentTerms   = document.getElementById(`po-edit-terms-${poId}`).value;
+  try {
+    const po = await PUT(`/api/purchase-orders/${poId}`, { expectedDate: expectedDate||null, notes, paymentTerms });
+    _lastPOData = po;
+    document.getElementById(`po-edit-form-${poId}`)?.remove();
+    await openPODetail(poId);
+  } catch(e) {
+    showMsg(`po-edit-msg-${poId}`, 'Error: ' + e.message, 'error');
+  }
+}
+
+let _lastBillData = null;
+
+function editBillHeader(billId) {
+  const area = document.getElementById('bill-detail-area');
+  if (!area) return;
+  const bill = _lastBillData && _lastBillData.id === billId ? _lastBillData : null;
+  // Remove any existing edit form
+  const existing = document.getElementById(`bill-edit-form-${billId}`);
+  if (existing) { existing.remove(); return; }
+  area.insertAdjacentHTML('afterbegin', `
+  <div id="bill-edit-form-${billId}" class="card mb-16" style="border-top:3px solid var(--mac-blue)">
+    <h4 style="margin-bottom:12px">Edit Supplier Bill</h4>
+    <div id="bill-edit-msg-${billId}"></div>
+    <div class="form-row" style="gap:10px">
+      <div class="form-group"><label style="font-size:12px">Due Date</label>
+        <input type="date" id="bill-edit-due-${billId}" value="${bill?.due_date||''}">
+      </div>
+      <div class="form-group"><label style="font-size:12px">Supplier Reference</label>
+        <input id="bill-edit-ref-${billId}" value="${(bill?.supplier_ref||'').replace(/"/g,'&quot;')}" placeholder="Supplier invoice/ref number">
+      </div>
+      <div class="form-group" style="flex:1"><label style="font-size:12px">Notes</label>
+        <input id="bill-edit-notes-${billId}" value="${(bill?.notes||'').replace(/"/g,'&quot;')}" placeholder="Optional notes">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-primary btn-sm" onclick="saveBillEdit(${billId})">Save Changes</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('bill-edit-form-${billId}').remove()">Cancel</button>
+    </div>
+  </div>`);
+}
+
+async function saveBillEdit(billId) {
+  const dueDate    = document.getElementById(`bill-edit-due-${billId}`).value;
+  const notes      = document.getElementById(`bill-edit-notes-${billId}`).value;
+  const supplierRef = document.getElementById(`bill-edit-ref-${billId}`).value;
+  try {
+    const bill = await PUT(`/api/bills/${billId}`, { dueDate: dueDate||null, notes, supplierRef });
+    _lastBillData = bill;
+    document.getElementById(`bill-edit-form-${billId}`)?.remove();
+    await showBillDetail(billId);
+  } catch(e) {
+    showMsg(`bill-edit-msg-${billId}`, 'Error: ' + e.message, 'error');
+  }
+}
+
 async function receiveGoodsPO(poId) {
   const po = await GET('/api/purchase-orders/' + poId);
   const receivedItems = po.items.map(item => ({
-    id:         item.id,
-    receivedKg: parseFloat(document.getElementById(`rcv-qty-${item.id}`)?.value || 0),
+    id:          item.id,
+    receivedKg:  parseFloat(document.getElementById(`rcv-qty-${item.id}`)?.value || 0),
+    unitCostKg:  parseFloat(document.getElementById(`rcv-cost-${item.id}`)?.value || 0) || null,
   }));
   const hasQty = receivedItems.some(r => r.receivedKg > 0);
   if (!hasQty) { showMsg(`po-action-msg-${poId}`, 'Enter at least one received quantity', 'error'); return; }
@@ -4775,6 +4934,19 @@ async function receiveGoodsPO(poId) {
     showMsg(`po-action-msg-${poId}`, 'Error: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Receipt & Update Inventory'; }
   }
+}
+
+function quickReceiveAllPO(poId) {
+  // Pre-fills receipt form inputs from the PO's ordered quantities and unit costs
+  const po = _lastPOData;
+  if (!po || po.id !== poId) return;
+  po.items.forEach(item => {
+    const qtyEl  = document.getElementById(`rcv-qty-${item.id}`);
+    const costEl = document.getElementById(`rcv-cost-${item.id}`);
+    if (qtyEl)  qtyEl.value  = fmt(item.quantity_kg, 3);
+    if (costEl && item.unit_cost_kg > 0) costEl.value = fmt(item.unit_cost_kg, 2);
+  });
+  showMsg(`po-action-msg-${poId}`, '✓ Quantities &amp; costs pre-filled from PO — review then click Confirm Receipt.', 'success');
 }
 
 async function printPO(poId) {
@@ -5182,6 +5354,7 @@ async function showBillDetail(billId) {
 }
 
 function _renderBillDetail(bill) {
+  _lastBillData = bill;
   const billId = bill.id;
   const itemRows = (bill.items||[]).map(i => `
     <tr style="border-top:1px solid var(--border)">
@@ -5216,6 +5389,7 @@ function _renderBillDetail(bill) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         <div style="display:flex;gap:6px">
+          ${['UNPAID','PARTIAL'].includes(bill.status) ? `<button class="btn btn-outline btn-sm" onclick="editBillHeader(${billId})" style="font-size:12px">✏ Edit</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="printBill(${billId})" style="font-size:12px">🖨 Print</button>
           <button class="btn btn-outline btn-sm" id="copy-bill-btn-${billId}" onclick="copyBillText(${billId})" style="font-size:12px">📋 Copy for WhatsApp</button>
         </div>
@@ -5453,8 +5627,8 @@ async function renderAPPayments() {
     <h3 style="margin-bottom:14px">Record Supplier Payment</h3>
     <div id="apay-msg"></div>
     <div class="form-row">
-      <div class="form-group"><label>Supplier *</label><select id="ap-sup">${supOptions || '<option disabled>No suppliers</option>'}</select></div>
-      <div class="form-group"><label>Amount (PKR) *</label><input id="ap-amt" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>Supplier *</label><select id="ap-sup" onchange="apPaySupplierChanged()">${supOptions || '<option disabled>No suppliers</option>'}</select></div>
+      <div class="form-group"><label>Amount (PKR) *<span id="ap-bal-hint" style="font-size:11px;color:var(--cardamom);margin-left:6px;font-weight:400"></span></label><input id="ap-amt" type="number" min="0" step="0.01" placeholder="0.00"></div>
       <div class="form-group"><label>Date</label><input id="ap-date" type="date" value="${today()}"></div>
       <div class="form-group"><label>Mode</label>
         <select id="ap-mode"><option value="BANK_TRANSFER">Bank Transfer</option><option value="CASH">Cash</option><option value="CHEQUE">Cheque</option><option value="OTHER">Other</option></select>
@@ -5471,6 +5645,26 @@ async function renderAPPayments() {
       </table>
     </div>
   </div>`;
+}
+
+async function apPaySupplierChanged() {
+  const supId = parseInt(document.getElementById('ap-sup')?.value || 0);
+  const hintEl = document.getElementById('ap-bal-hint');
+  const amtEl  = document.getElementById('ap-amt');
+  if (!hintEl || !amtEl) return;
+  if (!supId) { hintEl.textContent = ''; amtEl.value = ''; return; }
+  try {
+    const bills = await GET('/api/bills?supplierId=' + supId);
+    const unpaid = (bills||[]).filter(b => b.status === 'UNPAID' || b.status === 'PARTIAL');
+    const total  = unpaid.reduce((s, b) => s + (parseFloat(b.balance)||0), 0);
+    if (total > 0) {
+      hintEl.textContent = `(outstanding: ${fmtPKR(total)})`;
+      amtEl.value = total.toFixed(2);
+    } else {
+      hintEl.textContent = '(no outstanding bills)';
+      amtEl.value = '';
+    }
+  } catch(e) { hintEl.textContent = ''; }
 }
 
 async function saveAPPayment() {
@@ -5608,7 +5802,7 @@ async function renderInventory() {
 
     const editRow = isAdmin ? `
     <tr id="rm-edit-${i.id}" style="display:none">
-      <td colspan="12" style="padding:0">
+      <td colspan="13" style="padding:0">
         <div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">
           <div id="rm-edit-msg-${i.id}" style="margin-bottom:6px"></div>
           <div class="form-row" style="align-items:flex-end;margin-bottom:0">
@@ -5638,6 +5832,7 @@ async function renderInventory() {
 
     return `<tr>
       <td><strong>${i.code}</strong></td>
+      <td>${i.name || ''}</td>
       <td class="num text-right">${fmt(i.balanceGrams,0)} g</td>
       <td class="num text-right">${reservedCell}</td>
       <td class="num text-right" style="font-weight:600;color:${availColor}">${fmt(available,0)} g</td>
@@ -5714,12 +5909,37 @@ async function renderInventory() {
   <!-- Raw Materials pane -->
   <div id="inv-pane-rm" class="mod-tab-pane active">
     <div id="adj-form-area"></div>
+    ${isAdmin ? `
+    <div class="card mb-14" id="ing-add-card" style="display:none">
+      <h4 style="margin-bottom:12px">+ Add New Ingredient</h4>
+      <div id="ing-add-msg"></div>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group"><label style="font-size:12px">Code *</label><input id="ing-add-code" placeholder="e.g. ING-020SP" style="width:130px"></div>
+        <div class="form-group" style="flex:2"><label style="font-size:12px">Name *</label><input id="ing-add-name" placeholder="Ingredient name" style="min-width:200px"></div>
+        <div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="ing-add-cost" type="number" min="0" step="0.01" placeholder="0.00" style="width:120px"></div>
+        <div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="ing-add-reorder" type="number" min="0" step="1" placeholder="0" style="width:120px"></div>
+        <div class="form-group"><label style="font-size:12px">Unit</label>
+          <select id="ing-add-unit" class="form-input" style="width:70px">
+            <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="pcs">pcs</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:4px">
+          <button class="btn btn-primary btn-sm" onclick="saveNewIngredient()">Add</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('ing-add-card').style.display='none'">Cancel</button>
+        </div>
+      </div>
+    </div>` : ''}
     ${changeBanner}
     <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:13px;font-weight:600">${ings.length} Ingredient${ings.length===1?'':'s'}</span>
+        ${isAdmin ? `<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById('ing-add-card');c.style.display=c.style.display==='none'?'':'none'">+ Add Ingredient</button>` : ''}
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
             <th>Code</th>
+            <th>Name</th>
             <th class="text-right">Physical</th>
             <th class="text-right" title="Grams reserved by planned/in-progress work orders">Reserved (WIPs)</th>
             <th class="text-right" title="Available = Physical − Reserved">Available</th>
@@ -5829,6 +6049,22 @@ async function saveAdjustment(ingId) {
     showMsg('adj-msg', `✓ Adjusted ${res.ingredientCode} by ${qty > 0 ? '+' : ''}${qty}g`, 'success');
     setTimeout(() => nav('inventory'), 1200);
   } catch(e) { showMsg('adj-msg', e.message, 'error'); }
+}
+
+async function saveNewIngredient() {
+  const code    = (document.getElementById('ing-add-code')?.value || '').trim().toUpperCase();
+  const name    = (document.getElementById('ing-add-name')?.value || '').trim();
+  const cost    = parseFloat(document.getElementById('ing-add-cost')?.value || 0);
+  const reorder = parseFloat(document.getElementById('ing-add-reorder')?.value || 0);
+  const unit    = document.getElementById('ing-add-unit')?.value || 'kg';
+  const msgEl   = 'ing-add-msg';
+  if (!code) { showMsg(msgEl, 'Code is required', 'error'); return; }
+  if (!name) { showMsg(msgEl, 'Name is required', 'error'); return; }
+  try {
+    await POST('/api/ingredients', { code, name, cost_per_kg: cost, reorder_level: reorder, unit });
+    showMsg(msgEl, `✓ ${code} — ${name} added`, 'success');
+    setTimeout(() => nav('inventory'), 800);
+  } catch(e) { showMsg(msgEl, e.message, 'error'); }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -6894,137 +7130,79 @@ async function saveBatch() {
 // ═══════════════════════════════════════════════════════════════
 async function renderProducts() {
   const prods = state.ref.products || [];
-  const packs = state.ref.packSizes || [];
 
-  // Group products by base name (strip the -50 / -100 / -1000 suffix)
-  // Key = product name, value = array of {product, variant}
+  // Group by product name
   const groups = {};
   let totalSkus = 0;
   prods.forEach(p => {
-    const key = p.name; // group by display name
-    if (!groups[key]) groups[key] = { blendCode: p.blend_code, items: [] };
+    const key = p.name;
+    if (!groups[key]) groups[key] = { code: p.code, blendCode: p.blend_code, items: [] };
     (p.variants||[]).forEach(v => {
       totalSkus++;
       groups[key].items.push({ p, v });
     });
   });
 
-  // Build one panel per product name
+  // Build one card per product
   let panels = '';
   Object.entries(groups).forEach(([name, grp]) => {
-    // Sort items by pack grams ascending
     grp.items.sort((a, b) => {
       const gA = parseInt((a.v.pack_size||'0').replace(/\D/g,'')) || 0;
       const gB = parseInt((b.v.pack_size||'0').replace(/\D/g,'')) || 0;
       return gA - gB;
     });
 
-    const packBadges = grp.items.map(({ p, v }) => `
-      <div style="display:flex;align-items:center;justify-content:space-between;
-                  padding:10px 14px;border:1px solid var(--border);border-radius:var(--r);
-                  background:var(--surface);gap:16px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="display:inline-block;padding:3px 12px;border-radius:20px;
-                       background:var(--saffron-pale);color:var(--saffron-deep);
-                       font-weight:700;font-size:13px;min-width:52px;text-align:center">${v.pack_size}</span>
-          <span style="font-size:11px;color:var(--text-3)">${v.sku_code}</span>
-          <span style="font-size:11px;color:var(--text-3)">·</span>
-          <span style="font-size:11px;color:var(--text-3)">${p.code}</span>
-        </div>
-        <button class="btn btn-sm"
-          style="background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili);font-size:11px;flex-shrink:0"
-          onclick="removeVariant(${v.id},'${p.name}','${v.pack_size}')">Remove</button>
-      </div>`).join('');
+    const rows = grp.items.map(({ p, v }) => {
+      const stock = v.stockUnits ?? 0;
+      const stockColor = stock > 0 ? 'var(--text-1)' : 'var(--chili)';
+      return `
+      <div style="display:flex;align-items:center;padding:10px 14px;
+                  border:1px solid var(--border);border-radius:var(--r);
+                  background:var(--surface);gap:0">
+        <span style="display:inline-block;padding:3px 12px;border-radius:20px;
+                     background:var(--saffron-pale);color:var(--saffron-deep);
+                     font-weight:700;font-size:13px;min-width:60px;text-align:center">${v.pack_size}</span>
+        <span style="margin-left:14px;font-size:12px;font-family:monospace;
+                     color:var(--text-2);min-width:110px">${v.sku_code}</span>
+        <span style="margin-left:14px;font-size:11px;color:var(--text-3);min-width:80px">${p.code}</span>
+        <span style="margin-left:auto;font-size:12px;font-weight:600;color:${stockColor}">
+          ${stock > 0 ? stock + ' units' : 'No stock'}
+        </span>
+      </div>`;
+    }).join('');
 
-    const firstProdCode = grp.items[0]?.p?.code || '';
-    const firstNameUrdu = grp.items[0]?.p?.name_urdu || '';
-    const isAdmin = state.currentUser?.role === 'admin';
     panels += `
-    <div class="card mb-14" id="prod-card-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}">
+    <div class="card mb-14">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div>
           <span style="font-size:15px;font-weight:700;color:var(--text-1)">${name}</span>
-          ${firstNameUrdu ? `<span style="margin-left:8px;font-size:14px;color:var(--text-3);font-family:serif">${firstNameUrdu}</span>` : ''}
-          ${grp.blendCode ? `<span style="margin-left:10px;font-size:11px;color:var(--text-3);font-family:monospace;background:var(--surface-2);padding:1px 6px;border-radius:4px">${grp.blendCode}</span>` : ''}
+          <span style="margin-left:10px;font-size:11px;color:var(--text-3);font-family:monospace;
+                       background:var(--surface-2);padding:1px 8px;border-radius:4px">${grp.code}</span>
+          ${grp.blendCode ? `<span style="margin-left:6px;font-size:11px;color:var(--text-3);font-family:monospace;background:var(--surface-2);padding:1px 6px;border-radius:4px">${grp.blendCode}</span>` : ''}
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:11px;color:var(--text-3)">${grp.items.length} pack size${grp.items.length===1?'':'s'}</span>
-          ${isAdmin ? `<button class="btn btn-xs btn-outline" onclick="editProductGroup('${firstProdCode}','${(name||'').replace(/'/g,"\\'").replace(/"/g,'\\"')}','${(firstNameUrdu||'').replace(/'/g,"\\'").replace(/"/g,'\\"')}','${(grp.blendCode||'').replace(/'/g,"\\'")}')">✏ Edit</button>` : ''}
-        </div>
+        <span style="font-size:11px;color:var(--text-3)">${grp.items.length} SKU${grp.items.length===1?'':'s'}</span>
       </div>
-      <div id="prod-edit-inline-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" style="display:none;margin-bottom:12px;padding:12px;background:var(--saffron-pale);border-radius:8px;border:1px solid var(--saffron-lt)">
-        <p style="font-size:12px;font-weight:600;color:var(--saffron-deep);margin:0 0 10px">Edit Product — all pack sizes update together</p>
-        <div id="prod-edit-msg-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" style="margin-bottom:6px"></div>
-        <div class="form-row" style="margin-bottom:10px">
-          <div class="form-group"><label style="font-size:12px">Product Name *</label><input id="pe-name-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" class="form-input" value="${(name||'').replace(/"/g,'&quot;')}"></div>
-          <div class="form-group"><label style="font-size:12px">Urdu Name</label><input id="pe-urdu-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" class="form-input" value="${(firstNameUrdu||'').replace(/"/g,'&quot;')}"></div>
-          <div class="form-group"><label style="font-size:12px">Blend Code</label><input id="pe-blend-${firstProdCode.replace(/[^a-z0-9]/gi,'_')}" class="form-input" value="${(grp.blendCode||'').replace(/"/g,'&quot;')}"></div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" onclick="saveProductGroup(${JSON.stringify(grp.items.map(i=>i.p.code))})">Save All Sizes</button>
-          <button class="btn btn-outline btn-sm" onclick="cancelProductEdit('${firstProdCode.replace(/[^a-z0-9]/gi,'_')}')">Cancel</button>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:7px">${packBadges}</div>
+      <div style="display:flex;flex-direction:column;gap:7px">${rows}</div>
     </div>`;
   });
 
-  // Pack size dropdown for the Add form
-  const packOptions = packs.map(ps =>
-    `<option value="${ps.id}">${ps.label}</option>`
-  ).join('');
+  const isAdmin = state.currentUser?.role === 'admin';
 
   return `
-  <!-- ── Add Product ──────────────────────────────────────────── -->
-  <div class="card mb-20">
-    <div class="section-header" style="margin-bottom:14px">
-      <h2>Add Product</h2>
-      <span style="font-size:11px;color:var(--text-3)">Each pack size is a separate entry — add once per size</span>
-    </div>
-    <div id="prod-msg"></div>
-    <div class="form-row" style="align-items:flex-end">
-      <div class="form-group">
-        <label>Base Code * <span style="font-size:10px;color:var(--text-3)">(e.g. CM → CM-50, CM-100)</span></label>
-        <input id="np-code" type="text" placeholder="e.g. BM" maxlength="10" style="text-transform:uppercase">
-      </div>
-      <div class="form-group" style="flex:2">
-        <label>Product Name *</label>
-        <input id="np-name" type="text" placeholder="e.g. Biryani Masala">
-      </div>
-      <div class="form-group">
-        <label>Pack Size *</label>
-        <select id="np-pack">${packOptions}</select>
-      </div>
-      <div class="form-group">
-        <label>Category Prefix <span style="font-size:10px;color:var(--text-3)">(GM, CM, RCP…)</span></label>
-        <input id="np-blend-prefix" type="text" placeholder="GM" maxlength="6"
-               style="text-transform:uppercase;width:80px"
-               oninput="this.value=this.value.toUpperCase()"
-               onblur="previewBlendCode()">
-      </div>
-      <div class="form-group">
-        <label>Blend Code <span style="font-size:10px;color:var(--text-3)">(auto)</span></label>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input id="np-blend" type="text" placeholder="GM-BC-001" style="width:120px" readonly
-                 style="background:var(--surface-2);cursor:default">
-          <button class="btn btn-outline btn-xs" type="button" onclick="previewBlendCode()" title="Refresh preview">↻</button>
-        </div>
-      </div>
-      <div class="form-group" style="flex:0">
-        <label>&nbsp;</label>
-        <button class="btn btn-primary" onclick="saveNewProduct()">Add</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Product Panels (one per product name) ────────────────── -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
     <span style="font-size:13px;font-weight:600;color:var(--text-1)">
       ${Object.keys(groups).length} Product${Object.keys(groups).length===1?'':'s'} &nbsp;·&nbsp;
       <span style="font-weight:400;color:var(--text-3)">${totalSkus} SKU${totalSkus===1?'':'s'}</span>
     </span>
+    ${isAdmin ? `<button class="btn btn-outline btn-sm" onclick="nav('master-data')" style="font-size:12px">⚙ Manage in Master Data</button>` : ''}
   </div>
-  ${panels || '<div class="card" style="text-align:center;color:var(--text-3);padding:32px">No products yet</div>'}`;
+  ${panels || `
+    <div class="card" style="text-align:center;padding:40px;color:var(--text-3)">
+      <div style="font-size:32px;margin-bottom:12px">📦</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">No products loaded</div>
+      <div style="font-size:12px;margin-bottom:16px">Import a products CSV from Master Data to get started</div>
+      ${isAdmin ? `<button class="btn btn-primary btn-sm" onclick="nav('master-data')">Go to Master Data</button>` : ''}
+    </div>`}`;
 }
 
 async function previewBlendCode() {
@@ -7189,6 +7367,9 @@ async function renderPrices() {
         <td class="num text-right">${priceCell(pm.ex_factory)}</td>
         <td class="num text-right">${priceCell(pm.distributor)}</td>
         <td class="num text-right">${priceCell(pm.retail_mrp)}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn btn-xs btn-outline" onclick="editPrice(${v.id}, ${JSON.stringify(pm)})" style="font-size:11px" title="Update price — pre-fills current values">✏ Update Price</button>
+        </td>
       </tr>`).join('');
 
     panels += `
@@ -7210,6 +7391,7 @@ async function renderPrices() {
             <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Ex-Factory</th>
             <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Distributor</th>
             <th style="text-align:right;padding-bottom:7px;font-size:11px;color:var(--text-3);font-weight:600">Retail MRP</th>
+            <th style="padding-bottom:7px"></th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -7220,7 +7402,10 @@ async function renderPrices() {
   return `
   <!-- ── Set Price Form ───────────────────────────────────────── -->
   <div class="card mb-20">
-    <div class="section-header" style="margin-bottom:14px"><h2>Set / Update Price</h2></div>
+    <div class="section-header" style="margin-bottom:8px"><h2>Set / Update Price</h2></div>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:14px">
+      ℹ️ Setting a price replaces the previous price for that SKU + price type. The old price is kept for historical records. Click <strong>✏ Update Price</strong> on any row below to pre-fill this form.
+    </div>
     <div id="price-msg"></div>
     <div class="form-row" style="align-items:flex-end">
       <div class="form-group" style="flex:2"><label>SKU *</label><select id="px-sku">${varOptions}</select></div>
@@ -7253,6 +7438,42 @@ async function savePrice() {
     showMsg('price-msg', `✓ Price set: ${res.sku_code} — ${res.price_type_label}: ${fmtPKR(res.price)}`, 'success');
     setTimeout(() => nav('prices'), 1200);
   } catch(e) { showMsg('price-msg', e.message, 'error'); }
+}
+
+function editPrice(variantId, priceMap) {
+  // Pre-select this variant in the Set Price form and scroll to it
+  const skuSel  = document.getElementById('px-sku');
+  const typeSel = document.getElementById('px-type');
+  const priceEl = document.getElementById('px-price');
+  if (skuSel) skuSel.value = variantId;
+
+  // Pre-fill price with the first price type that has an existing value
+  if (priceMap && typeSel && priceEl) {
+    const ptCodeToId = {};
+    (state.ref.priceTypes||[]).forEach(pt => { ptCodeToId[pt.code] = pt.id; });
+    // Priority: retail_mrp → ex_factory → distributor → mfg_cost
+    const order = ['retail_mrp','ex_factory','distributor','mfg_cost'];
+    let filled = false;
+    for (const code of order) {
+      if (priceMap[code] != null) {
+        if (ptCodeToId[code]) typeSel.value = ptCodeToId[code];
+        priceEl.value = priceMap[code].toFixed(2);
+        filled = true;
+        break;
+      }
+    }
+    if (!filled) priceEl.value = '';
+  }
+
+  document.querySelector('#price-msg')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Highlight the form briefly
+  const form = document.querySelector('[id="price-msg"]')?.closest('.card');
+  if (form) {
+    form.style.transition = 'box-shadow 0.3s';
+    form.style.boxShadow = '0 0 0 3px var(--mac-blue)';
+    setTimeout(() => { form.style.boxShadow = ''; form.style.transition = ''; }, 1500);
+  }
+  if (priceEl) priceEl.focus();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -9146,7 +9367,7 @@ async function renderIngredientsAdmin() {
 
   const renderRow = i => `
   <tr id="ing-row-${i.id}" style="${!i.active ? 'opacity:0.5' : ''}">
-    <td><strong style="font-family:monospace">${i.code}</strong></td>
+    <td><strong style="font-family:monospace">${i.code}</strong>${i.name ? `<br><span style="font-size:11px;color:var(--text-2)">${i.name}</span>` : ''}</td>
     <td class="num text-right">${fmt(i.balanceGrams || 0, 0)}g</td>
     <td class="num text-right">${fmt(i.reorder_level || 0, 0)}g</td>
     <td class="num text-right"><strong>${fmtPKR(i.cost_per_kg)}/kg</strong></td>
@@ -9154,7 +9375,7 @@ async function renderIngredientsAdmin() {
     <td><span class="badge ${badgeCls(i)}">${badgeTxt(i)}</span></td>
     <td style="white-space:nowrap">
       ${i.active !== 0 ? `
-        <button class="btn btn-xs btn-outline" onclick="ingShowEdit(${i.id},'${i.code}',${i.cost_per_kg||0},${i.reorder_level||0},'${i.unit||'kg'}')">Edit</button>
+        <button class="btn btn-xs btn-outline" onclick="ingShowEdit(${i.id},'${i.code}',${i.cost_per_kg||0},${i.reorder_level||0},'${i.unit||'kg'}','${(i.name||'').replace(/'/g,"\\'")}')">Edit</button>
         <button class="btn btn-xs" style="margin-left:4px;background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili)" onclick="ingDeactivate('${i.code}','${i.code}')">Deactivate</button>
       ` : `
         <button class="btn btn-xs" style="background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="ingReactivate('${i.code}')">Reactivate</button>
@@ -9166,6 +9387,7 @@ async function renderIngredientsAdmin() {
       <div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">
         <div id="ing-edit-msg-${i.id}" style="margin-bottom:6px"></div>
         <div class="form-row" style="align-items:flex-end;margin-bottom:0">
+          <div class="form-group" style="flex:1;min-width:150px"><label style="font-size:12px">Name (optional)</label><input id="ie-name-${i.id}" type="text" class="form-input" placeholder="e.g. Chaat Masala"></div>
           <div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="ie-cost-${i.id}" type="number" min="0" step="0.01" class="form-input" style="width:120px"></div>
           <div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="ie-reorder-${i.id}" type="number" min="0" step="1" class="form-input" style="width:120px"></div>
           <div class="form-group"><label style="font-size:12px">Unit</label>
@@ -9219,10 +9441,10 @@ function ingShowAdd() {
   document.getElementById('ing-add-area').innerHTML = `
   <div class="card mb-16" style="border-top:3px solid var(--cardamom)">
     <h3 style="margin-bottom:14px">New Ingredient</h3>
-    <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">⚠ Only the code is stored — no names. Keep your ingredient reference file off-system.</p>
     <div id="ing-add-msg"></div>
     <div class="form-row" style="align-items:flex-end">
       <div class="form-group"><label>Code * <span style="font-size:10px;color:var(--text-3)">(e.g. ING-020SP)</span></label><input id="ia-code" class="form-input" placeholder="ING-020SP" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+      <div class="form-group" style="flex:1;min-width:140px"><label>Name <span style="font-size:10px;color:var(--text-3)">(optional)</span></label><input id="ia-name" class="form-input" placeholder="e.g. Chaat Masala"></div>
       <div class="form-group"><label>Cost/kg (PKR) *</label><input id="ia-cost" type="number" min="0" step="0.01" class="form-input" placeholder="0.00"></div>
       <div class="form-group"><label>Reorder Level (g)</label><input id="ia-reorder" type="number" min="0" step="1" class="form-input" placeholder="0" value="0"></div>
       <div class="form-group"><label>Unit</label>
@@ -9242,31 +9464,34 @@ function ingShowAdd() {
 
 async function ingSubmitAdd() {
   const code    = document.getElementById('ia-code')?.value.trim().toUpperCase();
+  const name    = document.getElementById('ia-name')?.value.trim() || '';
   const cost    = parseFloat(document.getElementById('ia-cost')?.value || 0);
   const reorder = parseFloat(document.getElementById('ia-reorder')?.value || 0);
   const unit    = document.getElementById('ia-unit')?.value || 'kg';
   if (!code) { showMsg('ing-add-msg','Code is required','error'); return; }
   if (cost < 0) { showMsg('ing-add-msg','Cost cannot be negative','error'); return; }
   try {
-    const res = await POST('/api/ingredients', { code, cost_per_kg: cost, reorder_level: reorder, unit });
-    showMsg('ing-add-msg', `✓ Ingredient ${res.code} added`, 'success');
+    const res = await POST('/api/ingredients', { code, name, cost_per_kg: cost, reorder_level: reorder, unit });
+    showMsg('ing-add-msg', `✓ Ingredient ${res.code}${name ? ' ('+name+')' : ''} added`, 'success');
     setTimeout(() => nav('ingredients-admin'), 800);
   } catch(e) { showMsg('ing-add-msg', e.message, 'error'); }
 }
 
-function ingShowEdit(id, code, cost, reorder, unit) {
+function ingShowEdit(id, code, cost, reorder, unit, name) {
   document.querySelectorAll('[id^="ing-edit-"]').forEach(el => el.style.display = 'none');
   const row = document.getElementById('ing-edit-' + id);
   if (!row) return;
   row.style.display = '';
+  const nameEl    = document.getElementById('ie-name-' + id);
   const costEl    = document.getElementById('ie-cost-' + id);
   const reorderEl = document.getElementById('ie-reorder-' + id);
   const unitEl    = document.getElementById('ie-unit-' + id);
+  if (nameEl)    nameEl.value    = name || '';
   if (costEl)    costEl.value    = cost;
   if (reorderEl) reorderEl.value = reorder;
   if (unitEl)    unitEl.value    = unit;
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  costEl?.focus();
+  nameEl?.focus();
 }
 
 function ingCancelEdit(id) {
@@ -9275,13 +9500,14 @@ function ingCancelEdit(id) {
 }
 
 async function ingSubmitEdit(id, code) {
+  const name    = document.getElementById('ie-name-' + id)?.value?.trim() || '';
   const cost    = parseFloat(document.getElementById('ie-cost-' + id)?.value || 0);
   const reorder = parseFloat(document.getElementById('ie-reorder-' + id)?.value || 0);
   const unit    = document.getElementById('ie-unit-' + id)?.value || 'kg';
   const msgEl   = 'ing-edit-msg-' + id;
   if (cost < 0) { showMsg(msgEl,'Cost cannot be negative','error'); return; }
   try {
-    await PUT('/api/ingredients/' + code, { cost_per_kg: cost, reorder_level: reorder, unit });
+    await PUT('/api/ingredients/' + code, { name, cost_per_kg: cost, reorder_level: reorder, unit });
     showMsg(msgEl, `✓ ${code} updated`, 'success');
     setTimeout(() => nav('ingredients-admin'), 600);
   } catch(e) { showMsg(msgEl, e.message, 'error'); }
@@ -9317,12 +9543,10 @@ function renderMasterData() {
       columns: 'code, name, customer_type (RETAIL/DIRECT), category, city, phone, email, payment_terms_days' },
     { key: 'suppliers', label: 'Suppliers', icon: '🏭',
       columns: 'code, name, contact, phone, email, city, address' },
+    { key: 'ingredients', label: 'Ingredients', icon: '🌿',
+      columns: 'code (e.g. ING-001SP), name, cost_per_kg, unit (default: kg) — reorder level set manually in app' },
     { key: 'products', label: 'Products & Variants', icon: '🌶️',
-      columns: 'code, name, name_urdu, blend_code, pack_sizes (comma-separated e.g. "50g,100g,500g")' },
-    { key: 'prices', label: 'Price Master', icon: '🏷️',
-      columns: 'product_code, pack_size, price_type, price, effective_from (YYYY-MM-DD)' },
-    { key: 'ingredients', label: 'Ingredient Costs', icon: '🔒',
-      columns: 'code (e.g. ING-001SP), cost_per_kg, unit (default: kg), reorder_level (optional) — no names stored' },
+      columns: 'product_code (e.g. SPGM), product_name, sku_code (e.g. SPGM-50), pack_size (e.g. 50g) — one row per variant' },
   ];
 
   return `
@@ -9398,6 +9622,7 @@ async function uploadMaster(type) {
       html += '</span>';
       if (errs.length) html += `<br><span style="color:var(--chili)">${errs.slice(0,3).join('<br>')}${errs.length>3?'<br>...and '+(errs.length-3)+' more':''}</span>`;
       resultEl.innerHTML = html;
+      await refreshAll();
     } else {
       resultEl.innerHTML = `<span style="color:var(--chili)">✗ ${d.error}</span>`;
     }
@@ -9462,7 +9687,55 @@ async function renderSystem() {
 
         ${tableSection}
       </div>
-    </div>`;
+    </div>
+
+    ${state.currentUser?.devTools ? `
+    <div class="card" style="max-width:720px;margin-top:20px;border:2px solid var(--chili)">
+      <div class="card-header" style="background:var(--orange-pale)">
+        <b style="color:var(--chili)">🧪 DEV TOOLS — Development Environment Only</b>
+      </div>
+      <div class="card-body">
+        <p style="color:var(--text-2);font-size:0.9em;margin-bottom:16px">
+          These tools are only available on the dev environment. They permanently delete data and cannot be undone.
+        </p>
+        <div style="border:1px solid var(--chili);border-radius:6px;padding:16px;background:#fff8f6">
+          <b style="color:var(--chili)">⚠️ Reset All Data</b>
+          <p style="font-size:0.85em;color:var(--text-3);margin:6px 0 12px">
+            Wipes all customers, suppliers, ingredients, products, orders, invoices, production batches, and payments.
+            Keeps users, pack sizes, price types, and zones.
+          </p>
+          <button class="btn btn-danger" onclick="devResetAll(this)">🗑 Reset All Data</button>
+          <span id="dev-reset-msg" style="margin-left:12px;font-size:0.9em"></span>
+        </div>
+      </div>
+    </div>` : ''}`;
+}
+
+async function devResetAll(btn) {
+  const msgEl = document.getElementById('dev-reset-msg');
+  const confirmed = confirm(
+    '⚠️ WARNING: This will permanently delete ALL data including customers, suppliers, ingredients, products, orders, invoices, and production records.\n\nThis cannot be undone.\n\nType OK to confirm.'
+  );
+  if (!confirmed) return;
+  btn.disabled = true;
+  btn.textContent = '⏳ Resetting…';
+  msgEl.textContent = '';
+  try {
+    const r = await fetch('/api/dev/reset-all', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + authToken(), 'Content-Type': 'application/json' }
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Reset failed');
+    const total = d.total_rows || 0;
+    msgEl.innerHTML = `<span style="color:#4caf50">✓ Done — ${total.toLocaleString()} rows cleared</span>`;
+    setTimeout(() => nav('dashboard'), 2000);
+  } catch(e) {
+    msgEl.innerHTML = `<span style="color:var(--chili)">✗ ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🗑 Reset All Data';
+  }
 }
 
 async function runBackupNow(btn) {
