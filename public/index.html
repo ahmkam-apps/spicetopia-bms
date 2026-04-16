@@ -582,9 +582,20 @@ input[type="radio"]    { accent-color: var(--saffron); }
   <!-- Left: current page -->
   <div id="page-title">Dashboard</div>
 
-  <!-- Centre: logo only -->
+  <!-- Centre: inline SVG logo so IBM Plex Sans renders correctly -->
   <div style="display:flex;align-items:center;justify-content:center">
-    <img src="/img/spicetopia-logo.svg" alt="Spicetopia" style="height:28px;display:block">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 90" style="height:26px;display:block" aria-label="Spicetopia">
+      <defs>
+        <linearGradient id="chiliGrad" x1="0.5" y1="0" x2="0.5" y2="1">
+          <stop offset="0%"   stop-color="#FA7B1A"/>
+          <stop offset="55%"  stop-color="#D43510"/>
+          <stop offset="100%" stop-color="#A81408"/>
+        </linearGradient>
+      </defs>
+      <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif" font-weight="700" font-size="54" fill="#161616" letter-spacing="1"><tspan x="36" y="68">SP</tspan></text>
+      <path d="M128,16 C138,26 140,46 135,58 Q128,67 121,58 C116,46 118,26 128,16 Z" fill="url(#chiliGrad)"/>
+      <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif" font-weight="700" font-size="54" fill="#161616" letter-spacing="1"><tspan x="144" y="68">CETOPIA</tspan></text>
+    </svg>
   </div>
 
   <!-- Right: controls -->
