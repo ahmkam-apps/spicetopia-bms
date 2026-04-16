@@ -38,9 +38,9 @@
   --cinnamon:       #f1c21b;   /* Yellow 30 */
   --cinnamon-pale:  #fcf4d6;   /* Yellow 10 */
 
-  /* Sidebar — keep Spicetopia brand identity */
-  --pepper:         #1C0E04;
-  --pepper-mid:     #2E1A0A;
+  /* Sidebar — Carbon Gray 100 shell */
+  --pepper:         #161616;
+  --pepper-mid:     #262626;
   --cumin:          #8B6345;
   --cream:          #F5EFE8;
   --cream-warm:     #FAF5F0;
@@ -168,7 +168,7 @@ html, body {
 }
 
 /* ── Topbar — Carbon Shell Header ────────────────────────────────── */
-#page-title { font-size: 14px; font-weight: 400; color: var(--text-1); letter-spacing: 0.1px; }
+#page-title { font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: 0.1px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 
 /* ── Buttons — Carbon spec ───────────────────────────────────────── */
@@ -580,12 +580,11 @@ input[type="radio"]    { accent-color: var(--saffron); }
 <!-- ── TOPBAR — full width across the very top ───────────────────── -->
 <div id="topbar">
   <!-- Left: current page -->
-  <div id="page-title" style="font-size:13px;font-weight:600;color:var(--text-2);">Dashboard</div>
+  <div id="page-title">Dashboard</div>
 
-  <!-- Centre: logo + subtitle -->
-  <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-    <img src="/img/spicetopia-logo.svg" alt="Spicetopia" style="height:38px;display:block">
-    <span style="font-size:8.5px;font-weight:700;letter-spacing:3.5px;color:var(--text-3);text-transform:uppercase">Business Management System</span>
+  <!-- Centre: logo only -->
+  <div style="display:flex;align-items:center;justify-content:center">
+    <img src="/img/spicetopia-logo.svg" alt="Spicetopia" style="height:28px;display:block">
   </div>
 
   <!-- Right: controls -->
