@@ -171,28 +171,48 @@ html, body {
 #page-title { font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: -0.2px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 
-/* ── Buttons ─────────────────────────────────────────────────────── */
+/* ── Buttons — Carbon spec ───────────────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 6px 14px; border-radius: var(--r-sm); border: none;
-  cursor: pointer; font-size: 13px; font-weight: 500;
-  font-family: var(--font); letter-spacing: -0.1px;
-  transition: filter 0.1s, transform 0.08s;
-  white-space: nowrap; line-height: 1.4;
+  padding: 0 15px; min-height: 40px; border-radius: 0; border: none;
+  cursor: pointer; font-size: 14px; font-weight: 400;
+  font-family: var(--font); letter-spacing: 0.16px;
+  transition: background 0.1s ease;
+  white-space: nowrap; line-height: 1;
+  text-decoration: none;
 }
-.btn:hover  { filter: brightness(0.93); }
-.btn:active { transform: scale(0.97); }
-.btn:disabled { opacity: 0.38; cursor: not-allowed; }
-.btn-primary     { background: var(--saffron); color: #fff; }
-.btn-orange      { background: var(--saffron); color: #fff; }
-.btn-blue        { background: var(--mac-blue); color: #fff; }
-.btn-danger      { background: var(--chili); color: #fff; }
-.btn-outline     { background: var(--surface); color: var(--text-1); border: 1px solid var(--border); }
-.btn-outline:hover { filter: none; background: var(--surface-2); }
-.btn-outline-red { background: var(--surface); color: var(--chili); border: 1px solid var(--border); }
-.btn-outline-red:hover { filter: none; background: var(--chili-pale); }
-.btn-sm { padding: 5px 11px; font-size: 12px; }
-.btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 5px; }
+.btn:focus-visible { outline: 2px solid var(--saffron); outline-offset: 2px; }
+.btn:disabled, .btn[disabled] { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
+
+/* Carbon Primary */
+.btn-primary  { background: var(--saffron); color: #fff; }
+.btn-primary:hover { background: var(--saffron-deep); }
+
+/* Carbon Secondary (same as primary for this palette) */
+.btn-orange   { background: var(--saffron); color: #fff; }
+.btn-orange:hover { background: var(--saffron-deep); }
+
+/* Carbon Blue (alias) */
+.btn-blue     { background: var(--mac-blue); color: #fff; }
+.btn-blue:hover { background: var(--saffron-deep); }
+
+/* Carbon Danger */
+.btn-danger   { background: var(--chili); color: #fff; }
+.btn-danger:hover { background: #b81922; }
+
+/* Carbon Ghost / Tertiary */
+.btn-outline  { background: transparent; color: var(--saffron); border: 1px solid var(--saffron); }
+.btn-outline:hover { background: var(--saffron-pale); }
+
+/* Carbon Ghost Danger */
+.btn-outline-red { background: transparent; color: var(--chili); border: 1px solid var(--chili); }
+.btn-outline-red:hover { background: var(--chili-pale); }
+
+/* Carbon Small (32px) */
+.btn-sm { min-height: 32px; padding: 0 13px; font-size: 13px; }
+
+/* Carbon Extra Small (24px — toolbar/inline use) */
+.btn-xs { min-height: 24px; padding: 0 10px; font-size: 12px; border-radius: 0; }
 
 /* ── Cards ──────────────────────────────────────────────────────── */
 .card {
@@ -239,18 +259,19 @@ tr:hover td { background: var(--surface-2); }
 .text-center { text-align: center; }
 .num { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: -0.3px; }
 
-/* ── Badges ──────────────────────────────────────────────────────── */
+/* ── Badges — Carbon Tag spec ────────────────────────────────────── */
 .badge {
   display: inline-flex; align-items: center;
-  padding: 2px 8px; border-radius: 20px;
-  font-size: 11px; font-weight: 500;
+  padding: 0 8px; height: 24px; border-radius: 1rem;
+  font-size: 12px; font-weight: 400; line-height: 1;
+  white-space: nowrap;
 }
 .badge-retail  { background: var(--cardamom-pale); color: var(--cardamom); }
-.badge-direct  { background: #EAF3FF; color: var(--mac-blue); }
+.badge-direct  { background: var(--saffron-pale);  color: var(--saffron-deep); }
 .badge-paid    { background: var(--cardamom-pale); color: var(--cardamom); }
 .badge-partial { background: var(--cinnamon-pale); color: var(--cinnamon); }
 .badge-unpaid  { background: var(--chili-pale);    color: var(--chili); }
-.badge-void    { background: #f3f4f6;              color: #6b7280; text-decoration: line-through; }
+.badge-void    { background: var(--surface-3);     color: var(--text-3); text-decoration: line-through; }
 .badge-draft   { background: var(--surface-3);     color: var(--text-3); }
 .badge-ok      { background: var(--cardamom-pale); color: var(--cardamom); }
 .badge-low     { background: var(--cinnamon-pale); color: var(--cinnamon); }
