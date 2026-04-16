@@ -278,32 +278,41 @@ tr:hover td { background: var(--surface-2); }
 .badge-low     { background: var(--cinnamon-pale); color: var(--cinnamon); }
 .badge-out     { background: var(--chili-pale);    color: var(--chili); }
 
-/* ── Forms ───────────────────────────────────────────────────────── */
-.form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
-.form-group { display: flex; flex-direction: column; gap: 5px; }
-.form-group label { font-size: 11px; font-weight: 600; color: var(--text-2); letter-spacing: 0.1px; }
+/* ── Forms — Carbon Field spec ───────────────────────────────────── */
+.form-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 12px; font-weight: 400; color: var(--text-2); letter-spacing: 0.32px; }
 .form-group input, .form-group select, .form-group textarea {
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  font-size: 13px; font-family: var(--font);
-  background: var(--surface); color: var(--text-1);
-  min-width: 130px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  padding: 0 16px;
+  height: 40px;
+  border: none;
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0;
+  font-size: 14px; font-family: var(--font);
+  background: var(--surface-2); color: var(--text-1);
+  min-width: 140px;
+  transition: border-color 0.1s, background 0.1s;
   -webkit-appearance: none; appearance: none;
 }
+.form-group textarea {
+  height: auto; padding: 10px 16px; resize: vertical; min-height: 80px;
+}
 .form-group select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%235C4230' stroke-width='1.5' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 10px center;
-  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%23161616' stroke-width='1.5' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+  padding-right: 32px;
 }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-  outline: none; border-color: var(--saffron);
-  box-shadow: 0 0 0 3px rgba(232,144,26,0.18);
+  outline: none;
+  border-bottom: 2px solid var(--saffron);
+  background: var(--surface);
 }
-.radio-group { display: flex; gap: 14px; align-items: center; padding: 6px 0; }
-.radio-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 400; color: var(--text-1); cursor: pointer; }
-input[type="checkbox"] { accent-color: var(--saffron); width: 13px; height: 13px; }
+.form-group input:hover, .form-group select:hover, .form-group textarea:hover {
+  background: var(--surface-3);
+}
+.radio-group { display: flex; gap: 16px; align-items: center; padding: 6px 0; }
+.radio-group label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 400; color: var(--text-1); cursor: pointer; }
+input[type="checkbox"] { accent-color: var(--saffron); width: 14px; height: 14px; }
 input[type="radio"]    { accent-color: var(--saffron); }
 
 /* ── Alerts ──────────────────────────────────────────────────────── */
