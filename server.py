@@ -2857,7 +2857,9 @@ def create_customer_order_external(data):
             AND created_at >= datetime('now', '-24 hours')
         """, (idem_key, rep_id))
         if existing:
-            return _order_detail(existing['id'])
+            result = _order_detail(existing['id'])
+            result['_idempotent'] = True
+            return result
 
     # Create the base order as draft (standard path)
     order = create_customer_order(data)
@@ -9992,7 +9994,9 @@ class Handler(BaseHTTPRequestHandler):
                 sess = get_session(self, qs)
                 if sess and sess.get('role') == 'field_rep':
                     data['created_by_rep_id'] = sess.get('repId')
-                send_json(self, create_customer_order_external(data), 201)
+                result = create_customer_order_external(data)
+                status = 200 if result.pop('_idempotent', False) else 201
+                send_json(self, result, status)
                 return
 
             # POST /api/review-queue/:id/approve  (admin, sales)
