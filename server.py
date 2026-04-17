@@ -9837,28 +9837,6 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, {'ok': False, 'error': str(e)}, 500)
                 return
 
-            # PUT /api/admin/settings  (admin only — save WA config to DB + hot-reload)
-            if path == '/api/admin/settings' and method == 'PUT':
-                if sess['role'] != 'admin':
-                    send_error(self, 'Permission denied', 403); return
-                if 'whatsapp_enabled' in data:
-                    set_setting('whatsapp_enabled', '1' if data['whatsapp_enabled'] else '0')
-                if 'whatsapp_admin_phone' in data:
-                    set_setting('whatsapp_admin_phone', data['whatsapp_admin_phone'].strip())
-                if 'whatsapp_admin_apikey' in data:
-                    set_setting('whatsapp_admin_apikey', data['whatsapp_admin_apikey'].strip())
-                if 'whatsapp_expiry_warn_hours' in data:
-                    set_setting('whatsapp_expiry_warn_hours', str(int(data['whatsapp_expiry_warn_hours'])))
-                    global WA_EXPIRY_WARN_HOURS
-                    WA_EXPIRY_WARN_HOURS = int(data['whatsapp_expiry_warn_hours'])
-                _reload_wa_from_db()
-                send_json(self, {
-                    'ok': True,
-                    'whatsapp_enabled':      WA_ENABLED,
-                    'whatsapp_admin_phone':  WA_ADMIN_PHONE,
-                })
-                return
-
             # POST /api/admin/test-whatsapp  (admin only — send a test message)
             if path == '/api/admin/test-whatsapp':
                 if sess['role'] != 'admin':
@@ -10510,6 +10488,28 @@ class Handler(BaseHTTPRequestHandler):
             sess = get_session(self)
             if not sess:
                 send_json(self, {'error': 'Unauthorized'}, 401); return
+
+            # PUT /api/admin/settings  (admin only — save WA config to DB + hot-reload)
+            if path == '/api/admin/settings':
+                if sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                if 'whatsapp_enabled' in data:
+                    set_setting('whatsapp_enabled', '1' if data['whatsapp_enabled'] else '0')
+                if 'whatsapp_admin_phone' in data:
+                    set_setting('whatsapp_admin_phone', data['whatsapp_admin_phone'].strip())
+                if 'whatsapp_admin_apikey' in data:
+                    set_setting('whatsapp_admin_apikey', data['whatsapp_admin_apikey'].strip())
+                if 'whatsapp_expiry_warn_hours' in data:
+                    set_setting('whatsapp_expiry_warn_hours', str(int(data['whatsapp_expiry_warn_hours'])))
+                    global WA_EXPIRY_WARN_HOURS
+                    WA_EXPIRY_WARN_HOURS = int(data['whatsapp_expiry_warn_hours'])
+                _reload_wa_from_db()
+                send_json(self, {
+                    'ok': True,
+                    'whatsapp_enabled':     WA_ENABLED,
+                    'whatsapp_admin_phone': WA_ADMIN_PHONE,
+                })
+                return
 
             # PUT /api/products/variants/:id/wastage  (admin only)
             parts = path.split('/')
