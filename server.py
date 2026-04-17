@@ -12247,29 +12247,111 @@ def get_field_order(order_id):
     return order
 
 def list_field_orders(rep_id=None, status=None, date_from=None, date_to=None):
-    sql = """
-        SELECT fo.*, sr.name as rep_name, c.name as customer_name,
-               r.name as route_name,
-               COALESCE((SELECT SUM(quantity*unit_price) FROM field_order_items WHERE order_id=fo.id),0) as order_total,
-               COALESCE(fo.confirmed_invoice_id, fo.invoice_id) as invoice_id
-        FROM field_orders fo
-        JOIN sales_reps sr ON sr.id=fo.rep_id
-        JOIN customers c ON c.id=fo.customer_id
-        LEFT JOIN routes r ON r.id=fo.route_id
     """
-    params, where = [], []
+    Returns all orders created through the sales rep portal (order.html) PLUS
+    legacy field_orders records. Portal orders come from customer_orders where
+    order_source='rep_assisted'. Status 'draft' is normalised to 'pending' so
+    the BMS Confirm button appears.
+    """
+    # ── Portal orders (order.html PWA) ──────────────────────────────────────
+    portal_wheres = ["co.order_source='rep_assisted'"]
+    portal_params = []
     if rep_id:
-        where.append("fo.rep_id=?"); params.append(int(rep_id))
-    if status:
-        where.append("fo.status=?"); params.append(status)
+        portal_wheres.append("co.created_by_rep_id=?")
+        portal_params.append(int(rep_id))
+    # status filter: 'pending' maps to draft in customer_orders
+    if status == 'pending':
+        portal_wheres.append("co.status IN ('draft','pending_review')")
+    elif status == 'confirmed':
+        portal_wheres.append("co.status IN ('confirmed','invoiced','partially_invoiced')")
+    elif status == 'cancelled':
+        portal_wheres.append("co.status='cancelled'")
     if date_from:
-        where.append("fo.order_date>=?"); params.append(date_from)
+        portal_wheres.append("co.order_date>=?"); portal_params.append(date_from)
     if date_to:
-        where.append("fo.order_date<=?"); params.append(date_to)
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY fo.order_date DESC, fo.id DESC LIMIT 200"
-    return qry(sql, params)
+        portal_wheres.append("co.order_date<=?"); portal_params.append(date_to)
+
+    portal_sql = """
+        SELECT
+            co.id,
+            co.order_number                              AS order_ref,
+            co.order_date,
+            CASE
+                WHEN co.status IN ('draft','pending_review') THEN 'pending'
+                WHEN co.status IN ('confirmed','invoiced','partially_invoiced') THEN 'confirmed'
+                ELSE co.status
+            END                                          AS status,
+            sr.name                                      AS rep_name,
+            c.name                                       AS customer_name,
+            NULL                                         AS route_name,
+            COALESCE((
+                SELECT SUM(coi.qty_ordered * coi.unit_price)
+                FROM customer_order_items coi
+                WHERE coi.order_id = co.id
+            ), 0)                                        AS order_total,
+            (
+                SELECT inv.id FROM invoices inv
+                WHERE inv.customer_order_id = co.id
+                ORDER BY inv.id DESC LIMIT 1
+            )                                            AS invoice_id,
+            co.notes,
+            'portal'                                     AS _source
+        FROM customer_orders co
+        LEFT JOIN sales_reps sr ON sr.id = co.created_by_rep_id
+        LEFT JOIN customers  c  ON c.id  = co.customer_id
+        WHERE {portal_where}
+    """.format(portal_where=' AND '.join(portal_wheres))
+
+    # ── Legacy field_orders ──────────────────────────────────────────────────
+    legacy_wheres = []
+    legacy_params = []
+    if rep_id:
+        legacy_wheres.append("fo.rep_id=?"); legacy_params.append(int(rep_id))
+    if status:
+        legacy_wheres.append("fo.status=?"); legacy_params.append(status)
+    if date_from:
+        legacy_wheres.append("fo.order_date>=?"); legacy_params.append(date_from)
+    if date_to:
+        legacy_wheres.append("fo.order_date<=?"); legacy_params.append(date_to)
+
+    legacy_where_str = ("WHERE " + " AND ".join(legacy_wheres)) if legacy_wheres else ""
+
+    legacy_sql = """
+        SELECT
+            fo.id,
+            fo.order_ref,
+            fo.order_date,
+            fo.status,
+            sr.name                                      AS rep_name,
+            c.name                                       AS customer_name,
+            r.name                                       AS route_name,
+            COALESCE((
+                SELECT SUM(quantity * unit_price)
+                FROM field_order_items
+                WHERE order_id = fo.id
+            ), 0)                                        AS order_total,
+            COALESCE(fo.confirmed_invoice_id, fo.invoice_id) AS invoice_id,
+            fo.notes,
+            'legacy'                                     AS _source
+        FROM field_orders fo
+        JOIN sales_reps sr ON sr.id = fo.rep_id
+        JOIN customers  c  ON c.id  = fo.customer_id
+        LEFT JOIN routes r ON r.id  = fo.route_id
+        {legacy_where}
+    """.format(legacy_where=legacy_where_str)
+
+    # ── UNION + sort ─────────────────────────────────────────────────────────
+    union_sql = f"""
+        SELECT * FROM (
+            {portal_sql}
+            UNION ALL
+            {legacy_sql}
+        )
+        ORDER BY order_date DESC, id DESC
+        LIMIT 200
+    """
+    all_params = portal_params + legacy_params
+    return qry(union_sql, all_params)
 
 def create_invoice(inv_data):
     """

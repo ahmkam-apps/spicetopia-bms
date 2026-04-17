@@ -10724,28 +10724,33 @@ async function saveNewRoute() {
 //  FIELD ORDERS PAGE
 // ═══════════════════════════════════════════════════════════════════
 
-async function renderFieldOrders() {
-  const [orders, reps] = await Promise.all([GET('/api/field-orders'), GET('/api/reps')]);
-  const repOpts = reps.map(r => `<option value="${r.id}">${escQ(r.name)}</option>`).join('');
-
+function _foRow(o) {
   const statusColor = {pending:'var(--saffron)', confirmed:'var(--cardamom)', cancelled:'var(--chili)'};
-
-  const rows = orders.map(o => `
+  const sourceBadge = o._source === 'portal'
+    ? `<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#e8f0fe;color:#1a56db;margin-left:4px">PWA</span>`
+    : '';
+  return `
     <tr>
       <td>${o.order_date||''}</td>
-      <td>${escQ(o.rep_name||'')}</td>
+      <td>${escQ(o.rep_name||'—')}${sourceBadge}</td>
       <td>${escQ(o.customer_name||'')}</td>
       <td>${escQ(o.route_name||'—')}</td>
       <td style="color:${statusColor[o.status]||'inherit'}">${o.status||''}</td>
       <td style="text-align:right">PKR ${(o.order_total||0).toLocaleString()}</td>
       <td style="white-space:nowrap">
-        ${o.status==='pending' ? `<button class="btn-sm" onclick="confirmOrder(${o.id})" style="background:var(--cardamom);color:#fff">Confirm</button>` : ''}
+        ${o.status==='pending' ? `<button class="btn-sm" onclick="confirmOrder(${o.id},'${o._source||'legacy'}')" style="background:var(--cardamom);color:#fff">Confirm</button>` : ''}
         ${o.status==='confirmed' && o.invoice_id ? `
           <button class="btn-sm btn-outline" onclick="printInvoice(${o.invoice_id})" title="Print Invoice" style="margin-left:4px">🖨️</button>
           <button class="btn-sm btn-outline" onclick="emailInvoice(${o.invoice_id})" title="Email Invoice" style="margin-left:2px">✉️</button>` : ''}
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No field orders yet</td></tr>';
+  `;
+}
+
+async function renderFieldOrders() {
+  const [orders, reps] = await Promise.all([GET('/api/field-orders'), GET('/api/reps')]);
+  const repOpts = reps.map(r => `<option value="${r.id}">${escQ(r.name)}</option>`).join('');
+  const rows = orders.map(_foRow).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No field orders yet</td></tr>';
 
   return `
     <div class="page-header"><h2>Field Orders</h2></div>
@@ -10769,13 +10774,29 @@ async function renderFieldOrders() {
   `;
 }
 
-async function confirmOrder(orderId) {
-  if (!confirm('Confirm this field order? This will create an invoice.')) return;
+async function confirmOrder(orderId, source) {
+  if (!confirm('Confirm this order and create an invoice?')) return;
   try {
-    const res = await POST(`/api/field-orders/${orderId}/confirm`, {});
-    const invId = res.invoiceId || res.invoice_id || res.id;
-    const doPrint = invId && confirm(`✅ Order confirmed — Invoice ${res.invoiceNumber || res.invoice_number || ''} created.\n\nPrint the invoice now?`);
-    if (doPrint) await printInvoice(invId);
+    let res;
+    if (source === 'portal') {
+      // Portal orders live in customer_orders — confirm then auto-invoice
+      res = await POST(`/api/customer-orders/${orderId}/confirm`, {});
+      // Try to auto-generate invoice
+      try {
+        const invRes = await POST(`/api/customer-orders/${orderId}/invoice`, {invoiceDate: new Date().toISOString().slice(0,10)});
+        const invId = invRes.id || invRes.invoiceId;
+        const doPrint = invId && confirm(`✅ Order confirmed — Invoice ${invRes.invoiceNumber || ''} created.\n\nPrint the invoice now?`);
+        if (doPrint) await printInvoice(invId);
+      } catch(invErr) {
+        alert(`✅ Order confirmed.\n\nNote: Could not auto-create invoice: ${invErr.message}\nYou can invoice it from Orders & Invoices.`);
+      }
+    } else {
+      // Legacy field_orders
+      res = await POST(`/api/field-orders/${orderId}/confirm`, {});
+      const invId = res.invoiceId || res.invoice_id || res.id;
+      const doPrint = invId && confirm(`✅ Order confirmed — Invoice ${res.invoiceNumber || res.invoice_number || ''} created.\n\nPrint the invoice now?`);
+      if (doPrint) await printInvoice(invId);
+    }
     nav('field-orders');
   } catch(e) { alert('Error: ' + e.message); }
 }
@@ -10788,23 +10809,8 @@ async function filterFieldOrders() {
   if (status) url += `status=${status}`;
   let orders = [];
   try { orders = await GET(url); } catch(e) { orders = []; }
-  const statusColor = {pending:'var(--saffron)', confirmed:'var(--cardamom)', cancelled:'var(--chili)'};
-  document.getElementById('fo-tbody').innerHTML = orders.map(o => `
-    <tr>
-      <td>${o.order_date||''}</td>
-      <td>${escQ(o.rep_name||'')}</td>
-      <td>${escQ(o.customer_name||'')}</td>
-      <td>${escQ(o.route_name||'—')}</td>
-      <td style="color:${statusColor[o.status]||'inherit'}">${o.status||''}</td>
-      <td style="text-align:right">PKR ${(o.order_total||0).toLocaleString()}</td>
-      <td style="white-space:nowrap">
-        ${o.status==='pending' ? `<button class="btn-sm" onclick="confirmOrder(${o.id})" style="background:var(--cardamom);color:#fff">Confirm</button>` : ''}
-        ${o.status==='confirmed' && o.invoice_id ? `
-          <button class="btn-sm btn-outline" onclick="printInvoice(${o.invoice_id})" title="Print Invoice" style="margin-left:4px">🖨️</button>
-          <button class="btn-sm btn-outline" onclick="emailInvoice(${o.invoice_id})" title="Email Invoice" style="margin-left:2px">✉️</button>` : ''}
-      </td>
-    </tr>
-  `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No orders</td></tr>';
+  document.getElementById('fo-tbody').innerHTML =
+    orders.map(_foRow).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No orders</td></tr>';
 }
 
 
