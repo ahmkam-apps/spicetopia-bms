@@ -206,7 +206,7 @@ def test_dashboard():
 # ═══════════════════════════════════════════════════════════════════════════════
 def test_reference_data():
     _section("MODULE 2 — Reference Data")
-    global _test_customer_code, _test_supplier_id, _test_product_code, _test_ingredient_id
+    global _test_customer_code, _test_customer_str_code, _test_supplier_id, _test_product_code, _test_ingredient_id
     global _test_variant_id, _test_pack_size, _test_price_type_id
 
     # Products list
@@ -252,19 +252,22 @@ def test_reference_data():
 
     # Customers — create new
     try:
-        cust_code = f"TEST-{int(time.time()) % 100000}"
         r = POST("/api/customers", {
-            "code": cust_code, "name": "Test Customer (Auto)",
+            "name": "Test Customer (Auto)",
+            "city": "Karachi",
+            "address": "123 Test Street, SITE, Karachi",
             "category": "Retailer", "credit_limit": 50000,
-            "payment_terms": 30, "address": "123 Test St",
+            "paymentTermsDays": 30,
             "phone": "0300-0000000", "email": "test@spicetopia.test"
         })
-        if r.get("code") or r.get("customer_code"):
-            _test_customer_code = r.get("code") or r.get("customer_code") or cust_code
-            _pass(f"Create new customer → code: {_test_customer_code}")
+        if r.get("id"):
+            _test_customer_code     = r.get("id")       # integer id for CRUD routes
+            _test_customer_str_code = r.get("code")     # string code for custCode in orders
+            _pass(f"Create new customer → account: {r.get('account_number')}  id: {r.get('id')}")
         else:
-            _test_customer_code = cust_code
-            _pass(f"Create customer endpoint responded (code: {cust_code})")
+            _test_customer_code = None
+            _test_customer_str_code = None
+            _pass(f"Create customer endpoint responded")
     except Exception as e:
         _fail("Create new customer", str(e))
         _test_customer_code = None
@@ -403,7 +406,7 @@ def test_sales():
 
     try:
         payload = {
-            "custCode":  _test_customer_code,
+            "custCode":  _test_customer_str_code,
             "saleDate":  TODAY,
             "notes":     "Automated test invoice",
             "lines": [
@@ -871,7 +874,7 @@ def test_customer_orders():
     new_order_id = None
     try:
         payload = {
-            "custCode":     _test_customer_code,
+            "custCode":     _test_customer_str_code,
             "orderDate":    TODAY,
             "requiredDate": TOMORROW,
             "notes":        "Automated test order",
@@ -1017,7 +1020,7 @@ def test_customer_orders():
     # 11.15  Duplicate order — empty lines rejected
     try:
         ok, res = try_post("/api/customer-orders", {
-            "custCode":  _test_customer_code,
+            "custCode":  _test_customer_str_code,
             "orderDate": TODAY,
             "lines":     [],
         })
@@ -1066,7 +1069,7 @@ def test_integration_flow():
     order_items = []
     try:
         res = POST("/api/customer-orders", {
-            "custCode":     _test_customer_code,
+            "custCode":     _test_customer_str_code,
             "orderDate":    TODAY,
             "requiredDate": TOMORROW,
             "notes":        "Integration flow test order",
@@ -1598,7 +1601,8 @@ QUICK WINS (Can be done in < 1 day each)
 # ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════════════════
 # Module-level test references (populated by test_reference_data)
-_test_customer_code  = None
+_test_customer_code     = None   # integer customer id (for CRUD routes)
+_test_customer_str_code = None   # string code e.g. SP-SP-CUST-0012 (for custCode in orders)
 _test_supplier_id    = None
 _test_product_code   = None
 _test_ingredient_id  = None

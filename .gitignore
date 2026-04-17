@@ -1,0 +1,32 @@
+# Database files — never commit live data
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+data/
+backups/
+spicetopia.lock
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+.fuse_hidden*
+
+# Logs
+logs/
+*.log
+
+# Config (has local paths)
+config.json
+
+# Test outputs
+test_reports/
+
+# Build artifacts
+dist/
+build/
+*.spec.bak
