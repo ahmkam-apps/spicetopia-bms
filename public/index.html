@@ -1040,7 +1040,7 @@ async function render(page, arg) {
       case 'zones-routes':  c.innerHTML = await renderZonesRoutes();  break;
       case 'field-orders':  c.innerHTML = await renderFieldOrders();  break;
       case 'payroll':       c.innerHTML = await renderPayroll();       break;
-      case 'system':        c.innerHTML = await renderSystem();        break;
+      case 'system':        c.innerHTML = await renderSystem(); _loadWaSettings(); break;
       default: c.innerHTML = '<p>Page not found</p>';
     }
   } catch(e) {
@@ -9744,6 +9744,50 @@ async function renderUsers() {
   </div>`;
 }
 
+async function _loadWaSettings() {
+  try {
+    const s = await GET('/api/admin/settings');
+    const enEl = document.getElementById('wa-enabled');
+    const phEl = document.getElementById('wa-phone');
+    const akEl = document.getElementById('wa-apikey');
+    const badge = document.getElementById('wa-status-badge');
+    const guide = document.getElementById('wa-setup-guide');
+    if (enEl) enEl.checked = !!s.whatsapp_enabled;
+    if (phEl) phEl.value  = s.whatsapp_admin_phone  || '';
+    if (akEl) akEl.value  = s.whatsapp_admin_apikey || '';
+    if (badge) {
+      const on = !!s.whatsapp_enabled && !!s.whatsapp_admin_phone && !!s.whatsapp_admin_apikey;
+      badge.textContent  = on ? '● Active' : '○ Not configured';
+      badge.style.background = on ? '#d1fae5' : '#fee2e2';
+      badge.style.color      = on ? '#065f46' : '#991b1b';
+    }
+    // Auto-collapse setup guide if already configured
+    if (guide && s.whatsapp_admin_phone && s.whatsapp_admin_apikey) {
+      guide.removeAttribute('open');
+    } else if (guide) {
+      guide.setAttribute('open', '');
+    }
+  } catch(e) { /* ignore */ }
+}
+
+async function _saveWaSettings() {
+  const saveEl = document.getElementById('wa-save-result');
+  if (saveEl) { saveEl.textContent = 'Saving…'; saveEl.style.color = 'var(--text-3)'; }
+  try {
+    const payload = {
+      whatsapp_enabled:      document.getElementById('wa-enabled')?.checked || false,
+      whatsapp_admin_phone:  document.getElementById('wa-phone')?.value.trim() || '',
+      whatsapp_admin_apikey: document.getElementById('wa-apikey')?.value.trim() || '',
+    };
+    await PUT('/api/admin/settings', payload);
+    if (saveEl) { saveEl.textContent = '✓ Saved'; saveEl.style.color = 'var(--cardamom)'; }
+    setTimeout(() => { if (saveEl) saveEl.textContent = ''; }, 3000);
+    await _loadWaSettings(); // refresh badge
+  } catch(e) {
+    if (saveEl) { saveEl.textContent = '✗ ' + e.message; saveEl.style.color = 'var(--chili)'; }
+  }
+}
+
 async function _testWhatsApp() {
   const el = document.getElementById('wa-test-result');
   if (el) { el.textContent = 'Sending…'; el.style.color = 'var(--text-3)'; }
@@ -11252,36 +11296,59 @@ async function renderSystem() {
       </div>
     </div>
 
-    <div class="card" style="max-width:720px;margin-top:20px;border-top:3px solid #25D366">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="card" id="wa-settings-card" style="max-width:720px;margin-top:20px;border-top:3px solid #25D366">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <div>
           <h3 style="margin:0">📱 WhatsApp Notifications</h3>
           <p style="margin:4px 0 0;font-size:12px;color:var(--text-3)">
-            Powered by CallMeBot (free). Admin is notified of new orders, approvals, rejections and hold expiries.
-            <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" style="color:var(--mac-blue)">Setup guide →</a>
+            Powered by <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" style="color:var(--saffron)">CallMeBot (free)</a>.
+            Admin is notified of new orders, approvals, rejections and hold expiries.
           </p>
         </div>
-        <button class="btn btn-outline" onclick="_testWhatsApp()" style="font-size:12px;white-space:nowrap">
-          📤 Send Test Message
-        </button>
+        <span id="wa-status-badge" style="font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600"></span>
       </div>
-      <div style="background:var(--surface-2);border-radius:8px;padding:12px;font-size:12px">
-        <p style="margin:0 0 8px;color:var(--text-2)"><strong>To enable notifications:</strong></p>
-        <ol style="margin:0;padding-left:20px;line-height:2;color:var(--text-2)">
-          <li>Add <strong>+34 644 60 60 47</strong> to your WhatsApp contacts as "CallMeBot"</li>
-          <li>Send this message to that number: <code style="background:var(--surface-3);padding:1px 6px;border-radius:4px">I allow callmebot to send me messages</code></li>
-          <li>You'll receive your API key via WhatsApp within 60 seconds</li>
-          <li>Add these lines to <strong>config.json</strong> in the server folder:</li>
+
+      <!-- Step-by-step setup guide (collapsed when already configured) -->
+      <details id="wa-setup-guide" style="margin-bottom:16px">
+        <summary style="font-size:12px;color:var(--text-2);cursor:pointer;font-weight:600">📋 How to get your CallMeBot API key</summary>
+        <ol style="margin:8px 0 0;padding-left:20px;font-size:12px;line-height:2;color:var(--text-2)">
+          <li>Save <strong>+34 644 60 60 47</strong> in your WhatsApp contacts as "CallMeBot"</li>
+          <li>Send this exact message to that number via WhatsApp:<br>
+            <code style="background:var(--surface-3);padding:2px 8px;border-radius:4px;user-select:all">I allow callmebot to send me messages</code>
+          </li>
+          <li>You'll receive your API key within ~60 seconds</li>
+          <li>Enter your phone number and API key below, then click Save</li>
         </ol>
-        <pre style="background:var(--pepper);color:#e8f5e9;padding:10px 14px;border-radius:6px;margin:10px 0 0;font-size:11px;overflow-x:auto">{
-  "whatsapp_enabled": true,
-  "whatsapp_admin_phone": "923001234567",
-  "whatsapp_admin_apikey": "YOUR_KEY_HERE",
-  "whatsapp_expiry_warn_hours": 6
-}</pre>
-        <p style="margin:8px 0 0;color:var(--text-3)">Restart the server after editing config.json. For per-rep notifications, open their profile in Sales Reps and enter their CallMeBot API key.</p>
+      </details>
+
+      <!-- Config form -->
+      <div style="display:grid;gap:12px">
+        <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer">
+          <input type="checkbox" id="wa-enabled" style="width:16px;height:16px;cursor:pointer">
+          <span><strong>Enable WhatsApp notifications</strong></span>
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="form-label">Admin Phone (with country code)</label>
+            <input class="form-input" id="wa-phone" type="tel" placeholder="923001234567" style="font-family:monospace">
+            <p style="margin:3px 0 0;font-size:11px;color:var(--text-3)">No + or spaces. E.g. 923001234567</p>
+          </div>
+          <div>
+            <label class="form-label">CallMeBot API Key</label>
+            <input class="form-input" id="wa-apikey" type="text" placeholder="1234567" style="font-family:monospace">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="_saveWaSettings()" style="min-width:120px">💾 Save Settings</button>
+          <button class="btn btn-outline" onclick="_testWhatsApp()" style="min-width:140px">📤 Send Test Message</button>
+          <span id="wa-save-result" style="font-size:12px"></span>
+        </div>
       </div>
+
       <div id="wa-test-result" style="margin-top:8px;font-size:12px"></div>
+      <p style="margin:12px 0 0;font-size:11px;color:var(--text-3)">
+        Settings are saved to the database — no server restart needed. For per-rep notifications, open their profile in Sales Reps and enter their API key.
+      </p>
     </div>
 
     ${state.currentUser?.devTools ? `

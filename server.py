@@ -183,6 +183,48 @@ def _save_config(data: dict):
         print(f"  ⚠ Could not save config: {e}")
 
 
+def ensure_system_settings_schema():
+    """Create system_settings key-value table if not present."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        c.commit()
+    finally:
+        c.close()
+
+def get_setting(key: str, default=None):
+    """Read a value from system_settings. Returns default if not found."""
+    try:
+        row = qry1("SELECT value FROM system_settings WHERE key=?", (key,))
+        return row['value'] if row else default
+    except Exception:
+        return default
+
+def set_setting(key: str, value: str):
+    """Upsert a value in system_settings."""
+    run("INSERT INTO system_settings (key, value) VALUES (?,?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (key, str(value) if value is not None else ''))
+
+def _reload_wa_from_db():
+    """Hot-reload WhatsApp globals from system_settings DB (called after UI save)."""
+    global WA_ENABLED, WA_ADMIN_PHONE, WA_ADMIN_APIKEY, WA_EXPIRY_WARN_HOURS
+    # DB values override config.json but env vars still win
+    if not os.environ.get('WA_ENABLED'):
+        v = get_setting('whatsapp_enabled', '')
+        if v != '':
+            WA_ENABLED = v.lower() in ('1', 'true', 'yes')
+    if not os.environ.get('WA_ADMIN_PHONE'):
+        WA_ADMIN_PHONE = get_setting('whatsapp_admin_phone', WA_ADMIN_PHONE) or WA_ADMIN_PHONE
+    if not os.environ.get('WA_ADMIN_APIKEY'):
+        WA_ADMIN_APIKEY = get_setting('whatsapp_admin_apikey', WA_ADMIN_APIKEY) or WA_ADMIN_APIKEY
+
+
 def _apply_startup_config():
     """
     Read config.json and environment variables to set runtime globals.
@@ -213,7 +255,7 @@ def _apply_startup_config():
     else:
         CORS_ORIGINS = cfg.get('cors_origins', [])
 
-    # WhatsApp (CallMeBot) notification config
+    # WhatsApp (CallMeBot) notification config — env > config.json (DB loaded later via _reload_wa_from_db)
     global WA_ENABLED, WA_ADMIN_PHONE, WA_ADMIN_APIKEY, WA_EXPIRY_WARN_HOURS
     WA_ENABLED           = bool(int(os.environ.get('WA_ENABLED', '1' if cfg.get('whatsapp_enabled', False) else '0')))
     WA_ADMIN_PHONE       = os.environ.get('WA_ADMIN_PHONE',  cfg.get('whatsapp_admin_phone',  ''))
@@ -8416,6 +8458,18 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
+            # GET /api/admin/settings  — return runtime + DB settings (admin only)
+            if path == '/api/admin/settings':
+                if not sess or sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                send_json(self, {
+                    'whatsapp_enabled':       WA_ENABLED,
+                    'whatsapp_admin_phone':   WA_ADMIN_PHONE,
+                    'whatsapp_admin_apikey':  WA_ADMIN_APIKEY,
+                    'whatsapp_expiry_warn_hours': WA_EXPIRY_WARN_HOURS,
+                })
+                return
+
             # ── ADMIN PRICE MASTER ─────────────────────────────────────────
             # GET /api/admin/price-master  — full price matrix (admin only)
             if path == '/api/admin/price-master':
@@ -9783,14 +9837,36 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, {'ok': False, 'error': str(e)}, 500)
                 return
 
+            # PUT /api/admin/settings  (admin only — save WA config to DB + hot-reload)
+            if path == '/api/admin/settings' and method == 'PUT':
+                if sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                if 'whatsapp_enabled' in data:
+                    set_setting('whatsapp_enabled', '1' if data['whatsapp_enabled'] else '0')
+                if 'whatsapp_admin_phone' in data:
+                    set_setting('whatsapp_admin_phone', data['whatsapp_admin_phone'].strip())
+                if 'whatsapp_admin_apikey' in data:
+                    set_setting('whatsapp_admin_apikey', data['whatsapp_admin_apikey'].strip())
+                if 'whatsapp_expiry_warn_hours' in data:
+                    set_setting('whatsapp_expiry_warn_hours', str(int(data['whatsapp_expiry_warn_hours'])))
+                    global WA_EXPIRY_WARN_HOURS
+                    WA_EXPIRY_WARN_HOURS = int(data['whatsapp_expiry_warn_hours'])
+                _reload_wa_from_db()
+                send_json(self, {
+                    'ok': True,
+                    'whatsapp_enabled':      WA_ENABLED,
+                    'whatsapp_admin_phone':  WA_ADMIN_PHONE,
+                })
+                return
+
             # POST /api/admin/test-whatsapp  (admin only — send a test message)
             if path == '/api/admin/test-whatsapp':
                 if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 if not WA_ENABLED:
-                    send_json(self, {'ok': False, 'error': 'WhatsApp notifications are disabled. Set whatsapp_enabled: true in config.json'}); return
+                    send_json(self, {'ok': False, 'error': 'WhatsApp notifications are disabled. Enable them in Admin → Settings → WhatsApp.'}); return
                 if not WA_ADMIN_PHONE or not WA_ADMIN_APIKEY:
-                    send_json(self, {'ok': False, 'error': 'whatsapp_admin_phone and whatsapp_admin_apikey must be set in config.json'}); return
+                    send_json(self, {'ok': False, 'error': 'Admin phone and API key must be saved in Admin → Settings → WhatsApp.'}); return
                 _wa_admin(
                     f"✅ *Spicetopia BMS*\n"
                     f"Test message — WhatsApp notifications are working!\n"
@@ -12890,6 +12966,8 @@ if __name__ == '__main__':
     _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
     _migrate_customer_type_wholesale()   # adds WHOLESALE to customer_type CHECK
     _ensure_b2b_order_columns()          # adds out_of_route + idempotency_key to customer_orders
+    ensure_system_settings_schema()  # must be early — _reload_wa_from_db reads it
+    _reload_wa_from_db()             # overlay DB-saved WA config on top of config.json
     ensure_review_queue_schema()
     ensure_master_schema()  # must run before load_ref() — adds active, credit_limit cols
     ensure_price_types_sprint6()         # update price_type labels + add bulk
