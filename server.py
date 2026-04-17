@@ -8266,17 +8266,6 @@ class Handler(BaseHTTPRequestHandler):
         qs     = parse_qs(parsed.query)
 
         try:
-            # ── Temp diagnostic — no auth required ────────────────
-            if path == '/api/debug/headers':
-                send_json(self, {
-                    'Host':             self.headers.get('Host', ''),
-                    'X-Forwarded-Host': self.headers.get('X-Forwarded-Host', ''),
-                    'X-Forwarded-For':  self.headers.get('X-Forwarded-For', ''),
-                    'X-Real-IP':        self.headers.get('X-Real-IP', ''),
-                    'all_headers':      dict(self.headers),
-                })
-                return
-
             # ── Static files ──────────────────────────────────────
             # If accessed via order.spicetopia.food, always serve order.html
             host = (self.headers.get('X-Forwarded-Host') or self.headers.get('Host', '')).split(':')[0].lower()
