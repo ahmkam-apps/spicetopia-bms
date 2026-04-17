@@ -2789,8 +2789,10 @@ def create_customer_order_external(data):
         for item in data.get('items', []):
             vid = item.get('variantId')
             var = qry1("""
-                SELECT pv.sku_code as productCode, pv.pack_size as packSize
-                FROM product_variants pv WHERE pv.id=?
+                SELECT pv.sku_code as productCode, ps.label as packSize
+                FROM product_variants pv
+                JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                WHERE pv.id=?
             """, (vid,))
             if not var:
                 raise ValueError(f"Product variant not found: variantId={vid}")
