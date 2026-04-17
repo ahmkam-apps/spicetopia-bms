@@ -8402,6 +8402,11 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, "Not found", 404)
                 return
 
+            # ── GET /api/debug/headers — temp diagnostic (no auth) ──────────────
+            if path == '/api/debug/headers':
+                send_json(self, dict(self.headers))
+                return
+
             # ── GET /health — no auth required, for load balancers / monitoring ──
             if path == '/health' or path == '/api/health':
                 db_ok = False
