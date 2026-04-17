@@ -10408,6 +10408,11 @@ async function saveNewRep() {
 }
 
 function showAssignRoute(repId) {
+  const sel = document.getElementById('assign-route-select');
+  if (!sel || sel.options.length === 0) {
+    alert('No routes exist yet. Please create routes first in the Routes section.');
+    return;
+  }
   document.getElementById('assign-rep-id').value = repId;
   document.getElementById('assign-route-panel').style.display = 'block';
   document.getElementById('assign-overlay').style.display = 'block';
@@ -10419,6 +10424,7 @@ function closeAssignRoute() {
 async function doAssignRoute() {
   const repId   = document.getElementById('assign-rep-id').value;
   const routeId = document.getElementById('assign-route-select').value;
+  if (!routeId) { alert('Please select a route.'); return; }
   try {
     await POST(`/api/reps/${repId}/routes`, {routeId: parseInt(routeId)});
     closeAssignRoute();
