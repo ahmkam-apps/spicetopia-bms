@@ -1282,6 +1282,7 @@ async function renderCustomers() {
         <option value="">All Types</option>
         <option value="RETAIL">Retail</option>
         <option value="DIRECT">Direct Sales</option>
+        <option value="WHOLESALE">Wholesale</option>
       </select>
       <select id="cf-cat" style="padding:6px 8px;border:1px solid var(--border);border-radius:4px" onchange="applyCustomerFilters()">
         <option value="">All Categories</option>
@@ -1370,8 +1371,9 @@ function applyCustomerFilters() {
   const status  = document.getElementById('cf-status')?.value  || 'active';
 
   let custs = (state.allCustomers || []).filter(c => {
-    if (status === 'active'   && !c.active)  return false;
-    if (status === 'inactive' &&  c.active)  return false;
+    const isActive = c.active !== 0; // treat NULL as active (default)
+    if (status === 'active'   && !isActive)  return false;
+    if (status === 'inactive' &&  isActive)  return false;
     if (type && c.customer_type !== type)    return false;
     if (cat  && c.category !== cat)          return false;
     const bal = _custBalances[c.id] || 0;

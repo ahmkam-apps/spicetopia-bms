@@ -2376,7 +2376,7 @@ def load_ref():
     """)
 
     customers = qry("""
-        SELECT * FROM customers WHERE active=1 ORDER BY name
+        SELECT * FROM customers WHERE COALESCE(active,1)=1 ORDER BY name
     """)
 
     suppliers = qry("""
@@ -9698,7 +9698,7 @@ class Handler(BaseHTTPRequestHandler):
                     customer = field_create_customer(data, fsess['repId'])
                     send_json(self, customer, 201)
                 except ValidationError as e:
-                    send_json(self, {'error': str(e), 'fields': e.fields}, 422)
+                    send_json(self, {'error': 'Validation failed', 'fields': e.errors}, 422)
                 except ValueError as e:
                     send_error(self, str(e), 400)
                 return
@@ -10758,6 +10758,14 @@ def ensure_master_schema():
             print("  ✓ Masters: added address column to customers")
         except Exception:
             pass
+
+        # customers.zone_id — territory zone for sales rep out-of-zone detection
+        try:
+            c.execute("ALTER TABLE customers ADD COLUMN zone_id INTEGER DEFAULT NULL")
+            c.commit()
+            print("  ✓ Masters: added zone_id column to customers")
+        except Exception:
+            pass  # column already exists
 
         # ── P2.5 void/cancel migrations ─────────────────────────────────
         # invoices: add voided_at / voided_by / void_note columns
