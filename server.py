@@ -2789,8 +2789,9 @@ def create_customer_order_external(data):
         for item in data.get('items', []):
             vid = item.get('variantId')
             var = qry1("""
-                SELECT pv.sku_code as productCode, ps.label as packSize
+                SELECT p.code as productCode, ps.label as packSize
                 FROM product_variants pv
+                JOIN products p    ON p.id  = pv.product_id
                 JOIN pack_sizes ps ON ps.id = pv.pack_size_id
                 WHERE pv.id=?
             """, (vid,))
