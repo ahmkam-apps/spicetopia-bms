@@ -2690,9 +2690,9 @@ def _wa_send(phone: str, apikey: str, message: str):
             )
             with urllib.request.urlopen(url, timeout=15) as resp:
                 body = resp.read().decode('utf-8', errors='ignore')
-            _log('info', 'whatsapp', f"Sent to {phone[:5]}**** — {body[:80]}")
+            _log('info', f"whatsapp: Sent to {phone[:5]}**** — {body[:80]}")
         except Exception as e:
-            _log('error', 'whatsapp', f"Failed to {phone[:5]}****: {e}")
+            _log('error', f"whatsapp: Failed to {phone[:5]}****: {e}")
     threading.Thread(target=_do, daemon=True).start()
 
 
