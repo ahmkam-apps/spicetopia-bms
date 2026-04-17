@@ -12693,9 +12693,10 @@ def field_create_customer(data, rep_id):
 
 
 def field_get_products(customer_type='RETAIL'):
-    """Return active products + variants with prices for the given customer type.
+    """Return active products + variants as a FLAT list — one entry per variant.
     Maps: RETAIL→retail_mrp, DIRECT→distributor, WHOLESALE→distributor.
-    Never exposes mfg_cost or ex_factory prices."""
+    Never exposes mfg_cost or ex_factory prices.
+    Frontend (order.html) expects: variant_id, product_name, sku_code, pack_size, grams, price."""
     type_map      = {'RETAIL': 'retail_mrp', 'DIRECT': 'distributor', 'WHOLESALE': 'distributor'}
     price_type_cd = type_map.get((customer_type or 'RETAIL').upper(), 'retail_mrp')
 
@@ -12714,17 +12715,15 @@ def field_get_products(customer_type='RETAIL'):
             WHERE pv.product_id=? AND pv.active_flag=1
             ORDER BY ps.grams
         """, (price_type_cd, prod['id']))
-        if variants:
+        for v in variants:
             result.append({
-                'productCode': prod['code'],
-                'productName': prod['name'],
-                'variants': [{
-                    'variantId': v['id'],
-                    'skuCode':   v['sku_code'],
-                    'packSize':  v['pack_size'],
-                    'grams':     v['grams'],
-                    'price':     v['price'],
-                } for v in variants]
+                'variant_id':   v['id'],
+                'product_code': prod['code'],
+                'product_name': prod['name'],
+                'sku_code':     v['sku_code'],
+                'pack_size':    v['pack_size'],
+                'grams':        v['grams'],
+                'price':        v['price'],
             })
     return result
 
