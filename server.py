@@ -8268,7 +8268,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             # ── Static files ──────────────────────────────────────
             # If accessed via order.spicetopia.food, always serve order.html
-            host = self.headers.get('Host', '').split(':')[0].lower()
+            host = (self.headers.get('X-Forwarded-Host') or self.headers.get('Host', '')).split(':')[0].lower()
             if host == 'order.spicetopia.food':
                 order_page = PUBLIC_DIR / 'order.html'
                 if order_page.exists():
