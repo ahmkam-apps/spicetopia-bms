@@ -3542,7 +3542,7 @@ def create_customer(data):
     validate_fields(data, [
         {'field': 'name',         'label': 'Customer name',  'type': 'str',  'min': 2, 'max': 120},
         {'field': 'city',         'label': 'City',           'type': 'str',  'min': 2, 'max': 60},
-        {'field': 'address',      'label': 'Full address',   'type': 'str',  'min': 5, 'max': 250},
+        {'field': 'address',      'label': 'Full address',   'type': 'str',  'required': False, 'min': 0, 'max': 250},
         {'field': 'customerType', 'label': 'Customer type',  'required': False,
          'choices': ['RETAIL', 'retail', 'DIRECT', 'direct', 'WHOLESALE', 'wholesale']},
         {'field': 'phone',        'label': 'Phone',          'required': False, 'type': 'str', 'max': 30},
