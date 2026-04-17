@@ -11726,15 +11726,13 @@ def update_route(route_id, data):
 
 def list_reps(active_only=True):
     # status column: 'active' | 'inactive' | NULL
-    # rep_routes: active if assigned_to IS NULL
+    # primary_zone_id: the zone assigned to the rep
     sql = """
         SELECT sr.*,
-               GROUP_CONCAT(r.name, ', ') as assigned_routes
+               z.name as zone_name
         FROM sales_reps sr
-        LEFT JOIN rep_routes rr ON rr.rep_id=sr.id AND rr.assigned_to IS NULL
-        LEFT JOIN routes r ON r.id=rr.route_id
+        LEFT JOIN zones z ON z.id=sr.primary_zone_id
         {}
-        GROUP BY sr.id
         ORDER BY sr.name
     """.format("WHERE (sr.status IS NULL OR sr.status='active')" if active_only else "")
     return qry(sql)
@@ -11847,6 +11845,7 @@ def update_rep(rep_id, data):
         'joinDate':'joining_date','notes':'notes',
         'status':'status','designation':'designation',
         'whatsapp_apikey':'whatsapp_apikey',
+        'zoneId':'primary_zone_id',
     }
     set_parts, vals = [], []
     for k, col in mapping.items():
@@ -12484,20 +12483,14 @@ def _get_field_session(handler, qs=None):
 
 
 def _is_out_of_route(rep_id, customer_id):
-    """Return True if customer is not on any of the rep's active routes."""
-    rep_routes = qry("""
-        SELECT route_id FROM rep_routes
-        WHERE rep_id=? AND (assigned_to IS NULL OR assigned_to >= date('now'))
-    """, (rep_id,))
-    if not rep_routes:
-        return True   # rep has no routes — treat as out-of-route
-    route_ids = [r['route_id'] for r in rep_routes]
-    placeholders = ','.join('?' * len(route_ids))
-    on_route = qry1(
-        f"SELECT 1 FROM route_customers WHERE route_id IN ({placeholders}) AND customer_id=?",
-        (*route_ids, customer_id)
-    )
-    return on_route is None
+    """Return True if customer's zone does not match the rep's assigned zone."""
+    rep = qry1("SELECT primary_zone_id FROM sales_reps WHERE id=?", (rep_id,))
+    if not rep or not rep.get('primary_zone_id'):
+        return False  # rep has no zone assigned — don't flag as out-of-zone
+    customer = qry1("SELECT zone_id FROM customers WHERE id=?", (customer_id,))
+    if not customer or not customer.get('zone_id'):
+        return False  # customer has no zone — don't flag
+    return int(rep['primary_zone_id']) != int(customer['zone_id'])
 
 
 def _wa_notify_out_of_route(order_id, rep_id):

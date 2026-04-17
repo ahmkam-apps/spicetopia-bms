@@ -10311,14 +10311,13 @@ async function pmConfirmImport() {
 // ═══════════════════════════════════════════════════════════════════
 
 async function renderSalesReps() {
-  const [reps, zones, routes] = await Promise.all([
+  const [reps, zones] = await Promise.all([
     GET('/api/reps'),
     GET('/api/zones'),
-    GET('/api/routes'),
   ]);
 
-  const routeOpts = routes.map(r =>
-    `<option value="${r.id}">${r.name} (${r.zone_name})</option>`).join('');
+  const zoneOpts = zones.map(z =>
+    `<option value="${z.id}">${z.name}</option>`).join('');
 
   const rows = reps.map(rep => `
     <tr id="rep-row-${rep.id}">
@@ -10327,10 +10326,10 @@ async function renderSalesReps() {
       <td>${escQ(rep.phone||'')}</td>
       <td>${escQ(rep.designation||'')}</td>
       <td><span style="color:${rep.status==='active'?'var(--cardamom)':'var(--chili)'}">${rep.status||'active'}</span></td>
-      <td>${escQ(rep.assigned_routes||'—')}</td>
+      <td>${escQ(rep.zone_name||'—')}</td>
       <td>
         <button class="btn-sm" onclick="viewRepDetail(${rep.id})" style="background:var(--saffron)">Detail</button>
-        <button class="btn-sm" onclick="showAssignRoute(${rep.id})" style="background:var(--turmeric)">+ Route</button>
+        <button class="btn-sm" onclick="showAssignZone(${rep.id})" style="background:var(--turmeric)">Assign Zone</button>
         <button class="btn-sm" onclick="resetPin(${rep.id})" style="background:var(--text-3);color:#fff">Reset PIN</button>
       </td>
     </tr>
@@ -10361,25 +10360,25 @@ async function renderSalesReps() {
       <table class="data-table">
         <thead><tr>
           <th>Emp ID</th><th>Name</th><th>Phone</th><th>Designation</th>
-          <th>Status</th><th>Routes</th><th>Actions</th>
+          <th>Status</th><th>Zone</th><th>Actions</th>
         </tr></thead>
         <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No reps yet</td></tr>'}</tbody>
       </table>
     </div>
 
-    <!-- Assign route modal-style inline panel -->
-    <div id="assign-route-panel" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    <!-- Assign zone modal -->
+    <div id="assign-zone-panel" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
       background:#fff;border-radius:12px;padding:24px;min-width:320px;z-index:1000;box-shadow:0 8px 40px rgba(0,0,0,.25)">
-      <h3 style="margin:0 0 16px">Assign Route to Rep</h3>
+      <h3 style="margin:0 0 16px">Assign Zone to Rep</h3>
       <input type="hidden" id="assign-rep-id">
-      <label class="form-label">Select Route</label>
-      <select class="form-input" id="assign-route-select">${routeOpts}</select>
+      <label class="form-label">Select Zone</label>
+      <select class="form-input" id="assign-zone-select">${zoneOpts}</select>
       <div style="display:flex;gap:8px;margin-top:16px">
-        <button class="btn btn-primary" onclick="doAssignRoute()">Assign</button>
-        <button class="btn" onclick="closeAssignRoute()">Cancel</button>
+        <button class="btn btn-primary" onclick="doAssignZone()">Assign</button>
+        <button class="btn" onclick="closeAssignZone()">Cancel</button>
       </div>
     </div>
-    <div id="assign-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999" onclick="closeAssignRoute()"></div>
+    <div id="assign-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999" onclick="closeAssignZone()"></div>
 
     <!-- Rep detail panel -->
     <div id="rep-detail-panel" style="display:none;position:fixed;top:0;right:0;height:100%;width:420px;
@@ -10407,27 +10406,27 @@ async function saveNewRep() {
   } catch(e) { alert('Error: ' + e.message); }
 }
 
-function showAssignRoute(repId) {
-  const sel = document.getElementById('assign-route-select');
+function showAssignZone(repId) {
+  const sel = document.getElementById('assign-zone-select');
   if (!sel || sel.options.length === 0) {
-    alert('No routes exist yet. Please create routes first in the Routes section.');
+    alert('No zones exist yet. Please create zones first in the Zones & Routes section.');
     return;
   }
   document.getElementById('assign-rep-id').value = repId;
-  document.getElementById('assign-route-panel').style.display = 'block';
+  document.getElementById('assign-zone-panel').style.display = 'block';
   document.getElementById('assign-overlay').style.display = 'block';
 }
-function closeAssignRoute() {
-  document.getElementById('assign-route-panel').style.display = 'none';
+function closeAssignZone() {
+  document.getElementById('assign-zone-panel').style.display = 'none';
   document.getElementById('assign-overlay').style.display = 'none';
 }
-async function doAssignRoute() {
-  const repId   = document.getElementById('assign-rep-id').value;
-  const routeId = document.getElementById('assign-route-select').value;
-  if (!routeId) { alert('Please select a route.'); return; }
+async function doAssignZone() {
+  const repId  = document.getElementById('assign-rep-id').value;
+  const zoneId = document.getElementById('assign-zone-select').value;
+  if (!zoneId) { alert('Please select a zone.'); return; }
   try {
-    await POST(`/api/reps/${repId}/routes`, {routeId: parseInt(routeId)});
-    closeAssignRoute();
+    await PUT(`/api/reps/${repId}`, {zoneId: parseInt(zoneId)});
+    closeAssignZone();
     nav('sales-reps');
   } catch(e) { alert('Error: ' + e.message); }
 }
