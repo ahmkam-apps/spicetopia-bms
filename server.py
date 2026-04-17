@@ -10997,6 +10997,131 @@ def sync_master_files():
         print("  ✓ Masters: all files in sync — no changes")
 
 
+def seed_zones_routes():
+    """
+    Idempotent: seeds Karachi and Hyderabad sales zones and their area routes.
+    Skips gracefully if zones already exist (matches by name + city).
+    """
+    ZONE_DATA = [
+        # ── Karachi ──────────────────────────────────────────────────────────
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z1 South Karachi',
+            'description': 'Premium + Dense Retail — High-end retail, supermarkets, branded spice demand',
+            'routes': ['Saddar', 'Clifton', 'Defence (DHA)', 'Tariq Road'],
+            'visit_days': 'Wed',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z2 Central Karachi',
+            'description': 'High Volume Markets — Dense population, kiryana stores, core FMCG zone',
+            'routes': ['Gulshan-e-Iqbal', 'Gulistan-e-Johar', 'Federal B Area', 'Liaquatabad'],
+            'visit_days': 'Mon,Tue',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z3 East / Industrial Belt',
+            'description': 'Mixed income + industrial workforce — Economy packs, distributor network',
+            'routes': ['Korangi', 'Landhi', 'Shah Faisal Colony'],
+            'visit_days': '',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z4 West Karachi',
+            'description': 'Wholesale + low to mid-income — Bulk sales, loose spices, weekly routes',
+            'routes': ['Orangi Town', 'Baldia Town', 'SITE Area (KHI)'],
+            'visit_days': 'Thu',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z5 North Karachi',
+            'description': 'Large residential clusters — Stable repeat consumption, route-based',
+            'routes': ['North Karachi', 'North Nazimabad', 'Buffer Zone', 'Surjani Town'],
+            'visit_days': 'Fri',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z6 Wholesale Markets',
+            'description': 'Bulk buyers, traders, distributors — Dedicated wholesale team',
+            'routes': ['Jodia Bazaar', 'Bolton Market', 'Empress Market'],
+            'visit_days': 'Sat',
+        },
+        # ── Hyderabad ─────────────────────────────────────────────────────────
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z1 City Core',
+            'description': 'Main Market — High footfall, dense retail, daily coverage',
+            'routes': ['Saddar (HYD)', 'Resham Gali', 'Shahi Bazaar', 'Market Tower', 'Heera-Baad'],
+            'visit_days': 'Thu',
+        },
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z2 Latifabad',
+            'description': 'Residential + retail mix — Strong FMCG demand, distributor + retailer focus',
+            'routes': ['Latifabad Units 1-6', 'Latifabad Units 7-12', 'Auto Bhan Road'],
+            'visit_days': 'Mon,Tue',
+        },
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z3 Qasimabad',
+            'description': 'Growing urban area — High middle-income households, grocery + push',
+            'routes': ['Main Qasimabad', 'Wadhu Wah Road', 'Citizen Colony'],
+            'visit_days': 'Wed',
+        },
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z4 Industrial & Peripheral',
+            'description': 'Wholesale, warehouses, bulk buyers — Distributor relationship focus',
+            'routes': ['SITE Area (HYD)', 'Kohsar', 'Hali Road', 'Tando Jam Road'],
+            'visit_days': '',
+        },
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z5 Outskirts',
+            'description': 'Semi-urban / rural mix — Weekly visits, sub-distributors if volume grows',
+            'routes': ['Kotri', 'Tando Jam', 'Hussainabad'],
+            'visit_days': 'Fri',
+        },
+    ]
+
+    c = _conn()
+    zones_added = 0
+    routes_added = 0
+    try:
+        for zd in ZONE_DATA:
+            existing = c.execute(
+                "SELECT id FROM zones WHERE name=? AND city=?", (zd['name'], zd['city'])
+            ).fetchone()
+            if existing:
+                zone_id = existing[0]
+            else:
+                c.execute(
+                    "INSERT INTO zones (name, city, active) VALUES (?,?,1)",
+                    (zd['name'], zd['city'])
+                )
+                zone_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                zones_added += 1
+            for route_name in zd['routes']:
+                exists = c.execute(
+                    "SELECT id FROM routes WHERE zone_id=? AND name=?", (zone_id, route_name)
+                ).fetchone()
+                if not exists:
+                    c.execute(
+                        "INSERT INTO routes (zone_id, name, visit_days, active) VALUES (?,?,?,1)",
+                        (zone_id, route_name, zd['visit_days'])
+                    )
+                    routes_added += 1
+        c.commit()
+        if zones_added or routes_added:
+            print(f"  ✓ Zones/Routes seeded: {zones_added} zones, {routes_added} routes (KHI + HYD)")
+        else:
+            print("  ✓ Zones/Routes: already seeded — skipped")
+    except Exception as e:
+        print(f"  ⚠ seed_zones_routes error: {e}")
+    finally:
+        c.close()
+
+
 def seed_price_history():
     """
     If an ingredient has cost_per_kg > 0 but no history record, seed one
@@ -12683,6 +12808,7 @@ if __name__ == '__main__':
     generate_master_templates()
     sync_master_files()
     seed_price_history()
+    seed_zones_routes()              # seeds KHI (6 zones) + HYD (5 zones) + all area routes
 
     # ── Step 2d: Auto-seed staging environment ────────────────────
     if os.environ.get('AUTO_SEED', '').lower() in ('1', 'true', 'yes'):
