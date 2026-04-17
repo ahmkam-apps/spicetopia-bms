@@ -8266,6 +8266,17 @@ class Handler(BaseHTTPRequestHandler):
         qs     = parse_qs(parsed.query)
 
         try:
+            # ── Temp diagnostic — no auth required ────────────────
+            if path == '/api/debug/headers':
+                send_json(self, {
+                    'Host':             self.headers.get('Host', ''),
+                    'X-Forwarded-Host': self.headers.get('X-Forwarded-Host', ''),
+                    'X-Forwarded-For':  self.headers.get('X-Forwarded-For', ''),
+                    'X-Real-IP':        self.headers.get('X-Real-IP', ''),
+                    'all_headers':      dict(self.headers),
+                })
+                return
+
             # ── Static files ──────────────────────────────────────
             # If accessed via order.spicetopia.food, always serve order.html
             host = (self.headers.get('X-Forwarded-Host') or self.headers.get('Host', '')).split(':')[0].lower()
@@ -8400,11 +8411,6 @@ class Handler(BaseHTTPRequestHandler):
                     self._serve_file(file_path, ct)
                 else:
                     send_error(self, "Not found", 404)
-                return
-
-            # ── GET /api/debug/headers — temp diagnostic (no auth) ──────────────
-            if path == '/api/debug/headers':
-                send_json(self, dict(self.headers))
                 return
 
             # ── GET /health — no auth required, for load balancers / monitoring ──
