@@ -8267,6 +8267,16 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             # ── Static files ──────────────────────────────────────
+            # If accessed via order.spicetopia.food, always serve order.html
+            host = self.headers.get('Host', '').split(':')[0].lower()
+            if host == 'order.spicetopia.food':
+                order_page = PUBLIC_DIR / 'order.html'
+                if order_page.exists():
+                    self._serve_file(order_page, 'text/html; charset=utf-8')
+                else:
+                    send_error(self, "Order portal not found", 404)
+                return
+
             if path == '' or path == '/':
                 self._serve_file(PUBLIC_DIR / 'index.html', 'text/html')
                 return
