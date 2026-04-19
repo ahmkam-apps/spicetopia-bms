@@ -3339,6 +3339,35 @@ def compute_bill_balance(bill_id):
     return total, paid, balance
 
 
+def _compute_bill_status(bill_id) -> str:
+    """
+    Derive the correct supplier bill status purely from the numbers — never from a stored flag.
+    Returns 'UNPAID', 'PARTIAL', or 'PAID'.
+    This is the single source of truth for bill status (mirrors _compute_invoice_status for AR).
+    """
+    total, paid, balance = compute_bill_balance(bill_id)
+    if paid <= 0:
+        return 'UNPAID'
+    if balance > 0.001:   # 0.001 rounding tolerance
+        return 'PARTIAL'
+    return 'PAID'
+
+
+def _sync_bill_status(bill_id) -> str:
+    """
+    Compute supplier bill status from amounts and write it to the DB.
+    Returns the new status string.
+    Call after any payment allocation, item add/remove, or admin reconcile.
+    Preserves VOID status — never overwrites a voided bill.
+    """
+    existing = qry1("SELECT status FROM supplier_bills WHERE id=?", (bill_id,))
+    if not existing or existing['status'] == 'VOID':
+        return existing['status'] if existing else 'VOID'
+    new_status = _compute_bill_status(bill_id)
+    run("UPDATE supplier_bills SET status=? WHERE id=?", (new_status, bill_id))
+    return new_status
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  VOID TRANSACTIONS  (P2.5)
 # ═══════════════════════════════════════════════════════════════════
@@ -5896,16 +5925,10 @@ def allocate_supplier_payment(payment_id, bill_id, amount):
             allocated_amount = allocated_amount + excluded.allocated_amount
     """, (payment_id, bill_id, amount))]
 
-    new_paid = r2(bill_paid + amount)
-    # Guard: only auto-mark PAID if we have a known non-zero total.
-    # If bill_total is 0 (e.g. PO items had zero unit costs), never auto-PAID via math.
-    if bill_total <= 0.001:
-        new_status = 'PARTIAL' if new_paid > 0 else bill['status']
-    else:
-        new_status = 'PAID' if new_paid >= bill_total - 0.001 else 'PARTIAL'
-    ops.append(("UPDATE supplier_bills SET status=? WHERE id=?", (new_status, bill_id)))
     audit_log(ops, 'supplier_payment_allocations', f"{payment_id}-{bill_id}", 'INSERT')
     run_many(ops)
+    # Derive status from actual amounts — consistent with AR _sync_invoice_status pattern
+    new_status = _sync_bill_status(bill_id)
     return {'allocated': amount, 'billStatus': new_status}
 
 def pay_bill_direct(bill_id, data):
@@ -9285,6 +9308,13 @@ class Handler(BaseHTTPRequestHandler):
                 for row in rows:
                     t, p, b = compute_bill_balance(row['id'])
                     row['total'] = t; row['paid'] = p; row['balance'] = b
+                    # Self-heal: sync status from actual amounts (catches legacy mismatches)
+                    if row.get('status') not in ('VOID',):
+                        correct_status = _compute_bill_status(row['id'])
+                        if row.get('status') != correct_status:
+                            run("UPDATE supplier_bills SET status=? WHERE id=?",
+                                (correct_status, row['id']))
+                            row['status'] = correct_status
                 send_json(self, rows)
                 return
 
@@ -9310,6 +9340,13 @@ class Handler(BaseHTTPRequestHandler):
                     WHERE spa.bill_id=?
                 """, (bill_id,))
                 t, p, b = compute_bill_balance(bill_id)
+                # Self-heal: sync status from actual amounts
+                if bill.get('status') not in ('VOID',):
+                    correct_status = _compute_bill_status(bill_id)
+                    if bill.get('status') != correct_status:
+                        run("UPDATE supplier_bills SET status=? WHERE id=?",
+                            (correct_status, bill_id))
+                        bill['status'] = correct_status
                 # Attach originating PO info for back-link
                 po_link = None
                 if bill.get('po_id'):
