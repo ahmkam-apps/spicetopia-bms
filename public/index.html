@@ -954,6 +954,12 @@ function fmt(n, d=2) {
 }
 function fmtPKR(n) { return 'PKR ' + fmt(n); }
 function fmtDate(s) { if (!s) return '—'; try { return new Date(s).toLocaleDateString('en-GB'); } catch { return s; } }
+function fmtPayMode(m) {
+  const map = { CASH:'Cash', BANK_TRANSFER:'Bank Transfer', CHEQUE:'Cheque', OTHER:'Other', ADJUSTMENT:'Adjustment' };
+  const label = map[m] || m;
+  const color = m==='CASH'?'var(--cardamom)':m==='BANK_TRANSFER'?'var(--mac-blue)':m==='CHEQUE'?'var(--cinnamon)':m==='ADJUSTMENT'?'var(--saffron)':'var(--text-3)';
+  return `<span style="font-size:11px;font-weight:600;color:${color}">${label}</span>`;
+}
 function today() { return new Date().toISOString().slice(0,10); }
 function setStatus(msg, col='var(--text-3)') {
   const el = document.getElementById('topbar-status');
@@ -4044,16 +4050,21 @@ async function renderReceiptsAging(tab) {
     `<option value="${c.id}">${c.name} (${c.account_number || c.code})</option>`).join('');
 
   // ── Receipts tab content
-  const recRows = pays.map(p => `
-    <tr>
-      <td><strong>${p.payment_ref}</strong></td>
+  const recRows = pays.map(p => {
+    const appliedTo = (p.applied_to||[]).length
+      ? p.applied_to.map(n => `<span style="font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px">${n}</span>`).join(' ')
+      : `<span style="color:var(--saffron);font-size:11px;font-weight:600">⚠ Unallocated</span>`;
+    return `<tr>
+      <td><strong style="font-family:monospace">${p.payment_ref}</strong></td>
       <td>${fmtDate(p.payment_date)}</td>
       <td>${p.customer_name}</td>
-      <td>${p.payment_mode}</td>
-      <td class="num text-right">${fmtPKR(p.amount)}</td>
-      <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(p.allocated)}</td>
-      <td class="num text-right" style="color:${p.unallocated>0?'var(--saffron)':'var(--text-3)'}">${fmtPKR(p.unallocated)}</td>
-    </tr>`).join('');
+      <td>${fmtPayMode(p.payment_mode)}</td>
+      <td class="num text-right"><strong>${fmtPKR(p.amount)}</strong></td>
+      <td style="max-width:200px">${appliedTo}</td>
+      <td class="num text-right" style="color:${p.unallocated>0.001?'var(--saffron)':'var(--cardamom)'};font-weight:${p.unallocated>0.001?'700':'400'}">${p.unallocated>0.001?fmtPKR(p.unallocated):'—'}</td>
+      <td style="padding:4px 8px"><button class="btn btn-xs btn-outline" onclick="printPaymentReceipt(${p.id},'ar')" title="Print receipt" style="font-size:11px">🖨</button></td>
+    </tr>`;
+  }).join('');
 
   const receiptsPane = `
   <div class="card mb-16">
@@ -4073,8 +4084,8 @@ async function renderReceiptsAging(tab) {
   <div class="card">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Ref</th><th>Date</th><th>Customer</th><th>Mode</th><th class="text-right">Amount</th><th class="text-right">Allocated</th><th class="text-right">Unallocated</th></tr></thead>
-        <tbody>${recRows || '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:20px">No receipts recorded yet</td></tr>'}</tbody>
+        <thead><tr><th>Ref</th><th>Date</th><th>Customer</th><th>Mode</th><th class="text-right">Amount</th><th>Applied To</th><th class="text-right">Unallocated</th><th></th></tr></thead>
+        <tbody>${recRows || '<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:20px">No receipts recorded yet</td></tr>'}</tbody>
       </table>
     </div>
   </div>`;
@@ -4148,16 +4159,20 @@ async function renderARPayments() {
   const custOptions = (state.ref.customers||[]).map(c =>
     `<option value="${c.id}">${c.name} (${c.account_number || c.code})</option>`).join('');
 
-  let rows = pays.map(p => `
-    <tr>
-      <td><strong>${p.payment_ref}</strong></td>
+  let rows = pays.map(p => {
+    const appliedTo = (p.applied_to||[]).length
+      ? p.applied_to.map(n => `<span style="font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px">${n}</span>`).join(' ')
+      : `<span style="color:var(--saffron);font-size:11px;font-weight:600">⚠ Unallocated</span>`;
+    return `<tr>
+      <td><strong style="font-family:monospace">${p.payment_ref}</strong></td>
       <td>${fmtDate(p.payment_date)}</td>
       <td>${p.customer_name}</td>
-      <td>${p.payment_mode}</td>
-      <td class="num text-right">${fmtPKR(p.amount)}</td>
-      <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(p.allocated)}</td>
-      <td class="num text-right" style="color:${p.unallocated>0?'var(--saffron)':'var(--text-3)'}">${fmtPKR(p.unallocated)}</td>
-    </tr>`).join('');
+      <td>${fmtPayMode(p.payment_mode)}</td>
+      <td class="num text-right"><strong>${fmtPKR(p.amount)}</strong></td>
+      <td style="max-width:200px">${appliedTo}</td>
+      <td class="num text-right" style="color:${p.unallocated>0.001?'var(--saffron)':'var(--cardamom)'};font-weight:${p.unallocated>0.001?'700':'400'}">${p.unallocated>0.001?fmtPKR(p.unallocated):'—'}</td>
+    </tr>`;
+  }).join('');
 
   return `
   <div class="section-header"><h2>Customer Receipts</h2></div>
@@ -4178,8 +4193,8 @@ async function renderARPayments() {
   <div class="card">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Ref</th><th>Date</th><th>Customer</th><th>Mode</th><th class="text-right">Amount</th><th class="text-right">Allocated</th><th class="text-right">Unallocated</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="text-align:center">No receipts</td></tr>'}</tbody>
+        <thead><tr><th>Ref</th><th>Date</th><th>Customer</th><th>Mode</th><th class="text-right">Amount</th><th>Applied To</th><th class="text-right">Unallocated</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:20px">No receipts recorded yet</td></tr>'}</tbody>
       </table>
     </div>
   </div>`;
@@ -6049,6 +6064,119 @@ async function saveBillAdjust(billId) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  PAYMENT RECEIPT PRINT
+// ─────────────────────────────────────────────────────────────────
+async function printPaymentReceipt(paymentId, type) {
+  const endpoint = type === 'ar'
+    ? '/api/customer-payments/' + paymentId
+    : '/api/supplier-payments/' + paymentId;
+  const pay = await GET(endpoint);
+
+  const isAR    = type === 'ar';
+  const docTitle = isAR ? 'Payment Receipt' : 'Remittance Advice';
+  const partyLabel = isAR ? 'Received From' : 'Paid To';
+  const partyName  = isAR ? (pay.customer_name  || '—') : (pay.supplier_name  || '—');
+  const refLabel   = isAR ? 'Receipt #' : 'Payment #';
+  const lineLabel  = isAR ? 'Invoice #' : 'Bill #';
+  const lineDate   = isAR ? 'Invoice Date' : 'Bill Date';
+
+  const allocRows = (pay.allocations || []).map(a => {
+    const isModeAdj = a.payment_mode === 'ADJUSTMENT';
+    return `<tr>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee">${a.invoice_number || a.bill_number || '—'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee">${a.invoice_date || a.bill_date || '—'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right">PKR ${Number(a.allocated_amount).toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  const totalAllocated = (pay.allocations || []).reduce((s, a) => s + Number(a.allocated_amount), 0);
+  const totalPaid      = Number(pay.amount || 0);
+  const unallocated    = totalPaid - totalAllocated;
+
+  const modeDisplay = pay.payment_mode === 'ADJUSTMENT'
+    ? '<span style="background:#fff3cd;color:#856404;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600">ADJUSTMENT</span>'
+    : pay.payment_mode || '—';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>${docTitle} ${pay.payment_ref || pay.ref || ''}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#222;padding:30px;max-width:760px;margin:0 auto}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:18px;border-bottom:3px solid #c0392b}
+    .company-name{font-size:26px;font-weight:800;color:#c0392b;letter-spacing:-0.5px}
+    .doc-title{font-size:22px;font-weight:700;text-align:right}
+    .doc-meta{font-size:12px;color:#555;text-align:right;margin-top:4px}
+    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+    .info-box h4{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#999;margin-bottom:6px}
+    .info-box p{font-size:13px;line-height:1.7}
+    table{width:100%;border-collapse:collapse;margin-bottom:20px}
+    thead tr{background:#f5f5f5}
+    thead th{padding:9px 10px;text-align:left;font-size:11px;text-transform:uppercase;color:#666;letter-spacing:0.4px}
+    thead th:last-child{text-align:right}
+    .summary-box{background:#f0faf5;border-radius:8px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+    .footer{margin-top:30px;padding-top:14px;border-top:1px solid #eee;font-size:11px;color:#aaa;text-align:center}
+    @media print{body{padding:15px}button{display:none!important}}
+  </style></head><body>
+
+  <div class="header">
+    <div>
+      <img src="/img/spicetopia-logo.svg" alt="Spicetopia" style="height:58px;display:block">
+    </div>
+    <div>
+      <div class="doc-title">${docTitle.toUpperCase()}</div>
+      <div class="doc-meta" style="margin-top:6px"><strong>${refLabel}${pay.payment_ref || pay.ref || paymentId}</strong></div>
+      <div class="doc-meta">Date: ${pay.payment_date || pay.date || '—'}</div>
+    </div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-box">
+      <h4>${partyLabel}</h4>
+      <p><strong>${partyName}</strong></p>
+    </div>
+    <div class="info-box" style="text-align:right">
+      <h4>Payment Details</h4>
+      <p>Mode: <strong>${modeDisplay}</strong></p>
+      ${pay.cheque_number ? `<p>Cheque #: <strong>${pay.cheque_number}</strong></p>` : ''}
+      ${pay.bank_name     ? `<p>Bank: <strong>${pay.bank_name}</strong></p>`         : ''}
+      ${pay.notes         ? `<p style="color:#666;font-size:12px;margin-top:4px">${pay.notes}</p>` : ''}
+    </div>
+  </div>
+
+  ${allocRows ? `
+  <div style="margin-bottom:6px"><strong style="font-size:12px;text-transform:uppercase;color:#666;letter-spacing:0.4px">Applied To</strong></div>
+  <table>
+    <thead><tr>
+      <th>${lineLabel}</th>
+      <th>${lineDate}</th>
+      <th style="text-align:right">Amount Applied</th>
+    </tr></thead>
+    <tbody>${allocRows}</tbody>
+  </table>` : '<p style="color:#999;margin-bottom:20px;font-size:12px">No allocations recorded for this payment.</p>'}
+
+  <div class="summary-box">
+    <span style="font-size:14px;font-weight:600">Total ${isAR ? 'Received' : 'Paid'}</span>
+    <span style="font-size:22px;font-weight:800;color:#27ae60">PKR ${totalPaid.toFixed(2)}</span>
+  </div>
+  ${unallocated > 0.001 ? `
+  <div style="background:#fff3cd;border-radius:8px;padding:10px 18px;display:flex;justify-content:space-between;margin-top:8px">
+    <span style="font-size:13px;color:#856404">Unallocated Balance</span>
+    <span style="font-size:15px;font-weight:700;color:#856404">PKR ${unallocated.toFixed(2)}</span>
+  </div>` : ''}
+
+  <div class="footer">Spicetopia · FLAVORS REDEFINED · Generated ${new Date().toLocaleDateString()}</div>
+  <div style="text-align:center;margin-top:16px">
+    <button onclick="window.print()" style="background:#c0392b;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600">🖨️ Print</button>
+  </div>
+  </body></html>`;
+
+  const w = window.open('', '_blank', 'width=820,height=900');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 600);
+}
+
+// ─────────────────────────────────────────────────────────────────
 
 async function applySupplierPayment(billId, supId) {
   const sel   = document.getElementById('spay-sel-' + billId);
@@ -6073,16 +6201,21 @@ async function renderAPPayments() {
   const supOptions = (state.ref.suppliers||[]).map(s =>
     `<option value="${s.id}">${s.name} (${s.code})</option>`).join('');
 
-  let rows = pays.map(p => `
-    <tr>
-      <td><strong>${p.payment_ref}</strong></td>
+  let rows = pays.map(p => {
+    const appliedTo = (p.applied_to||[]).length
+      ? p.applied_to.map(n => `<span style="font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px">${n}</span>`).join(' ')
+      : `<span style="color:var(--saffron);font-size:11px;font-weight:600">⚠ Unallocated</span>`;
+    return `<tr>
+      <td><strong style="font-family:monospace">${p.payment_ref}</strong></td>
       <td>${fmtDate(p.payment_date)}</td>
       <td>${p.supplier_name}</td>
-      <td>${p.payment_mode}</td>
-      <td class="num text-right">${fmtPKR(p.amount)}</td>
-      <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(p.allocated)}</td>
-      <td class="num text-right" style="color:${p.unallocated>0?'var(--saffron)':'var(--text-3)'}">${fmtPKR(p.unallocated)}</td>
-    </tr>`).join('');
+      <td>${fmtPayMode(p.payment_mode)}</td>
+      <td class="num text-right"><strong>${fmtPKR(p.amount)}</strong></td>
+      <td style="max-width:200px">${appliedTo}</td>
+      <td class="num text-right" style="color:${p.unallocated>0.001?'var(--saffron)':'var(--cardamom)'};font-weight:${p.unallocated>0.001?'700':'400'}">${p.unallocated>0.001?fmtPKR(p.unallocated):'—'}</td>
+      <td style="padding:4px 8px"><button class="btn btn-xs btn-outline" onclick="printPaymentReceipt(${p.id},'ap')" title="Print remittance" style="font-size:11px">🖨</button></td>
+    </tr>`;
+  }).join('');
 
   return `
   <div class="section-header"><h2>Supplier Payments (AP)</h2></div>
@@ -6103,8 +6236,8 @@ async function renderAPPayments() {
   <div class="card">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Ref</th><th>Date</th><th>Supplier</th><th>Mode</th><th class="text-right">Amount</th><th class="text-right">Allocated</th><th class="text-right">Unallocated</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="text-align:center">No payments</td></tr>'}</tbody>
+        <thead><tr><th>Ref</th><th>Date</th><th>Supplier</th><th>Mode</th><th class="text-right">Amount</th><th>Applied To</th><th class="text-right">Unallocated</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:20px">No payments recorded yet</td></tr>'}</tbody>
       </table>
     </div>
   </div>`;

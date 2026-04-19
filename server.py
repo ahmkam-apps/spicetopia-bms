@@ -9438,7 +9438,7 @@ class Handler(BaseHTTPRequestHandler):
                         FROM customer_payments cp JOIN customers c ON c.id=cp.customer_id
                         ORDER BY cp.payment_date DESC LIMIT 200
                     """)
-                # Enrich with unallocated balance
+                # Enrich with unallocated balance + applied invoice numbers
                 for r in rows:
                     alloc = r2(qry1(
                         "SELECT COALESCE(SUM(allocated_amount),0) as s FROM payment_allocations WHERE payment_id=?",
@@ -9446,7 +9446,38 @@ class Handler(BaseHTTPRequestHandler):
                     )['s'])
                     r['allocated'] = alloc
                     r['unallocated'] = r2(r['amount'] - alloc)
+                    inv_refs = qry("""
+                        SELECT i.invoice_number FROM payment_allocations pa
+                        JOIN invoices i ON i.id=pa.invoice_id
+                        WHERE pa.payment_id=? ORDER BY i.invoice_date
+                    """, (r['id'],))
+                    r['applied_to'] = [x['invoice_number'] for x in inv_refs]
                 send_json(self, rows)
+                return
+
+            # GET /api/customer-payments/:id  — single payment detail with allocations
+            if path.startswith('/api/customer-payments/') and len(path.split('/')) == 4:
+                pay_id = int(path.split('/')[3])
+                pay = qry1("""
+                    SELECT cp.*, c.name as customer_name, c.code as customer_code,
+                           c.phone as customer_phone
+                    FROM customer_payments cp JOIN customers c ON c.id=cp.customer_id
+                    WHERE cp.id=?
+                """, (pay_id,))
+                if not pay:
+                    send_error(self, "Payment not found", 404); return
+                allocs = qry("""
+                    SELECT pa.*, i.invoice_number, i.invoice_date
+                    FROM payment_allocations pa
+                    JOIN invoices i ON i.id=pa.invoice_id
+                    WHERE pa.payment_id=?
+                    ORDER BY i.invoice_date
+                """, (pay_id,))
+                total_alloc = r2(sum(a['allocated_amount'] for a in allocs))
+                pay['allocated']   = total_alloc
+                pay['unallocated'] = r2(pay['amount'] - total_alloc)
+                pay['allocations'] = allocs
+                send_json(self, pay)
                 return
 
             # GET /api/ar/aging
@@ -9541,7 +9572,37 @@ class Handler(BaseHTTPRequestHandler):
                     )['s'])
                     r['allocated'] = alloc
                     r['unallocated'] = r2(r['amount'] - alloc)
+                    bill_refs = qry("""
+                        SELECT sb.bill_number FROM supplier_payment_allocations spa
+                        JOIN supplier_bills sb ON sb.id=spa.bill_id
+                        WHERE spa.payment_id=? ORDER BY sb.bill_date
+                    """, (r['id'],))
+                    r['applied_to'] = [x['bill_number'] for x in bill_refs]
                 send_json(self, rows)
+                return
+
+            # GET /api/supplier-payments/:id  — single payment detail with allocations
+            if path.startswith('/api/supplier-payments/') and len(path.split('/')) == 4:
+                pay_id = int(path.split('/')[3])
+                pay = qry1("""
+                    SELECT sp.*, s.name as supplier_name
+                    FROM supplier_payments sp JOIN suppliers s ON s.id=sp.supplier_id
+                    WHERE sp.id=?
+                """, (pay_id,))
+                if not pay:
+                    send_error(self, "Payment not found", 404); return
+                allocs = qry("""
+                    SELECT spa.*, sb.bill_number, sb.bill_date
+                    FROM supplier_payment_allocations spa
+                    JOIN supplier_bills sb ON sb.id=spa.bill_id
+                    WHERE spa.payment_id=?
+                    ORDER BY sb.bill_date
+                """, (pay_id,))
+                total_alloc = r2(sum(a['allocated_amount'] for a in allocs))
+                pay['allocated']   = total_alloc
+                pay['unallocated'] = r2(pay['amount'] - total_alloc)
+                pay['allocations'] = allocs
+                send_json(self, pay)
                 return
 
             # GET /api/ap/aging
@@ -11155,6 +11216,29 @@ def ensure_master_schema():
             )
         """)
         c.commit()
+
+        # ── P1 Sprint: add ADJUSTMENT to payment_mode CHECK constraints ──────
+        for tbl in ('customer_payments', 'supplier_payments'):
+            try:
+                tbl_schema = c.execute(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (tbl,)
+                ).fetchone()
+                if tbl_schema and 'ADJUSTMENT' not in (tbl_schema[0] or ''):
+                    old_check = "CHECK(payment_mode IN ('CASH','BANK_TRANSFER','CHEQUE','OTHER'))"
+                    new_check = "CHECK(payment_mode IN ('CASH','BANK_TRANSFER','CHEQUE','OTHER','ADJUSTMENT'))"
+                    new_sql   = (tbl_schema[0] or '').replace(old_check, new_check)
+                    if new_sql != tbl_schema[0]:
+                        c.execute("PRAGMA writable_schema = ON")
+                        c.execute(
+                            "UPDATE sqlite_master SET sql=? WHERE type='table' AND name=?",
+                            (new_sql, tbl)
+                        )
+                        c.execute("PRAGMA writable_schema = OFF")
+                        c.commit()
+                        print(f"  ✓ Migration: added ADJUSTMENT to {tbl}.payment_mode CHECK constraint")
+            except Exception as e:
+                print(f"  ⚠ {tbl} ADJUSTMENT constraint migration: {e}")
+
     finally:
         c.close()
     save_db()
