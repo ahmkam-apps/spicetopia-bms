@@ -942,10 +942,11 @@ async function api(method, path, body) {
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
-const GET   = path       => api('GET',   path);
-const POST  = (path, b)  => api('POST',  path, b);
-const PUT   = (path, b)  => api('PUT',   path, b);
-const PATCH = (path, b)  => api('PATCH', path, b);
+const GET   = path       => api('GET',    path);
+const POST  = (path, b)  => api('POST',   path, b);
+const PUT   = (path, b)  => api('PUT',    path, b);
+const PATCH = (path, b)  => api('PATCH',  path, b);
+const DEL   = path       => api('DELETE', path);
 
 function fmt(n, d=2) {
   if (n == null) return '—';
@@ -3610,6 +3611,7 @@ async function showInvoiceDetail(invId) {
 function _renderInvoiceDetail(inv) {
   const invId     = inv.id;
   const canEdit   = inv.status === 'UNPAID' || inv.status === 'PARTIAL';
+  const _canAdjustInv = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
   const prodOptions = (state.ref.products||[]).flatMap(p =>
     (p.variants||[]).map(v => `<option value="${p.code}|${v.pack_size}">${p.name} — ${v.pack_size}</option>`)
   ).join('');
@@ -3632,8 +3634,11 @@ function _renderInvoiceDetail(inv) {
     <tr style="border-top:1px solid var(--border)">
       <td style="padding:6px 10px">${a.payment_ref}</td>
       <td style="padding:6px 10px">${fmtDate(a.payment_date)}</td>
-      <td style="padding:6px 10px">${a.payment_mode}</td>
-      <td style="padding:6px 10px;text-align:right;color:var(--cardamom);font-weight:600">${fmtPKR(a.allocated_amount)}</td>
+      <td style="padding:6px 10px">${a.payment_mode === 'ADJUSTMENT' ? '<em style="color:var(--cinnamon)">Adjustment</em>' : a.payment_mode}</td>
+      <td style="padding:6px 10px;text-align:right;color:${a.allocated_amount < 0 ? 'var(--chili)' : 'var(--cardamom)'};font-weight:600">${fmtPKR(a.allocated_amount)}</td>
+      <td style="padding:4px 6px;text-align:center">
+        ${_canAdjustInv && inv.status !== 'VOID' ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px;font-size:11px" onclick="undoInvAllocation(${a.id},${invId})" title="Undo this allocation">↩ Undo</button>` : ''}
+      </td>
     </tr>`).join('');
 
   document.getElementById('invoice-detail-area').innerHTML = `
@@ -3705,14 +3710,15 @@ function _renderInvoiceDetail(inv) {
       <thead><tr style="background:var(--surface-2)">
         <th style="padding:6px 10px;text-align:left">Ref</th><th style="padding:6px 10px;text-align:left">Date</th>
         <th style="padding:6px 10px;text-align:left">Mode</th><th style="padding:6px 10px;text-align:right">Applied</th>
+        <th style="padding:6px 6px;width:70px"></th>
       </tr></thead>
       <tbody>${allocRows}</tbody>
     </table>` : ''}
 
-    <!-- Receive Payment section (UNPAID/PARTIAL only) -->
+    <!-- Record Payment section (UNPAID/PARTIAL only) -->
     ${inv.balance > 0 ? `
     <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:14px;margin-bottom:14px">
-      <div style="font-size:13px;font-weight:600;color:var(--cardamom);margin-bottom:10px">Receive Payment Against This Invoice</div>
+      <div style="font-size:13px;font-weight:600;color:var(--cardamom);margin-bottom:10px">Record Payment</div>
       <div id="inv-pay-msg-${invId}"></div>
       <div class="form-row" style="gap:8px;align-items:flex-end">
         <div class="form-group"><label style="font-size:11px">Amount (PKR)</label>
@@ -3732,12 +3738,14 @@ function _renderInvoiceDetail(inv) {
         <div class="form-group" style="flex:1"><label style="font-size:11px">Notes</label>
           <input id="inv-pay-notes-${invId}" placeholder="Optional">
         </div>
-        <button class="btn btn-primary btn-sm" onclick="receiveInvoicePayment(${invId})">✓ Receive Payment</button>
+        <button class="btn btn-primary btn-sm" onclick="receiveInvoicePayment(${invId})">✓ Record Payment</button>
       </div>
     </div>` : `
-    <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--cardamom);font-weight:600">
-      ✓ Fully Paid
-    </div>`}
+    <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;color:var(--cardamom);font-weight:600">✓ Fully Paid</span>
+      ${_canAdjustInv ? `<button class="btn btn-outline btn-sm" style="font-size:12px" onclick="showInvAdjustForm(${invId})">⚠ Record Adjustment</button>` : ''}
+    </div>
+    <div id="inv-adjust-area-${invId}"></div>`}
 
     <!-- Actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -5700,6 +5708,7 @@ async function showBillDetail(billId) {
 function _renderBillDetail(bill) {
   _lastBillData = bill;
   const billId = bill.id;
+  const _canAdjustBill = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
   const itemRows = (bill.items||[]).map(i => `
     <tr style="border-top:1px solid var(--border)">
       <td style="padding:7px 10px;font-family:monospace;font-size:12px">${i.ing_code}</td>
@@ -5713,8 +5722,11 @@ function _renderBillDetail(bill) {
     <tr style="border-top:1px solid var(--border)">
       <td style="padding:6px 10px">${a.payment_ref}</td>
       <td style="padding:6px 10px">${fmtDate(a.payment_date)}</td>
-      <td style="padding:6px 10px">${a.payment_mode||'—'}</td>
-      <td style="padding:6px 10px;text-align:right;color:var(--cardamom);font-weight:600">${fmtPKR(a.allocated_amount)}</td>
+      <td style="padding:6px 10px">${a.payment_mode === 'ADJUSTMENT' ? '<em style="color:var(--cinnamon)">Adjustment</em>' : (a.payment_mode||'—')}</td>
+      <td style="padding:6px 10px;text-align:right;color:${a.allocated_amount < 0 ? 'var(--chili)' : 'var(--cardamom)'};font-weight:600">${fmtPKR(a.allocated_amount)}</td>
+      <td style="padding:4px 6px;text-align:center">
+        ${_canAdjustBill && bill.status !== 'VOID' ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px;font-size:11px" onclick="undoBillAllocation(${a.id},${billId})" title="Undo this allocation">↩ Undo</button>` : ''}
+      </td>
     </tr>`).join('');
 
   document.getElementById('bill-detail-area').innerHTML = `
@@ -5774,6 +5786,7 @@ function _renderBillDetail(bill) {
         <th style="padding:6px 10px;text-align:left">Date</th>
         <th style="padding:6px 10px;text-align:left">Mode</th>
         <th style="padding:6px 10px;text-align:right">Applied</th>
+        <th style="padding:6px 6px;width:70px"></th>
       </tr></thead>
       <tbody>${allocRows}</tbody>
     </table>` : ''}
@@ -5781,7 +5794,7 @@ function _renderBillDetail(bill) {
     <!-- Pay Bill section — show for UNPAID/PARTIAL regardless of computed balance -->
     ${(bill.status === 'UNPAID' || bill.status === 'PARTIAL') ? `
     <div style="background:#fff8e6;border:1px solid #f5dfa0;border-radius:6px;padding:14px;margin-bottom:14px">
-      <div style="font-size:13px;font-weight:600;color:var(--saffron-deep);margin-bottom:10px">Pay This Bill</div>
+      <div style="font-size:13px;font-weight:600;color:var(--saffron-deep);margin-bottom:10px">Record Payment</div>
       ${bill.balance <= 0 && bill.total <= 0 ? `<div style="font-size:12px;color:#b45309;margin-bottom:8px">⚠ Bill has no line-item costs on record. Enter the actual amount owed below.</div>` : ''}
       <div id="bill-pay-msg-${billId}"></div>
       <div class="form-row" style="gap:8px;align-items:flex-end">
@@ -5793,9 +5806,9 @@ function _renderBillDetail(bill) {
         </div>
         <div class="form-group"><label style="font-size:11px">Mode</label>
           <select id="bill-pay-mode-${billId}">
+            <option value="CASH">Cash</option>
             <option value="BANK_TRANSFER">Bank Transfer</option>
             <option value="CHEQUE">Cheque</option>
-            <option value="CASH">Cash</option>
             <option value="OTHER">Other</option>
           </select>
         </div>
@@ -5805,9 +5818,11 @@ function _renderBillDetail(bill) {
         <button class="btn btn-primary btn-sm" style="background:var(--saffron-deep);border-color:var(--saffron-deep)" onclick="payBillDirect(${billId})">✓ Record Payment</button>
       </div>
     </div>` : `
-    <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--cardamom);font-weight:600">
-      ✓ Fully Paid
-    </div>`}
+    <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;color:var(--cardamom);font-weight:600">✓ Fully Paid</span>
+      ${_canAdjustBill ? `<button class="btn btn-outline btn-sm" style="font-size:12px" onclick="showBillAdjustForm(${billId})">⚠ Record Adjustment</button>` : ''}
+    </div>
+    <div id="bill-adjust-area-${billId}"></div>`}
 
     <div><button class="btn btn-outline btn-sm" onclick="document.getElementById('bill-detail-area').innerHTML=''">✕ Close</button></div>
   </div>`;
@@ -5930,6 +5945,110 @@ async function payBillDirect(billId) {
     }, 1200);
   } catch(e) { msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
 }
+
+// ── Sprint P1: Payment Simplification ─────────────────────────────
+
+async function undoInvAllocation(allocId, invId) {
+  if (!confirm('Remove this payment allocation?\n\nThe payment amount will be returned to the unallocated pool and the invoice status will be updated.')) return;
+  try {
+    const res = await DEL('/api/payment-allocations/' + allocId);
+    await refreshAll();
+    const inv = await GET('/api/invoices/' + invId);
+    _renderInvoiceDetail(inv);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function undoBillAllocation(allocId, billId) {
+  if (!confirm('Remove this payment allocation?\n\nThe payment amount will be returned to the unallocated pool and the bill status will be updated.')) return;
+  try {
+    const res = await DEL('/api/supplier-payment-allocations/' + allocId);
+    await refreshAll();
+    const bill = await GET('/api/bills/' + billId);
+    _renderBillDetail(bill);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function showInvAdjustForm(invId) {
+  document.getElementById('inv-adjust-area-' + invId).innerHTML = `
+    <div style="background:#fff8e6;border:1px solid #f5dfa0;border-radius:6px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;color:var(--cinnamon);margin-bottom:10px">Record Adjustment</div>
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:10px">Use a positive amount to record additional payment. Use a negative amount to record a refund or credit.</div>
+      <div id="inv-adj-msg-${invId}"></div>
+      <div class="form-row" style="gap:8px;align-items:flex-end">
+        <div class="form-group"><label style="font-size:11px">Amount (PKR)</label>
+          <input id="inv-adj-amt-${invId}" type="number" step="0.01" placeholder="e.g. -500 for refund" style="width:160px">
+        </div>
+        <div class="form-group"><label style="font-size:11px">Date</label>
+          <input id="inv-adj-date-${invId}" type="date" value="${today()}">
+        </div>
+        <div class="form-group" style="flex:1"><label style="font-size:11px">Reason (required)</label>
+          <input id="inv-adj-reason-${invId}" placeholder="e.g. Refund due to wrong pricing">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveInvAdjust(${invId})">✓ Save Adjustment</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('inv-adjust-area-${invId}').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function saveInvAdjust(invId) {
+  const amt    = parseFloat(document.getElementById('inv-adj-amt-' + invId).value);
+  const date   = document.getElementById('inv-adj-date-' + invId).value;
+  const reason = document.getElementById('inv-adj-reason-' + invId).value.trim();
+  const msgEl  = document.getElementById('inv-adj-msg-' + invId);
+  if (!amt || amt === 0) { msgEl.innerHTML = '<div class="alert alert-error">Enter an amount (positive or negative)</div>'; return; }
+  if (!reason) { msgEl.innerHTML = '<div class="alert alert-error">Reason is required</div>'; return; }
+  try {
+    const res = await POST('/api/invoices/' + invId + '/adjust', { amount: amt, date, reason });
+    msgEl.innerHTML = `<div class="alert alert-success">✓ Adjustment recorded. Invoice is now ${res.invoiceStatus}.</div>`;
+    await refreshAll();
+    setTimeout(async () => {
+      const inv = await GET('/api/invoices/' + invId);
+      _renderInvoiceDetail(inv);
+    }, 1200);
+  } catch(e) { msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+
+function showBillAdjustForm(billId) {
+  document.getElementById('bill-adjust-area-' + billId).innerHTML = `
+    <div style="background:#fff8e6;border:1px solid #f5dfa0;border-radius:6px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;color:var(--cinnamon);margin-bottom:10px">Record Adjustment</div>
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:10px">Use a positive amount to record additional payment. Use a negative amount for a supplier credit or refund.</div>
+      <div id="bill-adj-msg-${billId}"></div>
+      <div class="form-row" style="gap:8px;align-items:flex-end">
+        <div class="form-group"><label style="font-size:11px">Amount (PKR)</label>
+          <input id="bill-adj-amt-${billId}" type="number" step="0.01" placeholder="e.g. -200 for credit" style="width:160px">
+        </div>
+        <div class="form-group"><label style="font-size:11px">Date</label>
+          <input id="bill-adj-date-${billId}" type="date" value="${today()}">
+        </div>
+        <div class="form-group" style="flex:1"><label style="font-size:11px">Reason (required)</label>
+          <input id="bill-adj-reason-${billId}" placeholder="e.g. Supplier credit note for short delivery">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveBillAdjust(${billId})">✓ Save Adjustment</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('bill-adjust-area-${billId}').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function saveBillAdjust(billId) {
+  const amt    = parseFloat(document.getElementById('bill-adj-amt-' + billId).value);
+  const date   = document.getElementById('bill-adj-date-' + billId).value;
+  const reason = document.getElementById('bill-adj-reason-' + billId).value.trim();
+  const msgEl  = document.getElementById('bill-adj-msg-' + billId);
+  if (!amt || amt === 0) { msgEl.innerHTML = '<div class="alert alert-error">Enter an amount (positive or negative)</div>'; return; }
+  if (!reason) { msgEl.innerHTML = '<div class="alert alert-error">Reason is required</div>'; return; }
+  try {
+    const res = await POST('/api/bills/' + billId + '/adjust', { amount: amt, date, reason });
+    msgEl.innerHTML = `<div class="alert alert-success">✓ Adjustment recorded. Bill is now ${res.billStatus}.</div>`;
+    await refreshAll();
+    setTimeout(async () => {
+      const bill = await GET('/api/bills/' + billId);
+      _renderBillDetail(bill);
+    }, 1200);
+  } catch(e) { msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+
+// ─────────────────────────────────────────────────────────────────
 
 async function applySupplierPayment(billId, supId) {
   const sel   = document.getElementById('spay-sel-' + billId);

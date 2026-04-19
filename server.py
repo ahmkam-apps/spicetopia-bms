@@ -5983,6 +5983,160 @@ def pay_bill_direct(bill_id, data):
 
 
 # ═══════════════════════════════════════════════════════════════════
+#  BUSINESS LOGIC — PAYMENT SIMPLIFICATION (Sprint P1)
+# ═══════════════════════════════════════════════════════════════════
+
+def deallocate_payment(allocation_id):
+    """
+    Remove a single AR payment allocation by its ID.
+    Restores the payment's unallocated balance and re-syncs the invoice status.
+    Only allowed on non-PAID invoices (if invoice is PAID, use adjust instead).
+    """
+    alloc = qry1("SELECT * FROM payment_allocations WHERE id=?", (allocation_id,))
+    if not alloc:
+        raise ValueError("Allocation not found")
+    inv = qry1("SELECT * FROM invoices WHERE id=?", (alloc['invoice_id'],))
+    if not inv:
+        raise ValueError("Invoice not found")
+    if inv['status'] == 'VOID':
+        raise ValueError("Cannot modify allocations on a VOID invoice")
+    run("DELETE FROM payment_allocations WHERE id=?", (allocation_id,))
+    audit_log([], 'payment_allocations', str(allocation_id), 'DELETE',
+              old_val={'payment_id': alloc['payment_id'], 'invoice_id': alloc['invoice_id'],
+                       'allocated_amount': alloc['allocated_amount']})
+    new_status = _sync_invoice_status(alloc['invoice_id'])
+    save_db()
+    return {'ok': True, 'invoiceId': alloc['invoice_id'], 'invoiceStatus': new_status,
+            'amountRestored': alloc['allocated_amount']}
+
+
+def deallocate_supplier_payment(allocation_id):
+    """
+    Remove a single AP payment allocation by its ID.
+    Restores the payment's unallocated balance and re-syncs the bill status.
+    """
+    alloc = qry1("SELECT * FROM supplier_payment_allocations WHERE id=?", (allocation_id,))
+    if not alloc:
+        raise ValueError("Allocation not found")
+    bill = qry1("SELECT * FROM supplier_bills WHERE id=?", (alloc['bill_id'],))
+    if not bill:
+        raise ValueError("Bill not found")
+    if bill['status'] == 'VOID':
+        raise ValueError("Cannot modify allocations on a VOID bill")
+    run("DELETE FROM supplier_payment_allocations WHERE id=?", (allocation_id,))
+    audit_log([], 'supplier_payment_allocations', str(allocation_id), 'DELETE',
+              old_val={'payment_id': alloc['payment_id'], 'bill_id': alloc['bill_id'],
+                       'allocated_amount': alloc['allocated_amount']})
+    new_status = _sync_bill_status(alloc['bill_id'])
+    save_db()
+    return {'ok': True, 'billId': alloc['bill_id'], 'billStatus': new_status,
+            'amountRestored': alloc['allocated_amount']}
+
+
+def adjust_invoice(invoice_id, data):
+    """
+    Record a signed payment adjustment against an invoice.
+    Positive amount  = additional payment received (reduces balance).
+    Negative amount  = refund / credit (increases balance, can reopen a PAID invoice).
+    Uses payment_mode='ADJUSTMENT' — no new tables needed.
+    """
+    inv = qry1("SELECT * FROM invoices WHERE id=?", (invoice_id,))
+    if not inv:
+        raise ValueError("Invoice not found")
+    if inv['status'] == 'VOID':
+        raise ValueError("Cannot adjust a VOID invoice")
+
+    amount = r2(data.get('amount', 0))
+    if amount == 0:
+        raise ValueError("Adjustment amount cannot be zero")
+
+    reason    = (data.get('reason') or 'Manual adjustment').strip()
+    adj_date  = data.get('date', today())
+    customer  = qry1("SELECT * FROM customers WHERE id=?", (inv['customer_id'],))
+    if not customer:
+        raise ValueError("Customer not found")
+
+    _sync_counter_to_max('pay', 'customer_payments', 'payment_ref', 'SP-PAY-')
+    pay_ref = next_id('pay', 'PAY')
+
+    ops = [("""
+        INSERT INTO customer_payments
+            (payment_ref, customer_id, payment_date, amount, payment_mode, notes)
+        VALUES (?,?,?,?,'ADJUSTMENT',?)
+    """, (pay_ref, customer['id'], adj_date, amount, reason))]
+    audit_log(ops, 'customer_payments', pay_ref, 'INSERT', new_val=data)
+    run_many(ops)
+
+    pay = qry1("SELECT * FROM customer_payments WHERE payment_ref=?", (pay_ref,))
+
+    # For positive: allocate up to the invoice balance.
+    # For negative: insert a negative allocation (reduces paid total → reopens invoice).
+    _subtotal, _tax, _total, _paid, inv_balance = compute_invoice_balance(invoice_id)
+    alloc_amount = r2(min(amount, inv_balance)) if amount > 0 else amount
+
+    run("""
+        INSERT INTO payment_allocations (payment_id, invoice_id, allocated_amount)
+        VALUES (?,?,?)
+        ON CONFLICT(payment_id, invoice_id) DO UPDATE SET
+            allocated_amount = allocated_amount + excluded.allocated_amount
+    """, (pay['id'], invoice_id, alloc_amount))
+
+    new_status = _sync_invoice_status(invoice_id)
+    save_db()
+    return {'paymentRef': pay_ref, 'adjusted': alloc_amount,
+            'invoiceStatus': new_status}
+
+
+def adjust_bill(bill_id, data):
+    """
+    Record a signed payment adjustment against a supplier bill.
+    Positive amount  = additional payment made (reduces balance).
+    Negative amount  = supplier credit / refund (increases balance).
+    Uses payment_mode='ADJUSTMENT' — no new tables needed.
+    """
+    bill = qry1("SELECT * FROM supplier_bills WHERE id=?", (bill_id,))
+    if not bill:
+        raise ValueError("Bill not found")
+    if bill['status'] == 'VOID':
+        raise ValueError("Cannot adjust a VOID bill")
+
+    amount = r2(data.get('amount', 0))
+    if amount == 0:
+        raise ValueError("Adjustment amount cannot be zero")
+
+    reason   = (data.get('reason') or 'Manual adjustment').strip()
+    adj_date = data.get('date', today())
+
+    _sync_counter_to_max('spay', 'supplier_payments', 'payment_ref', 'SP-SPAY-')
+    pay_ref = next_id('spay', 'SPAY')
+
+    ops = [("""
+        INSERT INTO supplier_payments
+            (payment_ref, supplier_id, payment_date, amount, payment_mode, notes)
+        VALUES (?,?,?,?,'ADJUSTMENT',?)
+    """, (pay_ref, bill['supplier_id'], adj_date, amount, reason))]
+    audit_log(ops, 'supplier_payments', pay_ref, 'INSERT', new_val=data)
+    run_many(ops)
+
+    pay = qry1("SELECT * FROM supplier_payments WHERE payment_ref=?", (pay_ref,))
+
+    _, _, bill_balance = compute_bill_balance(bill_id)
+    alloc_amount = r2(min(amount, bill_balance)) if amount > 0 else amount
+
+    run("""
+        INSERT INTO supplier_payment_allocations (payment_id, bill_id, allocated_amount)
+        VALUES (?,?,?)
+        ON CONFLICT(payment_id, bill_id) DO UPDATE SET
+            allocated_amount = allocated_amount + excluded.allocated_amount
+    """, (pay['id'], bill_id, alloc_amount))
+
+    new_status = _sync_bill_status(bill_id)
+    save_db()
+    return {'paymentRef': pay_ref, 'adjusted': alloc_amount,
+            'billStatus': new_status}
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  BUSINESS LOGIC — PRODUCTION PLANNING (WORK ORDERS)
 # ═══════════════════════════════════════════════════════════════════
 
@@ -10117,6 +10271,15 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result, 201)
                 return
 
+            # POST /api/invoices/:id/adjust  (admin, accountant) — Sprint P1
+            if path.startswith('/api/invoices/') and path.endswith('/adjust'):
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                inv_id = int(path.split('/')[3])
+                result = adjust_invoice(inv_id, data)
+                send_json(self, result, 201)
+                return
+
             # POST /api/invoices/:id/void  (admin, accountant only)
             if path.startswith('/api/invoices/') and path.endswith('/void'):
                 if not require(sess, 'admin', 'accountant'):
@@ -10177,6 +10340,15 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, 'Permission denied', 403); return
                 bill_id = int(path.split('/')[3])
                 result  = pay_bill_direct(bill_id, data)
+                send_json(self, result, 201)
+                return
+
+            # POST /api/bills/:id/adjust  (admin, accountant) — Sprint P1
+            if path.startswith('/api/bills/') and path.endswith('/adjust'):
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                bill_id = int(path.split('/')[3])
+                result  = adjust_bill(bill_id, data)
                 send_json(self, result, 201)
                 return
 
@@ -10820,6 +10992,24 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, 'Permission denied', 403); return
                 vid    = int(path.split('/')[3])
                 result = deactivate_variant(vid)
+                send_json(self, result)
+                return
+
+            # DELETE /api/payment-allocations/:id  (admin, accountant) — Sprint P1
+            if path.startswith('/api/payment-allocations/') and len(path.split('/')) == 4:
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                alloc_id = int(path.split('/')[3])
+                result   = deallocate_payment(alloc_id)
+                send_json(self, result)
+                return
+
+            # DELETE /api/supplier-payment-allocations/:id  (admin, accountant) — Sprint P1
+            if path.startswith('/api/supplier-payment-allocations/') and len(path.split('/')) == 4:
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                alloc_id = int(path.split('/')[3])
+                result   = deallocate_supplier_payment(alloc_id)
                 send_json(self, result)
                 return
 
