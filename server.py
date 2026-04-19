@@ -3429,7 +3429,8 @@ def void_invoice(invoice_id: int, note: str, username: str):
                     AND product_variant_id = ?
                 """, (item['quantity'], invoice_id, item.get('product_variant_id')))
 
-        # 5. If order is fully void, reset to confirmed
+        # 5. If order is fully void, revert order status (computed post-commit via _order_status)
+        _void_order_id = None
         if inv.get('customer_order_id'):
             live_invoices = qry("""
                 SELECT COUNT(*) as n FROM invoices
@@ -3437,10 +3438,8 @@ def void_invoice(invoice_id: int, note: str, username: str):
             """, (inv['customer_order_id'], invoice_id))
             live_count = live_invoices[0]['n'] if live_invoices else 0
             if live_count == 0:
-                c.execute("""
-                    UPDATE customer_orders SET status='confirmed'
-                    WHERE id=? AND status IN ('partially_invoiced','invoiced')
-                """, (inv['customer_order_id'],))
+                # Mark order as needing post-commit status sync (qty_invoiced already decremented above)
+                _void_order_id = inv['customer_order_id']
 
         # 6. Audit log
         c.execute("""
@@ -3457,6 +3456,10 @@ def void_invoice(invoice_id: int, note: str, username: str):
         raise
     finally:
         c.close()
+    # Post-commit: derive order status from actual qty_invoiced totals (never hardcode 'confirmed')
+    if _void_order_id:
+        new_ord_status = _order_status(_void_order_id)
+        run("UPDATE customer_orders SET status=? WHERE id=?", (new_ord_status, _void_order_id))
     save_db()
     _log('info', 'invoice_voided', invoice=inv['invoice_number'],
          by=username, status=inv['status'])
@@ -5502,6 +5505,7 @@ def update_purchase_order_status(po_id, new_status, data=None):
     if new_status in ('received', 'partial') and not po.get('bill_id'):
         _sync_counter_to_max('bill', 'supplier_bills', 'bill_number', 'SP-BILL-')
 
+    _cod_bill_id = None  # track COD bill id for post-commit status sync
     c = _conn()
     try:
         if new_status in ('received', 'partial'):
@@ -5603,7 +5607,8 @@ def update_purchase_order_status(po_id, new_status, data=None):
                             (payment_id, bill_id, allocated_amount)
                         VALUES (?,?,?)
                     """, (pay_id, bill_id, po_bill_total))
-                    c.execute("UPDATE supplier_bills SET status='PAID' WHERE id=?", (bill_id,))
+                    # Status will be synced post-commit via _sync_bill_status (don't set inside tx)
+                    _cod_bill_id = bill_id
 
             c.execute("""
                 UPDATE purchase_orders SET status=?, updated_at=datetime('now') WHERE id=?
@@ -5624,6 +5629,9 @@ def update_purchase_order_status(po_id, new_status, data=None):
         raise
     finally:
         c.close()
+    # Post-commit: sync COD bill status from actual allocations (consistent with _sync_bill_status pattern)
+    if _cod_bill_id:
+        _sync_bill_status(_cod_bill_id)
     save_db()
     return get_purchase_order(po_id)
 
