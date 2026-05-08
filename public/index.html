@@ -8263,6 +8263,7 @@ async function renderProducts() {
   });
 
   // Build one card per product
+  const isAdmin = state.currentUser?.role === 'admin';
   let panels = '';
   Object.entries(groups).forEach(([name, grp]) => {
     grp.items.sort((a, b) => {
@@ -8324,8 +8325,6 @@ async function renderProducts() {
       <div style="display:flex;flex-direction:column;gap:7px">${rows}</div>
     </div>`;
   });
-
-  const isAdmin = state.currentUser?.role === 'admin';
 
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
