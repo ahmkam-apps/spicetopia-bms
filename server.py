@@ -183,6 +183,48 @@ def _save_config(data: dict):
         print(f"  ⚠ Could not save config: {e}")
 
 
+def ensure_system_settings_schema():
+    """Create system_settings key-value table if not present."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        c.commit()
+    finally:
+        c.close()
+
+def get_setting(key: str, default=None):
+    """Read a value from system_settings. Returns default if not found."""
+    try:
+        row = qry1("SELECT value FROM system_settings WHERE key=?", (key,))
+        return row['value'] if row else default
+    except Exception:
+        return default
+
+def set_setting(key: str, value: str):
+    """Upsert a value in system_settings."""
+    run("INSERT INTO system_settings (key, value) VALUES (?,?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (key, str(value) if value is not None else ''))
+
+def _reload_wa_from_db():
+    """Hot-reload WhatsApp globals from system_settings DB (called after UI save)."""
+    global WA_ENABLED, WA_ADMIN_PHONE, WA_ADMIN_APIKEY, WA_EXPIRY_WARN_HOURS
+    # DB values override config.json but env vars still win
+    if not os.environ.get('WA_ENABLED'):
+        v = get_setting('whatsapp_enabled', '')
+        if v != '':
+            WA_ENABLED = v.lower() in ('1', 'true', 'yes')
+    if not os.environ.get('WA_ADMIN_PHONE'):
+        WA_ADMIN_PHONE = get_setting('whatsapp_admin_phone', WA_ADMIN_PHONE) or WA_ADMIN_PHONE
+    if not os.environ.get('WA_ADMIN_APIKEY'):
+        WA_ADMIN_APIKEY = get_setting('whatsapp_admin_apikey', WA_ADMIN_APIKEY) or WA_ADMIN_APIKEY
+
+
 def _apply_startup_config():
     """
     Read config.json and environment variables to set runtime globals.
@@ -213,7 +255,7 @@ def _apply_startup_config():
     else:
         CORS_ORIGINS = cfg.get('cors_origins', [])
 
-    # WhatsApp (CallMeBot) notification config
+    # WhatsApp (CallMeBot) notification config — env > config.json (DB loaded later via _reload_wa_from_db)
     global WA_ENABLED, WA_ADMIN_PHONE, WA_ADMIN_APIKEY, WA_EXPIRY_WARN_HOURS
     WA_ENABLED           = bool(int(os.environ.get('WA_ENABLED', '1' if cfg.get('whatsapp_enabled', False) else '0')))
     WA_ADMIN_PHONE       = os.environ.get('WA_ADMIN_PHONE',  cfg.get('whatsapp_admin_phone',  ''))
@@ -541,7 +583,16 @@ def resolve_db_path() -> Path:
     global DB_SRC
     config = _load_config()
 
-    # 0. Cloud deployment — use env var path or auto-create at default location
+    # 0. Explicit DB_PATH env var — highest priority (useful for testing / CI)
+    explicit_path = os.environ.get('DB_PATH', '')
+    if explicit_path:
+        ep = Path(explicit_path)
+        ep.parent.mkdir(parents=True, exist_ok=True)
+        DB_SRC = ep
+        print(f"  ✓ DB_PATH override — database: {DB_SRC}")
+        return DB_SRC
+
+    # 0a. Cloud deployment — use env var path or auto-create at default location
     railway_vol = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '')
     if railway_vol:
         vol_path = Path(railway_vol) / 'spicetopia.db'
@@ -1513,7 +1564,7 @@ ROLE_LABELS = {
     'sales':       'Sales',
     'warehouse':   'Warehouse',
     'accountant':  'Accountant',
-    'field_rep':   'Field Rep',
+    'field_rep':   'Sales Rep',
     'user':        'Viewer (read-only)',
 }
 
@@ -1704,10 +1755,15 @@ def _city_to_code(city_str):
     return (clean[:3].upper() if len(clean) >= 3 else clean.upper().ljust(3, 'X'))
 
 
-def generate_account_number(city):
-    """Generate SP{CITY3}-{NNN} account number using a per-city counter in id_counters."""
+def generate_account_number(city, customer_type='RETAIL'):
+    """Generate {CITY3}-{TYPE}{NNN} account number (e.g. KHI-R001, KHI-D004, ISB-W001).
+    Each city+type combination has its own independent counter in id_counters.
+    Type codes: RETAIL→R, DIRECT→D, WHOLESALE→W.
+    Existing customers with legacy SPKHI-NNN format are unaffected."""
+    type_code = {'RETAIL': 'R', 'DIRECT': 'D', 'WHOLESALE': 'W'}.get(
+        (customer_type or 'RETAIL').upper(), 'R')
     city3  = _city_to_code(city)
-    entity = f'acct_{city3}'
+    entity = f'acct_{city3}_{type_code}'
     c = _conn()
     try:
         c.execute("INSERT OR IGNORE INTO id_counters (entity, last_num) VALUES (?,0)", (entity,))
@@ -1717,7 +1773,7 @@ def generate_account_number(city):
     finally:
         c.close()
     save_db()
-    return f"SP{city3}-{num:03d}"
+    return f"{city3}-{type_code}{num:03d}"
 
 
 def backfill_customer_account_numbers():
@@ -1749,15 +1805,16 @@ def backfill_customer_account_numbers():
 
         # ── Assign account_number to real customers without one ───
         unassigned = c.execute(
-            "SELECT id, name, city FROM customers WHERE account_number IS NULL"
+            "SELECT id, name, city, customer_type FROM customers WHERE account_number IS NULL"
         ).fetchall()
-        for (cid, name, city) in unassigned:
-            city3  = _city_to_code(city or '')
-            entity = f'acct_{city3}'
+        for (cid, name, city, ctype) in unassigned:
+            city3     = _city_to_code(city or '')
+            type_code = {'RETAIL': 'R', 'DIRECT': 'D', 'WHOLESALE': 'W'}.get((ctype or 'RETAIL').upper(), 'R')
+            entity    = f'acct_{city3}_{type_code}'
             c.execute("INSERT OR IGNORE INTO id_counters (entity, last_num) VALUES (?,0)", (entity,))
             c.execute("UPDATE id_counters SET last_num=last_num+1 WHERE entity=?", (entity,))
             num = c.execute("SELECT last_num FROM id_counters WHERE entity=?", (entity,)).fetchone()[0]
-            acc_num = f"SP{city3}-{num:03d}"
+            acc_num = f"{city3}-{type_code}{num:03d}"
             c.execute("UPDATE customers SET account_number=? WHERE id=?", (acc_num, cid))
             print(f"  ✓ Backfill: assigned {acc_num} to '{name}' (id={cid})")
 
@@ -2352,6 +2409,7 @@ def load_ref():
 
     variants = qry("""
         SELECT pv.id, pv.sku_code, pv.product_id, pv.pack_size_id, pv.active_flag,
+               pv.gtin,
                p.code as product_code, p.name as product_name,
                ps.label as pack_size, ps.grams as pack_grams
         FROM product_variants pv
@@ -2361,7 +2419,7 @@ def load_ref():
     """)
 
     customers = qry("""
-        SELECT * FROM customers WHERE active=1 ORDER BY name
+        SELECT * FROM customers WHERE COALESCE(active,1)=1 ORDER BY name
     """)
 
     suppliers = qry("""
@@ -2633,9 +2691,9 @@ def _wa_send(phone: str, apikey: str, message: str):
             )
             with urllib.request.urlopen(url, timeout=15) as resp:
                 body = resp.read().decode('utf-8', errors='ignore')
-            _log('info', 'whatsapp', f"Sent to {phone[:5]}**** — {body[:80]}")
+            _log('info', f"whatsapp: Sent to {phone[:5]}**** — {body[:80]}")
         except Exception as e:
-            _log('error', 'whatsapp', f"Failed to {phone[:5]}****: {e}")
+            _log('error', f"whatsapp: Failed to {phone[:5]}****: {e}")
     threading.Thread(target=_do, daemon=True).start()
 
 
@@ -2672,7 +2730,7 @@ def _wa_notify_order_queued(order_id):
     if not o:
         return
     src = {'consumer_website': '🛒 Website', 'retailer_self_service': '🏪 Retailer',
-           'field_rep': '👤 Field Rep'}.get(o['order_source'], o['order_source'])
+           'field_rep': '👤 Sales Rep'}.get(o['order_source'], o['order_source'])
     _wa_admin(
         f"🔔 *NEW ORDER IN QUEUE*\n"
         f"Order: {o['order_number']}\n"
@@ -2749,29 +2807,95 @@ def _wa_notify_hold_expired(order_id):
 def create_customer_order_external(data):
     """
     Entry point for orders from non-BMS channels.
-    order_source: 'consumer_website' | 'retailer_self_service' | 'field_rep'
-    Field rep orders land as draft (no queue).
-    External orders land as pending_review with a soft hold.
+    order_source: 'consumer_website' | 'retailer_self_service' | 'field_rep' | 'rep_assisted'
+    - field_rep / rep_assisted: bypass review queue, land as draft
+    - consumer_website / retailer_self_service: pending_review + 48h soft hold
+    rep_assisted: sales rep placing on behalf of a customer via B2B portal.
+      Supports idempotency_key (dedup within 24h per rep).
+      Triggers out-of-route warning if customer not on rep's routes.
     """
     source = data.get('order_source', 'internal')
-    if source not in ('consumer_website', 'retailer_self_service', 'field_rep'):
+    if source not in ('consumer_website', 'retailer_self_service', 'field_rep', 'rep_assisted'):
         raise ValueError(f"Invalid order_source: {source}")
+
+    # ── Translate portal format → internal format ─────────────────
+    # Portal sends: customerId (int) + items:[{variantId, qty, unitPrice}]
+    # create_customer_order expects: custCode (str) + lines:[{productCode, packSize, qty, unitPrice}]
+    if 'customerId' in data and 'custCode' not in data:
+        cust_row = qry1("SELECT code FROM customers WHERE id=?", (int(data['customerId']),))
+        if not cust_row:
+            raise ValueError(f"Customer not found: id={data['customerId']}")
+        data['custCode'] = cust_row['code']
+
+    if 'items' in data and 'lines' not in data:
+        lines = []
+        for item in data.get('items', []):
+            vid = item.get('variantId')
+            var = qry1("""
+                SELECT p.code as productCode, ps.label as packSize
+                FROM product_variants pv
+                JOIN products p    ON p.id  = pv.product_id
+                JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                WHERE pv.id=?
+            """, (vid,))
+            if not var:
+                raise ValueError(f"Product variant not found: variantId={vid}")
+            lines.append({
+                'productCode': var['productCode'],
+                'packSize':    var['packSize'],
+                'qty':         item.get('qty', 1),
+                'unitPrice':   item.get('unitPrice', 0),
+            })
+        data['lines'] = lines
+
+    # ── Idempotency check (rep_assisted orders) ───────────────────
+    idem_key = data.get('idempotency_key')
+    rep_id   = data.get('created_by_rep_id') or data.get('placed_by_rep_id')
+    if idem_key and rep_id:
+        existing = qry1("""
+            SELECT id FROM customer_orders
+            WHERE idempotency_key=? AND created_by_rep_id=?
+            AND created_at >= datetime('now', '-24 hours')
+        """, (idem_key, rep_id))
+        if existing:
+            result = _order_detail(existing['id'])
+            result['_idempotent'] = True
+            return result
 
     # Create the base order as draft (standard path)
     order = create_customer_order(data)
     order_id = order['orderId']
 
-    # Tag the order source and creating rep (if known)
-    rep_id = data.get('created_by_rep_id')
+    # Tag the order source, creating rep, and idempotency key
+    rep_id = data.get('created_by_rep_id') or data.get('placed_by_rep_id')
     if rep_id:
-        run("UPDATE customer_orders SET order_source=?, created_by_rep_id=? WHERE id=?", (source, rep_id, order_id))
+        run("""UPDATE customer_orders
+               SET order_source=?, created_by_rep_id=?, idempotency_key=?
+               WHERE id=?""", (source, rep_id, idem_key, order_id))
     else:
-        run("UPDATE customer_orders SET order_source=? WHERE id=?", (source, order_id))
+        run("UPDATE customer_orders SET order_source=?, idempotency_key=? WHERE id=?",
+            (source, idem_key, order_id))
 
-    if source == 'field_rep':
-        # Field reps bypass the queue — stays as draft, no soft hold
+    if source in ('field_rep', 'rep_assisted'):
+        # These sources bypass the review queue — stays as draft, no soft hold
         order['order_source'] = source
         order['inReviewQueue'] = False
+
+        # Out-of-route check for rep_assisted orders
+        if source == 'rep_assisted' and rep_id:
+            customer_id = order.get('customerId') or qry1(
+                "SELECT customer_id FROM customer_orders WHERE id=?", (order_id,))
+            if customer_id:
+                cid = customer_id if isinstance(customer_id, int) else customer_id['customer_id']
+                if _is_out_of_route(int(rep_id), cid):
+                    run("UPDATE customer_orders SET out_of_route=1 WHERE id=?", (order_id,))
+                    order['outOfRoute'] = True
+                    try:
+                        _wa_notify_out_of_route(order_id, int(rep_id))
+                    except Exception as e:
+                        _log('warn', 'out_of_route_wa_failed', order_id=order_id, error=str(e))
+                else:
+                    order['outOfRoute'] = False
         return order
 
     # External orders → pending_review + soft hold
@@ -3216,6 +3340,35 @@ def compute_bill_balance(bill_id):
     return total, paid, balance
 
 
+def _compute_bill_status(bill_id) -> str:
+    """
+    Derive the correct supplier bill status purely from the numbers — never from a stored flag.
+    Returns 'UNPAID', 'PARTIAL', or 'PAID'.
+    This is the single source of truth for bill status (mirrors _compute_invoice_status for AR).
+    """
+    total, paid, balance = compute_bill_balance(bill_id)
+    if paid <= 0:
+        return 'UNPAID'
+    if balance > 0.001:   # 0.001 rounding tolerance
+        return 'PARTIAL'
+    return 'PAID'
+
+
+def _sync_bill_status(bill_id) -> str:
+    """
+    Compute supplier bill status from amounts and write it to the DB.
+    Returns the new status string.
+    Call after any payment allocation, item add/remove, or admin reconcile.
+    Preserves VOID status — never overwrites a voided bill.
+    """
+    existing = qry1("SELECT status FROM supplier_bills WHERE id=?", (bill_id,))
+    if not existing or existing['status'] == 'VOID':
+        return existing['status'] if existing else 'VOID'
+    new_status = _compute_bill_status(bill_id)
+    run("UPDATE supplier_bills SET status=? WHERE id=?", (new_status, bill_id))
+    return new_status
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  VOID TRANSACTIONS  (P2.5)
 # ═══════════════════════════════════════════════════════════════════
@@ -3277,7 +3430,8 @@ def void_invoice(invoice_id: int, note: str, username: str):
                     AND product_variant_id = ?
                 """, (item['quantity'], invoice_id, item.get('product_variant_id')))
 
-        # 5. If order is fully void, reset to confirmed
+        # 5. If order is fully void, revert order status (computed post-commit via _order_status)
+        _void_order_id = None
         if inv.get('customer_order_id'):
             live_invoices = qry("""
                 SELECT COUNT(*) as n FROM invoices
@@ -3285,10 +3439,8 @@ def void_invoice(invoice_id: int, note: str, username: str):
             """, (inv['customer_order_id'], invoice_id))
             live_count = live_invoices[0]['n'] if live_invoices else 0
             if live_count == 0:
-                c.execute("""
-                    UPDATE customer_orders SET status='confirmed'
-                    WHERE id=? AND status IN ('partially_invoiced','invoiced')
-                """, (inv['customer_order_id'],))
+                # Mark order as needing post-commit status sync (qty_invoiced already decremented above)
+                _void_order_id = inv['customer_order_id']
 
         # 6. Audit log
         c.execute("""
@@ -3305,6 +3457,10 @@ def void_invoice(invoice_id: int, note: str, username: str):
         raise
     finally:
         c.close()
+    # Post-commit: derive order status from actual qty_invoiced totals (never hardcode 'confirmed')
+    if _void_order_id:
+        new_ord_status = _order_status(_void_order_id)
+        run("UPDATE customer_orders SET status=? WHERE id=?", (new_ord_status, _void_order_id))
     save_db()
     _log('info', 'invoice_voided', invoice=inv['invoice_number'],
          by=username, status=inv['status'])
@@ -3421,9 +3577,9 @@ def create_customer(data):
     validate_fields(data, [
         {'field': 'name',         'label': 'Customer name',  'type': 'str',  'min': 2, 'max': 120},
         {'field': 'city',         'label': 'City',           'type': 'str',  'min': 2, 'max': 60},
-        {'field': 'address',      'label': 'Full address',   'type': 'str',  'min': 5, 'max': 250},
+        {'field': 'address',      'label': 'Full address',   'type': 'str',  'required': False, 'min': 0, 'max': 250},
         {'field': 'customerType', 'label': 'Customer type',  'required': False,
-         'choices': ['RETAIL', 'retail', 'DIRECT', 'direct']},
+         'choices': ['RETAIL', 'retail', 'DIRECT', 'direct', 'WHOLESALE', 'wholesale']},
         {'field': 'phone',        'label': 'Phone',          'required': False, 'type': 'str', 'max': 30},
         {'field': 'email',        'label': 'Email',          'required': False, 'type': 'str', 'max': 120},
     ])
@@ -3431,10 +3587,10 @@ def create_customer(data):
     _sync_counter_to_max('customer', 'customers', 'code', 'SP-SP-CUST-')
     code    = next_id('customer', 'SP-CUST')
     ctype   = data.get('customerType', 'RETAIL').upper()
-    if ctype not in ('RETAIL', 'DIRECT'):
+    if ctype not in ('RETAIL', 'DIRECT', 'WHOLESALE'):
         raise ValueError(f"Invalid customer type: {ctype}")
     city           = data.get('city', '').strip()
-    account_number = generate_account_number(city)
+    account_number = generate_account_number(city, ctype)
     ops = [("""
         INSERT INTO customers
             (code, account_number, name, customer_type, category, city, address,
@@ -3760,6 +3916,80 @@ def _migrate_change_log_void_action():
         try: c.execute("PRAGMA foreign_keys=ON")
         except: pass
         c.close()
+
+
+def _migrate_customer_type_wholesale():
+    """Migration: add WHOLESALE to customer_type CHECK constraint (idempotent).
+    SQLite doesn't allow ALTER COLUMN — recreates the customers table with updated CHECK."""
+    c = _conn()
+    try:
+        schema = c.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='customers'"
+        ).fetchone()
+        if schema and 'WHOLESALE' in schema[0]:
+            return  # already done
+        c.execute("PRAGMA foreign_keys=OFF")
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS customers_new (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                code               TEXT NOT NULL UNIQUE,
+                account_number     TEXT DEFAULT NULL,
+                name               TEXT NOT NULL,
+                customer_type      TEXT NOT NULL DEFAULT 'RETAIL'
+                                   CHECK(customer_type IN ('RETAIL','DIRECT','WHOLESALE')),
+                category           TEXT DEFAULT '',
+                city               TEXT DEFAULT '',
+                address            TEXT DEFAULT '',
+                phone              TEXT DEFAULT '',
+                email              TEXT DEFAULT '',
+                default_pack       TEXT DEFAULT '50g',
+                payment_terms_days INTEGER DEFAULT 30,
+                credit_limit       REAL DEFAULT 0,
+                active             INTEGER DEFAULT 1,
+                created_at         TEXT DEFAULT (date('now'))
+            )
+        """)
+        c.execute("""
+            INSERT INTO customers_new
+            SELECT id, code, account_number, name,
+                   CASE WHEN customer_type IN ('RETAIL','DIRECT','WHOLESALE')
+                        THEN customer_type ELSE 'RETAIL' END,
+                   category, city, address, phone, email, default_pack,
+                   payment_terms_days, credit_limit, active, created_at
+            FROM customers
+        """)
+        c.execute("DROP TABLE customers")
+        c.execute("ALTER TABLE customers_new RENAME TO customers")
+        c.commit()
+        print("  ✓ Migration: customer_type CHECK updated — WHOLESALE added")
+    except Exception as e:
+        print(f"  ⚠ _migrate_customer_type_wholesale error: {e}")
+        try: c.rollback()
+        except: pass
+    finally:
+        try: c.execute("PRAGMA foreign_keys=ON")
+        except: pass
+        c.close()
+    save_db()
+
+
+def _ensure_b2b_order_columns():
+    """Idempotent: add out_of_route + idempotency_key columns to customer_orders for B2B portal."""
+    c = _conn()
+    try:
+        for sql in [
+            "ALTER TABLE customer_orders ADD COLUMN out_of_route    INTEGER DEFAULT 0",
+            "ALTER TABLE customer_orders ADD COLUMN idempotency_key TEXT    DEFAULT NULL",
+        ]:
+            try:
+                c.execute(sql)
+            except Exception:
+                pass  # column already exists
+        c.commit()
+        print("  ✓ B2B columns: out_of_route + idempotency_key ready")
+    finally:
+        c.close()
+    save_db()
 
 
 def _ensure_supplier_zone_col():
@@ -5276,6 +5506,7 @@ def update_purchase_order_status(po_id, new_status, data=None):
     if new_status in ('received', 'partial') and not po.get('bill_id'):
         _sync_counter_to_max('bill', 'supplier_bills', 'bill_number', 'SP-BILL-')
 
+    _cod_bill_id = None  # track COD bill id for post-commit status sync
     c = _conn()
     try:
         if new_status in ('received', 'partial'):
@@ -5377,7 +5608,8 @@ def update_purchase_order_status(po_id, new_status, data=None):
                             (payment_id, bill_id, allocated_amount)
                         VALUES (?,?,?)
                     """, (pay_id, bill_id, po_bill_total))
-                    c.execute("UPDATE supplier_bills SET status='PAID' WHERE id=?", (bill_id,))
+                    # Status will be synced post-commit via _sync_bill_status (don't set inside tx)
+                    _cod_bill_id = bill_id
 
             c.execute("""
                 UPDATE purchase_orders SET status=?, updated_at=datetime('now') WHERE id=?
@@ -5398,6 +5630,9 @@ def update_purchase_order_status(po_id, new_status, data=None):
         raise
     finally:
         c.close()
+    # Post-commit: sync COD bill status from actual allocations (consistent with _sync_bill_status pattern)
+    if _cod_bill_id:
+        _sync_bill_status(_cod_bill_id)
     save_db()
     return get_purchase_order(po_id)
 
@@ -5699,16 +5934,10 @@ def allocate_supplier_payment(payment_id, bill_id, amount):
             allocated_amount = allocated_amount + excluded.allocated_amount
     """, (payment_id, bill_id, amount))]
 
-    new_paid = r2(bill_paid + amount)
-    # Guard: only auto-mark PAID if we have a known non-zero total.
-    # If bill_total is 0 (e.g. PO items had zero unit costs), never auto-PAID via math.
-    if bill_total <= 0.001:
-        new_status = 'PARTIAL' if new_paid > 0 else bill['status']
-    else:
-        new_status = 'PAID' if new_paid >= bill_total - 0.001 else 'PARTIAL'
-    ops.append(("UPDATE supplier_bills SET status=? WHERE id=?", (new_status, bill_id)))
     audit_log(ops, 'supplier_payment_allocations', f"{payment_id}-{bill_id}", 'INSERT')
     run_many(ops)
+    # Derive status from actual amounts — consistent with AR _sync_invoice_status pattern
+    new_status = _sync_bill_status(bill_id)
     return {'allocated': amount, 'billStatus': new_status}
 
 def pay_bill_direct(bill_id, data):
@@ -5752,6 +5981,160 @@ def pay_bill_direct(bill_id, data):
     result = allocate_supplier_payment(pay['id'], bill_id, alloc_amount)
     return {'paymentRef': pay_ref, 'paymentId': pay['id'],
             'allocated': alloc_amount, 'billStatus': result['billStatus']}
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  BUSINESS LOGIC — PAYMENT SIMPLIFICATION (Sprint P1)
+# ═══════════════════════════════════════════════════════════════════
+
+def deallocate_payment(allocation_id):
+    """
+    Remove a single AR payment allocation by its ID.
+    Restores the payment's unallocated balance and re-syncs the invoice status.
+    Only allowed on non-PAID invoices (if invoice is PAID, use adjust instead).
+    """
+    alloc = qry1("SELECT * FROM payment_allocations WHERE id=?", (allocation_id,))
+    if not alloc:
+        raise ValueError("Allocation not found")
+    inv = qry1("SELECT * FROM invoices WHERE id=?", (alloc['invoice_id'],))
+    if not inv:
+        raise ValueError("Invoice not found")
+    if inv['status'] == 'VOID':
+        raise ValueError("Cannot modify allocations on a VOID invoice")
+    run("DELETE FROM payment_allocations WHERE id=?", (allocation_id,))
+    audit_log([], 'payment_allocations', str(allocation_id), 'DELETE',
+              old_val={'payment_id': alloc['payment_id'], 'invoice_id': alloc['invoice_id'],
+                       'allocated_amount': alloc['allocated_amount']})
+    new_status = _sync_invoice_status(alloc['invoice_id'])
+    save_db()
+    return {'ok': True, 'invoiceId': alloc['invoice_id'], 'invoiceStatus': new_status,
+            'amountRestored': alloc['allocated_amount']}
+
+
+def deallocate_supplier_payment(allocation_id):
+    """
+    Remove a single AP payment allocation by its ID.
+    Restores the payment's unallocated balance and re-syncs the bill status.
+    """
+    alloc = qry1("SELECT * FROM supplier_payment_allocations WHERE id=?", (allocation_id,))
+    if not alloc:
+        raise ValueError("Allocation not found")
+    bill = qry1("SELECT * FROM supplier_bills WHERE id=?", (alloc['bill_id'],))
+    if not bill:
+        raise ValueError("Bill not found")
+    if bill['status'] == 'VOID':
+        raise ValueError("Cannot modify allocations on a VOID bill")
+    run("DELETE FROM supplier_payment_allocations WHERE id=?", (allocation_id,))
+    audit_log([], 'supplier_payment_allocations', str(allocation_id), 'DELETE',
+              old_val={'payment_id': alloc['payment_id'], 'bill_id': alloc['bill_id'],
+                       'allocated_amount': alloc['allocated_amount']})
+    new_status = _sync_bill_status(alloc['bill_id'])
+    save_db()
+    return {'ok': True, 'billId': alloc['bill_id'], 'billStatus': new_status,
+            'amountRestored': alloc['allocated_amount']}
+
+
+def adjust_invoice(invoice_id, data):
+    """
+    Record a signed payment adjustment against an invoice.
+    Positive amount  = additional payment received (reduces balance).
+    Negative amount  = refund / credit (increases balance, can reopen a PAID invoice).
+    Uses payment_mode='ADJUSTMENT' — no new tables needed.
+    """
+    inv = qry1("SELECT * FROM invoices WHERE id=?", (invoice_id,))
+    if not inv:
+        raise ValueError("Invoice not found")
+    if inv['status'] == 'VOID':
+        raise ValueError("Cannot adjust a VOID invoice")
+
+    amount = r2(data.get('amount', 0))
+    if amount == 0:
+        raise ValueError("Adjustment amount cannot be zero")
+
+    reason    = (data.get('reason') or 'Manual adjustment').strip()
+    adj_date  = data.get('date', today())
+    customer  = qry1("SELECT * FROM customers WHERE id=?", (inv['customer_id'],))
+    if not customer:
+        raise ValueError("Customer not found")
+
+    _sync_counter_to_max('pay', 'customer_payments', 'payment_ref', 'SP-PAY-')
+    pay_ref = next_id('pay', 'PAY')
+
+    ops = [("""
+        INSERT INTO customer_payments
+            (payment_ref, customer_id, payment_date, amount, payment_mode, notes)
+        VALUES (?,?,?,?,'ADJUSTMENT',?)
+    """, (pay_ref, customer['id'], adj_date, amount, reason))]
+    audit_log(ops, 'customer_payments', pay_ref, 'INSERT', new_val=data)
+    run_many(ops)
+
+    pay = qry1("SELECT * FROM customer_payments WHERE payment_ref=?", (pay_ref,))
+
+    # For positive: allocate up to the invoice balance.
+    # For negative: insert a negative allocation (reduces paid total → reopens invoice).
+    _subtotal, _tax, _total, _paid, inv_balance = compute_invoice_balance(invoice_id)
+    alloc_amount = r2(min(amount, inv_balance)) if amount > 0 else amount
+
+    run("""
+        INSERT INTO payment_allocations (payment_id, invoice_id, allocated_amount)
+        VALUES (?,?,?)
+        ON CONFLICT(payment_id, invoice_id) DO UPDATE SET
+            allocated_amount = allocated_amount + excluded.allocated_amount
+    """, (pay['id'], invoice_id, alloc_amount))
+
+    new_status = _sync_invoice_status(invoice_id)
+    save_db()
+    return {'paymentRef': pay_ref, 'adjusted': alloc_amount,
+            'invoiceStatus': new_status}
+
+
+def adjust_bill(bill_id, data):
+    """
+    Record a signed payment adjustment against a supplier bill.
+    Positive amount  = additional payment made (reduces balance).
+    Negative amount  = supplier credit / refund (increases balance).
+    Uses payment_mode='ADJUSTMENT' — no new tables needed.
+    """
+    bill = qry1("SELECT * FROM supplier_bills WHERE id=?", (bill_id,))
+    if not bill:
+        raise ValueError("Bill not found")
+    if bill['status'] == 'VOID':
+        raise ValueError("Cannot adjust a VOID bill")
+
+    amount = r2(data.get('amount', 0))
+    if amount == 0:
+        raise ValueError("Adjustment amount cannot be zero")
+
+    reason   = (data.get('reason') or 'Manual adjustment').strip()
+    adj_date = data.get('date', today())
+
+    _sync_counter_to_max('spay', 'supplier_payments', 'payment_ref', 'SP-SPAY-')
+    pay_ref = next_id('spay', 'SPAY')
+
+    ops = [("""
+        INSERT INTO supplier_payments
+            (payment_ref, supplier_id, payment_date, amount, payment_mode, notes)
+        VALUES (?,?,?,?,'ADJUSTMENT',?)
+    """, (pay_ref, bill['supplier_id'], adj_date, amount, reason))]
+    audit_log(ops, 'supplier_payments', pay_ref, 'INSERT', new_val=data)
+    run_many(ops)
+
+    pay = qry1("SELECT * FROM supplier_payments WHERE payment_ref=?", (pay_ref,))
+
+    _, _, bill_balance = compute_bill_balance(bill_id)
+    alloc_amount = r2(min(amount, bill_balance)) if amount > 0 else amount
+
+    run("""
+        INSERT INTO supplier_payment_allocations (payment_id, bill_id, allocated_amount)
+        VALUES (?,?,?)
+        ON CONFLICT(payment_id, bill_id) DO UPDATE SET
+            allocated_amount = allocated_amount + excluded.allocated_amount
+    """, (pay['id'], bill_id, alloc_amount))
+
+    new_status = _sync_bill_status(bill_id)
+    save_db()
+    return {'paymentRef': pay_ref, 'adjusted': alloc_amount,
+            'billStatus': new_status}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -8072,6 +8455,16 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             # ── Static files ──────────────────────────────────────
+            # If accessed via order.spicetopia.food, always serve order.html
+            host = (self.headers.get('X-Forwarded-Host') or self.headers.get('Host', '')).split(':')[0].lower()
+            if host == 'order.spicetopia.food':
+                order_page = PUBLIC_DIR / 'order.html'
+                if order_page.exists():
+                    self._serve_file(order_page, 'text/html; charset=utf-8')
+                else:
+                    send_error(self, "Order portal not found", 404)
+                return
+
             if path == '' or path == '/':
                 self._serve_file(PUBLIC_DIR / 'index.html', 'text/html')
                 return
@@ -8092,6 +8485,33 @@ class Handler(BaseHTTPRequestHandler):
                     self._serve_file(field_page, 'text/html; charset=utf-8')
                 else:
                     send_error(self, "Field app not found", 404)
+                return
+
+            # /order — B2B sales rep PWA (no BMS auth required — uses field PIN)
+            if path in ('/order', '/order/'):
+                order_page = PUBLIC_DIR / 'order.html'
+                if order_page.exists():
+                    self._serve_file(order_page, 'text/html; charset=utf-8')
+                else:
+                    send_error(self, "Order portal not found", 404)
+                return
+
+            # /order-manifest.json — PWA manifest
+            if path == '/order-manifest.json':
+                mf = PUBLIC_DIR / 'order-manifest.json'
+                if mf.exists():
+                    self._serve_file(mf, 'application/manifest+json')
+                else:
+                    send_error(self, "Manifest not found", 404)
+                return
+
+            # /order-sw.js — service worker
+            if path == '/order-sw.js':
+                sw = PUBLIC_DIR / 'order-sw.js'
+                if sw.exists():
+                    self._serve_file(sw, 'application/javascript')
+                else:
+                    send_error(self, "Service worker not found", 404)
                 return
 
             # /db-upload — one-time database upload page (admin only)
@@ -8233,6 +8653,18 @@ class Handler(BaseHTTPRequestHandler):
                     'total_size_kb':     sum(b['size_kb'] for b in backups),
                     'last_backup':       backups[0]['modified'] if backups else None,
                     'backups':           backups,
+                })
+                return
+
+            # GET /api/admin/settings  — return runtime + DB settings (admin only)
+            if path == '/api/admin/settings':
+                if not sess or sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                send_json(self, {
+                    'whatsapp_enabled':       WA_ENABLED,
+                    'whatsapp_admin_phone':   WA_ADMIN_PHONE,
+                    'whatsapp_admin_apikey':  WA_ADMIN_APIKEY,
+                    'whatsapp_expiry_warn_hours': WA_EXPIRY_WARN_HOURS,
                 })
                 return
 
@@ -9007,7 +9439,7 @@ class Handler(BaseHTTPRequestHandler):
                         FROM customer_payments cp JOIN customers c ON c.id=cp.customer_id
                         ORDER BY cp.payment_date DESC LIMIT 200
                     """)
-                # Enrich with unallocated balance
+                # Enrich with unallocated balance + applied invoice numbers
                 for r in rows:
                     alloc = r2(qry1(
                         "SELECT COALESCE(SUM(allocated_amount),0) as s FROM payment_allocations WHERE payment_id=?",
@@ -9015,7 +9447,38 @@ class Handler(BaseHTTPRequestHandler):
                     )['s'])
                     r['allocated'] = alloc
                     r['unallocated'] = r2(r['amount'] - alloc)
+                    inv_refs = qry("""
+                        SELECT i.invoice_number FROM payment_allocations pa
+                        JOIN invoices i ON i.id=pa.invoice_id
+                        WHERE pa.payment_id=? ORDER BY i.invoice_date
+                    """, (r['id'],))
+                    r['applied_to'] = [x['invoice_number'] for x in inv_refs]
                 send_json(self, rows)
+                return
+
+            # GET /api/customer-payments/:id  — single payment detail with allocations
+            if path.startswith('/api/customer-payments/') and len(path.split('/')) == 4:
+                pay_id = int(path.split('/')[3])
+                pay = qry1("""
+                    SELECT cp.*, c.name as customer_name, c.code as customer_code,
+                           c.phone as customer_phone
+                    FROM customer_payments cp JOIN customers c ON c.id=cp.customer_id
+                    WHERE cp.id=?
+                """, (pay_id,))
+                if not pay:
+                    send_error(self, "Payment not found", 404); return
+                allocs = qry("""
+                    SELECT pa.*, i.invoice_number, i.invoice_date
+                    FROM payment_allocations pa
+                    JOIN invoices i ON i.id=pa.invoice_id
+                    WHERE pa.payment_id=?
+                    ORDER BY i.invoice_date
+                """, (pay_id,))
+                total_alloc = r2(sum(a['allocated_amount'] for a in allocs))
+                pay['allocated']   = total_alloc
+                pay['unallocated'] = r2(pay['amount'] - total_alloc)
+                pay['allocations'] = allocs
+                send_json(self, pay)
                 return
 
             # GET /api/ar/aging
@@ -9039,6 +9502,13 @@ class Handler(BaseHTTPRequestHandler):
                 for row in rows:
                     t, p, b = compute_bill_balance(row['id'])
                     row['total'] = t; row['paid'] = p; row['balance'] = b
+                    # Self-heal: sync status from actual amounts (catches legacy mismatches)
+                    if row.get('status') not in ('VOID',):
+                        correct_status = _compute_bill_status(row['id'])
+                        if row.get('status') != correct_status:
+                            run("UPDATE supplier_bills SET status=? WHERE id=?",
+                                (correct_status, row['id']))
+                            row['status'] = correct_status
                 send_json(self, rows)
                 return
 
@@ -9064,6 +9534,13 @@ class Handler(BaseHTTPRequestHandler):
                     WHERE spa.bill_id=?
                 """, (bill_id,))
                 t, p, b = compute_bill_balance(bill_id)
+                # Self-heal: sync status from actual amounts
+                if bill.get('status') not in ('VOID',):
+                    correct_status = _compute_bill_status(bill_id)
+                    if bill.get('status') != correct_status:
+                        run("UPDATE supplier_bills SET status=? WHERE id=?",
+                            (correct_status, bill_id))
+                        bill['status'] = correct_status
                 # Attach originating PO info for back-link
                 po_link = None
                 if bill.get('po_id'):
@@ -9096,7 +9573,37 @@ class Handler(BaseHTTPRequestHandler):
                     )['s'])
                     r['allocated'] = alloc
                     r['unallocated'] = r2(r['amount'] - alloc)
+                    bill_refs = qry("""
+                        SELECT sb.bill_number FROM supplier_payment_allocations spa
+                        JOIN supplier_bills sb ON sb.id=spa.bill_id
+                        WHERE spa.payment_id=? ORDER BY sb.bill_date
+                    """, (r['id'],))
+                    r['applied_to'] = [x['bill_number'] for x in bill_refs]
                 send_json(self, rows)
+                return
+
+            # GET /api/supplier-payments/:id  — single payment detail with allocations
+            if path.startswith('/api/supplier-payments/') and len(path.split('/')) == 4:
+                pay_id = int(path.split('/')[3])
+                pay = qry1("""
+                    SELECT sp.*, s.name as supplier_name
+                    FROM supplier_payments sp JOIN suppliers s ON s.id=sp.supplier_id
+                    WHERE sp.id=?
+                """, (pay_id,))
+                if not pay:
+                    send_error(self, "Payment not found", 404); return
+                allocs = qry("""
+                    SELECT spa.*, sb.bill_number, sb.bill_date
+                    FROM supplier_payment_allocations spa
+                    JOIN supplier_bills sb ON sb.id=spa.bill_id
+                    WHERE spa.payment_id=?
+                    ORDER BY sb.bill_date
+                """, (pay_id,))
+                total_alloc = r2(sum(a['allocated_amount'] for a in allocs))
+                pay['allocated']   = total_alloc
+                pay['unallocated'] = r2(pay['amount'] - total_alloc)
+                pay['allocations'] = allocs
+                send_json(self, pay)
                 return
 
             # GET /api/ap/aging
@@ -9344,6 +9851,28 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_rep_today_route(rep_id))
                 return
 
+            # ── B2B PORTAL — FIELD ENDPOINTS ────────────────────────────────
+
+            # GET /api/field/customers/lookup?q=  (field rep session)
+            if path == '/api/field/customers/lookup':
+                fsess = _get_field_session(self, qs)
+                if not fsess:
+                    send_json(self, {'error': 'Field rep session required'}, 401); return
+                q = (qs.get('q', [''])[0] or '').strip()
+                if len(q) < 2:
+                    send_json(self, {'error': 'Query must be at least 2 characters'}, 400); return
+                send_json(self, field_lookup_customers(q, fsess['repId']))
+                return
+
+            # GET /api/field/products?customerType=RETAIL  (field rep session)
+            if path == '/api/field/products':
+                fsess = _get_field_session(self, qs)
+                if not fsess:
+                    send_json(self, {'error': 'Field rep session required'}, 401); return
+                ctype = qs.get('customerType', ['RETAIL'])[0].upper()
+                send_json(self, field_get_products(ctype))
+                return
+
             # ── PURCHASE ORDERS ─────────────────────────────────────────────
             # GET /api/purchase-orders
             if path == '/api/purchase-orders':
@@ -9465,6 +9994,27 @@ class Handler(BaseHTTPRequestHandler):
             # POST /api/auth/login  (no auth required)
             if path == '/api/auth/login':
                 ip = _get_client_ip(self)
+                # One-time bypass: if ADMIN_BYPASS_TOKEN env var is set and matches,
+                # skip rate limiting and return admin session directly.
+                bypass_token = os.environ.get('ADMIN_BYPASS_TOKEN', '').strip()
+                if bypass_token and data.get('username') == 'admin' and data.get('password') == bypass_token:
+                    user = qry1("SELECT * FROM users WHERE username='admin' AND active=1")
+                    if user:
+                        token      = secrets.token_hex(32)
+                        now        = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+                        expires_at = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')
+                        display    = user['display_name'] or user['username']
+                        run("""
+                            INSERT INTO sessions (token, user_id, username, display_name, role, permissions, created_at, expires_at, last_seen_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (token, user['id'], user['username'], display, user['role'], user.get('permissions','[]'), now, expires_at, now))
+                        _clear_rate_limit(ip)
+                        print(f"  ⚠ Admin bypass token used from {ip} — remove ADMIN_BYPASS_TOKEN now!")
+                        send_json(self, {'token': token, 'role': user['role'],
+                                         'username': user['username'],
+                                         'displayName': display,
+                                         'userId': user['id'], 'permissions': []})
+                        return
                 try:
                     _check_rate_limit(ip)
                     result = login_user(data.get('username', ''), data.get('password', ''))
@@ -9488,6 +10038,20 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError as e:
                     _record_failed_attempt(ip)
                     send_json(self, {'error': str(e)}, 401)
+                return
+
+            # ── B2B PORTAL — POST /api/field/customers  (field rep session) ──
+            if path == '/api/field/customers':
+                fsess = _get_field_session(self, qs)
+                if not fsess:
+                    send_json(self, {'error': 'Field rep session required'}, 401); return
+                try:
+                    customer = field_create_customer(data, fsess['repId'])
+                    send_json(self, customer, 201)
+                except ValidationError as e:
+                    send_json(self, {'error': 'Validation failed', 'fields': e.errors}, 422)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
                 return
 
             # Auth gate for all other POST endpoints
@@ -9572,9 +10136,9 @@ class Handler(BaseHTTPRequestHandler):
                 if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 if not WA_ENABLED:
-                    send_json(self, {'ok': False, 'error': 'WhatsApp notifications are disabled. Set whatsapp_enabled: true in config.json'}); return
+                    send_json(self, {'ok': False, 'error': 'WhatsApp notifications are disabled. Enable them in Admin → Settings → WhatsApp.'}); return
                 if not WA_ADMIN_PHONE or not WA_ADMIN_APIKEY:
-                    send_json(self, {'ok': False, 'error': 'whatsapp_admin_phone and whatsapp_admin_apikey must be set in config.json'}); return
+                    send_json(self, {'ok': False, 'error': 'Admin phone and API key must be saved in Admin → Settings → WhatsApp.'}); return
                 _wa_admin(
                     f"✅ *Spicetopia BMS*\n"
                     f"Test message — WhatsApp notifications are working!\n"
@@ -9712,7 +10276,9 @@ class Handler(BaseHTTPRequestHandler):
                 sess = get_session(self, qs)
                 if sess and sess.get('role') == 'field_rep':
                     data['created_by_rep_id'] = sess.get('repId')
-                send_json(self, create_customer_order_external(data), 201)
+                result = create_customer_order_external(data)
+                status = 200 if result.pop('_idempotent', False) else 201
+                send_json(self, result, status)
                 return
 
             # POST /api/review-queue/:id/approve  (admin, sales)
@@ -9788,6 +10354,15 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result, 201)
                 return
 
+            # POST /api/invoices/:id/adjust  (admin, accountant) — Sprint P1
+            if path.startswith('/api/invoices/') and path.endswith('/adjust'):
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                inv_id = int(path.split('/')[3])
+                result = adjust_invoice(inv_id, data)
+                send_json(self, result, 201)
+                return
+
             # POST /api/invoices/:id/void  (admin, accountant only)
             if path.startswith('/api/invoices/') and path.endswith('/void'):
                 if not require(sess, 'admin', 'accountant'):
@@ -9848,6 +10423,15 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, 'Permission denied', 403); return
                 bill_id = int(path.split('/')[3])
                 result  = pay_bill_direct(bill_id, data)
+                send_json(self, result, 201)
+                return
+
+            # POST /api/bills/:id/adjust  (admin, accountant) — Sprint P1
+            if path.startswith('/api/bills/') and path.endswith('/adjust'):
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                bill_id = int(path.split('/')[3])
+                result  = adjust_bill(bill_id, data)
                 send_json(self, result, 201)
                 return
 
@@ -10219,6 +10803,28 @@ class Handler(BaseHTTPRequestHandler):
             if not sess:
                 send_json(self, {'error': 'Unauthorized'}, 401); return
 
+            # PUT /api/admin/settings  (admin only — save WA config to DB + hot-reload)
+            if path == '/api/admin/settings':
+                if sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                if 'whatsapp_enabled' in data:
+                    set_setting('whatsapp_enabled', '1' if data['whatsapp_enabled'] else '0')
+                if 'whatsapp_admin_phone' in data:
+                    set_setting('whatsapp_admin_phone', data['whatsapp_admin_phone'].strip())
+                if 'whatsapp_admin_apikey' in data:
+                    set_setting('whatsapp_admin_apikey', data['whatsapp_admin_apikey'].strip())
+                if 'whatsapp_expiry_warn_hours' in data:
+                    set_setting('whatsapp_expiry_warn_hours', str(int(data['whatsapp_expiry_warn_hours'])))
+                    global WA_EXPIRY_WARN_HOURS
+                    WA_EXPIRY_WARN_HOURS = int(data['whatsapp_expiry_warn_hours'])
+                _reload_wa_from_db()
+                send_json(self, {
+                    'ok': True,
+                    'whatsapp_enabled':     WA_ENABLED,
+                    'whatsapp_admin_phone': WA_ADMIN_PHONE,
+                })
+                return
+
             # PUT /api/products/variants/:id/wastage  (admin only)
             parts = path.split('/')
             if (path.startswith('/api/products/variants/') and
@@ -10472,6 +11078,24 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
+            # DELETE /api/payment-allocations/:id  (admin, accountant) — Sprint P1
+            if path.startswith('/api/payment-allocations/') and len(path.split('/')) == 4:
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                alloc_id = int(path.split('/')[3])
+                result   = deallocate_payment(alloc_id)
+                send_json(self, result)
+                return
+
+            # DELETE /api/supplier-payment-allocations/:id  (admin, accountant) — Sprint P1
+            if path.startswith('/api/supplier-payment-allocations/') and len(path.split('/')) == 4:
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                alloc_id = int(path.split('/')[3])
+                result   = deallocate_supplier_payment(alloc_id)
+                send_json(self, result)
+                return
+
             send_error(self, "Not found", 404)
 
         except ValidationError as e:
@@ -10546,6 +11170,14 @@ def ensure_master_schema():
         except Exception:
             pass
 
+        # customers.zone_id — territory zone for sales rep out-of-zone detection
+        try:
+            c.execute("ALTER TABLE customers ADD COLUMN zone_id INTEGER DEFAULT NULL")
+            c.commit()
+            print("  ✓ Masters: added zone_id column to customers")
+        except Exception:
+            pass  # column already exists
+
         # ── P2.5 void/cancel migrations ─────────────────────────────────
         # invoices: add voided_at / voided_by / void_note columns
         for col, dflt in [('voided_at', 'NULL'), ('voided_by', "''"), ('void_note', "''")]:
@@ -10606,6 +11238,29 @@ def ensure_master_schema():
             )
         """)
         c.commit()
+
+        # ── P1 Sprint: add ADJUSTMENT to payment_mode CHECK constraints ──────
+        for tbl in ('customer_payments', 'supplier_payments'):
+            try:
+                tbl_schema = c.execute(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (tbl,)
+                ).fetchone()
+                if tbl_schema and 'ADJUSTMENT' not in (tbl_schema[0] or ''):
+                    old_check = "CHECK(payment_mode IN ('CASH','BANK_TRANSFER','CHEQUE','OTHER'))"
+                    new_check = "CHECK(payment_mode IN ('CASH','BANK_TRANSFER','CHEQUE','OTHER','ADJUSTMENT'))"
+                    new_sql   = (tbl_schema[0] or '').replace(old_check, new_check)
+                    if new_sql != tbl_schema[0]:
+                        c.execute("PRAGMA writable_schema = ON")
+                        c.execute(
+                            "UPDATE sqlite_master SET sql=? WHERE type='table' AND name=?",
+                            (new_sql, tbl)
+                        )
+                        c.execute("PRAGMA writable_schema = OFF")
+                        c.commit()
+                        print(f"  ✓ Migration: added ADJUSTMENT to {tbl}.payment_mode CHECK constraint")
+            except Exception as e:
+                print(f"  ⚠ {tbl} ADJUSTMENT constraint migration: {e}")
+
     finally:
         c.close()
     save_db()
@@ -10784,6 +11439,131 @@ def sync_master_files():
         print("  ✓ Masters: all files in sync — no changes")
 
 
+def seed_zones_routes():
+    """
+    Idempotent: seeds Karachi and Hyderabad sales zones and their area routes.
+    Skips gracefully if zones already exist (matches by name + city).
+    """
+    ZONE_DATA = [
+        # ── Karachi ──────────────────────────────────────────────────────────
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z1 South Karachi',
+            'description': 'Premium + Dense Retail — High-end retail, supermarkets, branded spice demand',
+            'routes': ['Saddar', 'Clifton', 'Defence (DHA)', 'Tariq Road'],
+            'visit_days': 'Wed',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z2 Central Karachi',
+            'description': 'High Volume Markets — Dense population, kiryana stores, core FMCG zone',
+            'routes': ['Gulshan-e-Iqbal', 'Gulistan-e-Johar', 'Federal B Area', 'Liaquatabad'],
+            'visit_days': 'Mon,Tue',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z3 East / Industrial Belt',
+            'description': 'Mixed income + industrial workforce — Economy packs, distributor network',
+            'routes': ['Korangi', 'Landhi', 'Shah Faisal Colony'],
+            'visit_days': '',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z4 West Karachi',
+            'description': 'Wholesale + low to mid-income — Bulk sales, loose spices, weekly routes',
+            'routes': ['Orangi Town', 'Baldia Town', 'SITE Area (KHI)'],
+            'visit_days': 'Thu',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z5 North Karachi',
+            'description': 'Large residential clusters — Stable repeat consumption, route-based',
+            'routes': ['North Karachi', 'North Nazimabad', 'Buffer Zone', 'Surjani Town'],
+            'visit_days': 'Fri',
+        },
+        {
+            'city': 'Karachi',
+            'name': 'KHI-Z6 Wholesale Markets',
+            'description': 'Bulk buyers, traders, distributors — Dedicated wholesale team',
+            'routes': ['Jodia Bazaar', 'Bolton Market', 'Empress Market'],
+            'visit_days': 'Sat',
+        },
+        # ── Hyderabad ─────────────────────────────────────────────────────────
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z1 City Core',
+            'description': 'Main Market — High footfall, dense retail, daily coverage',
+            'routes': ['Saddar (HYD)', 'Resham Gali', 'Shahi Bazaar', 'Market Tower', 'Heera-Baad'],
+            'visit_days': 'Thu',
+        },
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z2 Latifabad',
+            'description': 'Residential + retail mix — Strong FMCG demand, distributor + retailer focus',
+            'routes': ['Latifabad Units 1-6', 'Latifabad Units 7-12', 'Auto Bhan Road'],
+            'visit_days': 'Mon,Tue',
+        },
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z3 Qasimabad',
+            'description': 'Growing urban area — High middle-income households, grocery + push',
+            'routes': ['Main Qasimabad', 'Wadhu Wah Road', 'Citizen Colony'],
+            'visit_days': 'Wed',
+        },
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z4 Industrial & Peripheral',
+            'description': 'Wholesale, warehouses, bulk buyers — Distributor relationship focus',
+            'routes': ['SITE Area (HYD)', 'Kohsar', 'Hali Road', 'Tando Jam Road'],
+            'visit_days': '',
+        },
+        {
+            'city': 'Hyderabad',
+            'name': 'HYD-Z5 Outskirts',
+            'description': 'Semi-urban / rural mix — Weekly visits, sub-distributors if volume grows',
+            'routes': ['Kotri', 'Tando Jam', 'Hussainabad'],
+            'visit_days': 'Fri',
+        },
+    ]
+
+    c = _conn()
+    zones_added = 0
+    routes_added = 0
+    try:
+        for zd in ZONE_DATA:
+            existing = c.execute(
+                "SELECT id FROM zones WHERE name=? AND city=?", (zd['name'], zd['city'])
+            ).fetchone()
+            if existing:
+                zone_id = existing[0]
+            else:
+                c.execute(
+                    "INSERT INTO zones (name, city, active) VALUES (?,?,1)",
+                    (zd['name'], zd['city'])
+                )
+                zone_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                zones_added += 1
+            for route_name in zd['routes']:
+                exists = c.execute(
+                    "SELECT id FROM routes WHERE zone_id=? AND name=?", (zone_id, route_name)
+                ).fetchone()
+                if not exists:
+                    c.execute(
+                        "INSERT INTO routes (zone_id, name, visit_days, active) VALUES (?,?,?,1)",
+                        (zone_id, route_name, zd['visit_days'])
+                    )
+                    routes_added += 1
+        c.commit()
+        if zones_added or routes_added:
+            print(f"  ✓ Zones/Routes seeded: {zones_added} zones, {routes_added} routes (KHI + HYD)")
+        else:
+            print("  ✓ Zones/Routes: already seeded — skipped")
+    except Exception as e:
+        print(f"  ⚠ seed_zones_routes error: {e}")
+    finally:
+        c.close()
+
+
 def seed_price_history():
     """
     If an ingredient has cost_per_kg > 0 but no history record, seed one
@@ -10892,6 +11672,54 @@ def ensure_variant_wastage_pct():
             c.execute("ALTER TABLE product_variants ADD COLUMN wastage_pct REAL DEFAULT 0")
             print("  \u2713 product_variants: added wastage_pct")
         c.commit()
+    finally:
+        c.close()
+
+
+def ensure_variant_gtin():
+    """Add gtin column to product_variants and seed known GTINs. Idempotent."""
+    c = _conn()
+    try:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(product_variants)").fetchall()}
+        if 'gtin' not in existing:
+            c.execute("ALTER TABLE product_variants ADD COLUMN gtin TEXT DEFAULT NULL")
+            print("  ✓ product_variants: added gtin")
+
+        # Seed GTINs — match by product code + pack_size label
+        seeds = [
+            ('CHA', '50g',  '8966000086913'),   # Chaat Masala 50g
+            ('GAR', '50g',  '8966000086920'),   # Garam Masala 50g
+        ]
+        for prod_code, pack_label, gtin_val in seeds:
+            cur = c.execute("""
+                UPDATE product_variants
+                SET gtin = ?
+                WHERE gtin IS NULL
+                  AND product_id IN (SELECT id FROM products WHERE code = ?)
+                  AND pack_size_id IN (SELECT id FROM pack_sizes WHERE label = ?)
+            """, (gtin_val, prod_code, pack_label))
+            if cur.rowcount:
+                print(f"  ✓ gtin seeded: {prod_code} {pack_label} -> {gtin_val}")
+        c.commit()
+    finally:
+        c.close()
+
+
+def _reset_admin_pw_if_requested():
+    """If RESET_ADMIN_PW env var is set, reset admin password and clear all rate limits."""
+    new_pw = os.environ.get('RESET_ADMIN_PW', '').strip()
+    if not new_pw:
+        return
+    pw_hash, salt, scheme = _hash_pw_new(new_pw)
+    c = _conn()
+    try:
+        c.execute("""
+            UPDATE users SET password_hash=?, salt=?, auth_scheme=?
+            WHERE username='admin'
+        """, (pw_hash, salt, scheme))
+        c.execute("DELETE FROM login_rate_limits")
+        c.commit()
+        print(f"  ✓ Admin password reset via RESET_ADMIN_PW. Rate limits cleared. REMOVE the env var now!")
     finally:
         c.close()
 
@@ -11513,15 +12341,13 @@ def update_route(route_id, data):
 
 def list_reps(active_only=True):
     # status column: 'active' | 'inactive' | NULL
-    # rep_routes: active if assigned_to IS NULL
+    # primary_zone_id: the zone assigned to the rep
     sql = """
         SELECT sr.*,
-               GROUP_CONCAT(r.name, ', ') as assigned_routes
+               z.name as zone_name
         FROM sales_reps sr
-        LEFT JOIN rep_routes rr ON rr.rep_id=sr.id AND rr.assigned_to IS NULL
-        LEFT JOIN routes r ON r.id=rr.route_id
+        LEFT JOIN zones z ON z.id=sr.primary_zone_id
         {}
-        GROUP BY sr.id
         ORDER BY sr.name
     """.format("WHERE (sr.status IS NULL OR sr.status='active')" if active_only else "")
     return qry(sql)
@@ -11634,6 +12460,7 @@ def update_rep(rep_id, data):
         'joinDate':'joining_date','notes':'notes',
         'status':'status','designation':'designation',
         'whatsapp_apikey':'whatsapp_apikey',
+        'zoneId':'primary_zone_id',
     }
     set_parts, vals = [], []
     for k, col in mapping.items():
@@ -11899,29 +12726,111 @@ def get_field_order(order_id):
     return order
 
 def list_field_orders(rep_id=None, status=None, date_from=None, date_to=None):
-    sql = """
-        SELECT fo.*, sr.name as rep_name, c.name as customer_name,
-               r.name as route_name,
-               COALESCE((SELECT SUM(quantity*unit_price) FROM field_order_items WHERE order_id=fo.id),0) as order_total,
-               COALESCE(fo.confirmed_invoice_id, fo.invoice_id) as invoice_id
-        FROM field_orders fo
-        JOIN sales_reps sr ON sr.id=fo.rep_id
-        JOIN customers c ON c.id=fo.customer_id
-        LEFT JOIN routes r ON r.id=fo.route_id
     """
-    params, where = [], []
+    Returns all orders created through the sales rep portal (order.html) PLUS
+    legacy field_orders records. Portal orders come from customer_orders where
+    order_source='rep_assisted'. Status 'draft' is normalised to 'pending' so
+    the BMS Confirm button appears.
+    """
+    # ── Portal orders (order.html PWA) ──────────────────────────────────────
+    portal_wheres = ["co.order_source='rep_assisted'"]
+    portal_params = []
     if rep_id:
-        where.append("fo.rep_id=?"); params.append(int(rep_id))
-    if status:
-        where.append("fo.status=?"); params.append(status)
+        portal_wheres.append("co.created_by_rep_id=?")
+        portal_params.append(int(rep_id))
+    # status filter: 'pending' maps to draft in customer_orders
+    if status == 'pending':
+        portal_wheres.append("co.status IN ('draft','pending_review')")
+    elif status == 'confirmed':
+        portal_wheres.append("co.status IN ('confirmed','invoiced','partially_invoiced')")
+    elif status == 'cancelled':
+        portal_wheres.append("co.status='cancelled'")
     if date_from:
-        where.append("fo.order_date>=?"); params.append(date_from)
+        portal_wheres.append("co.order_date>=?"); portal_params.append(date_from)
     if date_to:
-        where.append("fo.order_date<=?"); params.append(date_to)
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY fo.order_date DESC, fo.id DESC LIMIT 200"
-    return qry(sql, params)
+        portal_wheres.append("co.order_date<=?"); portal_params.append(date_to)
+
+    portal_sql = """
+        SELECT
+            co.id,
+            co.order_number                              AS order_ref,
+            co.order_date,
+            CASE
+                WHEN co.status IN ('draft','pending_review') THEN 'pending'
+                WHEN co.status IN ('confirmed','invoiced','partially_invoiced') THEN 'confirmed'
+                ELSE co.status
+            END                                          AS status,
+            sr.name                                      AS rep_name,
+            c.name                                       AS customer_name,
+            NULL                                         AS route_name,
+            COALESCE((
+                SELECT SUM(coi.qty_ordered * coi.unit_price)
+                FROM customer_order_items coi
+                WHERE coi.order_id = co.id
+            ), 0)                                        AS order_total,
+            (
+                SELECT inv.id FROM invoices inv
+                WHERE inv.customer_order_id = co.id
+                ORDER BY inv.id DESC LIMIT 1
+            )                                            AS invoice_id,
+            co.notes,
+            'portal'                                     AS _source
+        FROM customer_orders co
+        LEFT JOIN sales_reps sr ON sr.id = co.created_by_rep_id
+        LEFT JOIN customers  c  ON c.id  = co.customer_id
+        WHERE {portal_where}
+    """.format(portal_where=' AND '.join(portal_wheres))
+
+    # ── Legacy field_orders ──────────────────────────────────────────────────
+    legacy_wheres = []
+    legacy_params = []
+    if rep_id:
+        legacy_wheres.append("fo.rep_id=?"); legacy_params.append(int(rep_id))
+    if status:
+        legacy_wheres.append("fo.status=?"); legacy_params.append(status)
+    if date_from:
+        legacy_wheres.append("fo.order_date>=?"); legacy_params.append(date_from)
+    if date_to:
+        legacy_wheres.append("fo.order_date<=?"); legacy_params.append(date_to)
+
+    legacy_where_str = ("WHERE " + " AND ".join(legacy_wheres)) if legacy_wheres else ""
+
+    legacy_sql = """
+        SELECT
+            fo.id,
+            fo.order_ref,
+            fo.order_date,
+            fo.status,
+            sr.name                                      AS rep_name,
+            c.name                                       AS customer_name,
+            r.name                                       AS route_name,
+            COALESCE((
+                SELECT SUM(quantity * unit_price)
+                FROM field_order_items
+                WHERE order_id = fo.id
+            ), 0)                                        AS order_total,
+            COALESCE(fo.confirmed_invoice_id, fo.invoice_id) AS invoice_id,
+            fo.notes,
+            'legacy'                                     AS _source
+        FROM field_orders fo
+        JOIN sales_reps sr ON sr.id = fo.rep_id
+        JOIN customers  c  ON c.id  = fo.customer_id
+        LEFT JOIN routes r ON r.id  = fo.route_id
+        {legacy_where}
+    """.format(legacy_where=legacy_where_str)
+
+    # ── UNION + sort ─────────────────────────────────────────────────────────
+    union_sql = f"""
+        SELECT * FROM (
+            {portal_sql}
+            UNION ALL
+            {legacy_sql}
+        )
+        ORDER BY order_date DESC, id DESC
+        LIMIT 200
+    """
+    all_params = portal_params + legacy_params
+    return qry(union_sql, all_params)
 
 def create_invoice(inv_data):
     """
@@ -12258,10 +13167,137 @@ def field_login(phone, pin):
     """, (token, rep['id'], rep['phone'], rep['name'], perms, now, expires_at, now))
     return {'token': token, 'repId': rep['id'], 'name': rep['name'], 'setcookie': True}
 
+# ═══════════════════════════════════════════════════════════════════
+#  B2B PORTAL — FIELD REP BUSINESS LOGIC
+# ═══════════════════════════════════════════════════════════════════
+
+def _get_field_session(handler, qs=None):
+    """Get session and verify it is a field rep. Returns session dict or None."""
+    sess = get_session(handler, qs)
+    if not sess or sess.get('role') != 'field_rep':
+        return None
+    return sess
+
+
+def _is_out_of_route(rep_id, customer_id):
+    """Return True if customer's zone does not match the rep's assigned zone."""
+    rep = qry1("SELECT primary_zone_id FROM sales_reps WHERE id=?", (rep_id,))
+    if not rep or not rep.get('primary_zone_id'):
+        return False  # rep has no zone assigned — don't flag as out-of-zone
+    customer = qry1("SELECT zone_id FROM customers WHERE id=?", (customer_id,))
+    if not customer or not customer.get('zone_id'):
+        return False  # customer has no zone — don't flag
+    return int(rep['primary_zone_id']) != int(customer['zone_id'])
+
+
+def _wa_notify_out_of_route(order_id, rep_id):
+    """WhatsApp admin + rep's manager when a rep places an order outside their assigned route."""
+    order    = qry1("SELECT * FROM customer_orders WHERE id=?", (order_id,))
+    rep      = qry1("SELECT * FROM sales_reps WHERE id=?", (rep_id,))
+    customer = qry1("SELECT * FROM customers WHERE id=?", (order['customer_id'],))
+    if not order or not rep or not customer:
+        return
+    msg = (
+        f"⚠️ OUT-OF-ROUTE ORDER ALERT\n"
+        f"Rep: {rep['name']} ({rep['phone']})\n"
+        f"Customer: {customer['name']} ({customer.get('account_number','')})\n"
+        f"Order: {order['order_number']}\n"
+        f"City: {customer.get('city','')}\n"
+        f"This customer is NOT on the rep's assigned routes."
+    )
+    _wa_admin(msg)
+    if rep.get('reporting_to'):
+        manager = qry1("SELECT * FROM sales_reps WHERE id=?", (rep['reporting_to'],))
+        if manager and manager.get('whatsapp_apikey') and manager.get('phone'):
+            _wa_send(manager['phone'], manager['whatsapp_apikey'], msg)
+
+
+def field_lookup_customers(query, rep_id):
+    """Search customers by account number, name, or phone.
+    Returns match list with onRoute flag for each customer."""
+    q  = f'%{query}%'
+    customers = qry("""
+        SELECT id, code, account_number, name, customer_type, city, phone
+        FROM customers
+        WHERE active=1 AND (account_number LIKE ? OR name LIKE ? OR phone LIKE ?)
+        ORDER BY name LIMIT 20
+    """, (q, q, q))
+
+    # Determine which customers are on this rep's routes
+    rep_routes = qry("""
+        SELECT route_id FROM rep_routes
+        WHERE rep_id=? AND (assigned_to IS NULL OR assigned_to >= date('now'))
+    """, (rep_id,))
+    on_route_ids = set()
+    if rep_routes:
+        rids = [r['route_id'] for r in rep_routes]
+        placeholders = ','.join('?' * len(rids))
+        on_route = qry(
+            f"SELECT customer_id FROM route_customers WHERE route_id IN ({placeholders})",
+            rids
+        )
+        on_route_ids = {r['customer_id'] for r in on_route}
+
+    return [{
+        'id':            c['id'],
+        'code':          c['code'],
+        'accountNumber': c['account_number'],
+        'name':          c['name'],
+        'customerType':  c['customer_type'],
+        'city':          c['city'],
+        'phone':         c['phone'],
+        'onRoute':       c['id'] in on_route_ids,
+    } for c in customers]
+
+
+def field_create_customer(data, rep_id):
+    """Create a customer from the B2B field portal. Uses field rep session.
+    Identical to create_customer() but accessible via field token."""
+    return create_customer(data)
+
+
+def field_get_products(customer_type='RETAIL'):
+    """Return active products + variants as a FLAT list — one entry per variant.
+    Maps: RETAIL→retail_mrp, DIRECT→distributor, WHOLESALE→distributor.
+    Never exposes mfg_cost or ex_factory prices.
+    Frontend (order.html) expects: variant_id, product_name, sku_code, pack_size, grams, price."""
+    type_map      = {'RETAIL': 'retail_mrp', 'DIRECT': 'distributor', 'WHOLESALE': 'distributor'}
+    price_type_cd = type_map.get((customer_type or 'RETAIL').upper(), 'retail_mrp')
+
+    products = qry("SELECT * FROM products WHERE active=1 ORDER BY name")
+    result   = []
+    for prod in products:
+        variants = qry("""
+            SELECT pv.id, pv.sku_code, ps.label AS pack_size, ps.grams,
+                   pp.price
+            FROM product_variants pv
+            JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+            LEFT JOIN product_prices pp
+                   ON pp.product_variant_id = pv.id
+                  AND pp.active_flag = 1
+                  AND pp.price_type_id = (SELECT id FROM price_types WHERE code=?)
+            WHERE pv.product_id=? AND pv.active_flag=1
+            ORDER BY ps.grams
+        """, (price_type_cd, prod['id']))
+        for v in variants:
+            result.append({
+                'variant_id':   v['id'],
+                'product_code': prod['code'],
+                'product_name': prod['name'],
+                'sku_code':     v['sku_code'],
+                'pack_size':    v['pack_size'],
+                'grams':        v['grams'],
+                'price':        v['price'],
+            })
+    return result
+
+
 def send_field_login_response(handler, result):
-    """Send field login response setting an httpOnly cookie for the token."""
+    """Send field login response.
+    Sets httpOnly cookie (field.html) AND includes token in body (order.html PWA / localStorage)."""
     token = result.pop('token')
     result.pop('setcookie', None)
+    result['token'] = token   # PWA stores this in localStorage for Bearer auth
     body = json.dumps(result, default=str).encode()
     handler.send_response(200)
     handler.send_header('Content-Type', 'application/json')
@@ -12329,8 +13365,14 @@ if __name__ == '__main__':
     ensure_batch_cost_column()
     ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
     ensure_variant_wastage_pct()         # wastage_pct column on product_variants
+    ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
+    _reset_admin_pw_if_requested()       # one-shot reset via RESET_ADMIN_PW env var
     _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
     _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
+    _migrate_customer_type_wholesale()   # adds WHOLESALE to customer_type CHECK
+    _ensure_b2b_order_columns()          # adds out_of_route + idempotency_key to customer_orders
+    ensure_system_settings_schema()  # must be early — _reload_wa_from_db reads it
+    _reload_wa_from_db()             # overlay DB-saved WA config on top of config.json
     ensure_review_queue_schema()
     ensure_master_schema()  # must run before load_ref() — adds active, credit_limit cols
     ensure_price_types_sprint6()         # update price_type labels + add bulk
@@ -12341,6 +13383,7 @@ if __name__ == '__main__':
     generate_master_templates()
     sync_master_files()
     seed_price_history()
+    seed_zones_routes()              # seeds KHI (6 zones) + HYD (5 zones) + all area routes
 
     # ── Step 2d: Auto-seed staging environment ────────────────────
     if os.environ.get('AUTO_SEED', '').lower() in ('1', 'true', 'yes'):
@@ -12403,7 +13446,8 @@ if __name__ == '__main__':
     url = f"http://localhost:{PORT}"
     server = ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
     print(f"  ✓ Server running at {url}")
-    print(f"  ✓ Field app for reps: http://{lan_ip}:{PORT}/field.html")
+    print(f"  ✓ Field app for reps:  http://{lan_ip}:{PORT}/field.html")
+    print(f"  ✓ B2B Order portal:    http://{lan_ip}:{PORT}/order.html")
     print(f"  Press Ctrl+C to stop")
     print()
 
