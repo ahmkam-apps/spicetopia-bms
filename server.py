@@ -11706,11 +11706,14 @@ def ensure_variant_gtin():
 
 
 def _reset_admin_pw_if_requested():
-    """If RESET_ADMIN_PW env var is set, reset admin password and clear all rate limits."""
+    """If RESET_ADMIN_PW env var is set, reset admin password (SHA-256) and clear all rate limits."""
     new_pw = os.environ.get('RESET_ADMIN_PW', '').strip()
     if not new_pw:
         return
-    pw_hash, salt, scheme = _hash_pw_new(new_pw)
+    # Use SHA-256 with empty salt — no argon2 dependency, guaranteed to verify
+    salt    = ''
+    pw_hash = hashlib.sha256(new_pw.encode()).hexdigest()
+    scheme  = 'sha256'
     c = _conn()
     try:
         c.execute("""
@@ -11719,7 +11722,7 @@ def _reset_admin_pw_if_requested():
         """, (pw_hash, salt, scheme))
         c.execute("DELETE FROM login_rate_limits")
         c.commit()
-        print(f"  ✓ Admin password reset via RESET_ADMIN_PW. Rate limits cleared. REMOVE the env var now!")
+        print(f"  ✓ Admin password reset (SHA-256) via RESET_ADMIN_PW. Rate limits cleared. REMOVE the env var now!")
     finally:
         c.close()
 
