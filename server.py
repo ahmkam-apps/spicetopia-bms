@@ -11685,7 +11685,7 @@ def ensure_variant_gtin():
 
 
 def _reset_admin_pw_if_requested():
-    """If RESET_ADMIN_PW env var is set, reset admin password to that value and exit reminder."""
+    """If RESET_ADMIN_PW env var is set, reset admin password and clear all rate limits."""
     new_pw = os.environ.get('RESET_ADMIN_PW', '').strip()
     if not new_pw:
         return
@@ -11696,8 +11696,9 @@ def _reset_admin_pw_if_requested():
             UPDATE users SET password_hash=?, salt=?, auth_scheme=?
             WHERE username='admin'
         """, (pw_hash, salt, scheme))
+        c.execute("DELETE FROM login_rate_limits")
         c.commit()
-        print(f"  ✓ Admin password reset via RESET_ADMIN_PW env var. REMOVE the env var now!")
+        print(f"  ✓ Admin password reset via RESET_ADMIN_PW. Rate limits cleared. REMOVE the env var now!")
     finally:
         c.close()
 
