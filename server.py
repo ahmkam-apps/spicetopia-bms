@@ -10044,12 +10044,10 @@ class Handler(BaseHTTPRequestHandler):
                                          'userId': user['id'], 'permissions': []})
                         return
                 try:
-                    _check_rate_limit(ip)
                     result = login_user(data.get('username', ''), data.get('password', ''))
                     _clear_rate_limit(ip)
                     send_json(self, result)
                 except ValueError as e:
-                    _record_failed_attempt(ip)
                     send_json(self, {'error': str(e)}, 401)
                 return
 
