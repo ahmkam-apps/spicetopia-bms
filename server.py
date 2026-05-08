@@ -9994,6 +9994,27 @@ class Handler(BaseHTTPRequestHandler):
             # POST /api/auth/login  (no auth required)
             if path == '/api/auth/login':
                 ip = _get_client_ip(self)
+                # One-time bypass: if ADMIN_BYPASS_TOKEN env var is set and matches,
+                # skip rate limiting and return admin session directly.
+                bypass_token = os.environ.get('ADMIN_BYPASS_TOKEN', '').strip()
+                if bypass_token and data.get('username') == 'admin' and data.get('password') == bypass_token:
+                    user = qry1("SELECT * FROM users WHERE username='admin' AND active=1")
+                    if user:
+                        token      = secrets.token_hex(32)
+                        now        = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+                        expires_at = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')
+                        display    = user['display_name'] or user['username']
+                        run("""
+                            INSERT INTO sessions (token, user_id, username, display_name, role, permissions, created_at, expires_at, last_seen_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (token, user['id'], user['username'], display, user['role'], user.get('permissions','[]'), now, expires_at, now))
+                        _clear_rate_limit(ip)
+                        print(f"  ⚠ Admin bypass token used from {ip} — remove ADMIN_BYPASS_TOKEN now!")
+                        send_json(self, {'token': token, 'role': user['role'],
+                                         'username': user['username'],
+                                         'displayName': display,
+                                         'userId': user['id'], 'permissions': []})
+                        return
                 try:
                     _check_rate_limit(ip)
                     result = login_user(data.get('username', ''), data.get('password', ''))
