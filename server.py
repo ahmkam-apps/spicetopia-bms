@@ -2409,6 +2409,7 @@ def load_ref():
 
     variants = qry("""
         SELECT pv.id, pv.sku_code, pv.product_id, pv.pack_size_id, pv.active_flag,
+               pv.gtin,
                p.code as product_code, p.name as product_name,
                ps.label as pack_size, ps.grams as pack_grams
         FROM product_variants pv
@@ -11654,6 +11655,35 @@ def ensure_variant_wastage_pct():
         c.close()
 
 
+def ensure_variant_gtin():
+    """Add gtin column to product_variants and seed known GTINs. Idempotent."""
+    c = _conn()
+    try:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(product_variants)").fetchall()}
+        if 'gtin' not in existing:
+            c.execute("ALTER TABLE product_variants ADD COLUMN gtin TEXT DEFAULT NULL")
+            print("  ✓ product_variants: added gtin")
+
+        # Seed GTINs — match by product code + pack_size label
+        seeds = [
+            ('CHA', '50g',  '8966000086913'),   # Chaat Masala 50g
+            ('GAR', '50g',  '8966000086920'),   # Garam Masala 50g
+        ]
+        for prod_code, pack_label, gtin_val in seeds:
+            c.execute("""
+                UPDATE product_variants
+                SET gtin = ?
+                WHERE gtin IS NULL
+                  AND product_id IN (SELECT id FROM products WHERE code = ?)
+                  AND pack_size_id IN (SELECT id FROM pack_sizes WHERE label = ?)
+            """, (gtin_val, prod_code, pack_label))
+            if c.rowcount:
+                print(f"  ✓ gtin seeded: {prod_code} {pack_label} -> {gtin_val}")
+        c.commit()
+    finally:
+        c.close()
+
+
 def ensure_price_types_sprint6():
     """Update price_type labels for Sprint 6 terminology + add bulk. Idempotent."""
     c = _conn()
@@ -13295,6 +13325,7 @@ if __name__ == '__main__':
     ensure_batch_cost_column()
     ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
     ensure_variant_wastage_pct()         # wastage_pct column on product_variants
+    ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
     _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
     _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
     _migrate_customer_type_wholesale()   # adds WHOLESALE to customer_type CHECK
