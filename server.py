@@ -11684,6 +11684,24 @@ def ensure_variant_gtin():
         c.close()
 
 
+def _reset_admin_pw_if_requested():
+    """If RESET_ADMIN_PW env var is set, reset admin password to that value and exit reminder."""
+    new_pw = os.environ.get('RESET_ADMIN_PW', '').strip()
+    if not new_pw:
+        return
+    pw_hash, salt, scheme = _hash_pw_new(new_pw)
+    c = _conn()
+    try:
+        c.execute("""
+            UPDATE users SET password_hash=?, salt=?, auth_scheme=?
+            WHERE username='admin'
+        """, (pw_hash, salt, scheme))
+        c.commit()
+        print(f"  ✓ Admin password reset via RESET_ADMIN_PW env var. REMOVE the env var now!")
+    finally:
+        c.close()
+
+
 def ensure_price_types_sprint6():
     """Update price_type labels for Sprint 6 terminology + add bulk. Idempotent."""
     c = _conn()
@@ -13326,6 +13344,7 @@ if __name__ == '__main__':
     ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
     ensure_variant_wastage_pct()         # wastage_pct column on product_variants
     ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
+    _reset_admin_pw_if_requested()       # one-shot reset via RESET_ADMIN_PW env var
     _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
     _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
     _migrate_customer_type_wholesale()   # adds WHOLESALE to customer_type CHECK
