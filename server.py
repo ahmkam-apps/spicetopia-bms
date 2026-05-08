@@ -111,8 +111,11 @@ def ensure_rate_limit_table():
                 last_attempt  REAL    NOT NULL DEFAULT 0
             )
         """)
+        # TEMPORARY: clear all rate limits on every startup so login is never blocked
+        # Remove this line once admin password is set and stable
+        c.execute("DELETE FROM login_rate_limits")
         c.commit()
-        print("  ✓ Rate limits: table ready (DB-persisted)")
+        print("  ✓ Rate limits: table ready (DB-persisted) — lockouts cleared")
     finally:
         c.close()
 
