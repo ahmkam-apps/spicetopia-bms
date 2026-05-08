@@ -111,9 +111,6 @@ def ensure_rate_limit_table():
                 last_attempt  REAL    NOT NULL DEFAULT 0
             )
         """)
-        # TEMPORARY: clear all rate limits on every startup so login is never blocked
-        # Remove this line once admin password is set and stable
-        c.execute("DELETE FROM login_rate_limits")
         c.commit()
         print("  ✓ Rate limits: table ready (DB-persisted) — lockouts cleared")
     finally:
@@ -1932,12 +1929,6 @@ def ensure_users_table():
         else:
             print(f"  ✓ Users: {count} user(s) configured")
 
-        # TEMPORARY: force reset admin password to admin123 (SHA-256, empty salt)
-        # Remove this block once admin has logged in and set a new password
-        _tmp_hash = hashlib.sha256('admin123'.encode()).hexdigest()
-        c.execute("UPDATE users SET password_hash=?, salt='', auth_scheme='sha256' WHERE username='admin'", (_tmp_hash,))
-        c.commit()
-        print("  ✓ TEMP: admin password forced to admin123 — log in and change immediately")
         c.commit()
     finally:
         c.close()
@@ -8626,24 +8617,6 @@ class Handler(BaseHTTPRequestHandler):
                 if not sess:
                     send_json(self, {'error': 'Unauthorized'}, 401); return
 
-            # GET /api/dev/autologin — skip login screen (only when DEV_AUTOLOGIN=1)
-            if path == '/api/dev/autologin':
-                if os.environ.get('DEV_AUTOLOGIN', '') not in ('1', 'true', 'yes'):
-                    send_json(self, {'error': 'Not enabled'}, 403); return
-                user = qry1("SELECT * FROM users WHERE username='admin' AND active=1")
-                if not user:
-                    send_json(self, {'error': 'No admin user'}, 500); return
-                token      = secrets.token_hex(32)
-                now        = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
-                expires_at = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')
-                display    = user['display_name'] or user['username']
-                run("""INSERT INTO sessions (token, user_id, username, display_name, role, permissions, created_at, expires_at, last_seen_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (token, user['id'], user['username'], display, user['role'], user.get('permissions','[]'), now, expires_at, now))
-                send_json(self, {'token': token, 'role': user['role'], 'username': user['username'],
-                                 'displayName': display, 'userId': user['id'], 'permissions': []})
-                return
-
             # GET /api/auth/me — session status
             if path == '/api/auth/me':
                 sess = get_session(self)
@@ -10044,10 +10017,12 @@ class Handler(BaseHTTPRequestHandler):
                                          'userId': user['id'], 'permissions': []})
                         return
                 try:
+                    _check_rate_limit(ip)
                     result = login_user(data.get('username', ''), data.get('password', ''))
                     _clear_rate_limit(ip)
                     send_json(self, result)
                 except ValueError as e:
+                    _record_failed_attempt(ip)
                     send_json(self, {'error': str(e)}, 401)
                 return
 
@@ -10874,6 +10849,31 @@ class Handler(BaseHTTPRequestHandler):
                 finally:
                     c.close()
                 send_json(self, {'ok': True, 'variant_id': variant_id, 'wastage_pct': wpct})
+                return
+
+            # PUT /api/products/variants/:id/gtin  (admin only)
+            if (path.startswith('/api/products/variants/') and
+                    len(parts) == 6 and parts[5] == 'gtin'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                variant_id = int(parts[4])
+                gtin_val   = data.get('gtin')  # None = clear, string = set
+                if gtin_val is not None:
+                    gtin_val = str(gtin_val).strip()
+                    if gtin_val == '':
+                        gtin_val = None  # treat empty string as clear
+                    elif not gtin_val.isdigit() or not (8 <= len(gtin_val) <= 14):
+                        send_error(self, 'GTIN must be 8–14 digits', 400); return
+                c = _conn()
+                try:
+                    c.execute(
+                        "UPDATE product_variants SET gtin=? WHERE id=?",
+                        (gtin_val, variant_id)
+                    )
+                    c.commit()
+                finally:
+                    c.close()
+                send_json(self, {'ok': True, 'variant_id': variant_id, 'gtin': gtin_val})
                 return
 
             # PUT /api/costing/config  (admin only)
@@ -11711,21 +11711,19 @@ def ensure_variant_gtin():
             c.execute("ALTER TABLE product_variants ADD COLUMN gtin TEXT DEFAULT NULL")
             print("  ✓ product_variants: added gtin")
 
-        # Seed GTINs — match by product code + pack_size label
+        # Seed GTINs — match by sku_code directly
         seeds = [
-            ('CHA', '50g',  '8966000086913'),   # Chaat Masala 50g
-            ('GAR', '50g',  '8966000086920'),   # Garam Masala 50g
+            ('SPCM-50', '8966000086913'),   # Chaat Masala 50g
+            ('SPGM-50', '8966000086920'),   # Garam Masala 50g
         ]
-        for prod_code, pack_label, gtin_val in seeds:
+        for sku_code, gtin_val in seeds:
             cur = c.execute("""
                 UPDATE product_variants
                 SET gtin = ?
-                WHERE gtin IS NULL
-                  AND product_id IN (SELECT id FROM products WHERE code = ?)
-                  AND pack_size_id IN (SELECT id FROM pack_sizes WHERE label = ?)
-            """, (gtin_val, prod_code, pack_label))
+                WHERE sku_code = ?
+            """, (gtin_val, sku_code))
             if cur.rowcount:
-                print(f"  ✓ gtin seeded: {prod_code} {pack_label} -> {gtin_val}")
+                print(f"  ✓ gtin seeded: {sku_code} -> {gtin_val}")
         c.commit()
     finally:
         c.close()
