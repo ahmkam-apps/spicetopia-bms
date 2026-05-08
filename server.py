@@ -11670,14 +11670,14 @@ def ensure_variant_gtin():
             ('GAR', '50g',  '8966000086920'),   # Garam Masala 50g
         ]
         for prod_code, pack_label, gtin_val in seeds:
-            c.execute("""
+            cur = c.execute("""
                 UPDATE product_variants
                 SET gtin = ?
                 WHERE gtin IS NULL
                   AND product_id IN (SELECT id FROM products WHERE code = ?)
                   AND pack_size_id IN (SELECT id FROM pack_sizes WHERE label = ?)
             """, (gtin_val, prod_code, pack_label))
-            if c.rowcount:
+            if cur.rowcount:
                 print(f"  ✓ gtin seeded: {prod_code} {pack_label} -> {gtin_val}")
         c.commit()
     finally:
