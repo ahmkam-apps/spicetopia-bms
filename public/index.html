@@ -10277,7 +10277,19 @@ async function loadAndRender() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   initNavIcons();
-  const token = authToken();
+  // Dev autologin — always try first when DEV_AUTOLOGIN=1 is set on the server
+  try {
+    const ar = await fetch('/api/dev/autologin');
+    if (ar.ok) {
+      const ad = await ar.json();
+      if (ad.token) {
+        setAuthToken(ad.token);
+        state.currentUser = ad; setTopbarUser(ad); applyRoleUI(ad.role);
+        hideLoginScreen(); await loadAndRender(); return;
+      }
+    }
+  } catch(e) {}
+  let token = authToken();
   if (!token) { showLoginScreen(); return; }
   try {
     const r = await fetch('/api/auth/me', { headers: {'Authorization': 'Bearer ' + token} });
