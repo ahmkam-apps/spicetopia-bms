@@ -79,7 +79,7 @@ SUP_ID = SUP["id"] if SUP else None
 check("Seed supplier", SUP_ID is not None, r.text[:200])
 
 # Seed customer
-r = POST("/api/customers", {"name":"Test Customer","customer_type":"RETAIL","city":"Karachi","address":"123 Test St","phone":"0300-1111111"})
+r = POST("/api/customers", {"name":"Test Customer","customerType":"RETAIL","city":"Karachi","address":"123 Test St","phone":"0300-1111111"})
 CUST = r.json()
 CUST_CODE = CUST.get("code"); CUST_ID = CUST.get("id")
 check("Seed customer", CUST_CODE is not None, r.text[:200])
@@ -316,18 +316,284 @@ active = [i["code"] for i in GET("/api/admin/ingredients").json() if i.get("acti
 check("BUG-008: ING-SYNC-A no longer active", "ING-SYNC-A" not in active, f"active={active}")
 check("BUG-008: ING-SYNC-B + ING-SYNC-C active", "ING-SYNC-B" in active and "ING-SYNC-C" in active, f"active={active}")
 
+# ══════════════════════════════════════════════════════════
+# SPRINT B1 — B2B PORTAL BACKEND TESTS
+# ══════════════════════════════════════════════════════════
+
+# ── B1 SETUP: Create sales rep + field login ──────────────
+section("B1 SETUP — Sales Rep + Field Token")
+
+REP_ID = None
+FIELD_TOKEN = None
+REP_PHONE = "03001234567"
+REP_PIN   = "1234"
+
+r = POST("/api/reps", {
+    "name": "Test Rep B1", "phone": REP_PHONE, "pin": REP_PIN,
+    "designation": "Sales Rep", "city": "Karachi"
+})
+REP_ID = r.json().get("id") if r.status_code in (200, 201) else None
+check("B1 SETUP: Create sales rep", REP_ID is not None, r.text[:200])
+
+r = requests.post(f"{BASE}/api/field/auth", json={"phone": REP_PHONE, "pin": REP_PIN}, timeout=10)
+FIELD_TOKEN = r.json().get("token") if r.status_code == 200 else None
+check("B1 SETUP: Field login with phone+PIN", FIELD_TOKEN is not None, r.text[:200])
+
+def field_hdr():
+    return {"Authorization": f"Bearer {FIELD_TOKEN}", "Content-Type": "application/json"}
+
+def FGET(path, params=None):
+    return requests.get(f"{BASE}{path}", headers=field_hdr(), params=params, timeout=10)
+
+def FPOST(path, body=None):
+    return requests.post(f"{BASE}{path}", headers=field_hdr(), json=body or {}, timeout=10)
+
+# ── B1-001 ────────────────────────────────────────────────
+section("B1-001 — Account number format KHI-R001")
+
+r = POST("/api/customers", {
+    "name": "B1 Retail KHI", "customerType": "RETAIL",
+    "city": "KHI", "phone": "0300-B1KHI1", "address": "Test St"
+})
+acct = r.json().get("account_number") or r.json().get("code") if r.status_code in (200,201) else None
+check("B1-001: Customer created", r.status_code in (200,201), r.text[:200])
+check("B1-001: Account number has city prefix KHI", acct and acct.startswith("KHI-"), f"got={acct}")
+check("B1-001: Account number has type letter R for RETAIL", acct and "-R" in acct, f"got={acct}")
+
+r2 = POST("/api/customers", {
+    "name": "B1 Wholesale LHE", "customerType": "WHOLESALE",
+    "city": "LHE", "phone": "0300-B1LHE1", "address": "Test St"
+})
+acct2 = r2.json().get("account_number") or r2.json().get("code") if r2.status_code in (200,201) else None
+check("B1-001: WHOLESALE customer accepted (new type)", r2.status_code in (200,201), r2.text[:200])
+check("B1-001: Wholesale account has -W type letter", acct2 and "-W" in acct2, f"got={acct2}")
+
+# ── B1-002 ────────────────────────────────────────────────
+section("B1-002 — Field customer lookup endpoint")
+
+if FIELD_TOKEN:
+    r = FGET("/api/field/customers/lookup", params={"q": "B1"})
+    check("B1-002: Lookup returns 200", r.status_code == 200, r.text[:200])
+    results_list = r.json() if r.status_code == 200 else []
+    check("B1-002: Returns list", isinstance(results_list, list), f"type={type(results_list)}")
+    check("B1-002: Results include account_number field",
+          all("account_number" in c or "code" in c for c in results_list) if results_list else True,
+          f"sample={results_list[0] if results_list else 'empty'}")
+    # Lookup by phone
+    r2 = FGET("/api/field/customers/lookup", params={"q": "0300-B1KHI1"})
+    hits = r2.json() if r2.status_code == 200 else []
+    check("B1-002: Phone search finds customer", len(hits) >= 1, f"hits={len(hits)}")
+else:
+    check("B1-002: Skipped — no field token", False, "")
+
+# ── B1-003 ────────────────────────────────────────────────
+section("B1-003 — Field customer creation")
+
+B1_NEW_CUST_ACCT = None
+if FIELD_TOKEN:
+    r = FPOST("/api/field/customers", {
+        "name": "B1 Portal Customer", "phone": "0300-PORTAL1",
+        "city": "KHI", "customerType": "RETAIL"
+        # no address — should be optional
+    })
+    check("B1-003: Create customer via field endpoint", r.status_code in (200,201), r.text[:200])
+    B1_NEW_CUST_ACCT = r.json().get("account_number") or r.json().get("code") if r.status_code in (200,201) else None
+    check("B1-003: Returns account_number", B1_NEW_CUST_ACCT is not None, r.text[:200])
+    check("B1-003: No address required (blank OK)", r.status_code in (200,201), r.text[:200])
+else:
+    check("B1-003: Skipped — no field token", False, "")
+
+# ── B1-004 ────────────────────────────────────────────────
+section("B1-004 — Field products (no cost prices exposed)")
+
+if FIELD_TOKEN:
+    r = FGET("/api/field/products", params={"customerType": "RETAIL"})
+    check("B1-004: Field products returns 200", r.status_code == 200, r.text[:200])
+    prods_list = r.json() if r.status_code == 200 else []
+    check("B1-004: Returns product list", isinstance(prods_list, list), f"type={type(prods_list)}")
+    # Cost prices must never be in the response
+    for prod in prods_list:
+        for v in prod.get("variants", [prod]):
+            has_cost = any(k in v for k in ("cost_per_unit","cost","unit_cost","cost_price"))
+            if has_cost:
+                check("B1-004: Cost price NOT exposed to field reps", False, f"found cost in: {v}")
+                break
+        else:
+            continue
+        break
+    else:
+        check("B1-004: Cost price NOT exposed to field reps", True)
+    check("B1-004: Products have selling price", all(
+        any(k in prod for k in ("price","selling_price","retail_price")) or prod.get("variants")
+        for prod in prods_list
+    ) if prods_list else True, "no products")
+else:
+    check("B1-004: Skipped — no field token", False, "")
+
+# ── B1-005 ────────────────────────────────────────────────
+section("B1-005 — Rep-assisted order via /api/orders/external")
+
+B1_ORDER_ID = None
+if FIELD_TOKEN and CUST_CODE and VARIANT_ID and REP_ID:
+    import time as _time
+    IDEMPOTENCY_KEY = f"test-idem-{int(_time.time())}"
+    r = FPOST("/api/orders/external", {
+        "custCode":         CUST_CODE,
+        "orderDate":        "2026-04-17",
+        "dueDate":          "2026-05-17",
+        "order_source":     "rep_assisted",
+        "placed_by_rep_id": REP_ID,
+        "idempotency_key":  IDEMPOTENCY_KEY,
+        "lines": [{"productCode": "SPCM", "packSize": "50g", "qty": 3, "unitPrice": 250}]
+    })
+    check("B1-005: Rep-assisted order created", r.status_code in (200,201), r.text[:200])
+    B1_ORDER_ID = r.json().get("orderId") or r.json().get("id") if r.status_code in (200,201) else None
+    # Verify order source stored correctly
+    if B1_ORDER_ID:
+        od = GET(f"/api/customer-orders/{B1_ORDER_ID}").json()
+        check("B1-005: order_source = rep_assisted", od.get("order_source") == "rep_assisted", f"got={od.get('order_source')}")
+else:
+    check("B1-005: Skipped — missing seed data", False, f"cust={CUST_CODE} var={VARIANT_ID} rep={REP_ID}")
+
+# ── B1-006 ────────────────────────────────────────────────
+section("B1-006 — Idempotency key prevents duplicate orders")
+
+if FIELD_TOKEN and CUST_CODE and B1_ORDER_ID:
+    # Resubmit using the EXACT same idempotency key from B1-005
+    r_idem = FPOST("/api/orders/external", {
+        "custCode":         CUST_CODE,
+        "orderDate":        "2026-04-17",
+        "dueDate":          "2026-05-17",
+        "order_source":     "rep_assisted",
+        "placed_by_rep_id": REP_ID,
+        "idempotency_key":  IDEMPOTENCY_KEY,
+        "lines": [{"productCode": "SPCM", "packSize": "50g", "qty": 3, "unitPrice": 250}]
+    })
+    # Should return existing order (200) not create a new one (201)
+    check("B1-006: Duplicate submission returns 200 (not 201)", r_idem.status_code == 200, f"status={r_idem.status_code}")
+    dup_id = r_idem.json().get("orderId") or r_idem.json().get("id")
+    check("B1-006: Returns same order ID (not a new one)", dup_id == B1_ORDER_ID, f"original={B1_ORDER_ID} dup={dup_id}")
+else:
+    check("B1-006: Skipped — missing B1-005 order", False, "")
+
+# ── B1-007 ────────────────────────────────────────────────
+section("B1-007 — Field orders list includes portal orders")
+
+if B1_ORDER_ID:
+    r = GET("/api/field-orders")
+    check("B1-007: /api/field-orders returns 200", r.status_code == 200, r.text[:200])
+    fo_list = r.json() if r.status_code == 200 else []
+    portal_orders = [o for o in fo_list if o.get("_source") == "portal"]
+    check("B1-007: Portal orders present with _source='portal'", len(portal_orders) >= 1,
+          f"total={len(fo_list)} portal={len(portal_orders)}")
+    legacy_orders = [o for o in fo_list if o.get("_source") == "legacy"]
+    # Both sources returned (if any legacy exist)
+    check("B1-007: _source field present on all orders",
+          all("_source" in o for o in fo_list) if fo_list else True,
+          f"sample keys={list(fo_list[0].keys()) if fo_list else 'empty'}")
+else:
+    check("B1-007: Skipped — no portal order from B1-005", False, "")
+
+# ══════════════════════════════════════════════════════════
+# SPRINT B2 — POST-LAUNCH FIX TESTS
+# ══════════════════════════════════════════════════════════
+
+# ── B2-001 ────────────────────────────────────────────────
+section("B2-001 — Customer registration with blank address")
+
+r = POST("/api/customers", {
+    "name": "B2 No Address Customer", "customerType": "RETAIL",
+    "city": "KHI", "phone": "0300-NOADR01"
+    # address intentionally omitted
+})
+check("B2-001: Customer created without address", r.status_code in (200,201), r.text[:200])
+check("B2-001: Returns account_number",
+      bool(r.json().get("account_number") or r.json().get("code")) if r.status_code in (200,201) else False,
+      r.text[:200])
+
+r2 = POST("/api/customers", {
+    "name": "B2 Empty Address Customer", "customerType": "RETAIL",
+    "city": "KHI", "phone": "0300-NOADR02", "address": ""
+    # address explicitly blank
+})
+check("B2-001: Customer created with empty-string address", r2.status_code in (200,201), r2.text[:200])
+
+# ── B2-002 ────────────────────────────────────────────────
+section("B2-002 — WhatsApp settings endpoints")
+
+r = GET("/api/admin/settings")
+check("B2-002: GET /api/admin/settings returns 200", r.status_code == 200, r.text[:200])
+settings = r.json() if r.status_code == 200 else {}
+check("B2-002: Response has whatsapp_enabled field", "whatsapp_enabled" in settings, f"keys={list(settings.keys())}")
+check("B2-002: Response has whatsapp_admin_phone field", "whatsapp_admin_phone" in settings, f"keys={list(settings.keys())}")
+check("B2-002: Response has whatsapp_admin_apikey field", "whatsapp_admin_apikey" in settings, f"keys={list(settings.keys())}")
+
+# ── B2-003 ────────────────────────────────────────────────
+section("B2-003 — PUT /api/admin/settings saves and hot-reloads")
+
+r = PUT("/api/admin/settings", {
+    "whatsapp_enabled":    False,
+    "whatsapp_admin_phone": "+1234567890",
+    "whatsapp_admin_apikey": "test-key-999"
+})
+check("B2-003: PUT /api/admin/settings returns 200", r.status_code == 200, r.text[:200])
+check("B2-003: Response confirms ok=True", r.json().get("ok") is True if r.status_code == 200 else False, r.text[:200])
+
+# Verify persisted by reading back
+r2 = GET("/api/admin/settings")
+saved = r2.json() if r2.status_code == 200 else {}
+check("B2-003: Phone persisted correctly", saved.get("whatsapp_admin_phone") == "+1234567890",
+      f"got={saved.get('whatsapp_admin_phone')}")
+
+# ── B2-004 ────────────────────────────────────────────────
+section("B2-004 — Edit sales rep profile")
+
+if REP_ID:
+    r = PUT(f"/api/reps/{REP_ID}", {
+        "name":            "Test Rep B1 Updated",
+        "designation":     "Senior Sales Rep",
+        "baseSalary":      50000,
+        "fuelAllowance":   5000,
+        "mobileAllowance": 2000,
+        "commissionPct":   2.5,
+        "status":          "active"
+    })
+    check("B2-004: PUT /api/reps/:id returns 200", r.status_code == 200, r.text[:200])
+    # Verify changes persisted
+    reps = GET("/api/reps").json() if GET("/api/reps").status_code == 200 else []
+    rep = next((rep for rep in reps if rep.get("id") == REP_ID), None)
+    check("B2-004: Designation updated", rep and rep.get("designation") == "Senior Sales Rep",
+          f"got={rep.get('designation') if rep else 'rep not found'}")
+else:
+    check("B2-004: Skipped — no rep from B1 setup", False, "")
+
+# ── B2-005 ────────────────────────────────────────────────
+section("B2-005 — Confirm portal order uses customer-orders endpoint")
+
+if B1_ORDER_ID:
+    # Portal orders must be confirmed via /api/customer-orders/:id/confirm
+    # NOT via /api/field-orders/:id/confirm (legacy endpoint)
+    r = POST(f"/api/customer-orders/{B1_ORDER_ID}/confirm")
+    check("B2-005: Portal order confirmed via customer-orders endpoint", r.status_code == 200, r.text[:200])
+    # Verify status changed
+    od = GET(f"/api/customer-orders/{B1_ORDER_ID}").json()
+    check("B2-005: Order status is now confirmed", od.get("status") == "confirmed",
+          f"got={od.get('status')}")
+else:
+    check("B2-005: Skipped — no portal order from B1-005", False, "")
+
 # ── SUMMARY ───────────────────────────────────────────────
 print(f"\n{'═'*60}")
-print(f"  BUG TEST SUMMARY")
+print(f"  REGRESSION TEST SUMMARY")
 print(f"{'═'*60}")
 print(f"  \033[92mPassed : {PASS}\033[0m")
 print(f"  \033[91mFailed : {FAIL}\033[0m")
 print(f"  Total  : {PASS+FAIL}")
 print(f"{'═'*60}")
 if FAIL == 0:
-    print(f"\n  \033[92m\033[1m  ALL BUG TESTS PASSED ✓\033[0m\n")
+    print(f"\n  \033[92m\033[1m  ALL TESTS PASSED ✓\033[0m\n")
 else:
-    print(f"\n  \033[91m\033[1m  {FAIL} BUG(S) STILL FAILING\033[0m\n")
+    print(f"\n  \033[91m\033[1m  {FAIL} TEST(S) FAILING\033[0m\n")
     for res in results:
         if res[0] == "FAIL":
             print(f"    ✗ {res[1]}: {res[2] if len(res)>2 else ''}")
