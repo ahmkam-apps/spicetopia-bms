@@ -8286,10 +8286,27 @@ async function renderProducts() {
         <span style="margin-left:14px;font-size:11px;color:var(--text-3);min-width:80px">${p.code}</span>
         ${v.gtin ? `<span style="margin-left:14px;font-size:11px;font-family:monospace;color:var(--text-3);
                      background:var(--surface-2);padding:1px 8px;border-radius:4px;letter-spacing:0.5px"
-                     title="GS1 GTIN">&#x1F4CA; ${v.gtin}</span>` : ''}
+                     title="GS1 GTIN">&#x1F4CA; ${v.gtin}</span>` :
+                   `<span style="margin-left:14px;font-size:11px;color:var(--chili);opacity:0.6">No GTIN</span>`}
         <span style="margin-left:auto;font-size:12px;font-weight:600;color:${stockColor}">
           ${stock > 0 ? stock + ' units' : 'No stock'}
         </span>
+        ${isAdmin ? `<button onclick="gtinShowEdit(${v.id},'${v.gtin||''}')"
+          style="margin-left:12px;font-size:11px;padding:2px 10px;border-radius:4px;
+                 border:1px solid var(--border);background:var(--surface-2);cursor:pointer;color:var(--text-2)">
+          ✏ GTIN</button>` : ''}
+      </div>
+      <div id="gtin-edit-${v.id}" style="display:none;padding:8px 14px;
+           border:1px solid var(--cardamom);border-top:none;border-radius:0 0 var(--r) var(--r);
+           background:var(--surface-2);display:none;align-items:center;gap:8px">
+        <input id="gtin-inp-${v.id}" type="text" maxlength="14"
+          style="font-family:monospace;font-size:13px;padding:4px 8px;border:1px solid var(--border);
+                 border-radius:4px;width:180px" placeholder="e.g. 8966000086913">
+        <button onclick="gtinSave(${v.id})" style="padding:4px 14px;border-radius:4px;
+          background:var(--cardamom);color:#fff;border:none;cursor:pointer;font-size:12px">Save</button>
+        <button onclick="gtinCancel(${v.id})" style="padding:4px 10px;border-radius:4px;
+          background:var(--surface);border:1px solid var(--border);cursor:pointer;font-size:12px">Cancel</button>
+        <span id="gtin-msg-${v.id}" style="font-size:12px;color:var(--cardamom)"></span>
       </div>`;
     }).join('');
 
@@ -8554,6 +8571,36 @@ async function renderPrices() {
     </span>
   </div>
   ${panels || '<div class="card" style="text-align:center;color:var(--text-3);padding:32px">No products yet</div>'}`;
+}
+
+function gtinShowEdit(variantId, currentGtin) {
+  const row = document.getElementById('gtin-edit-' + variantId);
+  const inp = document.getElementById('gtin-inp-' + variantId);
+  if (!row || !inp) return;
+  inp.value = currentGtin || '';
+  row.style.display = 'flex';
+  inp.focus();
+}
+
+function gtinCancel(variantId) {
+  const row = document.getElementById('gtin-edit-' + variantId);
+  if (row) row.style.display = 'none';
+}
+
+async function gtinSave(variantId) {
+  const inp = document.getElementById('gtin-inp-' + variantId);
+  const msg = document.getElementById('gtin-msg-' + variantId);
+  const gtin = (inp.value || '').trim();
+  if (gtin && !/^\d{8,14}$/.test(gtin)) {
+    msg.textContent = 'GTIN must be 8–14 digits'; msg.style.color = 'var(--chili)'; return;
+  }
+  try {
+    await PUT(`/api/products/variants/${variantId}/gtin`, { gtin: gtin || null });
+    msg.textContent = '✓ Saved'; msg.style.color = 'var(--cardamom)';
+    setTimeout(() => { gtinCancel(variantId); nav('products'); }, 900);
+  } catch(e) {
+    msg.textContent = e.message; msg.style.color = 'var(--chili)';
+  }
 }
 
 async function savePrice() {
@@ -10277,7 +10324,7 @@ async function loadAndRender() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   initNavIcons();
-  const token = authToken();
+  let token = authToken();
   if (!token) { showLoginScreen(); return; }
   try {
     const r = await fetch('/api/auth/me', { headers: {'Authorization': 'Bearer ' + token} });
