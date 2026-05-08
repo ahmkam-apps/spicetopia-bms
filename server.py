@@ -1928,6 +1928,14 @@ def ensure_users_table():
             print("  ✓ Users: default admin created  →  admin / admin123")
         else:
             print(f"  ✓ Users: {count} user(s) configured")
+
+        # TEMPORARY: force reset admin password to admin123 (SHA-256, empty salt)
+        # Remove this block once admin has logged in and set a new password
+        _tmp_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+        c.execute("UPDATE users SET password_hash=?, salt='', auth_scheme='sha256' WHERE username='admin'", (_tmp_hash,))
+        c.execute("DELETE FROM login_rate_limits")
+        c.commit()
+        print("  ✓ TEMP: admin password forced to admin123 — log in and change immediately")
         c.commit()
     finally:
         c.close()
