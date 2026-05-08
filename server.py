@@ -8626,6 +8626,24 @@ class Handler(BaseHTTPRequestHandler):
                 if not sess:
                     send_json(self, {'error': 'Unauthorized'}, 401); return
 
+            # GET /api/dev/autologin — skip login screen (only when DEV_AUTOLOGIN=1)
+            if path == '/api/dev/autologin':
+                if os.environ.get('DEV_AUTOLOGIN', '') not in ('1', 'true', 'yes'):
+                    send_json(self, {'error': 'Not enabled'}, 403); return
+                user = qry1("SELECT * FROM users WHERE username='admin' AND active=1")
+                if not user:
+                    send_json(self, {'error': 'No admin user'}, 500); return
+                token      = secrets.token_hex(32)
+                now        = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+                expires_at = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')
+                display    = user['display_name'] or user['username']
+                run("""INSERT INTO sessions (token, user_id, username, display_name, role, permissions, created_at, expires_at, last_seen_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (token, user['id'], user['username'], display, user['role'], user.get('permissions','[]'), now, expires_at, now))
+                send_json(self, {'token': token, 'role': user['role'], 'username': user['username'],
+                                 'displayName': display, 'userId': user['id'], 'permissions': []})
+                return
+
             # GET /api/auth/me — session status
             if path == '/api/auth/me':
                 sess = get_session(self)
