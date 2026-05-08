@@ -942,10 +942,11 @@ async function api(method, path, body) {
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
-const GET   = path       => api('GET',   path);
-const POST  = (path, b)  => api('POST',  path, b);
-const PUT   = (path, b)  => api('PUT',   path, b);
-const PATCH = (path, b)  => api('PATCH', path, b);
+const GET   = path       => api('GET',    path);
+const POST  = (path, b)  => api('POST',   path, b);
+const PUT   = (path, b)  => api('PUT',    path, b);
+const PATCH = (path, b)  => api('PATCH',  path, b);
+const DEL   = path       => api('DELETE', path);
 
 function fmt(n, d=2) {
   if (n == null) return '—';
@@ -953,6 +954,12 @@ function fmt(n, d=2) {
 }
 function fmtPKR(n) { return 'PKR ' + fmt(n); }
 function fmtDate(s) { if (!s) return '—'; try { return new Date(s).toLocaleDateString('en-GB'); } catch { return s; } }
+function fmtPayMode(m) {
+  const map = { CASH:'Cash', BANK_TRANSFER:'Bank Transfer', CHEQUE:'Cheque', OTHER:'Other', ADJUSTMENT:'Adjustment' };
+  const label = map[m] || m;
+  const color = m==='CASH'?'var(--cardamom)':m==='BANK_TRANSFER'?'var(--mac-blue)':m==='CHEQUE'?'var(--cinnamon)':m==='ADJUSTMENT'?'var(--saffron)':'var(--text-3)';
+  return `<span style="font-size:11px;font-weight:600;color:${color}">${label}</span>`;
+}
 function today() { return new Date().toISOString().slice(0,10); }
 function setStatus(msg, col='var(--text-3)') {
   const el = document.getElementById('topbar-status');
@@ -1040,7 +1047,7 @@ async function render(page, arg) {
       case 'zones-routes':  c.innerHTML = await renderZonesRoutes();  break;
       case 'field-orders':  c.innerHTML = await renderFieldOrders();  break;
       case 'payroll':       c.innerHTML = await renderPayroll();       break;
-      case 'system':        c.innerHTML = await renderSystem();        break;
+      case 'system':        c.innerHTML = await renderSystem(); _loadWaSettings(); break;
       default: c.innerHTML = '<p>Page not found</p>';
     }
   } catch(e) {
@@ -1282,6 +1289,7 @@ async function renderCustomers() {
         <option value="">All Types</option>
         <option value="RETAIL">Retail</option>
         <option value="DIRECT">Direct Sales</option>
+        <option value="WHOLESALE">Wholesale</option>
       </select>
       <select id="cf-cat" style="padding:6px 8px;border:1px solid var(--border);border-radius:4px" onchange="applyCustomerFilters()">
         <option value="">All Categories</option>
@@ -1370,8 +1378,9 @@ function applyCustomerFilters() {
   const status  = document.getElementById('cf-status')?.value  || 'active';
 
   let custs = (state.allCustomers || []).filter(c => {
-    if (status === 'active'   && !c.active)  return false;
-    if (status === 'inactive' &&  c.active)  return false;
+    const isActive = c.active !== 0; // treat NULL as active (default)
+    if (status === 'active'   && !isActive)  return false;
+    if (status === 'inactive' &&  isActive)  return false;
     if (type && c.customer_type !== type)    return false;
     if (cat  && c.category !== cat)          return false;
     const bal = _custBalances[c.id] || 0;
@@ -3608,6 +3617,7 @@ async function showInvoiceDetail(invId) {
 function _renderInvoiceDetail(inv) {
   const invId     = inv.id;
   const canEdit   = inv.status === 'UNPAID' || inv.status === 'PARTIAL';
+  const _canAdjustInv = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
   const prodOptions = (state.ref.products||[]).flatMap(p =>
     (p.variants||[]).map(v => `<option value="${p.code}|${v.pack_size}">${p.name} — ${v.pack_size}</option>`)
   ).join('');
@@ -3630,8 +3640,11 @@ function _renderInvoiceDetail(inv) {
     <tr style="border-top:1px solid var(--border)">
       <td style="padding:6px 10px">${a.payment_ref}</td>
       <td style="padding:6px 10px">${fmtDate(a.payment_date)}</td>
-      <td style="padding:6px 10px">${a.payment_mode}</td>
-      <td style="padding:6px 10px;text-align:right;color:var(--cardamom);font-weight:600">${fmtPKR(a.allocated_amount)}</td>
+      <td style="padding:6px 10px">${a.payment_mode === 'ADJUSTMENT' ? '<em style="color:var(--cinnamon)">Adjustment</em>' : a.payment_mode}</td>
+      <td style="padding:6px 10px;text-align:right;color:${a.allocated_amount < 0 ? 'var(--chili)' : 'var(--cardamom)'};font-weight:600">${fmtPKR(a.allocated_amount)}</td>
+      <td style="padding:4px 6px;text-align:center">
+        ${_canAdjustInv && inv.status !== 'VOID' ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px;font-size:11px" onclick="undoInvAllocation(${a.id},${invId})" title="Undo this allocation">↩ Undo</button>` : ''}
+      </td>
     </tr>`).join('');
 
   document.getElementById('invoice-detail-area').innerHTML = `
@@ -3703,14 +3716,15 @@ function _renderInvoiceDetail(inv) {
       <thead><tr style="background:var(--surface-2)">
         <th style="padding:6px 10px;text-align:left">Ref</th><th style="padding:6px 10px;text-align:left">Date</th>
         <th style="padding:6px 10px;text-align:left">Mode</th><th style="padding:6px 10px;text-align:right">Applied</th>
+        <th style="padding:6px 6px;width:70px"></th>
       </tr></thead>
       <tbody>${allocRows}</tbody>
     </table>` : ''}
 
-    <!-- Receive Payment section (UNPAID/PARTIAL only) -->
+    <!-- Record Payment section (UNPAID/PARTIAL only) -->
     ${inv.balance > 0 ? `
     <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:14px;margin-bottom:14px">
-      <div style="font-size:13px;font-weight:600;color:var(--cardamom);margin-bottom:10px">Receive Payment Against This Invoice</div>
+      <div style="font-size:13px;font-weight:600;color:var(--cardamom);margin-bottom:10px">Record Payment</div>
       <div id="inv-pay-msg-${invId}"></div>
       <div class="form-row" style="gap:8px;align-items:flex-end">
         <div class="form-group"><label style="font-size:11px">Amount (PKR)</label>
@@ -3730,12 +3744,14 @@ function _renderInvoiceDetail(inv) {
         <div class="form-group" style="flex:1"><label style="font-size:11px">Notes</label>
           <input id="inv-pay-notes-${invId}" placeholder="Optional">
         </div>
-        <button class="btn btn-primary btn-sm" onclick="receiveInvoicePayment(${invId})">✓ Receive Payment</button>
+        <button class="btn btn-primary btn-sm" onclick="receiveInvoicePayment(${invId})">✓ Record Payment</button>
       </div>
     </div>` : `
-    <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--cardamom);font-weight:600">
-      ✓ Fully Paid
-    </div>`}
+    <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;color:var(--cardamom);font-weight:600">✓ Fully Paid</span>
+      ${_canAdjustInv ? `<button class="btn btn-outline btn-sm" style="font-size:12px" onclick="showInvAdjustForm(${invId})">⚠ Record Adjustment</button>` : ''}
+    </div>
+    <div id="inv-adjust-area-${invId}"></div>`}
 
     <!-- Actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -4034,16 +4050,21 @@ async function renderReceiptsAging(tab) {
     `<option value="${c.id}">${c.name} (${c.account_number || c.code})</option>`).join('');
 
   // ── Receipts tab content
-  const recRows = pays.map(p => `
-    <tr>
-      <td><strong>${p.payment_ref}</strong></td>
+  const recRows = pays.map(p => {
+    const appliedTo = (p.applied_to||[]).length
+      ? p.applied_to.map(n => `<span style="font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px">${n}</span>`).join(' ')
+      : `<span style="color:var(--saffron);font-size:11px;font-weight:600">⚠ Unallocated</span>`;
+    return `<tr>
+      <td><strong style="font-family:monospace">${p.payment_ref}</strong></td>
       <td>${fmtDate(p.payment_date)}</td>
       <td>${p.customer_name}</td>
-      <td>${p.payment_mode}</td>
-      <td class="num text-right">${fmtPKR(p.amount)}</td>
-      <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(p.allocated)}</td>
-      <td class="num text-right" style="color:${p.unallocated>0?'var(--saffron)':'var(--text-3)'}">${fmtPKR(p.unallocated)}</td>
-    </tr>`).join('');
+      <td>${fmtPayMode(p.payment_mode)}</td>
+      <td class="num text-right"><strong>${fmtPKR(p.amount)}</strong></td>
+      <td style="max-width:200px">${appliedTo}</td>
+      <td class="num text-right" style="color:${p.unallocated>0.001?'var(--saffron)':'var(--cardamom)'};font-weight:${p.unallocated>0.001?'700':'400'}">${p.unallocated>0.001?fmtPKR(p.unallocated):'—'}</td>
+      <td style="padding:4px 8px"><button class="btn btn-xs btn-outline" onclick="printPaymentReceipt(${p.id},'ar')" title="Print receipt" style="font-size:11px">🖨</button></td>
+    </tr>`;
+  }).join('');
 
   const receiptsPane = `
   <div class="card mb-16">
@@ -4063,8 +4084,8 @@ async function renderReceiptsAging(tab) {
   <div class="card">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Ref</th><th>Date</th><th>Customer</th><th>Mode</th><th class="text-right">Amount</th><th class="text-right">Allocated</th><th class="text-right">Unallocated</th></tr></thead>
-        <tbody>${recRows || '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:20px">No receipts recorded yet</td></tr>'}</tbody>
+        <thead><tr><th>Ref</th><th>Date</th><th>Customer</th><th>Mode</th><th class="text-right">Amount</th><th>Applied To</th><th class="text-right">Unallocated</th><th></th></tr></thead>
+        <tbody>${recRows || '<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:20px">No receipts recorded yet</td></tr>'}</tbody>
       </table>
     </div>
   </div>`;
@@ -4138,16 +4159,20 @@ async function renderARPayments() {
   const custOptions = (state.ref.customers||[]).map(c =>
     `<option value="${c.id}">${c.name} (${c.account_number || c.code})</option>`).join('');
 
-  let rows = pays.map(p => `
-    <tr>
-      <td><strong>${p.payment_ref}</strong></td>
+  let rows = pays.map(p => {
+    const appliedTo = (p.applied_to||[]).length
+      ? p.applied_to.map(n => `<span style="font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px">${n}</span>`).join(' ')
+      : `<span style="color:var(--saffron);font-size:11px;font-weight:600">⚠ Unallocated</span>`;
+    return `<tr>
+      <td><strong style="font-family:monospace">${p.payment_ref}</strong></td>
       <td>${fmtDate(p.payment_date)}</td>
       <td>${p.customer_name}</td>
-      <td>${p.payment_mode}</td>
-      <td class="num text-right">${fmtPKR(p.amount)}</td>
-      <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(p.allocated)}</td>
-      <td class="num text-right" style="color:${p.unallocated>0?'var(--saffron)':'var(--text-3)'}">${fmtPKR(p.unallocated)}</td>
-    </tr>`).join('');
+      <td>${fmtPayMode(p.payment_mode)}</td>
+      <td class="num text-right"><strong>${fmtPKR(p.amount)}</strong></td>
+      <td style="max-width:200px">${appliedTo}</td>
+      <td class="num text-right" style="color:${p.unallocated>0.001?'var(--saffron)':'var(--cardamom)'};font-weight:${p.unallocated>0.001?'700':'400'}">${p.unallocated>0.001?fmtPKR(p.unallocated):'—'}</td>
+    </tr>`;
+  }).join('');
 
   return `
   <div class="section-header"><h2>Customer Receipts</h2></div>
@@ -4168,8 +4193,8 @@ async function renderARPayments() {
   <div class="card">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Ref</th><th>Date</th><th>Customer</th><th>Mode</th><th class="text-right">Amount</th><th class="text-right">Allocated</th><th class="text-right">Unallocated</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="text-align:center">No receipts</td></tr>'}</tbody>
+        <thead><tr><th>Ref</th><th>Date</th><th>Customer</th><th>Mode</th><th class="text-right">Amount</th><th>Applied To</th><th class="text-right">Unallocated</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:20px">No receipts recorded yet</td></tr>'}</tbody>
       </table>
     </div>
   </div>`;
@@ -5698,6 +5723,7 @@ async function showBillDetail(billId) {
 function _renderBillDetail(bill) {
   _lastBillData = bill;
   const billId = bill.id;
+  const _canAdjustBill = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
   const itemRows = (bill.items||[]).map(i => `
     <tr style="border-top:1px solid var(--border)">
       <td style="padding:7px 10px;font-family:monospace;font-size:12px">${i.ing_code}</td>
@@ -5711,8 +5737,11 @@ function _renderBillDetail(bill) {
     <tr style="border-top:1px solid var(--border)">
       <td style="padding:6px 10px">${a.payment_ref}</td>
       <td style="padding:6px 10px">${fmtDate(a.payment_date)}</td>
-      <td style="padding:6px 10px">${a.payment_mode||'—'}</td>
-      <td style="padding:6px 10px;text-align:right;color:var(--cardamom);font-weight:600">${fmtPKR(a.allocated_amount)}</td>
+      <td style="padding:6px 10px">${a.payment_mode === 'ADJUSTMENT' ? '<em style="color:var(--cinnamon)">Adjustment</em>' : (a.payment_mode||'—')}</td>
+      <td style="padding:6px 10px;text-align:right;color:${a.allocated_amount < 0 ? 'var(--chili)' : 'var(--cardamom)'};font-weight:600">${fmtPKR(a.allocated_amount)}</td>
+      <td style="padding:4px 6px;text-align:center">
+        ${_canAdjustBill && bill.status !== 'VOID' ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px;font-size:11px" onclick="undoBillAllocation(${a.id},${billId})" title="Undo this allocation">↩ Undo</button>` : ''}
+      </td>
     </tr>`).join('');
 
   document.getElementById('bill-detail-area').innerHTML = `
@@ -5772,6 +5801,7 @@ function _renderBillDetail(bill) {
         <th style="padding:6px 10px;text-align:left">Date</th>
         <th style="padding:6px 10px;text-align:left">Mode</th>
         <th style="padding:6px 10px;text-align:right">Applied</th>
+        <th style="padding:6px 6px;width:70px"></th>
       </tr></thead>
       <tbody>${allocRows}</tbody>
     </table>` : ''}
@@ -5779,7 +5809,7 @@ function _renderBillDetail(bill) {
     <!-- Pay Bill section — show for UNPAID/PARTIAL regardless of computed balance -->
     ${(bill.status === 'UNPAID' || bill.status === 'PARTIAL') ? `
     <div style="background:#fff8e6;border:1px solid #f5dfa0;border-radius:6px;padding:14px;margin-bottom:14px">
-      <div style="font-size:13px;font-weight:600;color:var(--saffron-deep);margin-bottom:10px">Pay This Bill</div>
+      <div style="font-size:13px;font-weight:600;color:var(--saffron-deep);margin-bottom:10px">Record Payment</div>
       ${bill.balance <= 0 && bill.total <= 0 ? `<div style="font-size:12px;color:#b45309;margin-bottom:8px">⚠ Bill has no line-item costs on record. Enter the actual amount owed below.</div>` : ''}
       <div id="bill-pay-msg-${billId}"></div>
       <div class="form-row" style="gap:8px;align-items:flex-end">
@@ -5791,9 +5821,9 @@ function _renderBillDetail(bill) {
         </div>
         <div class="form-group"><label style="font-size:11px">Mode</label>
           <select id="bill-pay-mode-${billId}">
+            <option value="CASH">Cash</option>
             <option value="BANK_TRANSFER">Bank Transfer</option>
             <option value="CHEQUE">Cheque</option>
-            <option value="CASH">Cash</option>
             <option value="OTHER">Other</option>
           </select>
         </div>
@@ -5803,9 +5833,11 @@ function _renderBillDetail(bill) {
         <button class="btn btn-primary btn-sm" style="background:var(--saffron-deep);border-color:var(--saffron-deep)" onclick="payBillDirect(${billId})">✓ Record Payment</button>
       </div>
     </div>` : `
-    <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--cardamom);font-weight:600">
-      ✓ Fully Paid
-    </div>`}
+    <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;color:var(--cardamom);font-weight:600">✓ Fully Paid</span>
+      ${_canAdjustBill ? `<button class="btn btn-outline btn-sm" style="font-size:12px" onclick="showBillAdjustForm(${billId})">⚠ Record Adjustment</button>` : ''}
+    </div>
+    <div id="bill-adjust-area-${billId}"></div>`}
 
     <div><button class="btn btn-outline btn-sm" onclick="document.getElementById('bill-detail-area').innerHTML=''">✕ Close</button></div>
   </div>`;
@@ -5929,6 +5961,223 @@ async function payBillDirect(billId) {
   } catch(e) { msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
 }
 
+// ── Sprint P1: Payment Simplification ─────────────────────────────
+
+async function undoInvAllocation(allocId, invId) {
+  if (!confirm('Remove this payment allocation?\n\nThe payment amount will be returned to the unallocated pool and the invoice status will be updated.')) return;
+  try {
+    const res = await DEL('/api/payment-allocations/' + allocId);
+    await refreshAll();
+    const inv = await GET('/api/invoices/' + invId);
+    _renderInvoiceDetail(inv);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function undoBillAllocation(allocId, billId) {
+  if (!confirm('Remove this payment allocation?\n\nThe payment amount will be returned to the unallocated pool and the bill status will be updated.')) return;
+  try {
+    const res = await DEL('/api/supplier-payment-allocations/' + allocId);
+    await refreshAll();
+    const bill = await GET('/api/bills/' + billId);
+    _renderBillDetail(bill);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function showInvAdjustForm(invId) {
+  document.getElementById('inv-adjust-area-' + invId).innerHTML = `
+    <div style="background:#fff8e6;border:1px solid #f5dfa0;border-radius:6px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;color:var(--cinnamon);margin-bottom:10px">Record Adjustment</div>
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:10px">Use a positive amount to record additional payment. Use a negative amount to record a refund or credit.</div>
+      <div id="inv-adj-msg-${invId}"></div>
+      <div class="form-row" style="gap:8px;align-items:flex-end">
+        <div class="form-group"><label style="font-size:11px">Amount (PKR)</label>
+          <input id="inv-adj-amt-${invId}" type="number" step="0.01" placeholder="e.g. -500 for refund" style="width:160px">
+        </div>
+        <div class="form-group"><label style="font-size:11px">Date</label>
+          <input id="inv-adj-date-${invId}" type="date" value="${today()}">
+        </div>
+        <div class="form-group" style="flex:1"><label style="font-size:11px">Reason (required)</label>
+          <input id="inv-adj-reason-${invId}" placeholder="e.g. Refund due to wrong pricing">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveInvAdjust(${invId})">✓ Save Adjustment</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('inv-adjust-area-${invId}').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function saveInvAdjust(invId) {
+  const amt    = parseFloat(document.getElementById('inv-adj-amt-' + invId).value);
+  const date   = document.getElementById('inv-adj-date-' + invId).value;
+  const reason = document.getElementById('inv-adj-reason-' + invId).value.trim();
+  const msgEl  = document.getElementById('inv-adj-msg-' + invId);
+  if (!amt || amt === 0) { msgEl.innerHTML = '<div class="alert alert-error">Enter an amount (positive or negative)</div>'; return; }
+  if (!reason) { msgEl.innerHTML = '<div class="alert alert-error">Reason is required</div>'; return; }
+  try {
+    const res = await POST('/api/invoices/' + invId + '/adjust', { amount: amt, date, reason });
+    msgEl.innerHTML = `<div class="alert alert-success">✓ Adjustment recorded. Invoice is now ${res.invoiceStatus}.</div>`;
+    await refreshAll();
+    setTimeout(async () => {
+      const inv = await GET('/api/invoices/' + invId);
+      _renderInvoiceDetail(inv);
+    }, 1200);
+  } catch(e) { msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+
+function showBillAdjustForm(billId) {
+  document.getElementById('bill-adjust-area-' + billId).innerHTML = `
+    <div style="background:#fff8e6;border:1px solid #f5dfa0;border-radius:6px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;color:var(--cinnamon);margin-bottom:10px">Record Adjustment</div>
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:10px">Use a positive amount to record additional payment. Use a negative amount for a supplier credit or refund.</div>
+      <div id="bill-adj-msg-${billId}"></div>
+      <div class="form-row" style="gap:8px;align-items:flex-end">
+        <div class="form-group"><label style="font-size:11px">Amount (PKR)</label>
+          <input id="bill-adj-amt-${billId}" type="number" step="0.01" placeholder="e.g. -200 for credit" style="width:160px">
+        </div>
+        <div class="form-group"><label style="font-size:11px">Date</label>
+          <input id="bill-adj-date-${billId}" type="date" value="${today()}">
+        </div>
+        <div class="form-group" style="flex:1"><label style="font-size:11px">Reason (required)</label>
+          <input id="bill-adj-reason-${billId}" placeholder="e.g. Supplier credit note for short delivery">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveBillAdjust(${billId})">✓ Save Adjustment</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('bill-adjust-area-${billId}').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function saveBillAdjust(billId) {
+  const amt    = parseFloat(document.getElementById('bill-adj-amt-' + billId).value);
+  const date   = document.getElementById('bill-adj-date-' + billId).value;
+  const reason = document.getElementById('bill-adj-reason-' + billId).value.trim();
+  const msgEl  = document.getElementById('bill-adj-msg-' + billId);
+  if (!amt || amt === 0) { msgEl.innerHTML = '<div class="alert alert-error">Enter an amount (positive or negative)</div>'; return; }
+  if (!reason) { msgEl.innerHTML = '<div class="alert alert-error">Reason is required</div>'; return; }
+  try {
+    const res = await POST('/api/bills/' + billId + '/adjust', { amount: amt, date, reason });
+    msgEl.innerHTML = `<div class="alert alert-success">✓ Adjustment recorded. Bill is now ${res.billStatus}.</div>`;
+    await refreshAll();
+    setTimeout(async () => {
+      const bill = await GET('/api/bills/' + billId);
+      _renderBillDetail(bill);
+    }, 1200);
+  } catch(e) { msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  PAYMENT RECEIPT PRINT
+// ─────────────────────────────────────────────────────────────────
+async function printPaymentReceipt(paymentId, type) {
+  const endpoint = type === 'ar'
+    ? '/api/customer-payments/' + paymentId
+    : '/api/supplier-payments/' + paymentId;
+  const pay = await GET(endpoint);
+
+  const isAR    = type === 'ar';
+  const docTitle = isAR ? 'Payment Receipt' : 'Remittance Advice';
+  const partyLabel = isAR ? 'Received From' : 'Paid To';
+  const partyName  = isAR ? (pay.customer_name  || '—') : (pay.supplier_name  || '—');
+  const refLabel   = isAR ? 'Receipt #' : 'Payment #';
+  const lineLabel  = isAR ? 'Invoice #' : 'Bill #';
+  const lineDate   = isAR ? 'Invoice Date' : 'Bill Date';
+
+  const allocRows = (pay.allocations || []).map(a => {
+    const isModeAdj = a.payment_mode === 'ADJUSTMENT';
+    return `<tr>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee">${a.invoice_number || a.bill_number || '—'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee">${a.invoice_date || a.bill_date || '—'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right">PKR ${Number(a.allocated_amount).toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  const totalAllocated = (pay.allocations || []).reduce((s, a) => s + Number(a.allocated_amount), 0);
+  const totalPaid      = Number(pay.amount || 0);
+  const unallocated    = totalPaid - totalAllocated;
+
+  const modeDisplay = pay.payment_mode === 'ADJUSTMENT'
+    ? '<span style="background:#fff3cd;color:#856404;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600">ADJUSTMENT</span>'
+    : pay.payment_mode || '—';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>${docTitle} ${pay.payment_ref || pay.ref || ''}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#222;padding:30px;max-width:760px;margin:0 auto}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:18px;border-bottom:3px solid #c0392b}
+    .company-name{font-size:26px;font-weight:800;color:#c0392b;letter-spacing:-0.5px}
+    .doc-title{font-size:22px;font-weight:700;text-align:right}
+    .doc-meta{font-size:12px;color:#555;text-align:right;margin-top:4px}
+    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+    .info-box h4{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#999;margin-bottom:6px}
+    .info-box p{font-size:13px;line-height:1.7}
+    table{width:100%;border-collapse:collapse;margin-bottom:20px}
+    thead tr{background:#f5f5f5}
+    thead th{padding:9px 10px;text-align:left;font-size:11px;text-transform:uppercase;color:#666;letter-spacing:0.4px}
+    thead th:last-child{text-align:right}
+    .summary-box{background:#f0faf5;border-radius:8px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+    .footer{margin-top:30px;padding-top:14px;border-top:1px solid #eee;font-size:11px;color:#aaa;text-align:center}
+    @media print{body{padding:15px}button{display:none!important}}
+  </style></head><body>
+
+  <div class="header">
+    <div>
+      <img src="/img/spicetopia-logo.svg" alt="Spicetopia" style="height:58px;display:block">
+    </div>
+    <div>
+      <div class="doc-title">${docTitle.toUpperCase()}</div>
+      <div class="doc-meta" style="margin-top:6px"><strong>${refLabel}${pay.payment_ref || pay.ref || paymentId}</strong></div>
+      <div class="doc-meta">Date: ${pay.payment_date || pay.date || '—'}</div>
+    </div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-box">
+      <h4>${partyLabel}</h4>
+      <p><strong>${partyName}</strong></p>
+    </div>
+    <div class="info-box" style="text-align:right">
+      <h4>Payment Details</h4>
+      <p>Mode: <strong>${modeDisplay}</strong></p>
+      ${pay.cheque_number ? `<p>Cheque #: <strong>${pay.cheque_number}</strong></p>` : ''}
+      ${pay.bank_name     ? `<p>Bank: <strong>${pay.bank_name}</strong></p>`         : ''}
+      ${pay.notes         ? `<p style="color:#666;font-size:12px;margin-top:4px">${pay.notes}</p>` : ''}
+    </div>
+  </div>
+
+  ${allocRows ? `
+  <div style="margin-bottom:6px"><strong style="font-size:12px;text-transform:uppercase;color:#666;letter-spacing:0.4px">Applied To</strong></div>
+  <table>
+    <thead><tr>
+      <th>${lineLabel}</th>
+      <th>${lineDate}</th>
+      <th style="text-align:right">Amount Applied</th>
+    </tr></thead>
+    <tbody>${allocRows}</tbody>
+  </table>` : '<p style="color:#999;margin-bottom:20px;font-size:12px">No allocations recorded for this payment.</p>'}
+
+  <div class="summary-box">
+    <span style="font-size:14px;font-weight:600">Total ${isAR ? 'Received' : 'Paid'}</span>
+    <span style="font-size:22px;font-weight:800;color:#27ae60">PKR ${totalPaid.toFixed(2)}</span>
+  </div>
+  ${unallocated > 0.001 ? `
+  <div style="background:#fff3cd;border-radius:8px;padding:10px 18px;display:flex;justify-content:space-between;margin-top:8px">
+    <span style="font-size:13px;color:#856404">Unallocated Balance</span>
+    <span style="font-size:15px;font-weight:700;color:#856404">PKR ${unallocated.toFixed(2)}</span>
+  </div>` : ''}
+
+  <div class="footer">Spicetopia · FLAVORS REDEFINED · Generated ${new Date().toLocaleDateString()}</div>
+  <div style="text-align:center;margin-top:16px">
+    <button onclick="window.print()" style="background:#c0392b;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600">🖨️ Print</button>
+  </div>
+  </body></html>`;
+
+  const w = window.open('', '_blank', 'width=820,height=900');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 600);
+}
+
+// ─────────────────────────────────────────────────────────────────
+
 async function applySupplierPayment(billId, supId) {
   const sel   = document.getElementById('spay-sel-' + billId);
   const amt   = parseFloat(document.getElementById('spay-amt-' + billId).value);
@@ -5952,16 +6201,21 @@ async function renderAPPayments() {
   const supOptions = (state.ref.suppliers||[]).map(s =>
     `<option value="${s.id}">${s.name} (${s.code})</option>`).join('');
 
-  let rows = pays.map(p => `
-    <tr>
-      <td><strong>${p.payment_ref}</strong></td>
+  let rows = pays.map(p => {
+    const appliedTo = (p.applied_to||[]).length
+      ? p.applied_to.map(n => `<span style="font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px">${n}</span>`).join(' ')
+      : `<span style="color:var(--saffron);font-size:11px;font-weight:600">⚠ Unallocated</span>`;
+    return `<tr>
+      <td><strong style="font-family:monospace">${p.payment_ref}</strong></td>
       <td>${fmtDate(p.payment_date)}</td>
       <td>${p.supplier_name}</td>
-      <td>${p.payment_mode}</td>
-      <td class="num text-right">${fmtPKR(p.amount)}</td>
-      <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(p.allocated)}</td>
-      <td class="num text-right" style="color:${p.unallocated>0?'var(--saffron)':'var(--text-3)'}">${fmtPKR(p.unallocated)}</td>
-    </tr>`).join('');
+      <td>${fmtPayMode(p.payment_mode)}</td>
+      <td class="num text-right"><strong>${fmtPKR(p.amount)}</strong></td>
+      <td style="max-width:200px">${appliedTo}</td>
+      <td class="num text-right" style="color:${p.unallocated>0.001?'var(--saffron)':'var(--cardamom)'};font-weight:${p.unallocated>0.001?'700':'400'}">${p.unallocated>0.001?fmtPKR(p.unallocated):'—'}</td>
+      <td style="padding:4px 8px"><button class="btn btn-xs btn-outline" onclick="printPaymentReceipt(${p.id},'ap')" title="Print remittance" style="font-size:11px">🖨</button></td>
+    </tr>`;
+  }).join('');
 
   return `
   <div class="section-header"><h2>Supplier Payments (AP)</h2></div>
@@ -5982,8 +6236,8 @@ async function renderAPPayments() {
   <div class="card">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Ref</th><th>Date</th><th>Supplier</th><th>Mode</th><th class="text-right">Amount</th><th class="text-right">Allocated</th><th class="text-right">Unallocated</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="text-align:center">No payments</td></tr>'}</tbody>
+        <thead><tr><th>Ref</th><th>Date</th><th>Supplier</th><th>Mode</th><th class="text-right">Amount</th><th>Applied To</th><th class="text-right">Unallocated</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:20px">No payments recorded yet</td></tr>'}</tbody>
       </table>
     </div>
   </div>`;
@@ -8030,6 +8284,9 @@ async function renderProducts() {
         <span style="margin-left:14px;font-size:12px;font-family:monospace;
                      color:var(--text-2);min-width:110px">${v.sku_code}</span>
         <span style="margin-left:14px;font-size:11px;color:var(--text-3);min-width:80px">${p.code}</span>
+        ${v.gtin ? `<span style="margin-left:14px;font-size:11px;font-family:monospace;color:var(--text-3);
+                     background:var(--surface-2);padding:1px 8px;border-radius:4px;letter-spacing:0.5px"
+                     title="GS1 GTIN">&#x1F4CA; ${v.gtin}</span>` : ''}
         <span style="margin-left:auto;font-size:12px;font-weight:600;color:${stockColor}">
           ${stock > 0 ? stock + ' units' : 'No stock'}
         </span>
@@ -9345,7 +9602,7 @@ function _rqSourceBadge(src) {
   const map = {
     consumer_website:     ['🛒 Website', '#EAF3FF', 'var(--mac-blue)'],
     retailer_self_service:['🏪 Retailer', '#F0FDF4', 'var(--cardamom)'],
-    field_rep:            ['👤 Field Rep', '#FEF3E2', 'var(--saffron)'],
+    field_rep:            ['👤 Sales Rep', '#FEF3E2', 'var(--saffron)'],
     internal:             ['🖥 Internal', '#F3F4F6', '#6b7280'],
   };
   const [label, bg, col] = map[src] || [src, '#F3F4F6', '#6b7280'];
@@ -9693,7 +9950,7 @@ async function renderUsers() {
     field_rep:  {bg:'#fff3e0',            fg:'#c06400'},
     user:       {bg:'var(--blue-pale)',    fg:'var(--mac-blue)'},
   };
-  const ROLE_LABELS = {admin:'Admin',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
+  const ROLE_LABELS = {admin:'Admin',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
   const users = await GET('/api/users');
   let rows = users.map(u => {
     let perms = [];
@@ -9742,6 +9999,50 @@ async function renderUsers() {
   </div>`;
 }
 
+async function _loadWaSettings() {
+  try {
+    const s = await GET('/api/admin/settings');
+    const enEl = document.getElementById('wa-enabled');
+    const phEl = document.getElementById('wa-phone');
+    const akEl = document.getElementById('wa-apikey');
+    const badge = document.getElementById('wa-status-badge');
+    const guide = document.getElementById('wa-setup-guide');
+    if (enEl) enEl.checked = !!s.whatsapp_enabled;
+    if (phEl) phEl.value  = s.whatsapp_admin_phone  || '';
+    if (akEl) akEl.value  = s.whatsapp_admin_apikey || '';
+    if (badge) {
+      const on = !!s.whatsapp_enabled && !!s.whatsapp_admin_phone && !!s.whatsapp_admin_apikey;
+      badge.textContent  = on ? '● Active' : '○ Not configured';
+      badge.style.background = on ? '#d1fae5' : '#fee2e2';
+      badge.style.color      = on ? '#065f46' : '#991b1b';
+    }
+    // Auto-collapse setup guide if already configured
+    if (guide && s.whatsapp_admin_phone && s.whatsapp_admin_apikey) {
+      guide.removeAttribute('open');
+    } else if (guide) {
+      guide.setAttribute('open', '');
+    }
+  } catch(e) { /* ignore */ }
+}
+
+async function _saveWaSettings() {
+  const saveEl = document.getElementById('wa-save-result');
+  if (saveEl) { saveEl.textContent = 'Saving…'; saveEl.style.color = 'var(--text-3)'; }
+  try {
+    const payload = {
+      whatsapp_enabled:      document.getElementById('wa-enabled')?.checked || false,
+      whatsapp_admin_phone:  document.getElementById('wa-phone')?.value.trim() || '',
+      whatsapp_admin_apikey: document.getElementById('wa-apikey')?.value.trim() || '',
+    };
+    await PUT('/api/admin/settings', payload);
+    if (saveEl) { saveEl.textContent = '✓ Saved'; saveEl.style.color = 'var(--cardamom)'; }
+    setTimeout(() => { if (saveEl) saveEl.textContent = ''; }, 3000);
+    await _loadWaSettings(); // refresh badge
+  } catch(e) {
+    if (saveEl) { saveEl.textContent = '✗ ' + e.message; saveEl.style.color = 'var(--chili)'; }
+  }
+}
+
 async function _testWhatsApp() {
   const el = document.getElementById('wa-test-result');
   if (el) { el.textContent = 'Sending…'; el.style.color = 'var(--text-3)'; }
@@ -9773,7 +10074,7 @@ function showNewUserForm() {
           <option value="sales">Sales</option>
           <option value="warehouse">Warehouse</option>
           <option value="accountant">Accountant</option>
-          <option value="field_rep">Field Rep</option>
+          <option value="field_rep">Sales Rep</option>
           <option value="admin">Administrator (full access)</option>
         </select>
       </div>
@@ -9803,7 +10104,7 @@ async function saveNewUser() {
   const role     = document.getElementById('nu-role').value;
   if (!username || !password) { showMsg('user-msg','Username and password are required','error'); return; }
   const perms = role !== 'admin' ? getPermGridValues('nu') : [];
-  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
+  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
   try {
     const res = await POST('/api/users', {
       username,
@@ -9832,7 +10133,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
           <option value="sales" ${role==='sales'?'selected':''}>Sales</option>
           <option value="warehouse" ${role==='warehouse'?'selected':''}>Warehouse</option>
           <option value="accountant" ${role==='accountant'?'selected':''}>Accountant</option>
-          <option value="field_rep" ${role==='field_rep'?'selected':''}>Field Rep</option>
+          <option value="field_rep" ${role==='field_rep'?'selected':''}>Sales Rep</option>
           <option value="admin" ${role==='admin'?'selected':''}>Administrator (full access)</option>
         </select>
       </div>
@@ -9868,7 +10169,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
 async function saveEditUser(id) {
   const role  = document.getElementById('eu-role').value;
   const perms = role !== 'admin' ? getPermGridValues('eu') : [];
-  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
+  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
   try {
     await PUT('/api/users/' + id, {
       displayName: document.getElementById('eu-disp').value.trim(),
@@ -10311,14 +10612,13 @@ async function pmConfirmImport() {
 // ═══════════════════════════════════════════════════════════════════
 
 async function renderSalesReps() {
-  const [reps, zones, routes] = await Promise.all([
+  const [reps, zones] = await Promise.all([
     GET('/api/reps'),
     GET('/api/zones'),
-    GET('/api/routes'),
   ]);
 
-  const routeOpts = routes.map(r =>
-    `<option value="${r.id}">${r.name} (${r.zone_name})</option>`).join('');
+  const zoneOpts = zones.map(z =>
+    `<option value="${z.id}">${z.name}</option>`).join('');
 
   const rows = reps.map(rep => `
     <tr id="rep-row-${rep.id}">
@@ -10327,10 +10627,10 @@ async function renderSalesReps() {
       <td>${escQ(rep.phone||'')}</td>
       <td>${escQ(rep.designation||'')}</td>
       <td><span style="color:${rep.status==='active'?'var(--cardamom)':'var(--chili)'}">${rep.status||'active'}</span></td>
-      <td>${escQ(rep.assigned_routes||'—')}</td>
+      <td>${escQ(rep.zone_name||'—')}</td>
       <td>
         <button class="btn-sm" onclick="viewRepDetail(${rep.id})" style="background:var(--saffron)">Detail</button>
-        <button class="btn-sm" onclick="showAssignRoute(${rep.id})" style="background:var(--turmeric)">+ Route</button>
+        <button class="btn-sm" onclick="showAssignZone(${rep.id})" style="background:var(--turmeric)">Assign Zone</button>
         <button class="btn-sm" onclick="resetPin(${rep.id})" style="background:var(--text-3);color:#fff">Reset PIN</button>
       </td>
     </tr>
@@ -10361,25 +10661,25 @@ async function renderSalesReps() {
       <table class="data-table">
         <thead><tr>
           <th>Emp ID</th><th>Name</th><th>Phone</th><th>Designation</th>
-          <th>Status</th><th>Routes</th><th>Actions</th>
+          <th>Status</th><th>Zone</th><th>Actions</th>
         </tr></thead>
         <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No reps yet</td></tr>'}</tbody>
       </table>
     </div>
 
-    <!-- Assign route modal-style inline panel -->
-    <div id="assign-route-panel" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    <!-- Assign zone modal -->
+    <div id="assign-zone-panel" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
       background:#fff;border-radius:12px;padding:24px;min-width:320px;z-index:1000;box-shadow:0 8px 40px rgba(0,0,0,.25)">
-      <h3 style="margin:0 0 16px">Assign Route to Rep</h3>
+      <h3 style="margin:0 0 16px">Assign Zone to Rep</h3>
       <input type="hidden" id="assign-rep-id">
-      <label class="form-label">Select Route</label>
-      <select class="form-input" id="assign-route-select">${routeOpts}</select>
+      <label class="form-label">Select Zone</label>
+      <select class="form-input" id="assign-zone-select">${zoneOpts}</select>
       <div style="display:flex;gap:8px;margin-top:16px">
-        <button class="btn btn-primary" onclick="doAssignRoute()">Assign</button>
-        <button class="btn" onclick="closeAssignRoute()">Cancel</button>
+        <button class="btn btn-primary" onclick="doAssignZone()">Assign</button>
+        <button class="btn" onclick="closeAssignZone()">Cancel</button>
       </div>
     </div>
-    <div id="assign-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999" onclick="closeAssignRoute()"></div>
+    <div id="assign-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999" onclick="closeAssignZone()"></div>
 
     <!-- Rep detail panel -->
     <div id="rep-detail-panel" style="display:none;position:fixed;top:0;right:0;height:100%;width:420px;
@@ -10407,21 +10707,27 @@ async function saveNewRep() {
   } catch(e) { alert('Error: ' + e.message); }
 }
 
-function showAssignRoute(repId) {
+function showAssignZone(repId) {
+  const sel = document.getElementById('assign-zone-select');
+  if (!sel || sel.options.length === 0) {
+    alert('No zones exist yet. Please create zones first in the Zones & Routes section.');
+    return;
+  }
   document.getElementById('assign-rep-id').value = repId;
-  document.getElementById('assign-route-panel').style.display = 'block';
+  document.getElementById('assign-zone-panel').style.display = 'block';
   document.getElementById('assign-overlay').style.display = 'block';
 }
-function closeAssignRoute() {
-  document.getElementById('assign-route-panel').style.display = 'none';
+function closeAssignZone() {
+  document.getElementById('assign-zone-panel').style.display = 'none';
   document.getElementById('assign-overlay').style.display = 'none';
 }
-async function doAssignRoute() {
-  const repId   = document.getElementById('assign-rep-id').value;
-  const routeId = document.getElementById('assign-route-select').value;
+async function doAssignZone() {
+  const repId  = document.getElementById('assign-rep-id').value;
+  const zoneId = document.getElementById('assign-zone-select').value;
+  if (!zoneId) { alert('Please select a zone.'); return; }
   try {
-    await POST(`/api/reps/${repId}/routes`, {routeId: parseInt(routeId)});
-    closeAssignRoute();
+    await PUT(`/api/reps/${repId}`, {zoneId: parseInt(zoneId)});
+    closeAssignZone();
     nav('sales-reps');
   } catch(e) { alert('Error: ' + e.message); }
 }
@@ -10463,10 +10769,14 @@ async function viewRepDetail(repId) {
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <h2 style="margin:0">${escQ(rep.name)}</h2>
-      <button onclick="closeRepDetail()" style="background:none;border:none;font-size:20px;cursor:pointer">✕</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="editRep(${rep.id})" style="font-size:12px;padding:6px 14px">✏️ Edit</button>
+        <button onclick="closeRepDetail()" style="background:none;border:none;font-size:20px;cursor:pointer">✕</button>
+      </div>
     </div>
 
-    <div style="background:var(--bg-2);border-radius:8px;padding:14px;margin-bottom:16px">
+    <!-- View mode -->
+    <div id="rep-info-view-${rep.id}" style="background:var(--bg-2);border-radius:8px;padding:14px;margin-bottom:16px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
         <div><span style="color:var(--text-3)">ID</span><br><b>${escQ(rep.employee_id||'')}</b></div>
         <div><span style="color:var(--text-3)">Phone</span><br><b>${escQ(rep.phone||'')}</b></div>
@@ -10475,6 +10785,44 @@ async function viewRepDetail(repId) {
           <b style="color:${rep.status==='active'?'var(--cardamom)':'var(--chili)'}">${rep.status||'active'}</b></div>
         <div><span style="color:var(--text-3)">Join Date</span><br><b>${escQ(rep.joining_date||'—')}</b></div>
         <div><span style="color:var(--text-3)">Email</span><br><b>${escQ(rep.email||'—')}</b></div>
+      </div>
+    </div>
+
+    <!-- Edit mode (hidden by default) -->
+    <div id="rep-edit-form-${rep.id}" style="display:none;background:#f0f7ff;border:1px solid #93c5fd;border-radius:8px;padding:14px;margin-bottom:16px">
+      <h4 style="margin:0 0 12px;font-size:13px;color:var(--saffron)">Edit Rep Profile</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;margin-bottom:10px">
+        <div><label class="form-label">Full Name</label>
+          <input class="form-input" id="edit-name-${rep.id}" value="${escQ(rep.name||'')}"></div>
+        <div><label class="form-label">Phone</label>
+          <input class="form-input" id="edit-phone-${rep.id}" value="${escQ(rep.phone||'')}"></div>
+        <div><label class="form-label">Designation</label>
+          <input class="form-input" id="edit-desig-${rep.id}" value="${escQ(rep.designation||'')}"></div>
+        <div><label class="form-label">Status</label>
+          <select class="form-input" id="edit-status-${rep.id}">
+            <option value="active" ${(rep.status||'active')==='active'?'selected':''}>Active</option>
+            <option value="inactive" ${rep.status==='inactive'?'selected':''}>Inactive</option>
+          </select></div>
+        <div><label class="form-label">Email</label>
+          <input class="form-input" id="edit-email-${rep.id}" value="${escQ(rep.email||'')}"></div>
+        <div><label class="form-label">Join Date</label>
+          <input class="form-input" type="date" id="edit-joindate-${rep.id}" value="${escQ(rep.joining_date||'')}"></div>
+      </div>
+      <h4 style="margin:10px 0 8px;font-size:13px;color:var(--saffron)">Compensation</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;margin-bottom:12px">
+        <div><label class="form-label">Basic Salary (PKR)</label>
+          <input class="form-input" type="number" id="edit-salary-${rep.id}" value="${salary.basic_salary||0}"></div>
+        <div><label class="form-label">Fuel Allowance</label>
+          <input class="form-input" type="number" id="edit-fuel-${rep.id}" value="${salary.fuel_allowance||0}"></div>
+        <div><label class="form-label">Mobile Allowance</label>
+          <input class="form-input" type="number" id="edit-mobile-${rep.id}" value="${salary.mobile_allowance||0}"></div>
+        <div><label class="form-label">Commission %</label>
+          <input class="form-input" type="number" step="0.1" id="edit-comm-${rep.id}" value="${comm.base_commission_pct||0}"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="saveRepEdit(${rep.id})">💾 Save Changes</button>
+        <button class="btn" onclick="cancelRepEdit(${rep.id})">Cancel</button>
+        <span id="edit-rep-status-${rep.id}" style="font-size:12px"></span>
       </div>
     </div>
 
@@ -10551,6 +10899,43 @@ async function viewRepDetail(repId) {
 function closeRepDetail() {
   document.getElementById('rep-detail-panel').style.display = 'none';
   document.getElementById('rep-detail-overlay').style.display = 'none';
+}
+
+function editRep(repId) {
+  document.getElementById(`rep-info-view-${repId}`)?.style.setProperty('display','none');
+  document.getElementById(`rep-edit-form-${repId}`)?.style.setProperty('display','block');
+}
+
+function cancelRepEdit(repId) {
+  document.getElementById(`rep-edit-form-${repId}`)?.style.setProperty('display','none');
+  document.getElementById(`rep-info-view-${repId}`)?.style.setProperty('display','block');
+}
+
+async function saveRepEdit(repId) {
+  const statusEl = document.getElementById(`edit-rep-status-${repId}`);
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-3)'; }
+  try {
+    const payload = {
+      name:           document.getElementById(`edit-name-${repId}`)?.value.trim(),
+      phone:          document.getElementById(`edit-phone-${repId}`)?.value.trim(),
+      designation:    document.getElementById(`edit-desig-${repId}`)?.value.trim(),
+      status:         document.getElementById(`edit-status-${repId}`)?.value,
+      email:          document.getElementById(`edit-email-${repId}`)?.value.trim(),
+      joinDate:       document.getElementById(`edit-joindate-${repId}`)?.value,
+      baseSalary:     parseFloat(document.getElementById(`edit-salary-${repId}`)?.value) || 0,
+      fuelAllowance:  parseFloat(document.getElementById(`edit-fuel-${repId}`)?.value)   || 0,
+      mobileAllowance:parseFloat(document.getElementById(`edit-mobile-${repId}`)?.value) || 0,
+      commissionPct:  parseFloat(document.getElementById(`edit-comm-${repId}`)?.value)   || 0,
+    };
+    await PUT(`/api/reps/${repId}`, payload);
+    if (statusEl) { statusEl.textContent = '✓ Saved'; statusEl.style.color = 'var(--cardamom)'; }
+    setTimeout(() => {
+      cancelRepEdit(repId);
+      viewRepDetail(repId); // reload detail panel with updated data
+    }, 800);
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = '✗ ' + e.message; statusEl.style.color = 'var(--chili)'; }
+  }
 }
 
 async function saveRepWaKey(repId) {
@@ -10717,28 +11102,33 @@ async function saveNewRoute() {
 //  FIELD ORDERS PAGE
 // ═══════════════════════════════════════════════════════════════════
 
-async function renderFieldOrders() {
-  const [orders, reps] = await Promise.all([GET('/api/field-orders'), GET('/api/reps')]);
-  const repOpts = reps.map(r => `<option value="${r.id}">${escQ(r.name)}</option>`).join('');
-
+function _foRow(o) {
   const statusColor = {pending:'var(--saffron)', confirmed:'var(--cardamom)', cancelled:'var(--chili)'};
-
-  const rows = orders.map(o => `
+  const sourceBadge = o._source === 'portal'
+    ? `<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#e8f0fe;color:#1a56db;margin-left:4px">PWA</span>`
+    : '';
+  return `
     <tr>
       <td>${o.order_date||''}</td>
-      <td>${escQ(o.rep_name||'')}</td>
+      <td>${escQ(o.rep_name||'—')}${sourceBadge}</td>
       <td>${escQ(o.customer_name||'')}</td>
       <td>${escQ(o.route_name||'—')}</td>
       <td style="color:${statusColor[o.status]||'inherit'}">${o.status||''}</td>
       <td style="text-align:right">PKR ${(o.order_total||0).toLocaleString()}</td>
       <td style="white-space:nowrap">
-        ${o.status==='pending' ? `<button class="btn-sm" onclick="confirmOrder(${o.id})" style="background:var(--cardamom);color:#fff">Confirm</button>` : ''}
+        ${o.status==='pending' ? `<button class="btn-sm" onclick="confirmOrder(${o.id},'${o._source||'legacy'}')" style="background:var(--cardamom);color:#fff">Confirm</button>` : ''}
         ${o.status==='confirmed' && o.invoice_id ? `
           <button class="btn-sm btn-outline" onclick="printInvoice(${o.invoice_id})" title="Print Invoice" style="margin-left:4px">🖨️</button>
           <button class="btn-sm btn-outline" onclick="emailInvoice(${o.invoice_id})" title="Email Invoice" style="margin-left:2px">✉️</button>` : ''}
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No field orders yet</td></tr>';
+  `;
+}
+
+async function renderFieldOrders() {
+  const [orders, reps] = await Promise.all([GET('/api/field-orders'), GET('/api/reps')]);
+  const repOpts = reps.map(r => `<option value="${r.id}">${escQ(r.name)}</option>`).join('');
+  const rows = orders.map(_foRow).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No field orders yet</td></tr>';
 
   return `
     <div class="page-header"><h2>Field Orders</h2></div>
@@ -10762,13 +11152,29 @@ async function renderFieldOrders() {
   `;
 }
 
-async function confirmOrder(orderId) {
-  if (!confirm('Confirm this field order? This will create an invoice.')) return;
+async function confirmOrder(orderId, source) {
+  if (!confirm('Confirm this order and create an invoice?')) return;
   try {
-    const res = await POST(`/api/field-orders/${orderId}/confirm`, {});
-    const invId = res.invoiceId || res.invoice_id || res.id;
-    const doPrint = invId && confirm(`✅ Order confirmed — Invoice ${res.invoiceNumber || res.invoice_number || ''} created.\n\nPrint the invoice now?`);
-    if (doPrint) await printInvoice(invId);
+    let res;
+    if (source === 'portal') {
+      // Portal orders live in customer_orders — confirm then auto-invoice
+      res = await POST(`/api/customer-orders/${orderId}/confirm`, {});
+      // Try to auto-generate invoice
+      try {
+        const invRes = await POST(`/api/customer-orders/${orderId}/invoice`, {invoiceDate: new Date().toISOString().slice(0,10)});
+        const invId = invRes.id || invRes.invoiceId;
+        const doPrint = invId && confirm(`✅ Order confirmed — Invoice ${invRes.invoiceNumber || ''} created.\n\nPrint the invoice now?`);
+        if (doPrint) await printInvoice(invId);
+      } catch(invErr) {
+        alert(`✅ Order confirmed.\n\nNote: Could not auto-create invoice: ${invErr.message}\nYou can invoice it from Orders & Invoices.`);
+      }
+    } else {
+      // Legacy field_orders
+      res = await POST(`/api/field-orders/${orderId}/confirm`, {});
+      const invId = res.invoiceId || res.invoice_id || res.id;
+      const doPrint = invId && confirm(`✅ Order confirmed — Invoice ${res.invoiceNumber || res.invoice_number || ''} created.\n\nPrint the invoice now?`);
+      if (doPrint) await printInvoice(invId);
+    }
     nav('field-orders');
   } catch(e) { alert('Error: ' + e.message); }
 }
@@ -10781,23 +11187,8 @@ async function filterFieldOrders() {
   if (status) url += `status=${status}`;
   let orders = [];
   try { orders = await GET(url); } catch(e) { orders = []; }
-  const statusColor = {pending:'var(--saffron)', confirmed:'var(--cardamom)', cancelled:'var(--chili)'};
-  document.getElementById('fo-tbody').innerHTML = orders.map(o => `
-    <tr>
-      <td>${o.order_date||''}</td>
-      <td>${escQ(o.rep_name||'')}</td>
-      <td>${escQ(o.customer_name||'')}</td>
-      <td>${escQ(o.route_name||'—')}</td>
-      <td style="color:${statusColor[o.status]||'inherit'}">${o.status||''}</td>
-      <td style="text-align:right">PKR ${(o.order_total||0).toLocaleString()}</td>
-      <td style="white-space:nowrap">
-        ${o.status==='pending' ? `<button class="btn-sm" onclick="confirmOrder(${o.id})" style="background:var(--cardamom);color:#fff">Confirm</button>` : ''}
-        ${o.status==='confirmed' && o.invoice_id ? `
-          <button class="btn-sm btn-outline" onclick="printInvoice(${o.invoice_id})" title="Print Invoice" style="margin-left:4px">🖨️</button>
-          <button class="btn-sm btn-outline" onclick="emailInvoice(${o.invoice_id})" title="Email Invoice" style="margin-left:2px">✉️</button>` : ''}
-      </td>
-    </tr>
-  `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No orders</td></tr>';
+  document.getElementById('fo-tbody').innerHTML =
+    orders.map(_foRow).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-3)">No orders</td></tr>';
 }
 
 
@@ -11239,36 +11630,59 @@ async function renderSystem() {
       </div>
     </div>
 
-    <div class="card" style="max-width:720px;margin-top:20px;border-top:3px solid #25D366">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="card" id="wa-settings-card" style="max-width:720px;margin-top:20px;border-top:3px solid #25D366">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <div>
           <h3 style="margin:0">📱 WhatsApp Notifications</h3>
           <p style="margin:4px 0 0;font-size:12px;color:var(--text-3)">
-            Powered by CallMeBot (free). Admin is notified of new orders, approvals, rejections and hold expiries.
-            <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" style="color:var(--mac-blue)">Setup guide →</a>
+            Powered by <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" style="color:var(--saffron)">CallMeBot (free)</a>.
+            Admin is notified of new orders, approvals, rejections and hold expiries.
           </p>
         </div>
-        <button class="btn btn-outline" onclick="_testWhatsApp()" style="font-size:12px;white-space:nowrap">
-          📤 Send Test Message
-        </button>
+        <span id="wa-status-badge" style="font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600"></span>
       </div>
-      <div style="background:var(--surface-2);border-radius:8px;padding:12px;font-size:12px">
-        <p style="margin:0 0 8px;color:var(--text-2)"><strong>To enable notifications:</strong></p>
-        <ol style="margin:0;padding-left:20px;line-height:2;color:var(--text-2)">
-          <li>Add <strong>+34 644 60 60 47</strong> to your WhatsApp contacts as "CallMeBot"</li>
-          <li>Send this message to that number: <code style="background:var(--surface-3);padding:1px 6px;border-radius:4px">I allow callmebot to send me messages</code></li>
-          <li>You'll receive your API key via WhatsApp within 60 seconds</li>
-          <li>Add these lines to <strong>config.json</strong> in the server folder:</li>
+
+      <!-- Step-by-step setup guide (collapsed when already configured) -->
+      <details id="wa-setup-guide" style="margin-bottom:16px">
+        <summary style="font-size:12px;color:var(--text-2);cursor:pointer;font-weight:600">📋 How to get your CallMeBot API key</summary>
+        <ol style="margin:8px 0 0;padding-left:20px;font-size:12px;line-height:2;color:var(--text-2)">
+          <li>Save <strong>+34 623 78 95 80</strong> in your WhatsApp contacts as "CallMeBot"</li>
+          <li>Send this exact message to that number via WhatsApp:<br>
+            <code style="background:var(--surface-3);padding:2px 8px;border-radius:4px;user-select:all">I allow callmebot to send me messages</code>
+          </li>
+          <li>You'll receive your API key within ~60 seconds</li>
+          <li>Enter your phone number and API key below, then click Save</li>
         </ol>
-        <pre style="background:var(--pepper);color:#e8f5e9;padding:10px 14px;border-radius:6px;margin:10px 0 0;font-size:11px;overflow-x:auto">{
-  "whatsapp_enabled": true,
-  "whatsapp_admin_phone": "923001234567",
-  "whatsapp_admin_apikey": "YOUR_KEY_HERE",
-  "whatsapp_expiry_warn_hours": 6
-}</pre>
-        <p style="margin:8px 0 0;color:var(--text-3)">Restart the server after editing config.json. For per-rep notifications, open their profile in Sales Reps and enter their CallMeBot API key.</p>
+      </details>
+
+      <!-- Config form -->
+      <div style="display:grid;gap:12px">
+        <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer">
+          <input type="checkbox" id="wa-enabled" style="width:16px;height:16px;cursor:pointer">
+          <span><strong>Enable WhatsApp notifications</strong></span>
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="form-label">Admin Phone (with country code)</label>
+            <input class="form-input" id="wa-phone" type="tel" placeholder="923001234567" style="font-family:monospace">
+            <p style="margin:3px 0 0;font-size:11px;color:var(--text-3)">No + or spaces. E.g. 923001234567</p>
+          </div>
+          <div>
+            <label class="form-label">CallMeBot API Key</label>
+            <input class="form-input" id="wa-apikey" type="text" placeholder="1234567" style="font-family:monospace">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="_saveWaSettings()" style="min-width:120px">💾 Save Settings</button>
+          <button class="btn btn-outline" onclick="_testWhatsApp()" style="min-width:140px">📤 Send Test Message</button>
+          <span id="wa-save-result" style="font-size:12px"></span>
+        </div>
       </div>
+
       <div id="wa-test-result" style="margin-top:8px;font-size:12px"></div>
+      <p style="margin:12px 0 0;font-size:11px;color:var(--text-3)">
+        Settings are saved to the database — no server restart needed. For per-rep notifications, open their profile in Sales Reps and enter their API key.
+      </p>
     </div>
 
     ${state.currentUser?.devTools ? `
