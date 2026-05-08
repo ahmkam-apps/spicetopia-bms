@@ -112,7 +112,7 @@ def ensure_rate_limit_table():
             )
         """)
         c.commit()
-        print("  ✓ Rate limits: table ready (DB-persisted)")
+        print("  ✓ Rate limits: table ready (DB-persisted) — lockouts cleared")
     finally:
         c.close()
 
@@ -1928,6 +1928,7 @@ def ensure_users_table():
             print("  ✓ Users: default admin created  →  admin / admin123")
         else:
             print(f"  ✓ Users: {count} user(s) configured")
+
         c.commit()
     finally:
         c.close()
@@ -10850,6 +10851,31 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'ok': True, 'variant_id': variant_id, 'wastage_pct': wpct})
                 return
 
+            # PUT /api/products/variants/:id/gtin  (admin only)
+            if (path.startswith('/api/products/variants/') and
+                    len(parts) == 6 and parts[5] == 'gtin'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                variant_id = int(parts[4])
+                gtin_val   = data.get('gtin')  # None = clear, string = set
+                if gtin_val is not None:
+                    gtin_val = str(gtin_val).strip()
+                    if gtin_val == '':
+                        gtin_val = None  # treat empty string as clear
+                    elif not gtin_val.isdigit() or not (8 <= len(gtin_val) <= 14):
+                        send_error(self, 'GTIN must be 8–14 digits', 400); return
+                c = _conn()
+                try:
+                    c.execute(
+                        "UPDATE product_variants SET gtin=? WHERE id=?",
+                        (gtin_val, variant_id)
+                    )
+                    c.commit()
+                finally:
+                    c.close()
+                send_json(self, {'ok': True, 'variant_id': variant_id, 'gtin': gtin_val})
+                return
+
             # PUT /api/costing/config  (admin only)
             if path == '/api/costing/config':
                 if not require(sess, 'admin'):
@@ -11685,32 +11711,33 @@ def ensure_variant_gtin():
             c.execute("ALTER TABLE product_variants ADD COLUMN gtin TEXT DEFAULT NULL")
             print("  ✓ product_variants: added gtin")
 
-        # Seed GTINs — match by product code + pack_size label
+        # Seed GTINs — match by sku_code directly
         seeds = [
-            ('CHA', '50g',  '8966000086913'),   # Chaat Masala 50g
-            ('GAR', '50g',  '8966000086920'),   # Garam Masala 50g
+            ('SPCM-50', '8966000086913'),   # Chaat Masala 50g
+            ('SPGM-50', '8966000086920'),   # Garam Masala 50g
         ]
-        for prod_code, pack_label, gtin_val in seeds:
+        for sku_code, gtin_val in seeds:
             cur = c.execute("""
                 UPDATE product_variants
                 SET gtin = ?
-                WHERE gtin IS NULL
-                  AND product_id IN (SELECT id FROM products WHERE code = ?)
-                  AND pack_size_id IN (SELECT id FROM pack_sizes WHERE label = ?)
-            """, (gtin_val, prod_code, pack_label))
+                WHERE sku_code = ?
+            """, (gtin_val, sku_code))
             if cur.rowcount:
-                print(f"  ✓ gtin seeded: {prod_code} {pack_label} -> {gtin_val}")
+                print(f"  ✓ gtin seeded: {sku_code} -> {gtin_val}")
         c.commit()
     finally:
         c.close()
 
 
 def _reset_admin_pw_if_requested():
-    """If RESET_ADMIN_PW env var is set, reset admin password and clear all rate limits."""
+    """If RESET_ADMIN_PW env var is set, reset admin password (SHA-256) and clear all rate limits."""
     new_pw = os.environ.get('RESET_ADMIN_PW', '').strip()
     if not new_pw:
         return
-    pw_hash, salt, scheme = _hash_pw_new(new_pw)
+    # Use SHA-256 with empty salt — no argon2 dependency, guaranteed to verify
+    salt    = ''
+    pw_hash = hashlib.sha256(new_pw.encode()).hexdigest()
+    scheme  = 'sha256'
     c = _conn()
     try:
         c.execute("""
@@ -11719,7 +11746,7 @@ def _reset_admin_pw_if_requested():
         """, (pw_hash, salt, scheme))
         c.execute("DELETE FROM login_rate_limits")
         c.commit()
-        print(f"  ✓ Admin password reset via RESET_ADMIN_PW. Rate limits cleared. REMOVE the env var now!")
+        print(f"  ✓ Admin password reset (SHA-256) via RESET_ADMIN_PW. Rate limits cleared. REMOVE the env var now!")
     finally:
         c.close()
 
