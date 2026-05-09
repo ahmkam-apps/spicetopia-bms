@@ -6806,8 +6806,8 @@ def import_products_master(rows):
     """Upsert products and their variants from master rows.
 
     Supports one-row-per-variant format with explicit sku_code:
-      product_code, product_name, sku_code, pack_size
-      GM, Garam Masala, SPGM-50, 50g
+      product_code, product_name, sku_code, pack_size, gtin (optional)
+      GM, Garam Masala, SPGM-50, 50g, 8966000086920
 
     Returns {imported, updated, errors}.
     'imported'/'updated' count product rows (not variants).
@@ -6856,16 +6856,27 @@ def import_products_master(rows):
                 ps_row = c.execute("SELECT id FROM pack_sizes WHERE label=?", (ps_label,)).fetchone()
             ps_id = ps_row[0]
 
+            # Optional gtin — validate if provided
+            gtin_val = row.get('gtin', '').strip() or None
+            if gtin_val:
+                if not gtin_val.isdigit() or not (8 <= len(gtin_val) <= 14):
+                    errors.append(f"Row {i}: gtin '{gtin_val}' must be 8–14 digits — skipping gtin")
+                    gtin_val = None
+
             # Upsert variant with explicit sku_code
             existing_var = c.execute(
                 "SELECT id FROM product_variants WHERE sku_code=?", (sku_code,)).fetchone()
             if existing_var:
-                c.execute("""UPDATE product_variants SET product_id=?, pack_size_id=?, active_flag=1
-                             WHERE sku_code=?""", (prod_id, ps_id, sku_code))
+                if gtin_val is not None:
+                    c.execute("""UPDATE product_variants SET product_id=?, pack_size_id=?, active_flag=1, gtin=?
+                                 WHERE sku_code=?""", (prod_id, ps_id, gtin_val, sku_code))
+                else:
+                    c.execute("""UPDATE product_variants SET product_id=?, pack_size_id=?, active_flag=1
+                                 WHERE sku_code=?""", (prod_id, ps_id, sku_code))
                 variant_updated += 1
             else:
-                c.execute("""INSERT INTO product_variants (sku_code, product_id, pack_size_id, active_flag)
-                             VALUES (?,?,?,1)""", (sku_code, prod_id, ps_id))
+                c.execute("""INSERT INTO product_variants (sku_code, product_id, pack_size_id, active_flag, gtin)
+                             VALUES (?,?,?,1,?)""", (sku_code, prod_id, ps_id, gtin_val))
                 variant_imported += 1
 
         c.commit()
@@ -7305,7 +7316,7 @@ def _master_template_csv(master_type):
     templates = {
         'customers':    'code,name,customer_type,category,city,phone,email,payment_terms_days\nSP-CUST-0001,Example Customer,RETAIL,General,Karachi,0300-0000000,email@example.com,30\n',
         'suppliers':    'code,name,contact,phone,email,city,address\nSP-SUP-0001,Example Supplier,Contact Name,0300-0000000,email@example.com,Karachi,Address here\n',
-        'products':     'product_code,product_name,sku_code,pack_size\nSPGM,Garam Masala,SPGM-50,50g\nSPGM,Garam Masala,SPGM-100,100g\nSPGM,Garam Masala,SPGM-1000,1000g\n',
+        'products':     'product_code,product_name,sku_code,pack_size,gtin\nSPGM,Garam Masala,SPGM-50,50g,8966000086920\nSPGM,Garam Masala,SPGM-100,100g,\nSPGM,Garam Masala,SPGM-1000,1000g,\n',
         'prices':       'product_code,pack_size,price_type,price,effective_from\nP001,50g,retail_mrp,150,2026-01-01\nP001,50g,ex_factory,120,2026-01-01\n',
         'ingredients':  'code,name,cost_per_kg,unit\nING-001SP,Zeera (Pakistani),1380,kg\nING-002SP,Dhaniya (Sabit),520,kg\n',
     }
