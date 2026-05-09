@@ -11531,7 +11531,7 @@ function renderMasterData() {
     { key: 'ingredients', label: 'Ingredients', icon: '🌿',
       columns: 'code (e.g. ING-001SP), name, cost_per_kg, unit (default: kg) — reorder level set manually in app' },
     { key: 'products', label: 'Products & Variants', icon: '🌶️',
-      columns: 'product_code (e.g. SPGM), product_name, sku_code (e.g. SPGM-50), pack_size (e.g. 50g) — one row per variant' },
+      columns: 'product_code (e.g. SPGM), product_name, sku_code (e.g. SPGM-50), pack_size (e.g. 50g), gtin (optional, 8–14 digits) — one row per variant' },
   ];
 
   return `
