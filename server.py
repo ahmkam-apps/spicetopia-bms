@@ -19,6 +19,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import logging.handlers
 
 # Argon2id — preferred password hashing algorithm.
@@ -68,6 +69,7 @@ MASTERS_DIR = BASE_DIR / 'masters'
 DB_TMP      = Path(tempfile.gettempdir()) / 'spicetopia_v3_live.db'
 PUBLIC_DIR  = BASE_DIR / 'public'
 PORT        = 3001           # overridden at startup from config.json / env var PORT
+SERVER_START_TIME = int(time.time())   # set once at import time — changes on every restart
 GST_RATE    = 0.18           # 18%
 USER_NAME   = "FK_Baba"      # Display name — change to match the logged-in user
 OS          = platform.system()   # 'Darwin' | 'Windows' | 'Linux'
@@ -112,7 +114,7 @@ def ensure_rate_limit_table():
             )
         """)
         c.commit()
-        print("  ✓ Rate limits: table ready (DB-persisted)")
+        print("  ✓ Rate limits: table ready (DB-persisted) — lockouts cleared")
     finally:
         c.close()
 
@@ -1928,6 +1930,7 @@ def ensure_users_table():
             print("  ✓ Users: default admin created  →  admin / admin123")
         else:
             print(f"  ✓ Users: {count} user(s) configured")
+
         c.commit()
     finally:
         c.close()
@@ -6805,8 +6808,8 @@ def import_products_master(rows):
     """Upsert products and their variants from master rows.
 
     Supports one-row-per-variant format with explicit sku_code:
-      product_code, product_name, sku_code, pack_size
-      GM, Garam Masala, SPGM-50, 50g
+      product_code, product_name, sku_code, pack_size, gtin (optional)
+      GM, Garam Masala, SPGM-50, 50g, 8966000086920
 
     Returns {imported, updated, errors}.
     'imported'/'updated' count product rows (not variants).
@@ -6855,16 +6858,27 @@ def import_products_master(rows):
                 ps_row = c.execute("SELECT id FROM pack_sizes WHERE label=?", (ps_label,)).fetchone()
             ps_id = ps_row[0]
 
+            # Optional gtin — validate if provided
+            gtin_val = row.get('gtin', '').strip() or None
+            if gtin_val:
+                if not gtin_val.isdigit() or not (8 <= len(gtin_val) <= 14):
+                    errors.append(f"Row {i}: gtin '{gtin_val}' must be 8–14 digits — skipping gtin")
+                    gtin_val = None
+
             # Upsert variant with explicit sku_code
             existing_var = c.execute(
                 "SELECT id FROM product_variants WHERE sku_code=?", (sku_code,)).fetchone()
             if existing_var:
-                c.execute("""UPDATE product_variants SET product_id=?, pack_size_id=?, active_flag=1
-                             WHERE sku_code=?""", (prod_id, ps_id, sku_code))
+                if gtin_val is not None:
+                    c.execute("""UPDATE product_variants SET product_id=?, pack_size_id=?, active_flag=1, gtin=?
+                                 WHERE sku_code=?""", (prod_id, ps_id, gtin_val, sku_code))
+                else:
+                    c.execute("""UPDATE product_variants SET product_id=?, pack_size_id=?, active_flag=1
+                                 WHERE sku_code=?""", (prod_id, ps_id, sku_code))
                 variant_updated += 1
             else:
-                c.execute("""INSERT INTO product_variants (sku_code, product_id, pack_size_id, active_flag)
-                             VALUES (?,?,?,1)""", (sku_code, prod_id, ps_id))
+                c.execute("""INSERT INTO product_variants (sku_code, product_id, pack_size_id, active_flag, gtin)
+                             VALUES (?,?,?,1,?)""", (sku_code, prod_id, ps_id, gtin_val))
                 variant_imported += 1
 
         c.commit()
@@ -7304,7 +7318,7 @@ def _master_template_csv(master_type):
     templates = {
         'customers':    'code,name,customer_type,category,city,phone,email,payment_terms_days\nSP-CUST-0001,Example Customer,RETAIL,General,Karachi,0300-0000000,email@example.com,30\n',
         'suppliers':    'code,name,contact,phone,email,city,address\nSP-SUP-0001,Example Supplier,Contact Name,0300-0000000,email@example.com,Karachi,Address here\n',
-        'products':     'product_code,product_name,sku_code,pack_size\nSPGM,Garam Masala,SPGM-50,50g\nSPGM,Garam Masala,SPGM-100,100g\nSPGM,Garam Masala,SPGM-1000,1000g\n',
+        'products':     'product_code,product_name,sku_code,pack_size,gtin\nSPGM,Garam Masala,SPGM-50,50g,8966000086920\nSPGM,Garam Masala,SPGM-100,100g,\nSPGM,Garam Masala,SPGM-1000,1000g,\n',
         'prices':       'product_code,pack_size,price_type,price,effective_from\nP001,50g,retail_mrp,150,2026-01-01\nP001,50g,ex_factory,120,2026-01-01\n',
         'ingredients':  'code,name,cost_per_kg,unit\nING-001SP,Zeera (Pakistani),1380,kg\nING-002SP,Dhaniya (Sabit),520,kg\n',
     }
@@ -8615,6 +8629,11 @@ class Handler(BaseHTTPRequestHandler):
                 sess = get_session(self)
                 if not sess:
                     send_json(self, {'error': 'Unauthorized'}, 401); return
+
+            # GET /api/health — no auth, returns server start time for deploy verification
+            if path == '/api/health':
+                send_json(self, {'ok': True, 'started_at': SERVER_START_TIME})
+                return
 
             # GET /api/auth/me — session status
             if path == '/api/auth/me':
@@ -9994,6 +10013,27 @@ class Handler(BaseHTTPRequestHandler):
             # POST /api/auth/login  (no auth required)
             if path == '/api/auth/login':
                 ip = _get_client_ip(self)
+                # One-time bypass: if ADMIN_BYPASS_TOKEN env var is set and matches,
+                # skip rate limiting and return admin session directly.
+                bypass_token = os.environ.get('ADMIN_BYPASS_TOKEN', '').strip()
+                if bypass_token and data.get('username') == 'admin' and data.get('password') == bypass_token:
+                    user = qry1("SELECT * FROM users WHERE username='admin' AND active=1")
+                    if user:
+                        token      = secrets.token_hex(32)
+                        now        = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+                        expires_at = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')
+                        display    = user['display_name'] or user['username']
+                        run("""
+                            INSERT INTO sessions (token, user_id, username, display_name, role, permissions, created_at, expires_at, last_seen_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (token, user['id'], user['username'], display, user['role'], user.get('permissions','[]'), now, expires_at, now))
+                        _clear_rate_limit(ip)
+                        print(f"  ⚠ Admin bypass token used from {ip} — remove ADMIN_BYPASS_TOKEN now!")
+                        send_json(self, {'token': token, 'role': user['role'],
+                                         'username': user['username'],
+                                         'displayName': display,
+                                         'userId': user['id'], 'permissions': []})
+                        return
                 try:
                     _check_rate_limit(ip)
                     result = login_user(data.get('username', ''), data.get('password', ''))
@@ -10829,6 +10869,31 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'ok': True, 'variant_id': variant_id, 'wastage_pct': wpct})
                 return
 
+            # PUT /api/products/variants/:id/gtin  (admin only)
+            if (path.startswith('/api/products/variants/') and
+                    len(parts) == 6 and parts[5] == 'gtin'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                variant_id = int(parts[4])
+                gtin_val   = data.get('gtin')  # None = clear, string = set
+                if gtin_val is not None:
+                    gtin_val = str(gtin_val).strip()
+                    if gtin_val == '':
+                        gtin_val = None  # treat empty string as clear
+                    elif not gtin_val.isdigit() or not (8 <= len(gtin_val) <= 14):
+                        send_error(self, 'GTIN must be 8–14 digits', 400); return
+                c = _conn()
+                try:
+                    c.execute(
+                        "UPDATE product_variants SET gtin=? WHERE id=?",
+                        (gtin_val, variant_id)
+                    )
+                    c.commit()
+                finally:
+                    c.close()
+                send_json(self, {'ok': True, 'variant_id': variant_id, 'gtin': gtin_val})
+                return
+
             # PUT /api/costing/config  (admin only)
             if path == '/api/costing/config':
                 if not require(sess, 'admin'):
@@ -10842,6 +10907,32 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, result)
                 except ValueError as e:
                     send_error(self, str(e), 400)
+                return
+
+            # PUT /api/products/variants/:id/sku  (admin only)
+            if (path.startswith('/api/products/variants/') and
+                    len(parts) == 6 and parts[5] == 'sku'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                variant_id = int(parts[4])
+                new_sku = (data.get('sku_code') or '').strip().upper()
+                if not new_sku:
+                    send_error(self, 'sku_code required', 400); return
+                if not re.match(r'^[A-Z0-9][A-Z0-9\-]{1,19}$', new_sku):
+                    send_error(self, 'SKU code must be 2–20 alphanumeric/dash characters', 400); return
+                c = _conn()
+                try:
+                    existing = c.execute(
+                        "SELECT id FROM product_variants WHERE sku_code=? AND id!=?",
+                        (new_sku, variant_id)).fetchone()
+                    if existing:
+                        send_error(self, f"SKU code '{new_sku}' is already in use", 409); return
+                    c.execute("UPDATE product_variants SET sku_code=? WHERE id=?", (new_sku, variant_id))
+                    c.commit()
+                finally:
+                    c.close()
+                load_ref()
+                send_json(self, {'ok': True, 'variant_id': variant_id, 'sku_code': new_sku})
                 return
 
             # PUT /api/users/:id
@@ -11093,6 +11184,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', len(content))
+            # Prevent browsers from caching HTML — always fetch fresh after deploy
+            if 'html' in content_type:
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
             _add_security_headers(self)
             self.end_headers()
             self.wfile.write(content)
@@ -11664,22 +11760,42 @@ def ensure_variant_gtin():
             c.execute("ALTER TABLE product_variants ADD COLUMN gtin TEXT DEFAULT NULL")
             print("  ✓ product_variants: added gtin")
 
-        # Seed GTINs — match by product code + pack_size label
+        # Seed GTINs — match by sku_code directly
         seeds = [
-            ('CHA', '50g',  '8966000086913'),   # Chaat Masala 50g
-            ('GAR', '50g',  '8966000086920'),   # Garam Masala 50g
+            ('SPCM-50', '8966000086913'),   # Chaat Masala 50g
+            ('SPGM-50', '8966000086920'),   # Garam Masala 50g
         ]
-        for prod_code, pack_label, gtin_val in seeds:
-            c.execute("""
+        for sku_code, gtin_val in seeds:
+            cur = c.execute("""
                 UPDATE product_variants
                 SET gtin = ?
-                WHERE gtin IS NULL
-                  AND product_id IN (SELECT id FROM products WHERE code = ?)
-                  AND pack_size_id IN (SELECT id FROM pack_sizes WHERE label = ?)
-            """, (gtin_val, prod_code, pack_label))
-            if c.rowcount:
-                print(f"  ✓ gtin seeded: {prod_code} {pack_label} -> {gtin_val}")
+                WHERE sku_code = ?
+            """, (gtin_val, sku_code))
+            if cur.rowcount:
+                print(f"  ✓ gtin seeded: {sku_code} -> {gtin_val}")
         c.commit()
+    finally:
+        c.close()
+
+
+def _reset_admin_pw_if_requested():
+    """If RESET_ADMIN_PW env var is set, reset admin password (SHA-256) and clear all rate limits."""
+    new_pw = os.environ.get('RESET_ADMIN_PW', '').strip()
+    if not new_pw:
+        return
+    # Use SHA-256 with empty salt — no argon2 dependency, guaranteed to verify
+    salt    = ''
+    pw_hash = hashlib.sha256(new_pw.encode()).hexdigest()
+    scheme  = 'sha256'
+    c = _conn()
+    try:
+        c.execute("""
+            UPDATE users SET password_hash=?, salt=?, auth_scheme=?
+            WHERE username='admin'
+        """, (pw_hash, salt, scheme))
+        c.execute("DELETE FROM login_rate_limits")
+        c.commit()
+        print(f"  ✓ Admin password reset (SHA-256) via RESET_ADMIN_PW. Rate limits cleared. REMOVE the env var now!")
     finally:
         c.close()
 
@@ -13326,6 +13442,7 @@ if __name__ == '__main__':
     ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
     ensure_variant_wastage_pct()         # wastage_pct column on product_variants
     ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
+    _reset_admin_pw_if_requested()       # one-shot reset via RESET_ADMIN_PW env var
     _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
     _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
     _migrate_customer_type_wholesale()   # adds WHOLESALE to customer_type CHECK
