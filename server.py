@@ -1781,13 +1781,13 @@ def generate_account_number(city, customer_type='RETAIL'):
 def backfill_customer_account_numbers():
     """
     One-time startup task (idempotent):
-      1. Delete test customers (SP-SP-CUST-0001 … SP-SP-CUST-0010) if they have no FK deps.
+      1. Delete test customers (SP-CUST-0001 … SP-CUST-0010) if they have no FK deps.
       2. Assign account_number to real customers that still have NULL.
     """
     c = _conn()
     try:
         # ── Delete test customers ─────────────────────────────────
-        test_codes = [f'SP-SP-CUST-{n:04d}' for n in range(1, 11)]
+        test_codes = [f'SP-CUST-{n:04d}' for n in range(1, 11)]
         for code in test_codes:
             row = c.execute("SELECT id FROM customers WHERE code=?", (code,)).fetchone()
             if not row:
@@ -3587,7 +3587,7 @@ def create_customer(data):
         {'field': 'email',        'label': 'Email',          'required': False, 'type': 'str', 'max': 120},
     ])
     # Sync counter before use to prevent UNIQUE constraint failures on Railway
-    _sync_counter_to_max('customer', 'customers', 'code', 'SP-SP-CUST-')
+    _sync_counter_to_max('customer', 'customers', 'code', 'SP-CUST-')
     code    = next_id('customer', 'SP-CUST')
     ctype   = data.get('customerType', 'RETAIL').upper()
     if ctype not in ('RETAIL', 'DIRECT', 'WHOLESALE'):
@@ -3596,11 +3596,11 @@ def create_customer(data):
     account_number = generate_account_number(city, ctype)
     ops = [("""
         INSERT INTO customers
-            (code, account_number, name, customer_type, category, city, address,
+            (code, account_number, name, customer_type, city, address,
              phone, email, default_pack, payment_terms_days)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
     """, (code, account_number, data['name'].strip(), ctype,
-          data.get('category',''), city,
+          city,
           data.get('address','').strip(),
           data.get('phone',''), data.get('email',''),
           data.get('defaultPack','50g'),
@@ -3618,7 +3618,6 @@ def update_customer(cust_id, data):
     mapping = {
         'name':             'name',
         'customerType':     'customer_type',
-        'category':         'category',
         'city':             'city',
         'address':          'address',
         'phone':            'phone',
@@ -6739,25 +6738,27 @@ def import_customers_master(rows):
             if not code or not name:
                 errors.append(f"Row {i}: code and name are required"); continue
             ctype = row.get('customer_type', 'RETAIL').strip().upper()
-            if ctype not in ('RETAIL', 'DIRECT'):
+            if ctype not in ('RETAIL', 'DIRECT', 'WHOLESALE'):
                 ctype = 'RETAIL'
+            address = row.get('address', '').strip()
             existing = c.execute("SELECT id FROM customers WHERE code=?", (code,)).fetchone()
             if existing:
-                c.execute("""UPDATE customers SET name=?, customer_type=?, category=?,
-                             city=?, phone=?, email=?, payment_terms_days=?, active=1
+                c.execute("""UPDATE customers SET name=?, customer_type=?,
+                             city=?, address=?, phone=?, email=?, payment_terms_days=?, active=1
                              WHERE code=?""",
                           (name, ctype,
-                           row.get('category',''), row.get('city',''),
+                           row.get('city',''), address,
                            row.get('phone',''), row.get('email',''),
-                           int(row.get('payment_terms_days', 30) or 30),
-                           code))
+                           int(row.get('payment_terms_days', 30) or 30), code))
                 updated += 1
             else:
-                c.execute("""INSERT INTO customers (code, name, customer_type, category,
-                             city, phone, email, payment_terms_days, active)
+                # account_number left NULL — backfill_customer_account_numbers() assigns
+                # it automatically on next server startup using city+type convention
+                c.execute("""INSERT INTO customers (code, name, customer_type,
+                             city, address, phone, email, payment_terms_days, active)
                              VALUES (?,?,?,?,?,?,?,?,1)""",
                           (code, name, ctype,
-                           row.get('category',''), row.get('city',''),
+                           row.get('city',''), address,
                            row.get('phone',''), row.get('email',''),
                            int(row.get('payment_terms_days', 30) or 30)))
                 imported += 1
@@ -7316,7 +7317,7 @@ def reactivate_ingredient(code):
 def _master_template_csv(master_type):
     """Return CSV template bytes for the given master type."""
     templates = {
-        'customers':    'code,name,customer_type,category,city,phone,email,payment_terms_days\nSP-CUST-0001,Example Customer,RETAIL,General,Karachi,0300-0000000,email@example.com,30\n',
+        'customers':    'code,name,customer_type,city,address,phone,email,payment_terms_days\nSP-CUST-0001,Example Customer,RETAIL,Karachi,123 Example St,0300-0000000,email@example.com,30\n',
         'suppliers':    'code,name,contact,phone,email,city,address\nSP-SUP-0001,Example Supplier,Contact Name,0300-0000000,email@example.com,Karachi,Address here\n',
         'products':     'product_code,product_name,sku_code,pack_size,gtin\nSPGM,Garam Masala,SPGM-50,50g,8966000086920\nSPGM,Garam Masala,SPGM-100,100g,\nSPGM,Garam Masala,SPGM-1000,1000g,\n',
         'prices':       'product_code,pack_size,price_type,price,effective_from\nP001,50g,retail_mrp,150,2026-01-01\nP001,50g,ex_factory,120,2026-01-01\n',
@@ -8920,21 +8921,39 @@ class Handler(BaseHTTPRequestHandler):
                 if not sess:
                     send_error(self, 'Unauthorized', 401); return
                 rows = qry("""
-                    SELECT code, account_number, name, customer_type, category,
-                           city, address, phone, email, payment_terms_days, credit_limit, created_at
-                    FROM customers WHERE COALESCE(active,1)=1
-                    ORDER BY name
+                    SELECT c.code, c.account_number, c.name, c.customer_type,
+                           c.city, c.address, c.phone, c.email, c.payment_terms_days,
+                           c.credit_limit, c.created_at,
+                           COALESCE(SUM(CASE WHEN i.status IN ('UNPAID','PARTIAL')
+                               THEN i.total - COALESCE(i.amount_paid,0) ELSE 0 END), 0) AS balance_due
+                    FROM customers c
+                    LEFT JOIN invoices i ON i.customer_id = c.id
+                    WHERE COALESCE(c.active,1)=1
+                    GROUP BY c.id
+                    ORDER BY c.name
                 """)
                 import io
                 buf = io.StringIO()
                 writer = csv.writer(buf)
-                writer.writerow(['code','account_number','name','customer_type','category',
-                                 'city','address','phone','email','payment_terms_days','credit_limit','created_at'])
+                # Columns match import template exactly for direct round-trip (export → import)
+                writer.writerow(['code','account_number','name','customer_type',
+                                 'city','address','phone','email','payment_terms_days',
+                                 'credit_limit','balance_due','created_at'])
                 for r in rows:
-                    writer.writerow([r['code'], r['account_number'] or '', r['name'],
-                                     r['customer_type'], r['category'], r['city'],
-                                     r['address'], r['phone'], r['email'],
-                                     r['payment_terms_days'], r['credit_limit'], r['created_at']])
+                    writer.writerow([
+                        r['code'],
+                        r['account_number'] or '',
+                        r['name'],
+                        r['customer_type'],
+                        r['city'] or '',
+                        r['address'] or '',
+                        r['phone'] or '',
+                        r['email'] or '',
+                        r['payment_terms_days'],
+                        r2(r['credit_limit']),
+                        r2(r['balance_due']),
+                        r['created_at']
+                    ])
                 csv_bytes = buf.getvalue().encode('utf-8')
                 fname = f"spicetopia_customers_{today()}.csv"
                 self.send_response(200)
@@ -11461,9 +11480,9 @@ def generate_master_templates():
         print(f"  ✓ Masters: created {MASTER_SUPPLIERS.name} ({len(sups)} suppliers)")
 
     if not MASTER_CUSTOMERS.exists():
-        custs = qry("SELECT code, name, customer_type, category, city, phone, email, payment_terms_days, default_pack FROM customers ORDER BY code")
+        custs = qry("SELECT code, name, customer_type, city, phone, email, payment_terms_days, default_pack FROM customers ORDER BY code")
         with open(MASTER_CUSTOMERS, 'w', newline='', encoding='utf-8') as f:
-            w = csv.DictWriter(f, fieldnames=['code','name','customer_type','category','city','phone','email','payment_terms_days','default_pack'])
+            w = csv.DictWriter(f, fieldnames=['code','name','customer_type','city','phone','email','payment_terms_days','default_pack'])
             w.writeheader()
             w.writerows(custs)
         print(f"  ✓ Masters: created {MASTER_CUSTOMERS.name} ({len(custs)} customers)")
@@ -11572,7 +11591,6 @@ def sync_master_files():
                     fields = {
                         'name':               (row.get('name') or '').strip(),
                         'customer_type':      (row.get('customer_type') or 'RETAIL').strip().upper(),
-                        'category':           (row.get('category') or '').strip(),
                         'city':               (row.get('city') or '').strip(),
                         'phone':              (row.get('phone') or '').strip(),
                         'email':              (row.get('email') or '').strip(),
@@ -11589,10 +11607,10 @@ def sync_master_files():
                     else:
                         c.execute("""
                             INSERT OR IGNORE INTO customers
-                                (code, name, customer_type, category, city, phone, email,
+                                (code, name, customer_type, city, phone, email,
                                  payment_terms_days, default_pack)
-                            VALUES (?,?,?,?,?,?,?,?,?)
-                        """, (code, fields['name'], fields['customer_type'], fields['category'],
+                            VALUES (?,?,?,?,?,?,?,?)
+                        """, (code, fields['name'], fields['customer_type'],
                               fields['city'], fields['phone'], fields['email'],
                               fields['payment_terms_days'], fields['default_pack']))
                         changes += 1
@@ -11876,6 +11894,31 @@ def ensure_variant_gtin():
             if cur.rowcount:
                 print(f"  ✓ gtin seeded: {prod_name} {grams}g -> {gtin_val}")
         c.commit()
+    finally:
+        c.close()
+
+
+def ensure_clean_customer_codes():
+    """One-time migration: fix SP-SP-CUST-XXXX double-prefix → SP-CUST-XXXX.
+    Updates customers table + denormalized cust_code in sales + customer_orders.
+    Idempotent — safe to run on every startup."""
+    c = _conn()
+    try:
+        bad = c.execute(
+            "SELECT id, code FROM customers WHERE code LIKE 'SP-SP-CUST-%'"
+        ).fetchall()
+        if not bad:
+            c.close()
+            return
+        for row in bad:
+            old_code = row['code']
+            new_code = old_code.replace('SP-SP-CUST-', 'SP-CUST-', 1)
+            c.execute("UPDATE customers SET code=? WHERE id=?", (new_code, row['id']))
+            c.execute("UPDATE sales SET cust_code=? WHERE cust_code=?", (new_code, old_code))
+            c.execute("UPDATE customer_orders SET cust_code=? WHERE cust_code=?", (new_code, old_code))
+            print(f"  ✓ customer code fixed: {old_code} → {new_code}")
+        c.commit()
+        print(f"  ✓ Fixed {len(bad)} customer code(s) — double-prefix removed")
     finally:
         c.close()
 
@@ -13544,6 +13587,7 @@ if __name__ == '__main__':
     ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
     ensure_variant_wastage_pct()         # wastage_pct column on product_variants
     ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
+    ensure_clean_customer_codes()        # fix SP-SP-CUST-* double-prefix → SP-CUST-*
     _reset_admin_pw_if_requested()       # one-shot reset via RESET_ADMIN_PW env var
     _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
     _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'

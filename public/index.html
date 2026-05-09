@@ -1282,10 +1282,6 @@ async function renderCustomers() {
   const inactiveCount = custs.length - activeCount;
   const totalBalance  = Object.values(_custBalances).reduce((s,v) => s+v, 0);
 
-  // Unique categories for filter dropdown
-  const cats = [...new Set(custs.map(c => c.category).filter(Boolean))].sort();
-  const catOptions = cats.map(c => `<option value="${c}">${c}</option>`).join('');
-
   return `
   <div class="section-header">
     <div>
@@ -1312,10 +1308,6 @@ async function renderCustomers() {
         <option value="DIRECT">Direct Sales</option>
         <option value="WHOLESALE">Wholesale</option>
       </select>
-      <select id="cf-cat" style="padding:6px 8px;border:1px solid var(--border);border-radius:4px" onchange="applyCustomerFilters()">
-        <option value="">All Categories</option>
-        ${catOptions}
-      </select>
       <select id="cf-balance" style="padding:6px 8px;border:1px solid var(--border);border-radius:4px" onchange="applyCustomerFilters()">
         <option value="">All Balances</option>
         <option value="outstanding">Has Outstanding Balance</option>
@@ -1340,7 +1332,6 @@ async function renderCustomers() {
             <th onclick="sortCustomers('account_number')" style="cursor:pointer;user-select:none">Account # <span id="cs-account_number"></span></th>
             <th onclick="sortCustomers('name')"    style="cursor:pointer;user-select:none">Name <span id="cs-name">▲</span></th>
             <th>Type</th>
-            <th onclick="sortCustomers('category')" style="cursor:pointer;user-select:none">Category <span id="cs-category"></span></th>
             <th onclick="sortCustomers('city')"    style="cursor:pointer;user-select:none">City <span id="cs-city"></span></th>
             <th>Phone</th>
             <th>Default Pack</th>
@@ -1356,7 +1347,7 @@ async function renderCustomers() {
 }
 
 function _buildCustomerRows(custs) {
-  if (!custs.length) return '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-3)">No customers match the current filters</td></tr>';
+  if (!custs.length) return '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-3)">No customers match the current filters</td></tr>';
   return custs.map(c => {
     const bal       = _custBalances[c.id] || 0;
     const isInactive = !c.active;
@@ -1372,7 +1363,6 @@ function _buildCustomerRows(custs) {
         ${isInactive ? '<span style="font-size:10px;color:var(--text-3);background:var(--border);padding:1px 5px;border-radius:3px;margin-left:4px">INACTIVE</span>' : ''}
       </td>
       <td><span class="badge badge-${(c.customer_type||'retail').toLowerCase()}">${c.customer_type||'—'}</span></td>
-      <td style="font-size:12px">${c.category||'—'}</td>
       <td>${c.city||'—'}</td>
       <td>${c.phone||'—'}</td>
       <td>${c.default_pack||'—'}</td>
@@ -1394,7 +1384,6 @@ function _buildCustomerRows(custs) {
 function applyCustomerFilters() {
   const search  = (document.getElementById('cf-search')?.value  || '').toLowerCase().trim();
   const type    = document.getElementById('cf-type')?.value    || '';
-  const cat     = document.getElementById('cf-cat')?.value     || '';
   const balance = document.getElementById('cf-balance')?.value || '';
   const status  = document.getElementById('cf-status')?.value  || 'active';
 
@@ -1403,7 +1392,6 @@ function applyCustomerFilters() {
     if (status === 'active'   && !isActive)  return false;
     if (status === 'inactive' &&  isActive)  return false;
     if (type && c.customer_type !== type)    return false;
-    if (cat  && c.category !== cat)          return false;
     const bal = _custBalances[c.id] || 0;
     if (balance === 'outstanding' && bal <= 0) return false;
     if (balance === 'clear'       && bal >  0) return false;
@@ -1442,7 +1430,7 @@ function sortCustomers(col) {
     _custSortDir = 1;
   }
   // Update header arrows
-  ['account_number','name','category','city','payment_terms_days','balance'].forEach(c => {
+  ['account_number','name','city','payment_terms_days','balance'].forEach(c => {
     const el = document.getElementById('cs-' + c);
     if (el) el.textContent = c === _custSortCol ? (_custSortDir === 1 ? '▲' : '▼') : '';
   });
@@ -1450,7 +1438,7 @@ function sortCustomers(col) {
 }
 
 function clearCustomerFilters() {
-  const ids = ['cf-search','cf-type','cf-cat','cf-balance','cf-status'];
+  const ids = ['cf-search','cf-type','cf-balance','cf-status'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1467,18 +1455,10 @@ function initCustomersTable() {
   applyCustomerFilters();
 }
 
-const CUSTOMER_CATEGORIES = [
-  'Restaurant / Cafe', 'Retail Shop', 'Wholesaler / Distributor',
-  'Hotel / Catering', 'Export', 'Corporate', 'Direct Consumer', 'Other'
-];
-
 function editCustomer(custId) {
   const cust = (state.allCustomers||state.ref.customers||[]).find(c => c.id === custId);
   if (!cust) return;
   const area = document.getElementById('customer-form-area');
-  const catOptions = CUSTOMER_CATEGORIES.map(cat =>
-    `<option value="${cat}" ${(cust.category||'')=== cat?'selected':''}>${cat}</option>`
-  ).join('');
   const accNum = cust.account_number || cust.code;
   area.innerHTML = `
   <div class="card mb-16" style="border-top:3px solid var(--mac-blue)">
@@ -1491,12 +1471,7 @@ function editCustomer(custId) {
         <select id="ec-type">
           <option value="RETAIL" ${cust.customer_type==='RETAIL'?'selected':''}>Retail</option>
           <option value="DIRECT" ${cust.customer_type==='DIRECT'?'selected':''}>Direct Sales</option>
-        </select>
-      </div>
-      <div class="form-group"><label>Category</label>
-        <select id="ec-cat">
-          <option value="">— Select —</option>
-          ${catOptions}
+          <option value="WHOLESALE" ${cust.customer_type==='WHOLESALE'?'selected':''}>Wholesale</option>
         </select>
       </div>
       <div class="form-group"><label>City *</label><input id="ec-city" value="${cust.city||''}"></div>
@@ -1530,7 +1505,6 @@ async function saveEditCustomer(custId) {
     await PUT('/api/customers/' + custId, {
       name:             document.getElementById('ec-name').value.trim(),
       customerType:     document.getElementById('ec-type').value || 'RETAIL',
-      category:         document.getElementById('ec-cat').value,
       city:             document.getElementById('ec-city').value,
       address:          document.getElementById('ec-address').value,
       phone:            document.getElementById('ec-phone').value,
@@ -1781,7 +1755,6 @@ async function viewCustomerHistory(custId) {
           <div style="font-size:12px;color:var(--text-3);line-height:1.7">
             <span style="margin-right:12px;font-weight:600;color:var(--mac-blue)">📋 ${cust.account_number||cust.code}</span>
             ${cust.customer_type ? `<span style="margin-right:12px">🏷 ${cust.customer_type}</span>` : ''}
-            ${cust.category ? `<span style="margin-right:12px">📂 ${cust.category}</span>` : ''}
             ${cust.city ? `<span style="margin-right:12px">📍 ${cust.city}</span>` : ''}
             ${cust.address ? `<span style="margin-right:12px">🏠 ${cust.address}</span>` : ''}
             ${cust.phone ? `<span style="margin-right:12px">📞 ${cust.phone}</span>` : ''}
@@ -1868,10 +1841,8 @@ function showNewCustomerForm() {
         <select id="cn-type">
           <option value="RETAIL">Retail</option>
           <option value="DIRECT">Direct Sales</option>
+          <option value="WHOLESALE">Wholesale</option>
         </select>
-      </div>
-      <div class="form-group"><label>Category</label>
-        <select id="cn-cat"><option value="">— Select —</option></select>
       </div>
       <div class="form-group"><label>City *</label><input id="cn-city" placeholder="e.g. Karachi"></div>
       <div class="form-group" style="flex:1 1 100%"><label>Full Address *</label><input id="cn-address" placeholder="Street, Area, City — required for account number"></div>
@@ -1887,14 +1858,6 @@ function showNewCustomerForm() {
       <button class="btn btn-outline" onclick="document.getElementById('customer-form-area').innerHTML=''">Cancel</button>
     </div>
   </div>`;
-  // Populate category dropdown via DOM API after form is in the document — avoids template-literal injection issues
-  const catSel = document.getElementById('cn-cat');
-  CUSTOMER_CATEGORIES.forEach(cat => {
-    const opt = document.createElement('option');
-    opt.value = cat;
-    opt.textContent = cat;
-    catSel.appendChild(opt);
-  });
   document.getElementById('customer-form-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -1909,7 +1872,6 @@ async function saveNewCustomer() {
   try {
     const res = await POST('/api/customers', {
       name, city, address, customerType: ctype,
-      category: document.getElementById('cn-cat').value,
       phone: document.getElementById('cn-phone').value,
       email: document.getElementById('cn-email').value,
       defaultPack: document.getElementById('cn-pack').value,
@@ -11619,7 +11581,7 @@ async function ingReactivate(code) {
 function renderMasterData() {
   const masters = [
     { key: 'customers', label: 'Customers', icon: '👥',
-      columns: 'code, name, customer_type (RETAIL/DIRECT), category, city, phone, email, payment_terms_days' },
+      columns: 'code, name, customer_type (RETAIL/DIRECT/WHOLESALE), city, address, phone, email, payment_terms_days' },
     { key: 'suppliers', label: 'Suppliers', icon: '🏭',
       columns: 'code, name, contact, phone, email, city, address' },
     { key: 'ingredients', label: 'Ingredients', icon: '🌿',
