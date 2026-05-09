@@ -8914,6 +8914,38 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, ref.get('customers', []))
                 return
 
+            # GET /api/customers/export  — CSV download of all customers
+            if path == '/api/customers/export':
+                sess = get_session(self, qs)
+                if not sess:
+                    send_error(self, 'Unauthorized', 401); return
+                rows = qry("""
+                    SELECT code, account_number, name, customer_type, category,
+                           city, address, phone, email, payment_terms_days, credit_limit, created_at
+                    FROM customers WHERE COALESCE(active,1)=1
+                    ORDER BY name
+                """)
+                import io
+                buf = io.StringIO()
+                writer = csv.writer(buf)
+                writer.writerow(['code','account_number','name','customer_type','category',
+                                 'city','address','phone','email','payment_terms_days','credit_limit','created_at'])
+                for r in rows:
+                    writer.writerow([r['code'], r['account_number'] or '', r['name'],
+                                     r['customer_type'], r['category'], r['city'],
+                                     r['address'], r['phone'], r['email'],
+                                     r['payment_terms_days'], r['credit_limit'], r['created_at']])
+                csv_bytes = buf.getvalue().encode('utf-8')
+                fname = f"spicetopia_customers_{today()}.csv"
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/csv; charset=utf-8')
+                self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+                self.send_header('Content-Length', str(len(csv_bytes)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(csv_bytes)
+                return
+
             # GET /api/customers/:id/report  — full customer profile report
             if path.startswith('/api/customers/') and path.endswith('/report'):
                 cust_id = int(path.split('/')[3])
@@ -9187,6 +9219,41 @@ class Handler(BaseHTTPRequestHandler):
                         'has_price_history': bool(ph),
                     })
                 send_json(self, result)
+                return
+
+            # GET /api/ingredients/export  — CSV download of all ingredients (admin only)
+            if path == '/api/ingredients/export':
+                sess = get_session(self, qs)
+                if not sess or sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                stock_map    = get_stock_map()
+                reserved_map = get_wo_reserved_stock_map()
+                rows = qry("""
+                    SELECT id, code, name, cost_per_kg, reorder_level, unit, created_at
+                    FROM ingredients WHERE COALESCE(active,1)=1 ORDER BY code
+                """)
+                import io
+                buf = io.StringIO()
+                writer = csv.writer(buf)
+                writer.writerow(['code','name','cost_per_kg','unit','stock_grams',
+                                 'reserved_grams','available_grams','reorder_level','created_at'])
+                for r in rows:
+                    iid       = r['id']
+                    bal       = round(stock_map.get(iid, 0), 2)
+                    reserved  = round(reserved_map.get(iid, 0), 2)
+                    available = round(max(0.0, bal - reserved), 2)
+                    writer.writerow([r['code'], r['name'], r['cost_per_kg'],
+                                     r.get('unit','kg'), bal, reserved, available,
+                                     r['reorder_level'], r['created_at']])
+                csv_bytes = buf.getvalue().encode('utf-8')
+                fname = f"spicetopia_ingredients_{today()}.csv"
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/csv; charset=utf-8')
+                self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+                self.send_header('Content-Length', str(len(csv_bytes)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(csv_bytes)
                 return
 
             # GET /api/inventory/ledger?ingredientId=X

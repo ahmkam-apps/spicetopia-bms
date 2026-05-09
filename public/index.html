@@ -948,6 +948,24 @@ const PUT   = (path, b)  => api('PUT',    path, b);
 const PATCH = (path, b)  => api('PATCH',  path, b);
 const DEL   = path       => api('DELETE', path);
 
+// CSV download helper — fetches a CSV endpoint and triggers browser download
+async function downloadCSV(path, label) {
+  try {
+    const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + authToken() } });
+    if (!res.ok) { alert('Export failed: ' + res.status); return; }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const date = new Date().toISOString().slice(0,10);
+    a.href     = url;
+    a.download = 'spicetopia_' + label + '_' + date + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(e) { alert('Export error: ' + e.message); }
+}
+
 function fmt(n, d=2) {
   if (n == null) return '—';
   return Number(n).toLocaleString('en-PK', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -1274,7 +1292,10 @@ async function renderCustomers() {
       <h2>Customers</h2>
       <span style="font-size:12px;color:var(--text-3)">${activeCount} active · ${inactiveCount} inactive · Total AR: <strong style="color:var(--chili)">${fmtPKR(totalBalance)}</strong></span>
     </div>
-    <button class="btn btn-primary" onclick="showNewCustomerForm()">+ New Customer</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="downloadCSV('/api/customers/export','customers')" style="font-size:13px">⬇ Export CSV</button>
+      <button class="btn btn-primary" onclick="showNewCustomerForm()">+ New Customer</button>
+    </div>
   </div>
 
   <div id="customer-form-area"></div>
@@ -11462,7 +11483,10 @@ async function renderIngredientsAdmin() {
       <h2>Ingredient Master</h2>
       <p style="color:var(--text-3);font-size:13px;margin:0">Admin only · Codes visible, names never stored (IP protection)</p>
     </div>
-    <button class="btn btn-primary" onclick="ingShowAdd()">+ New Ingredient</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="downloadCSV('/api/ingredients/export','ingredients')" style="font-size:13px">⬇ Export CSV</button>
+      <button class="btn btn-primary" onclick="ingShowAdd()">+ New Ingredient</button>
+    </div>
   </div>
 
   <div id="ing-add-area"></div>
