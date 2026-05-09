@@ -68,6 +68,7 @@ MASTERS_DIR = BASE_DIR / 'masters'
 DB_TMP      = Path(tempfile.gettempdir()) / 'spicetopia_v3_live.db'
 PUBLIC_DIR  = BASE_DIR / 'public'
 PORT        = 3001           # overridden at startup from config.json / env var PORT
+SERVER_START_TIME = int(time.time())   # set once at import time — changes on every restart
 GST_RATE    = 0.18           # 18%
 USER_NAME   = "FK_Baba"      # Display name — change to match the logged-in user
 OS          = platform.system()   # 'Darwin' | 'Windows' | 'Linux'
@@ -8627,6 +8628,11 @@ class Handler(BaseHTTPRequestHandler):
                 sess = get_session(self)
                 if not sess:
                     send_json(self, {'error': 'Unauthorized'}, 401); return
+
+            # GET /api/health — no auth, returns server start time for deploy verification
+            if path == '/api/health':
+                send_json(self, {'ok': True, 'started_at': SERVER_START_TIME})
+                return
 
             # GET /api/auth/me — session status
             if path == '/api/auth/me':
