@@ -11910,12 +11910,17 @@ def ensure_clean_customer_codes():
         if not bad:
             c.close()
             return
+        # Check which tables have a cust_code column before touching them
+        sales_cols = {r['name'] for r in c.execute("PRAGMA table_info(sales)")}
+        co_cols    = {r['name'] for r in c.execute("PRAGMA table_info(customer_orders)")}
         for row in bad:
             old_code = row['code']
             new_code = old_code.replace('SP-SP-CUST-', 'SP-CUST-', 1)
             c.execute("UPDATE customers SET code=? WHERE id=?", (new_code, row['id']))
-            c.execute("UPDATE sales SET cust_code=? WHERE cust_code=?", (new_code, old_code))
-            c.execute("UPDATE customer_orders SET cust_code=? WHERE cust_code=?", (new_code, old_code))
+            if 'cust_code' in sales_cols:
+                c.execute("UPDATE sales SET cust_code=? WHERE cust_code=?", (new_code, old_code))
+            if 'cust_code' in co_cols:
+                c.execute("UPDATE customer_orders SET cust_code=? WHERE cust_code=?", (new_code, old_code))
             print(f"  ✓ customer code fixed: {old_code} → {new_code}")
         c.commit()
         print(f"  ✓ Fixed {len(bad)} customer code(s) — double-prefix removed")
