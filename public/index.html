@@ -8272,15 +8272,15 @@ async function renderProducts() {
       return gA - gB;
     });
 
-    // Column header row — Pack Size | SKU Code | GTIN | Stock | (Edit)
-    const cols = `80px 160px 1fr 110px${isAdmin?' 100px':''}`;
+    // Column header row — Pack Size | SKU Code | GTIN-13 | Stock | (Edit)
+    const cols = `80px 160px 180px 90px${isAdmin?' 140px':''}`;
     const header = `
       <div style="display:grid;grid-template-columns:${cols};
                   gap:0;padding:6px 14px;border-bottom:1px solid var(--border);
                   background:var(--surface-2);border-radius:var(--r) var(--r) 0 0">
         <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">Pack Size</span>
         <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">SKU Code</span>
-        <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">GTIN</span>
+        <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">GTIN-13</span>
         <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;text-align:right">Stock</span>
         ${isAdmin ? `<span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;text-align:center">Edit</span>` : ''}
       </div>`;
@@ -8296,8 +8296,9 @@ async function renderProducts() {
                      background:var(--saffron-pale);color:var(--saffron-deep);
                      font-weight:700;font-size:12px;text-align:center;width:fit-content">${v.pack_size}</span>
         <span style="font-size:12px;font-family:monospace;color:var(--text-2)">${v.sku_code}</span>
-        <span style="font-size:11px;font-family:monospace;color:${v.gtin ? 'var(--text-2)' : 'var(--chili)'};opacity:${v.gtin ? 1 : 0.6}">
-          ${v.gtin ? '&#x1F4CA; ' + v.gtin : 'No GTIN'}
+        <span style="font-size:12px;font-family:monospace;color:${v.gtin ? 'var(--text-1)' : 'var(--text-3)'};
+                     letter-spacing:${v.gtin ? '0.5px' : '0'}">
+          ${v.gtin ? v.gtin : '— awaiting GS1'}
         </span>
         <span style="font-size:12px;font-weight:600;color:${stockColor};text-align:right">
           ${stock > 0 ? stock + ' units' : 'No stock'}
