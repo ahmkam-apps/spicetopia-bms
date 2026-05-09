@@ -8921,24 +8921,19 @@ class Handler(BaseHTTPRequestHandler):
                 if not sess:
                     send_error(self, 'Unauthorized', 401); return
                 rows = qry("""
-                    SELECT c.code, c.account_number, c.name, c.customer_type,
-                           c.city, c.address, c.phone, c.email, c.payment_terms_days,
-                           c.credit_limit, c.created_at,
-                           COALESCE(SUM(CASE WHEN i.status IN ('UNPAID','PARTIAL')
-                               THEN i.total - COALESCE(i.amount_paid,0) ELSE 0 END), 0) AS balance_due
-                    FROM customers c
-                    LEFT JOIN invoices i ON i.customer_id = c.id
-                    WHERE COALESCE(c.active,1)=1
-                    GROUP BY c.id
-                    ORDER BY c.name
+                    SELECT code, account_number, name, customer_type,
+                           city, address, phone, email, payment_terms_days,
+                           credit_limit, created_at
+                    FROM customers
+                    WHERE COALESCE(active,1)=1
+                    ORDER BY name
                 """)
                 import io
                 buf = io.StringIO()
                 writer = csv.writer(buf)
-                # Columns match import template exactly for direct round-trip (export → import)
                 writer.writerow(['code','account_number','name','customer_type',
                                  'city','address','phone','email','payment_terms_days',
-                                 'credit_limit','balance_due','created_at'])
+                                 'credit_limit','created_at'])
                 for r in rows:
                     writer.writerow([
                         r['code'],
@@ -8951,7 +8946,6 @@ class Handler(BaseHTTPRequestHandler):
                         r['email'] or '',
                         r['payment_terms_days'],
                         r2(r['credit_limit']),
-                        r2(r['balance_due']),
                         r['created_at']
                     ])
                 csv_bytes = buf.getvalue().encode('utf-8')
