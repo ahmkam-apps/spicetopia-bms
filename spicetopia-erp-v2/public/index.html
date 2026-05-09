@@ -8272,34 +8272,66 @@ async function renderProducts() {
       return gA - gB;
     });
 
+    // Column header row
+    const header = `
+      <div style="display:grid;grid-template-columns:80px 140px 90px 1fr 100px ${isAdmin?'90px':''};
+                  gap:0;padding:6px 14px;border-bottom:1px solid var(--border);
+                  background:var(--surface-2);border-radius:var(--r) var(--r) 0 0">
+        <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">Pack Size</span>
+        <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">SKU Code</span>
+        <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">Product</span>
+        <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">GTIN</span>
+        <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;text-align:right">Stock</span>
+        ${isAdmin ? `<span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;text-align:center">Edit</span>` : ''}
+      </div>`;
+
     const rows = grp.items.map(({ p, v }) => {
       const stock = v.stockUnits ?? 0;
       const stockColor = stock > 0 ? 'var(--text-1)' : 'var(--chili)';
       return `
-      <div style="display:flex;align-items:center;padding:10px 14px;
-                  border:1px solid var(--border);border-radius:var(--r);
-                  background:var(--surface);gap:0">
-        <span style="display:inline-block;padding:3px 12px;border-radius:20px;
+      <div style="display:grid;grid-template-columns:80px 140px 90px 1fr 100px ${isAdmin?'90px':''};
+                  gap:0;align-items:center;padding:10px 14px;
+                  border-bottom:1px solid var(--border);background:var(--surface)">
+        <span style="display:inline-block;padding:3px 10px;border-radius:20px;
                      background:var(--saffron-pale);color:var(--saffron-deep);
-                     font-weight:700;font-size:13px;min-width:60px;text-align:center">${v.pack_size}</span>
-        <span style="margin-left:14px;font-size:12px;font-family:monospace;
-                     color:var(--text-2);min-width:110px">${v.sku_code}</span>
-        <span style="margin-left:14px;font-size:11px;color:var(--text-3);min-width:80px">${p.code}</span>
-        ${v.gtin ? `<span style="margin-left:14px;font-size:11px;font-family:monospace;color:var(--text-3);
-                     background:var(--surface-2);padding:1px 8px;border-radius:4px;letter-spacing:0.5px"
-                     title="GS1 GTIN">&#x1F4CA; ${v.gtin}</span>` :
-                   `<span style="margin-left:14px;font-size:11px;color:var(--chili);opacity:0.6">No GTIN</span>`}
-        <span style="margin-left:auto;font-size:12px;font-weight:600;color:${stockColor}">
+                     font-weight:700;font-size:12px;text-align:center;width:fit-content">${v.pack_size}</span>
+        <span style="font-size:12px;font-family:monospace;color:var(--text-2)">${v.sku_code}</span>
+        <span style="font-size:11px;color:var(--text-3)">${p.code}</span>
+        <span style="font-size:11px;font-family:monospace;color:${v.gtin ? 'var(--text-2)' : 'var(--chili)'};opacity:${v.gtin ? 1 : 0.6}">
+          ${v.gtin ? '&#x1F4CA; ' + v.gtin : 'No GTIN'}
+        </span>
+        <span style="font-size:12px;font-weight:600;color:${stockColor};text-align:right">
           ${stock > 0 ? stock + ' units' : 'No stock'}
         </span>
-        ${isAdmin ? `<button onclick="gtinShowEdit(${v.id},'${v.gtin||''}')"
-          style="margin-left:12px;font-size:11px;padding:2px 10px;border-radius:4px;
-                 border:1px solid var(--border);background:var(--surface-2);cursor:pointer;color:var(--text-2)">
-          ✏ GTIN</button>` : ''}
+        ${isAdmin ? `
+        <div style="display:flex;gap:4px;justify-content:center">
+          <button onclick="skuShowEdit(${v.id},'${v.sku_code}')"
+            title="Edit SKU Code"
+            style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);
+                   background:var(--surface-2);cursor:pointer;color:var(--text-2)">✏ SKU</button>
+          <button onclick="gtinShowEdit(${v.id},'${v.gtin||''}')"
+            title="Edit GTIN"
+            style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);
+                   background:var(--surface-2);cursor:pointer;color:var(--text-2)">✏ GTIN</button>
+        </div>` : ''}
+      </div>
+      <div id="sku-edit-${v.id}" style="display:none;padding:8px 14px;
+           border-bottom:1px solid var(--cardamom);background:var(--surface-2);
+           align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text-3);margin-right:4px">SKU Code:</span>
+        <input id="sku-inp-${v.id}" type="text" maxlength="20"
+          style="font-family:monospace;font-size:13px;padding:4px 8px;border:1px solid var(--border);
+                 border-radius:4px;width:160px;text-transform:uppercase" placeholder="e.g. SPCM-50">
+        <button onclick="skuSave(${v.id})" style="padding:4px 14px;border-radius:4px;
+          background:var(--cardamom);color:#fff;border:none;cursor:pointer;font-size:12px">Save</button>
+        <button onclick="skuCancel(${v.id})" style="padding:4px 10px;border-radius:4px;
+          background:var(--surface);border:1px solid var(--border);cursor:pointer;font-size:12px">Cancel</button>
+        <span id="sku-msg-${v.id}" style="font-size:12px;color:var(--cardamom)"></span>
       </div>
       <div id="gtin-edit-${v.id}" style="display:none;padding:8px 14px;
-           border:1px solid var(--cardamom);border-top:none;border-radius:0 0 var(--r) var(--r);
-           background:var(--surface-2);display:none;align-items:center;gap:8px">
+           border-bottom:1px solid var(--cardamom);background:var(--surface-2);
+           align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text-3);margin-right:4px">GTIN:</span>
         <input id="gtin-inp-${v.id}" type="text" maxlength="14"
           style="font-family:monospace;font-size:13px;padding:4px 8px;border:1px solid var(--border);
                  border-radius:4px;width:180px" placeholder="e.g. 8966000086913">
@@ -8322,7 +8354,9 @@ async function renderProducts() {
         </div>
         <span style="font-size:11px;color:var(--text-3)">${grp.items.length} SKU${grp.items.length===1?'':'s'}</span>
       </div>
-      <div style="display:flex;flex-direction:column;gap:7px">${rows}</div>
+      <div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+        ${header}${rows}
+      </div>
     </div>`;
   });
 
@@ -8597,6 +8631,39 @@ async function gtinSave(variantId) {
     await PUT(`/api/products/variants/${variantId}/gtin`, { gtin: gtin || null });
     msg.textContent = '✓ Saved'; msg.style.color = 'var(--cardamom)';
     setTimeout(() => { gtinCancel(variantId); nav('products'); }, 900);
+  } catch(e) {
+    msg.textContent = e.message; msg.style.color = 'var(--chili)';
+  }
+}
+
+function skuShowEdit(variantId, currentSku) {
+  const row = document.getElementById('sku-edit-' + variantId);
+  const inp = document.getElementById('sku-inp-' + variantId);
+  if (!row || !inp) return;
+  inp.value = currentSku || '';
+  row.style.display = 'flex';
+  inp.focus();
+  inp.select();
+}
+
+function skuCancel(variantId) {
+  const row = document.getElementById('sku-edit-' + variantId);
+  if (row) row.style.display = 'none';
+}
+
+async function skuSave(variantId) {
+  const inp = document.getElementById('sku-inp-' + variantId);
+  const msg = document.getElementById('sku-msg-' + variantId);
+  const sku = (inp.value || '').trim().toUpperCase();
+  if (!sku) { msg.textContent = 'SKU code required'; msg.style.color = 'var(--chili)'; return; }
+  if (!/^[A-Z0-9][A-Z0-9\-]{1,19}$/.test(sku)) {
+    msg.textContent = 'Use letters, numbers and dashes only (e.g. SPCM-50)';
+    msg.style.color = 'var(--chili)'; return;
+  }
+  try {
+    await PUT(`/api/products/variants/${variantId}/sku`, { sku_code: sku });
+    msg.textContent = '✓ Saved'; msg.style.color = 'var(--cardamom)';
+    setTimeout(() => { skuCancel(variantId); nav('products'); }, 900);
   } catch(e) {
     msg.textContent = e.message; msg.style.color = 'var(--chili)';
   }
