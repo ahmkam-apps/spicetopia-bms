@@ -11177,6 +11177,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', len(content))
+            # Prevent browsers from caching HTML — always fetch fresh after deploy
+            if 'html' in content_type:
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
             _add_security_headers(self)
             self.end_headers()
             self.wfile.write(content)
