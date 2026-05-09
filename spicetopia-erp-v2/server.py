@@ -10902,6 +10902,32 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, str(e), 400)
                 return
 
+            # PUT /api/products/variants/:id/sku  (admin only)
+            if (path.startswith('/api/products/variants/') and
+                    len(parts) == 6 and parts[5] == 'sku'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                variant_id = int(parts[4])
+                new_sku = (data.get('sku_code') or '').strip().upper()
+                if not new_sku:
+                    send_error(self, 'sku_code required', 400); return
+                if not re.match(r'^[A-Z0-9][A-Z0-9\-]{1,19}$', new_sku):
+                    send_error(self, 'SKU code must be 2–20 alphanumeric/dash characters', 400); return
+                c = _conn()
+                try:
+                    existing = c.execute(
+                        "SELECT id FROM product_variants WHERE sku_code=? AND id!=?",
+                        (new_sku, variant_id)).fetchone()
+                    if existing:
+                        send_error(self, f"SKU code '{new_sku}' is already in use", 409); return
+                    c.execute("UPDATE product_variants SET sku_code=? WHERE id=?", (new_sku, variant_id))
+                    c.commit()
+                finally:
+                    c.close()
+                load_ref()
+                send_json(self, {'ok': True, 'variant_id': variant_id, 'sku_code': new_sku})
+                return
+
             # PUT /api/users/:id
             if path.startswith('/api/users/') and len(path.split('/')) == 4:
                 uid    = int(path.split('/')[3])
