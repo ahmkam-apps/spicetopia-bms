@@ -11760,19 +11760,22 @@ def ensure_variant_gtin():
             c.execute("ALTER TABLE product_variants ADD COLUMN gtin TEXT DEFAULT NULL")
             print("  ✓ product_variants: added gtin")
 
-        # Seed GTINs — match by sku_code directly
+        # Seed GTINs — match by product name + pack size grams (robust across any sku_code format)
+        # Only seeds if gtin is currently NULL (never overwrites manually-entered values)
         seeds = [
-            ('SPCM-50', '8966000086913'),   # Chaat Masala 50g
-            ('SPGM-50', '8966000086920'),   # Garam Masala 50g
+            ('Chaat Masala', 50,   '8966000086913'),
+            ('Garam Masala', 50,   '8966000086920'),
         ]
-        for sku_code, gtin_val in seeds:
+        for prod_name, grams, gtin_val in seeds:
             cur = c.execute("""
                 UPDATE product_variants
                 SET gtin = ?
-                WHERE sku_code = ?
-            """, (gtin_val, sku_code))
+                WHERE gtin IS NULL
+                  AND product_id IN (SELECT id FROM products WHERE name = ?)
+                  AND pack_size_id IN (SELECT id FROM pack_sizes WHERE grams = ?)
+            """, (gtin_val, prod_name, grams))
             if cur.rowcount:
-                print(f"  ✓ gtin seeded: {sku_code} -> {gtin_val}")
+                print(f"  ✓ gtin seeded: {prod_name} {grams}g -> {gtin_val}")
         c.commit()
     finally:
         c.close()
