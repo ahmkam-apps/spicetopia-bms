@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# BUILD: 2026-05-09T03:47:40Z — cache bust for Railway/Docker layer caching
 """
 Spicetopia Business Management System — Python / SQLite Server
 Schema: Fully normalized (products, product_variants, invoices, AP, AR, audit)
