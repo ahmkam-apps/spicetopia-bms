@@ -4378,7 +4378,10 @@ async function renderSuppliers() {
 
   return `
   <div class="section-header"><h2>Suppliers</h2>
-    <button class="btn btn-primary" onclick="showNewSupplierForm()">+ New Supplier</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="downloadCSV('/api/suppliers/export','suppliers')" style="font-size:13px">⬇ Export CSV</button>
+      <button class="btn btn-primary" onclick="showNewSupplierForm()">+ New Supplier</button>
+    </div>
   </div>
   <div id="supplier-form-area"></div>
   <div class="card">

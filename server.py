@@ -9140,6 +9140,38 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, _suppliers_with_zones())
                 return
 
+            # GET /api/suppliers/export  — CSV download of all suppliers
+            if path == '/api/suppliers/export':
+                sess = get_session(self, qs)
+                if not sess:
+                    send_error(self, 'Unauthorized', 401); return
+                rows = qry("""
+                    SELECT s.code, s.name, s.contact, s.phone, s.email,
+                           s.city, s.address, z.name as zone_name, s.created_at
+                    FROM suppliers s
+                    LEFT JOIN zones z ON z.id = s.zone_id
+                    WHERE s.active_flag = 1
+                    ORDER BY s.name
+                """)
+                import io
+                buf = io.StringIO()
+                writer = csv.writer(buf)
+                writer.writerow(['code','name','contact','phone','email','city','address','zone','created_at'])
+                for r in rows:
+                    writer.writerow([r['code'], r['name'], r['contact'], r['phone'],
+                                     r['email'], r['city'], r['address'],
+                                     r['zone_name'] or '', r['created_at']])
+                csv_bytes = buf.getvalue().encode('utf-8')
+                fname = f"spicetopia_suppliers_{today()}.csv"
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/csv; charset=utf-8')
+                self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+                self.send_header('Content-Length', str(len(csv_bytes)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(csv_bytes)
+                return
+
             # GET /api/admin/suppliers  (all suppliers incl. inactive — admin CRUD view)
             if path == '/api/admin/suppliers':
                 if not sess or sess['role'] != 'admin':
