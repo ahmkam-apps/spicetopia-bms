@@ -264,6 +264,8 @@ def _apply_startup_config():
     WA_ADMIN_APIKEY      = os.environ.get('WA_ADMIN_APIKEY', cfg.get('whatsapp_admin_apikey', ''))
     WA_EXPIRY_WARN_HOURS = int(os.environ.get('WA_EXPIRY_WARN_HOURS', cfg.get('whatsapp_expiry_warn_hours', WA_EXPIRY_WARN_HOURS)))
 
+    import modules.auth as _auth_mod; _auth_mod.SESSION_EXPIRY_HOURS = SESSION_EXPIRY_HOURS   # sync to module
+
     print(f"  ✓ Config applied — PORT={PORT}, session_expiry={SESSION_EXPIRY_HOURS}h, "
           f"backup_keep={BACKUP_KEEP_DAYS}d, cors={CORS_ORIGINS or 'disabled'}")
 
@@ -315,6 +317,7 @@ def _setup_logging():
     logger.addHandler(sh)
 
     _logger = logger
+    import modules.utils as _utils_mod; _utils_mod._logger = _logger   # sync to module
     return logger
 
 
@@ -13692,9 +13695,10 @@ def get_rep_today_route(rep_id):
 #  Python resolves global names at call-time, so all server.py functions
 #  automatically use the module versions once this block runs.
 # ═══════════════════════════════════════════════════════════════════
-from modules.utils  import *   # r2, fmtpkr, today, VALID_ROLES, ROLE_LABELS, require, ValidationError, validate_fields, CITY_CODE_MAP, _city_to_code
+from modules.utils  import *   # r2, fmtpkr, today, VALID_ROLES, ROLE_LABELS, require, ValidationError, validate_fields, CITY_CODE_MAP, _city_to_code, _logger, _log
 from modules.db     import *   # _conn, qry, qry1, run, run_many, save_db
 from modules.id_gen import *   # next_id, _sync_counter_to_max, next_ingredient_code, generate_account_number, ...
+from modules.auth   import *   # _hash_pw, _hash_pw_new, _verify_pw, login_user, logout_user, get_session, _session_cleanup, field_login, _get_field_session, ensure_sessions_table, ensure_rate_limit_table, _check_rate_limit, _record_failed_attempt, _clear_rate_limit, _get_client_ip, _ARGON2_AVAILABLE, _argon2
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -7,6 +7,7 @@ Safe to import from any module without circular-import risk.
 Exported via `from modules.utils import *` in server.py.
 """
 import json
+import logging
 from datetime import date
 
 __all__ = [
@@ -14,7 +15,24 @@ __all__ = [
     'VALID_ROLES', 'ROLE_LABELS', 'CITY_CODE_MAP',
     'require', '_city_to_code',
     'ValidationError', 'validate_fields',
+    '_logger', '_log',
 ]
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# _logger is None until _setup_logging() runs at startup and syncs the instance
+# via: import modules.utils as _utils_mod; _utils_mod._logger = _logger
+
+_logger: logging.Logger = None
+
+
+def _log(level: str, msg: str, **fields):
+    """Convenience wrapper — logs to _logger if available, else prints.
+    Pass exc_info=True to capture the current exception's stack trace."""
+    if _logger is None:
+        return
+    exc_info = fields.pop('exc_info', False)
+    extra = {k: v for k, v in fields.items()}
+    getattr(_logger, level)(msg, extra=extra, exc_info=exc_info)
 
 # ── Numeric helpers ────────────────────────────────────────────────────────────
 
