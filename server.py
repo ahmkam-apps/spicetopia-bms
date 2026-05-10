@@ -700,6 +700,9 @@ def bootstrap_db():
         print(f"  ✓ Fresh database created: {DB_SRC}")
     shutil.copy2(str(DB_SRC), str(DB_TMP))
     print(f"  ✓ Database loaded ({DB_SRC.name})")
+    # ── Sync DB_SRC into foundation modules so save_db() works correctly ──
+    import modules.db as _db_mod
+    _db_mod.DB_SRC = DB_SRC
 
 MAX_BACKUPS = 5   # keep the last 5 snapshots
 
@@ -13681,6 +13684,17 @@ def get_rep_today_route(rep_id):
         stops = list_route_customers(route['id'])
         result.append({**route, 'stops': stops})
     return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  SPRINT 1: FOUNDATION MODULES
+#  These imports override the equivalent local definitions above.
+#  Python resolves global names at call-time, so all server.py functions
+#  automatically use the module versions once this block runs.
+# ═══════════════════════════════════════════════════════════════════
+from modules.utils  import *   # r2, fmtpkr, today, VALID_ROLES, ROLE_LABELS, require, ValidationError, validate_fields, CITY_CODE_MAP, _city_to_code
+from modules.db     import *   # _conn, qry, qry1, run, run_many, save_db
+from modules.id_gen import *   # next_id, _sync_counter_to_max, next_ingredient_code, generate_account_number, ...
 
 
 # ═══════════════════════════════════════════════════════════════════
