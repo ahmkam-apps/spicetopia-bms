@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family:monospace;padding:20px">
+<h3>Screenshot Relay</h3>
+<input id="f" type="file" accept="image/*">
+<div id="status" style="margin:10px 0;color:green"></div>
+<pre id="out" style="word-break:break-all;font-size:10px;max-height:200px;overflow:auto;border:1px solid #ccc;padding:8px"></pre>
+<script>
+document.getElementById('f').onchange = function(e) {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    document.getElementById('out').textContent = ev.target.result;
+    document.getElementById('status').textContent = 'Ready: ' + file.name + ' (' + Math.round(ev.target.result.length/1024) + ' KB)';
+    document.title = 'READY';
+  };
+  reader.readAsDataURL(file);
+};
+</script>
+</body>
+</html>

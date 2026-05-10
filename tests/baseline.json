@@ -1,0 +1,115 @@
+{
+  "captured_at": "2026-05-09T23:59:05.541728",
+  "summary": {
+    "passed": 157,
+    "failed": 0,
+    "skipped": 7,
+    "total": 164
+  },
+  "modules": [
+    {
+      "module": "auth",
+      "label": "Authentication & Sessions",
+      "total": 15,
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "module": "customers",
+      "label": "Customers",
+      "total": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "module": "suppliers",
+      "label": "Suppliers",
+      "total": 10,
+      "passed": 9,
+      "failed": 0,
+      "skipped": 1
+    },
+    {
+      "module": "products",
+      "label": "Products & SKUs",
+      "total": 8,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 1
+    },
+    {
+      "module": "inventory",
+      "label": "Inventory & Ingredients",
+      "total": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "module": "pricing",
+      "label": "Pricing & Costing",
+      "total": 18,
+      "passed": 17,
+      "failed": 0,
+      "skipped": 1
+    },
+    {
+      "module": "orders",
+      "label": "Customer Orders",
+      "total": 14,
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "module": "invoices",
+      "label": "Invoices & AR",
+      "total": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "module": "purchasing",
+      "label": "Purchasing & AP",
+      "total": 16,
+      "passed": 15,
+      "failed": 0,
+      "skipped": 1
+    },
+    {
+      "module": "production",
+      "label": "Production",
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "module": "field",
+      "label": "Field Operations",
+      "total": 16,
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "module": "reports",
+      "label": "Reports & Dashboard",
+      "total": 17,
+      "passed": 14,
+      "failed": 0,
+      "skipped": 3
+    },
+    {
+      "module": "business_rules",
+      "label": "Business Rules",
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    }
+  ]
+}

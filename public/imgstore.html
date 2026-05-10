@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<body>
+<input id="f" type="file" accept="image/*" style="display:none">
+<div id="status">Ready</div>
+<script>
+window.images = {};
+document.getElementById('f').onchange = function(e) {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    window._lastImg = ev.target.result;
+    window._lastName = file.name;
+    document.getElementById('status').textContent = 'Loaded: ' + file.name;
+    document.title = 'READY:' + file.name;
+  };
+  reader.readAsDataURL(file);
+};
+</script>
+</body>
+</html>

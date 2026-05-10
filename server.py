@@ -1716,12 +1716,41 @@ def next_id(entity, prefix, width=4, conn=None):
     return f"SP-{prefix}-{num:0{width}d}"
 
 
+def _sync_ingredient_counter(c=None):
+    """Sync id_counters[ingredient] to the highest ING-NNNSP number already in the DB.
+    Accepts an open connection or opens its own. Always safe to call multiple times."""
+    owned = c is None
+    if owned:
+        c = _conn()
+    try:
+        rows = c.execute("SELECT code FROM ingredients").fetchall()
+        max_num = 0
+        for (code,) in rows:
+            if code and code.startswith('ING-') and code.endswith('SP'):
+                try:
+                    max_num = max(max_num, int(code[4:-2]))
+                except ValueError:
+                    pass
+        c.execute("INSERT OR IGNORE INTO id_counters (entity, last_num) VALUES ('ingredient', ?)",
+                  (max_num,))
+        c.execute(
+            "UPDATE id_counters SET last_num=? WHERE entity='ingredient' AND last_num<?",
+            (max_num, max_num)
+        )
+        if owned:
+            c.commit()
+    finally:
+        if owned:
+            c.close()
+
+
 def next_ingredient_code():
     """Generate next coded ingredient ID: ING-001SP, ING-002SP, ...
     The 'SP' suffix ties the code to Spicetopia without revealing what the ingredient is.
     The real ingredient name is kept in a physical, off-system legend only."""
     c = _conn()
     try:
+        _sync_ingredient_counter(c)
         c.execute("UPDATE id_counters SET last_num=last_num+1 WHERE entity='ingredient'")
         num = c.execute("SELECT last_num FROM id_counters WHERE entity='ingredient'").fetchone()[0]
         c.commit()
@@ -1850,6 +1879,7 @@ def next_blend_code(prefix: str) -> str:
 
 def peek_next_ingredient_code():
     """Return what the NEXT ingredient code would be, without incrementing the counter."""
+    _sync_ingredient_counter()  # ensure counter reflects any existing codes in DB
     row = qry1("SELECT last_num FROM id_counters WHERE entity='ingredient'", ())
     num = ((row['last_num'] if row else 0) + 1)
     return f"ING-{num:03d}SP"
@@ -3509,12 +3539,12 @@ def void_supplier_bill(bill_id: int, note: str, username: str):
 
         # 2. Create reversing inventory_ledger entries (negative received qty)
         for item in items:
-            # Original receipt was positive (PURCHASE); reversal is negative
+            # Original receipt was positive (PURCHASE_IN); reversal is a negative ADJUSTMENT
             reversal_grams = r2(-item['quantity_kg'] * 1000)  # kg → grams, then negate
             c.execute("""
                 INSERT INTO inventory_ledger
                     (ingredient_id, movement_type, qty_grams, reference_id, notes)
-                VALUES (?, 'BILL_VOID', ?, ?, ?)
+                VALUES (?, 'ADJUSTMENT', ?, ?, ?)
             """, (item['ingredient_id'], reversal_grams, bill['bill_number'],
                   f"Void of bill {bill['bill_number']} — {note}"))
 
@@ -3588,7 +3618,7 @@ def create_customer(data):
     ])
     # Sync counter before use to prevent UNIQUE constraint failures on Railway
     _sync_counter_to_max('customer', 'customers', 'code', 'SP-CUST-')
-    code    = next_id('customer', 'SP-CUST')
+    code    = next_id('customer', 'CUST')
     ctype   = data.get('customerType', 'RETAIL').upper()
     if ctype not in ('RETAIL', 'DIRECT', 'WHOLESALE'):
         raise ValueError(f"Invalid customer type: {ctype}")
@@ -12261,7 +12291,7 @@ def get_batch_variances(days=90):
     for b in batches:
         actual = float(b['unit_cost_at_posting'] or 0)
         std_data = compute_standard_cost(b['product_code'], b['pack_size'] or '', cfg) if b['pack_size'] else None
-        standard = std_data['total_mfg'] if std_data and std_data.get('has_bom') else None
+        standard = std_data['cost_to_make'] if std_data and std_data.get('has_bom') else None
         variance = round(actual - standard, 2) if standard is not None else None
         variance_pct = round((variance / standard) * 100, 1) if standard and variance is not None else None
         results.append({

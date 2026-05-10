@@ -37,3 +37,146 @@
 {"ts": "2026-04-05T15:32:33", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_153233.db"}
 {"ts": "2026-04-05T15:36:32", "level": "INFO", "msg": "login", "user": "admin"}
 {"ts": "2026-04-05T15:37:18", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_153718.db"}
+{"ts": "2026-04-05T17:46:14", "level": "INFO", "msg": "login", "user": "FK_Baba"}
+{"ts": "2026-04-05T17:46:29", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_174629.db"}
+{"ts": "2026-04-05T22:09:12", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-05T22:10:03", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_221003.db"}
+{"ts": "2026-04-05T22:36:58", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_223658.db"}
+{"ts": "2026-04-05T22:54:07", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260405_225407.db"}
+{"ts": "2026-04-06T13:36:57", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T13:37:51", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260406_133751.db"}
+{"ts": "2026-04-06T14:17:54", "level": "INFO", "msg": "password_upgraded", "user": "admin"}
+{"ts": "2026-04-06T14:17:54", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:17:57", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:18:05", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:18:12", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:18:39", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:18:46", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T14:19:46", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:19:58", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:34:22", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T14:35:50", "level": "INFO", "msg": "password_upgraded", "user": "admin"}
+{"ts": "2026-04-06T14:35:50", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:35:56", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:35:56", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T14:36:07", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:36:19", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:36:32", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:36:45", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:59:37", "level": "INFO", "msg": "password_upgraded", "user": "admin"}
+{"ts": "2026-04-06T14:59:37", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T14:59:49", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T15:00:01", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T15:00:15", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T15:00:22", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T18:43:54", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T18:44:11", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T18:44:37", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T18:44:51", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T18:44:52", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T18:45:08", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T18:45:24", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T18:45:43", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T18:52:52", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T18:53:48", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T19:02:03", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:02:07", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:02:37", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T19:03:42", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:03:48", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:03:52", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:04:32", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T19:08:32", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:08:51", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:19:22", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:19:40", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:23:05", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:31:11", "level": "WARNING", "msg": "rate_limit_lockout", "ip": "127.0.0.1"}
+{"ts": "2026-04-06T19:36:14", "level": "WARNING", "msg": "rate_limit_lockout", "ip": "127.0.0.1"}
+{"ts": "2026-04-06T19:44:07", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260406_194407.db"}
+{"ts": "2026-04-06T19:44:28", "level": "WARNING", "msg": "rate_limit_lockout", "ip": "127.0.0.1"}
+{"ts": "2026-04-06T19:46:13", "level": "WARNING", "msg": "rate_limit_lockout", "ip": "127.0.0.1"}
+{"ts": "2026-04-06T19:53:10", "level": "WARNING", "msg": "rate_limit_lockout", "ip": "127.0.0.1"}
+{"ts": "2026-04-06T19:54:33", "level": "WARNING", "msg": "rate_limit_lockout", "ip": "127.0.0.1"}
+{"ts": "2026-04-06T19:57:32", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T19:58:16", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260406_195816.db"}
+{"ts": "2026-04-06T23:10:39", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T23:13:23", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T23:13:26", "level": "WARNING", "msg": "Scheduled backup failed: disk I/O error"}
+{"ts": "2026-04-06T23:13:26", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-06T23:13:30", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T21:27:48", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T21:27:48", "level": "ERROR", "msg": "POST error: NOT NULL constraint failed: product_prices.product_variant_id", "path": "/api/prices", "exc": "Traceback (most recent call last):\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 9402, in do_POST\n    result = set_product_price(data)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 6096, in set_product_price\n    run_many(ops)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 1482, in run_many\n    c.execute(sql, params)\nsqlite3.IntegrityError: NOT NULL constraint failed: product_prices.product_variant_id"}
+{"ts": "2026-04-11T21:31:17", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T21:31:17", "level": "ERROR", "msg": "POST error: name 'get_customer_order' is not defined", "path": "/api/customer-orders/2/items", "exc": "Traceback (most recent call last):\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 9218, in do_POST\n    send_json(self, add_customer_order_item(order_id, data), 201)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 4425, in add_customer_order_item\n    return get_customer_order(order_id)\nNameError: name 'get_customer_order' is not defined"}
+{"ts": "2026-04-11T21:31:54", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T16:45:02", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T16:51:06", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T16:52:48", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T22:58:09", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T18:01:43", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T23:26:04", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T23:32:08", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T23:53:55", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T23:54:11", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T23:54:40", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T23:54:40", "level": "ERROR", "msg": "POST error: no such column: active_flag", "path": "/api/bom", "exc": "Traceback (most recent call last):\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 9533, in do_POST\n    result = create_or_update_bom(data)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 5425, in create_or_update_bom\n    ing = qry1(\"SELECT id, code FROM ingredients WHERE code=? AND active_flag=1\", (ing_code,))\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 1465, in qry1\n    rows = qry(sql, params)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 1460, in qry\n    return [dict(r) for r in c.execute(sql, params).fetchall()]\nsqlite3.OperationalError: no such column: active_flag"}
+{"ts": "2026-04-11T23:54:40", "level": "ERROR", "msg": "POST error: no such column: active_flag", "path": "/api/bom", "exc": "Traceback (most recent call last):\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 9533, in do_POST\n    result = create_or_update_bom(data)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 5425, in create_or_update_bom\n    ing = qry1(\"SELECT id, code FROM ingredients WHERE code=? AND active_flag=1\", (ing_code,))\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 1465, in qry1\n    rows = qry(sql, params)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 1460, in qry\n    return [dict(r) for r in c.execute(sql, params).fetchall()]\nsqlite3.OperationalError: no such column: active_flag"}
+{"ts": "2026-04-11T23:55:37", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T23:55:37", "level": "ERROR", "msg": "POST error: no such column: active_flag", "path": "/api/bom", "exc": "Traceback (most recent call last):\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 9533, in do_POST\n    result = create_or_update_bom(data)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 5425, in create_or_update_bom\n    ing = qry1(\"SELECT id, code FROM ingredients WHERE code=? AND active_flag=1\", (ing_code,))\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 1465, in qry1\n    rows = qry(sql, params)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 1460, in qry\n    return [dict(r) for r in c.execute(sql, params).fetchall()]\nsqlite3.OperationalError: no such column: active_flag"}
+{"ts": "2026-04-11T23:55:37", "level": "ERROR", "msg": "POST error: no such column: active_flag", "path": "/api/bom", "exc": "Traceback (most recent call last):\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 9533, in do_POST\n    result = create_or_update_bom(data)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 5425, in create_or_update_bom\n    ing = qry1(\"SELECT id, code FROM ingredients WHERE code=? AND active_flag=1\", (ing_code,))\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 1465, in qry1\n    rows = qry(sql, params)\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 1460, in qry\n    return [dict(r) for r in c.execute(sql, params).fetchall()]\nsqlite3.OperationalError: no such column: active_flag"}
+{"ts": "2026-04-11T23:56:17", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-11T23:56:24", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T00:03:00", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T00:15:19", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T00:26:42", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T00:26:48", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T01:33:11", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T14:47:25", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T14:47:54", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T14:47:54", "level": "ERROR", "msg": "PUT error: FOREIGN KEY constraint failed", "path": "/api/costing/config", "exc": "Traceback (most recent call last):\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 10081, in do_PUT\n    result = update_costing_config(key, str(value), sess.get('username', 'admin'))\n  File \"/sessions/busy-fervent-tesla/mnt/spicetopia BMS/spicetopia-erp-v2/server.py\", line 10730, in update_costing_config\n    c.execute(\"\"\"\nsqlite3.IntegrityError: FOREIGN KEY constraint failed"}
+{"ts": "2026-04-12T14:49:02", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T14:57:20", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T14:57:30", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T14:57:58", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T14:58:09", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T15:00:41", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-12T23:59:36", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T02:07:03", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T02:07:10", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T02:07:49", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T02:07:59", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T02:08:15", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T02:23:20", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T20:06:51", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T20:07:09", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T21:02:11", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-16T23:43:42", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:15:16", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:21:59", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:22:08", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:22:17", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:22:26", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:45:50", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:47:35", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:47:35", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:50:21", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T00:55:00", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T10:49:48", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T10:50:27", "level": "INFO", "msg": "backup_created", "path": "/Users/ahmkam/Documents/Claude/Projects/spicetopia BMS/spicetopia-erp-v2/backups/spicetopia_20260417_105027.db"}
+{"ts": "2026-04-17T15:54:41", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T15:56:48", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T15:57:17", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T15:58:01", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-17T15:58:41", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-19T15:23:41", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-19T15:24:06", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-19T15:24:23", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-19T15:33:28", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-19T15:58:48", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-19T16:01:49", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-19T16:09:38", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-19T16:10:48", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-04-19T16:11:01", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-05-09T01:45:58", "level": "INFO", "msg": "login", "user": "admin"}
+{"ts": "2026-05-09T02:55:52", "level": "INFO", "msg": "login", "user": "admin"}
