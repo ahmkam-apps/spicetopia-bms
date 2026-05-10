@@ -4029,8 +4029,8 @@ def create_supplier(data):
         {'field': 'city',    'label': 'City',          'required': False, 'type': 'str', 'max': 60},
     ])
     _ensure_supplier_zone_col()
-    _sync_counter_to_max('supplier', 'suppliers', 'code', 'SP-SUP-')
-    code    = next_id('supplier', 'SP-SUP')
+    _sync_counter_to_max('supplier', 'suppliers', 'code', 'SUP-')
+    code    = next_id('supplier', 'SUP')
     zone_id = data.get('zoneId') or None
     if zone_id is not None:
         zone_id = int(zone_id)
@@ -10214,6 +10214,25 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'fixed': len(fixed), 'details': fixed})
                 return
 
+            # POST /api/admin/suppliers/truncate  (admin only — wipe all suppliers + reset counter)
+            if path == '/api/admin/suppliers/truncate':
+                if sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                try:
+                    c = _conn()
+                    count = c.execute("SELECT COUNT(*) FROM suppliers").fetchone()[0]
+                    c.execute("DELETE FROM suppliers")
+                    c.execute("DELETE FROM id_counters WHERE entity='supplier'")
+                    c.commit()
+                    c.close()
+                    load_ref()
+                    _log('info', 'suppliers_truncated', deleted=count, by=sess['username'])
+                    send_json(self, {'ok': True, 'deleted': count,
+                                     'message': f'Deleted {count} suppliers. Counter reset. Safe to reimport.'})
+                except Exception as e:
+                    send_error(self, str(e), 500)
+                return
+
             # POST /api/admin/customers/truncate  (admin only — wipe all customers + reset counter)
             # Use before reimporting clean master data. Safe only when no real orders exist.
             if path == '/api/admin/customers/truncate':
@@ -11945,30 +11964,34 @@ def ensure_clean_customer_codes():
 
 
 def ensure_clean_supplier_codes():
-    """Normalize all supplier codes to SP-SUP-XXXX format.
-    Handles: SUP-001 → SP-SUP-0001, SP-SUP-0001 stays, SUP-0001 → SP-SUP-0001.
-    Idempotent — safe to run on every startup."""
+    """Remove SP- prefix from any SP-SUP-XXXX supplier codes → SUP-XXXX.
+    Skips any that would cause a UNIQUE conflict (wipe-and-reimport handles those).
+    Idempotent — safe to run on every startup. Never crashes server."""
     c = _conn()
     try:
-        rows = c.execute("SELECT id, code FROM suppliers").fetchall()
-        fixed = 0
-        for row in rows:
-            code = row['code'] or ''
-            if code.startswith('SP-SUP-'):
-                continue  # already correct format
-            # Extract numeric part from any variant: SUP-001, SUP-0001, SUP001
-            num_part = code.replace('SP-SUP-', '').replace('SUP-', '').replace('SUP', '').lstrip('-').strip()
-            if not num_part.isdigit():
-                continue  # can't parse, skip
-            new_code = 'SP-SUP-' + num_part.zfill(4)
-            c.execute("UPDATE suppliers SET code=? WHERE id=?", (new_code, row['id']))
-            print(f"  ✓ supplier code fixed: {code} → {new_code}")
-            fixed += 1
+        bad = c.execute("SELECT id, code FROM suppliers WHERE code LIKE 'SP-SUP-%'").fetchall()
+        if not bad:
+            c.close()
+            return
+        fixed = skipped = 0
+        for row in bad:
+            old_code = row['code']
+            candidate = old_code[3:]  # SP-SUP-0001 → SUP-0001
+            try:
+                c.execute("UPDATE suppliers SET code=? WHERE id=?", (candidate, row['id']))
+                print(f"  ✓ supplier code: {old_code} → {candidate}")
+                fixed += 1
+            except Exception:
+                # UNIQUE conflict — leave as-is, wipe-and-reimport will clean up
+                print(f"  ⚠ supplier code conflict skipped: {old_code} → {candidate} already exists")
+                skipped += 1
+        c.commit()
         if fixed:
-            c.commit()
-            print(f"  ✓ Normalized {fixed} supplier code(s) to SP-SUP-XXXX format")
-        else:
-            c.rollback()
+            print(f"  ✓ Supplier codes normalized: {fixed} fixed, {skipped} skipped (conflict)")
+    except Exception as e:
+        print(f"  ⚠ ensure_clean_supplier_codes error (non-fatal): {e}")
+        try: c.rollback()
+        except: pass
     finally:
         c.close()
 
