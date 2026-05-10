@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # sprint_deploy.sh — Spicetopia BMS sprint deployment script
-# Usage: ./sprint_deploy.sh "Sprint 3: users module"
+# Usage: ./sprint_deploy.sh "Sprint N: description"
 # Must be run from inside spicetopia-erp-v2/
 
 set -euo pipefail
@@ -9,10 +9,14 @@ COMMIT_MSG="${1:-}"
 DEV_URL="https://dev-spicetopia-bms-production.up.railway.app"
 BMS_PASS="${BMS_PASS:-Gido2dad\$72!2026}"
 BOOT_WAIT=90   # seconds to wait for Railway DEV to boot
+LOG_FILE="../.sprint_output.log"   # written to spicetopia BMS/ — Claude reads this directly
 
 # ── Colours ───────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
+
+# All output goes to terminal AND log file (stripped of colour codes)
+exec > >(tee >(sed 's/\x1b\[[0-9;]*m//g' > "$LOG_FILE")) 2>&1
 
 ok()   { echo -e "${GREEN}  ✓ $*${RESET}"; }
 fail() { echo -e "${RED}  ✗ $*${RESET}"; exit 1; }
@@ -89,19 +93,14 @@ echo -e "${BOLD}  PHASE 1 COMPLETE — DEV Results${RESET}"
 hr
 if $TESTS_PASSED; then
   echo -e "${GREEN}  ✅ DEV is green — ready for PROD${RESET}"
+  echo ""
+  echo "  Output saved to .sprint_output.log — tell Claude 'check it'"
+  echo "  Claude will review and give GO/STOP for PROD push."
 else
   echo -e "${RED}  ❌ DEV has regressions — DO NOT push to PROD${RESET}"
   echo ""
+  echo "  Output saved to .sprint_output.log — tell Claude 'check it'"
   echo "  Fix the issues and re-run this script."
   exit 1
 fi
-
-echo ""
-echo -e "${YELLOW}  ┌─────────────────────────────────────────┐${RESET}"
-echo -e "${YELLOW}  │  Review DEV, then paste output to Claude │${RESET}"
-echo -e "${YELLOW}  │  Claude will say GO → run Phase 2 below  │${RESET}"
-echo -e "${YELLOW}  └─────────────────────────────────────────┘${RESET}"
-echo ""
-echo "  When Claude gives the go-ahead, run:"
-echo -e "  ${BOLD}./sprint_deploy.sh --prod-push${RESET}"
 echo ""
