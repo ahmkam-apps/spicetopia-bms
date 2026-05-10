@@ -272,6 +272,9 @@ def _apply_startup_config():
     _ord_mod.WA_ADMIN_PHONE         = WA_ADMIN_PHONE
     _ord_mod.WA_ADMIN_APIKEY        = WA_ADMIN_APIKEY
 
+    import modules.invoices as _inv_mod2                                                       # sync invoices config
+    _inv_mod2.GST_RATE = GST_RATE
+
     print(f"  ✓ Config applied — PORT={PORT}, session_expiry={SESSION_EXPIRY_HOURS}h, "
           f"backup_keep={BACKUP_KEEP_DAYS}d, cors={CORS_ORIGINS or 'disabled'}")
 
@@ -13712,6 +13715,7 @@ from modules.products   import *   # create_product, update_product, deactivate_
 from modules.inventory   import *   # get_stock_map, get_wo_reserved_stock_map, get_finished_stock_map, get_soft_hold_qty, get_hard_reserved_qty, get_available_for_soft_hold, get_stock_situation, create_adjustment, create_ingredient, update_ingredient, bulk_update_ingredient_costs, deactivate_ingredient, reactivate_ingredient, import_ingredients_master
 from modules.migrations  import *   # ensure_full_schema, ensure_system_settings_schema, _migrate_invoice_items_line_total, ensure_work_orders_table, ensure_customer_orders_schema, ensure_review_queue_schema, _migrate_supplier_bills_void, _migrate_change_log_void_action, _migrate_customer_type_wholesale, _ensure_b2b_order_columns, ensure_supplier_bills_schema, ensure_purchase_orders_schema, ensure_batch_cost_column, ensure_master_schema, ensure_costing_config, ensure_price_types_sprint6, ensure_price_history_extended, ensure_margin_alerts_table
 from modules.orders      import *   # _enforce_credit_limit, _wa_send, _wa_admin, _wa_rep, _wa_notify_order_approved, _wa_notify_order_rejected, _wa_notify_order_received, _wa_notify_hold_expiring, _wa_notify_out_of_route, place_soft_hold, release_soft_hold, convert_soft_hold_to_hard_reservation, check_and_expire_holds, create_customer_order_external, get_review_queue, approve_order_with_edit, update_order_item_qty, reject_order, reopen_rejected_order, _order_status, _order_detail, list_customer_orders, _check_order_stock_warnings, create_customer_order, update_customer_order, add_customer_order_item, confirm_customer_order, cancel_customer_order, create_wo_from_order_item, generate_invoice_from_order
+from modules.invoices    import *   # compute_invoice_balance, _compute_invoice_status, _sync_invoice_status, get_ar_aging, create_invoice, add_invoice_item, remove_invoice_item, record_customer_payment, allocate_customer_payment, pay_invoice_direct, deallocate_payment, adjust_invoice, void_invoice, generate_invoice_pdf, generate_statement_pdf, _pdf_colors, _pkr
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -13779,6 +13783,8 @@ if __name__ == '__main__':
     _ord_mod2._is_out_of_route_fn        = _is_out_of_route
     _ord_mod2._wa_notify_out_of_route_fn = _wa_notify_out_of_route
     _ord_mod2._check_wo_feasibility_fn   = check_wo_feasibility
+    import modules.invoices   as _inv_mod3                                      # wire invoices callbacks
+    _inv_mod3._order_status_fn           = _order_status
     generate_master_templates()
     sync_master_files()
     seed_price_history()
