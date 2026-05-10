@@ -10,19 +10,20 @@ DEV_URL="https://dev-spicetopia-bms-production.up.railway.app"
 BMS_PASS="${BMS_PASS:-Gido2dad\$72!2026}"
 BOOT_WAIT=90   # seconds to wait for Railway DEV to boot
 LOG_FILE="../.sprint_output.log"   # written to spicetopia BMS/ — Claude reads this directly
+> "$LOG_FILE"  # truncate/create log at start
 
 # ── Colours ───────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 
-# All output goes to terminal AND log file (stripped of colour codes)
-exec > >(tee >(sed 's/\x1b\[[0-9;]*m//g' > "$LOG_FILE")) 2>&1
+# log() — write plain text (no colour codes) to log file
+log() { echo "$*" >> "$LOG_FILE"; }
 
-ok()   { echo -e "${GREEN}  ✓ $*${RESET}"; }
-fail() { echo -e "${RED}  ✗ $*${RESET}"; exit 1; }
-info() { echo -e "${CYAN}  → $*${RESET}"; }
-warn() { echo -e "${YELLOW}  ⚠ $*${RESET}"; }
-hr()   { echo -e "${CYAN}────────────────────────────────────────────────${RESET}"; }
+ok()   { echo -e "${GREEN}  ✓ $*${RESET}"; log "  ✓ $*"; }
+fail() { echo -e "${RED}  ✗ $*${RESET}"; log "  ✗ $*"; exit 1; }
+info() { echo -e "${CYAN}  → $*${RESET}"; log "  → $*"; }
+warn() { echo -e "${YELLOW}  ⚠ $*${RESET}"; log "  ⚠ $*"; }
+hr()   { echo -e "${CYAN}────────────────────────────────────────────────${RESET}"; log "────────────────────────────────────────────────"; }
 
 hr
 echo -e "${BOLD}  Spicetopia BMS — Sprint Deploy${RESET}"
@@ -78,6 +79,7 @@ ok "DEV is live (HTTP ${HTTP_STATUS})"
 info "Running baseline compare against DEV..."
 TEST_OUTPUT=$(BMS_URL="$DEV_URL" BMS_PASS="$BMS_PASS" python3 tests/run_all.py --compare 2>&1)
 echo "$TEST_OUTPUT"
+echo "$TEST_OUTPUT" >> "$LOG_FILE"
 
 if echo "$TEST_OUTPUT" | grep -q "No regression vs baseline"; then
   ok "Tests passed — no regression"
@@ -93,11 +95,13 @@ echo -e "${BOLD}  PHASE 1 COMPLETE — DEV Results${RESET}"
 hr
 if $TESTS_PASSED; then
   echo -e "${GREEN}  ✅ DEV is green — ready for PROD${RESET}"
+  log "  ✅ DEV is green — ready for PROD"
   echo ""
   echo "  Output saved to .sprint_output.log — tell Claude 'check it'"
   echo "  Claude will review and give GO/STOP for PROD push."
 else
   echo -e "${RED}  ❌ DEV has regressions — DO NOT push to PROD${RESET}"
+  log "  ❌ DEV has regressions — DO NOT push to PROD"
   echo ""
   echo "  Output saved to .sprint_output.log — tell Claude 'check it'"
   echo "  Fix the issues and re-run this script."
