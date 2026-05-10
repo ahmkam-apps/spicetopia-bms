@@ -13701,6 +13701,7 @@ from modules.id_gen import *   # next_id, _sync_counter_to_max, next_ingredient_
 from modules.auth   import *   # _hash_pw, _hash_pw_new, _verify_pw, login_user, logout_user, get_session, _session_cleanup, field_login, _get_field_session, ensure_sessions_table, ensure_rate_limit_table, _check_rate_limit, _record_failed_attempt, _clear_rate_limit, _get_client_ip, _ARGON2_AVAILABLE, _argon2
 from modules.users      import *   # ensure_users_table, list_users, create_user, update_user, _reset_admin_pw_if_requested
 from modules.customers  import *   # create_customer, update_customer, import_customers_master, ensure_clean_customer_codes, assign_customer_route, list_route_customers, field_lookup_customers, field_create_customer
+from modules.suppliers  import *   # create_supplier, update_supplier, import_suppliers_master, _ensure_supplier_zone_col, ensure_clean_supplier_codes, _suppliers_with_zones
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -13760,6 +13761,7 @@ if __name__ == '__main__':
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
     import modules.customers as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh
+    import modules.suppliers as _sup_mod;  _sup_mod._refresh_ref = load_ref   # wire ref refresh
     generate_master_templates()
     sync_master_files()
     seed_price_history()
