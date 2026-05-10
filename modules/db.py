@@ -20,6 +20,7 @@ from pathlib import Path
 
 __all__ = [
     '_conn', 'qry', 'qry1', 'run', 'run_many', 'save_db',
+    'audit_log',
 ]
 
 # ── Module-level state (set by server.py at startup) ─────────────────────────
@@ -117,3 +118,17 @@ def save_db():
 
     # ── 2. Save current working copy ─────────────────────────────
     shutil.copy2(str(DB_TMP), str(DB_SRC))
+
+
+# ── Audit helpers ─────────────────────────────────────────────────────────────
+
+def audit_log(ops, table, record_id, action, old_val=None, new_val=None):
+    """Append an audit entry to the ops list (for run_many transactions)."""
+    import json
+    ops.append((
+        """INSERT INTO change_log (table_name, record_id, action, old_value, new_value)
+           VALUES (?,?,?,?,?)""",
+        (table, str(record_id), action,
+         json.dumps(old_val) if old_val else None,
+         json.dumps(new_val) if new_val else None)
+    ))
