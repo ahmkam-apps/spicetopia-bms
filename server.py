@@ -11964,30 +11964,35 @@ def ensure_clean_customer_codes():
 
 
 def ensure_clean_supplier_codes():
-    """Remove SP- prefix from any SP-SUP-XXXX supplier codes → SUP-XXXX.
-    Skips any that would cause a UNIQUE conflict (wipe-and-reimport handles those).
+    """Assign clean SUP-NNN codes to any SP-SUP-* suppliers.
+    Finds the current max SUP-NNN and assigns next sequential codes.
     Idempotent — safe to run on every startup. Never crashes server."""
     c = _conn()
     try:
-        bad = c.execute("SELECT id, code FROM suppliers WHERE code LIKE 'SP-SUP-%'").fetchall()
+        bad = c.execute(
+            "SELECT id, code FROM suppliers WHERE code LIKE 'SP-SUP-%' ORDER BY code"
+        ).fetchall()
         if not bad:
             c.close()
             return
-        fixed = skipped = 0
+        # Find current max SUP-NNN number
+        max_row = c.execute(
+            "SELECT code FROM suppliers WHERE code LIKE 'SUP-%' ORDER BY code DESC LIMIT 1"
+        ).fetchone()
+        try:
+            next_num = int(max_row['code'].split('-')[1]) + 1 if max_row else 1
+        except Exception:
+            next_num = 100
+        fixed = 0
         for row in bad:
             old_code = row['code']
-            candidate = old_code[3:]  # SP-SUP-0001 → SUP-0001
-            try:
-                c.execute("UPDATE suppliers SET code=? WHERE id=?", (candidate, row['id']))
-                print(f"  ✓ supplier code: {old_code} → {candidate}")
-                fixed += 1
-            except Exception:
-                # UNIQUE conflict — leave as-is, wipe-and-reimport will clean up
-                print(f"  ⚠ supplier code conflict skipped: {old_code} → {candidate} already exists")
-                skipped += 1
+            new_code = f"SUP-{next_num:03d}"
+            next_num += 1
+            c.execute("UPDATE suppliers SET code=? WHERE id=?", (new_code, row['id']))
+            print(f"  ✓ supplier code: {old_code} → {new_code}")
+            fixed += 1
         c.commit()
-        if fixed:
-            print(f"  ✓ Supplier codes normalized: {fixed} fixed, {skipped} skipped (conflict)")
+        print(f"  ✓ Normalized {fixed} supplier code(s) to SUP-NNN format")
     except Exception as e:
         print(f"  ⚠ ensure_clean_supplier_codes error (non-fatal): {e}")
         try: c.rollback()
