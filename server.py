@@ -10688,6 +10688,7 @@ class Handler(BaseHTTPRequestHandler):
                         send_json(self, {'ok': False, 'error': 'File is empty or has no data rows'}, 400); return
                     if master_type == 'customers':
                         result = import_customers_master(rows)
+                        backfill_customer_account_numbers()  # assign account numbers immediately
                     elif master_type == 'suppliers':
                         result = import_suppliers_master(rows)
                     elif master_type == 'products':
