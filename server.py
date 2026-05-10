@@ -10213,6 +10213,26 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'fixed': len(fixed), 'details': fixed})
                 return
 
+            # POST /api/admin/customers/truncate  (admin only — wipe all customers + reset counter)
+            # Use before reimporting clean master data. Safe only when no real orders exist.
+            if path == '/api/admin/customers/truncate':
+                if sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                try:
+                    c = _conn()
+                    count = c.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
+                    c.execute("DELETE FROM customers")
+                    c.execute("DELETE FROM id_counters WHERE entity='customer'")
+                    c.commit()
+                    c.close()
+                    load_ref()
+                    _log('info', 'customers_truncated', deleted=count, by=sess['username'])
+                    send_json(self, {'ok': True, 'deleted': count,
+                                     'message': f'Deleted {count} customers. Counter reset. Safe to reimport.'})
+                except Exception as e:
+                    send_error(self, str(e), 500)
+                return
+
             # POST /api/admin/backup  (admin only — manual backup trigger)
             if path == '/api/admin/backup':
                 if sess['role'] != 'admin':

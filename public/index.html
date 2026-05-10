@@ -11728,6 +11728,13 @@ async function renderSystem() {
           <span id="backup-run-msg" style="margin-left:12px;font-size:0.9em"></span>
         </div>
 
+        <div style="margin-top:24px;padding:16px;background:var(--chili-pale);border:1px solid var(--chili);border-radius:6px">
+          <strong style="color:var(--chili)">⚠ Danger Zone — Customer Reset</strong>
+          <p style="font-size:13px;margin:8px 0">Deletes ALL customers and resets the customer counter. Use only before reimporting clean master data. Irreversible.</p>
+          <button class="btn btn-xs" style="background:var(--chili);color:#fff;border:none" onclick="truncateCustomers(this)">🗑 Wipe All Customers</button>
+          <span id="truncate-cust-msg" style="margin-left:12px;font-size:0.9em"></span>
+        </div>
+
         ${tableSection}
       </div>
     </div>
@@ -11833,6 +11840,29 @@ async function devResetAll(btn) {
   } finally {
     btn.disabled = false;
     btn.textContent = '🗑 Reset All Data';
+  }
+}
+
+async function truncateCustomers(btn) {
+  if (!confirm('⚠ This will DELETE ALL customers and reset the counter.\n\nOnly do this before reimporting clean master data.\n\nContinue?')) return;
+  const msgEl = document.getElementById('truncate-cust-msg');
+  btn.disabled = true;
+  btn.textContent = '⏳ Wiping…';
+  msgEl.textContent = '';
+  try {
+    const r = await fetch('/api/admin/customers/truncate', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + authToken() }
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed');
+    msgEl.innerHTML = '<span style="color:#4caf50">✓ ' + d.message + '</span>';
+    await refreshAll();
+  } catch(e) {
+    msgEl.innerHTML = '<span style="color:var(--chili)">✗ ' + e.message + '</span>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🗑 Wipe All Customers';
   }
 }
 
