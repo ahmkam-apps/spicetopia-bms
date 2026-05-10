@@ -13699,6 +13699,7 @@ from modules.utils  import *   # r2, fmtpkr, today, VALID_ROLES, ROLE_LABELS, re
 from modules.db     import *   # _conn, qry, qry1, run, run_many, save_db
 from modules.id_gen import *   # next_id, _sync_counter_to_max, next_ingredient_code, generate_account_number, ...
 from modules.auth   import *   # _hash_pw, _hash_pw_new, _verify_pw, login_user, logout_user, get_session, _session_cleanup, field_login, _get_field_session, ensure_sessions_table, ensure_rate_limit_table, _check_rate_limit, _record_failed_attempt, _clear_rate_limit, _get_client_ip, _ARGON2_AVAILABLE, _argon2
+from modules.users  import *   # ensure_users_table, list_users, create_user, update_user, _reset_admin_pw_if_requested
 
 
 # ═══════════════════════════════════════════════════════════════════
