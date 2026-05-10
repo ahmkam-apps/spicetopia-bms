@@ -4007,7 +4007,7 @@ def _ensure_supplier_zone_col():
     finally:
         c.close()
     # Sync counter so it's never behind existing data (prevents UNIQUE constraint failures)
-    _sync_counter_to_max('supplier', 'suppliers', 'code', 'SP-SUP-')
+    _sync_counter_to_max('supplier', 'suppliers', 'code', 'SUP-')
 
 
 def _suppliers_with_zones():
@@ -4030,7 +4030,10 @@ def create_supplier(data):
     ])
     _ensure_supplier_zone_col()
     _sync_counter_to_max('supplier', 'suppliers', 'code', 'SUP-')
-    code    = next_id('supplier', 'SUP')
+    # Generate SUP-NNN format (not SP-SUP-* like next_id would produce)
+    _raw = next_id('supplier', 'SUP')  # increments counter atomically
+    _num = int(_raw.split('-')[-1])
+    code = f"SUP-{_num:03d}"
     zone_id = data.get('zoneId') or None
     if zone_id is not None:
         zone_id = int(zone_id)
