@@ -1060,10 +1060,10 @@ def confirm_customer_order(order_id):
             )
 
     # Credit limit check — warn but do not block
-    cust_code = qry1("SELECT code FROM customer_orders WHERE id=?", (order_id,))
+    cust_code = order.get('cust_code', '')
     if cust_code:
         cust_row = qry1("SELECT id, name, credit_limit FROM customers WHERE code=?",
-                        (order.get('cust_code', ''),))
+                        (cust_code,))
         if cust_row:
             credit_limit = float(cust_row.get('credit_limit') or 0)
             if credit_limit > 0:
