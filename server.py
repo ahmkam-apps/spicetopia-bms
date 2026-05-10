@@ -10224,9 +10224,11 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     c = _conn()
                     count = c.execute("SELECT COUNT(*) FROM suppliers").fetchone()[0]
+                    c.execute("PRAGMA foreign_keys = OFF")
                     c.execute("DELETE FROM suppliers")
                     c.execute("DELETE FROM id_counters WHERE entity='supplier'")
                     c.commit()
+                    c.execute("PRAGMA foreign_keys = ON")
                     c.close()
                     load_ref()
                     _log('info', 'suppliers_truncated', deleted=count, by=sess['username'])
@@ -10244,9 +10246,11 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     c = _conn()
                     count = c.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
+                    c.execute("PRAGMA foreign_keys = OFF")
                     c.execute("DELETE FROM customers")
                     c.execute("DELETE FROM id_counters WHERE entity='customer'")
                     c.commit()
+                    c.execute("PRAGMA foreign_keys = ON")
                     c.close()
                     load_ref()
                     _log('info', 'customers_truncated', deleted=count, by=sess['username'])
