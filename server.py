@@ -13702,6 +13702,7 @@ from modules.auth   import *   # _hash_pw, _hash_pw_new, _verify_pw, login_user,
 from modules.users      import *   # ensure_users_table, list_users, create_user, update_user, _reset_admin_pw_if_requested
 from modules.customers  import *   # create_customer, update_customer, import_customers_master, ensure_clean_customer_codes, assign_customer_route, list_route_customers, field_lookup_customers, field_create_customer
 from modules.suppliers  import *   # create_supplier, update_supplier, import_suppliers_master, _ensure_supplier_zone_col, ensure_clean_supplier_codes, _suppliers_with_zones
+from modules.products   import *   # create_product, update_product, deactivate_product, deactivate_variant, import_products_master, ensure_variant_wastage_pct, ensure_variant_gtin
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -13762,6 +13763,7 @@ if __name__ == '__main__':
     load_ref()
     import modules.customers as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh
     import modules.suppliers as _sup_mod;  _sup_mod._refresh_ref = load_ref   # wire ref refresh
+    import modules.products  as _prod_mod; _prod_mod._refresh_ref = load_ref  # wire ref refresh
     generate_master_templates()
     sync_master_files()
     seed_price_history()
