@@ -13703,6 +13703,7 @@ from modules.users      import *   # ensure_users_table, list_users, create_user
 from modules.customers  import *   # create_customer, update_customer, import_customers_master, ensure_clean_customer_codes, assign_customer_route, list_route_customers, field_lookup_customers, field_create_customer
 from modules.suppliers  import *   # create_supplier, update_supplier, import_suppliers_master, _ensure_supplier_zone_col, ensure_clean_supplier_codes, _suppliers_with_zones
 from modules.products   import *   # create_product, update_product, deactivate_product, deactivate_variant, import_products_master, ensure_variant_wastage_pct, ensure_variant_gtin
+from modules.inventory  import *   # get_stock_map, get_wo_reserved_stock_map, get_finished_stock_map, get_soft_hold_qty, get_hard_reserved_qty, get_available_for_soft_hold, get_stock_situation, create_adjustment, create_ingredient, update_ingredient, bulk_update_ingredient_costs, deactivate_ingredient, reactivate_ingredient, import_ingredients_master
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -13761,9 +13762,10 @@ if __name__ == '__main__':
     ensure_margin_alerts_table()         # margin_alerts table for floor breach tracking
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
-    import modules.customers as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh
-    import modules.suppliers as _sup_mod;  _sup_mod._refresh_ref = load_ref   # wire ref refresh
-    import modules.products  as _prod_mod; _prod_mod._refresh_ref = load_ref  # wire ref refresh
+    import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh
+    import modules.suppliers  as _sup_mod;  _sup_mod._refresh_ref = load_ref   # wire ref refresh
+    import modules.products   as _prod_mod; _prod_mod._refresh_ref = load_ref  # wire ref refresh
+    import modules.inventory  as _inv_mod;  _inv_mod._refresh_ref = load_ref   # wire ref refresh
     generate_master_templates()
     sync_master_files()
     seed_price_history()
