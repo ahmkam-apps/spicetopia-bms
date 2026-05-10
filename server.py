@@ -10217,6 +10217,27 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'fixed': len(fixed), 'details': fixed})
                 return
 
+            # POST /api/admin/ingredients/truncate  (admin only — wipe all ingredients + reset counter)
+            if path == '/api/admin/ingredients/truncate':
+                if sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                try:
+                    c = _conn()
+                    count = c.execute("SELECT COUNT(*) FROM ingredients").fetchone()[0]
+                    c.execute("PRAGMA foreign_keys = OFF")
+                    c.execute("DELETE FROM ingredients")
+                    c.execute("DELETE FROM id_counters WHERE entity='ingredient'")
+                    c.commit()
+                    c.execute("PRAGMA foreign_keys = ON")
+                    c.close()
+                    load_ref()
+                    _log('info', 'ingredients_truncated', deleted=count, by=sess['username'])
+                    send_json(self, {'ok': True, 'deleted': count,
+                                     'message': f'Deleted {count} ingredients. Counter reset. Safe to reimport.'})
+                except Exception as e:
+                    send_error(self, str(e), 500)
+                return
+
             # POST /api/admin/suppliers/truncate  (admin only — wipe all suppliers + reset counter)
             if path == '/api/admin/suppliers/truncate':
                 if sess['role'] != 'admin':
