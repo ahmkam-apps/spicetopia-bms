@@ -4029,7 +4029,8 @@ def create_supplier(data):
         {'field': 'city',    'label': 'City',          'required': False, 'type': 'str', 'max': 60},
     ])
     _ensure_supplier_zone_col()
-    code    = next_id('supplier', 'SUP')
+    _sync_counter_to_max('supplier', 'suppliers', 'code', 'SP-SUP-')
+    code    = next_id('supplier', 'SP-SUP')
     zone_id = data.get('zoneId') or None
     if zone_id is not None:
         zone_id = int(zone_id)
@@ -11943,6 +11944,35 @@ def ensure_clean_customer_codes():
         c.close()
 
 
+def ensure_clean_supplier_codes():
+    """Normalize all supplier codes to SP-SUP-XXXX format.
+    Handles: SUP-001 → SP-SUP-0001, SP-SUP-0001 stays, SUP-0001 → SP-SUP-0001.
+    Idempotent — safe to run on every startup."""
+    c = _conn()
+    try:
+        rows = c.execute("SELECT id, code FROM suppliers").fetchall()
+        fixed = 0
+        for row in rows:
+            code = row['code'] or ''
+            if code.startswith('SP-SUP-'):
+                continue  # already correct format
+            # Extract numeric part from any variant: SUP-001, SUP-0001, SUP001
+            num_part = code.replace('SP-SUP-', '').replace('SUP-', '').replace('SUP', '').lstrip('-').strip()
+            if not num_part.isdigit():
+                continue  # can't parse, skip
+            new_code = 'SP-SUP-' + num_part.zfill(4)
+            c.execute("UPDATE suppliers SET code=? WHERE id=?", (new_code, row['id']))
+            print(f"  ✓ supplier code fixed: {code} → {new_code}")
+            fixed += 1
+        if fixed:
+            c.commit()
+            print(f"  ✓ Normalized {fixed} supplier code(s) to SP-SUP-XXXX format")
+        else:
+            c.rollback()
+    finally:
+        c.close()
+
+
 def _reset_admin_pw_if_requested():
     """If RESET_ADMIN_PW env var is set, reset admin password (SHA-256) and clear all rate limits."""
     new_pw = os.environ.get('RESET_ADMIN_PW', '').strip()
@@ -13608,6 +13638,7 @@ if __name__ == '__main__':
     ensure_variant_wastage_pct()         # wastage_pct column on product_variants
     ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
     ensure_clean_customer_codes()        # fix SP-SP-CUST-* double-prefix → SP-CUST-*
+    ensure_clean_supplier_codes()        # normalize SUP-001/SP-SUP-0001 → SP-SUP-XXXX
     _reset_admin_pw_if_requested()       # one-shot reset via RESET_ADMIN_PW env var
     _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
     _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
