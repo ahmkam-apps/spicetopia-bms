@@ -91,6 +91,7 @@ def ensure_clean_supplier_codes():
 # ═══════════════════════════════════════════════════════════════════
 
 def _suppliers_with_zones():
+    """Return all active suppliers joined with their zone name. Used by the GET /api/suppliers handler."""
     _ensure_supplier_zone_col()
     return qry("""
         SELECT s.*, z.name as zone_name
@@ -106,6 +107,9 @@ def _suppliers_with_zones():
 # ═══════════════════════════════════════════════════════════════════
 
 def create_supplier(data):
+    """Create a new supplier with auto-generated SUP-NNN code.
+    Required: name. Optional: contact, phone, email, city, address, zoneId.
+    """
     validate_fields(data, [
         {'field': 'name',  'label': 'Supplier name', 'type': 'str', 'min': 2, 'max': 120},
         {'field': 'phone', 'label': 'Phone',         'required': False, 'type': 'str', 'max': 30},
@@ -135,6 +139,7 @@ def create_supplier(data):
 
 
 def update_supplier(sup_id, data):
+    """Update supplier fields. Accepts: name, contact, phone, email, city, address, active_flag, zoneId."""
     _ensure_supplier_zone_col()
     existing = qry1("SELECT * FROM suppliers WHERE id=?", (sup_id,))
     if not existing:

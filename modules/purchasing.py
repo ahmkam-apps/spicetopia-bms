@@ -505,6 +505,9 @@ def adjust_bill(bill_id, data):
 # ═══════════════════════════════════════════════════════════════════
 
 def list_purchase_orders(status_filter=None):
+    """Return all POs with supplier name, total cost, and item count.
+    Pass status_filter (e.g. 'draft', 'sent', 'received') to narrow results.
+    """
     sql = """
         SELECT po.*, s.name as supplier_name,
                COALESCE(SUM(pi.quantity_kg * pi.unit_cost_kg), 0) as total_cost,
@@ -522,6 +525,7 @@ def list_purchase_orders(status_filter=None):
 
 
 def get_purchase_order(po_id):
+    """Return a single PO with supplier name, line items (ingredient + costs), and linked bill id."""
     po = qry1("""
         SELECT po.*, s.name as supplier_name
         FROM purchase_orders po JOIN suppliers s ON s.id=po.supplier_id

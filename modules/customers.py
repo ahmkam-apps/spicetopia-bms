@@ -72,6 +72,10 @@ def ensure_clean_customer_codes():
 # ═══════════════════════════════════════════════════════════════════
 
 def create_customer(data):
+    """Create a new customer with auto-generated SP-CUST-NNN code and KHI/HYD account number.
+    Required: name, city. Optional: address, customerType (RETAIL/DIRECT/WHOLESALE), phone, email,
+              creditLimit, paymentTermsDays, defaultPack, zoneId.
+    """
     validate_fields(data, [
         {'field': 'name',         'label': 'Customer name',  'type': 'str',  'min': 2, 'max': 120},
         {'field': 'city',         'label': 'City',           'type': 'str',  'min': 2, 'max': 60},
@@ -191,6 +195,7 @@ def import_customers_master(rows):
 # ═══════════════════════════════════════════════════════════════════
 
 def assign_customer_route(customer_id, route_id, shop_name='', address=''):
+    """Add a customer as a stop on a route (idempotent). Also used by the field app."""
     existing = qry1(
         "SELECT id FROM route_customers WHERE customer_id=? AND route_id=?",
         (customer_id, route_id))
@@ -210,6 +215,7 @@ def assign_customer_route(customer_id, route_id, shop_name='', address=''):
 
 
 def list_route_customers(route_id):
+    """Return all customers assigned to a route, ordered by stop_sequence then name."""
     return qry("""
         SELECT rc.*, c.name as customer_name, c.code as customer_code,
                c.phone as customer_phone

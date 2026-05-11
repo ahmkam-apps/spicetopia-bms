@@ -37,6 +37,7 @@ def _log(level: str, msg: str, **fields):
 # ── Numeric helpers ────────────────────────────────────────────────────────────
 
 def r2(n):
+    """Round to 2 decimal places. Returns 0.0 on any error (None, '', non-numeric)."""
     try:    return round(float(n or 0), 2)
     except: return 0.0
 
@@ -48,6 +49,7 @@ def fmtpkr(n):
 
 
 def today():
+    """Return today's date as an ISO-8601 string (YYYY-MM-DD)."""
     return date.today().isoformat()
 
 
@@ -82,6 +84,7 @@ class ValidationError(Exception):
     can return a 422 response with per-field context.
     """
     def __init__(self, errors: dict):
+        """errors: dict of {field_name: error_message} pairs."""
         self.errors = errors
         super().__init__(json.dumps({'validationErrors': errors}))
 

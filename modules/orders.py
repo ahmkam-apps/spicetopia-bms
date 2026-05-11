@@ -125,6 +125,7 @@ def _wa_send(phone: str, apikey: str, message: str):
     """Non-blocking CallMeBot send. Fires in a daemon thread — never blocks the request."""
     import urllib.request, urllib.parse
     def _do():
+        """Fire the CallMeBot WhatsApp HTTP request in a background thread."""
         try:
             url = (
                 f"https://api.callmebot.com/whatsapp.php"

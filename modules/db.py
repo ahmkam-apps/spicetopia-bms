@@ -33,6 +33,12 @@ MAX_BACKUPS = 5      # keep the last N rolling backups alongside DB_SRC
 # ── Connection ────────────────────────────────────────────────────────────────
 
 def _conn():
+    """Open a new SQLite connection to DB_TMP (WAL mode, FK enforcement, 30s busy timeout).
+
+    IMPORTANT: Always close the connection in a finally block. Do NOT call next_id()
+    inside an open _conn() transaction — that causes a WAL deadlock. Generate all IDs
+    before opening the main transaction.
+    """
     # timeout=30: SQLite will retry for up to 30 s on SQLITE_BUSY instead of
     # immediately raising "database is locked".  Needed because ThreadingHTTPServer
     # spawns one thread per request, so concurrent write requests can collide.
@@ -46,6 +52,7 @@ def _conn():
 # ── Query helpers ─────────────────────────────────────────────────────────────
 
 def qry(sql, params=()):
+    """Execute a SELECT and return all rows as a list of dicts. Returns [] if no rows."""
     c = _conn()
     try:
         return [dict(r) for r in c.execute(sql, params).fetchall()]
@@ -54,6 +61,7 @@ def qry(sql, params=()):
 
 
 def qry1(sql, params=()):
+    """Execute a SELECT and return the first row as a dict, or None if no rows."""
     rows = qry(sql, params)
     return rows[0] if rows else None
 
@@ -61,6 +69,7 @@ def qry1(sql, params=()):
 # ── Write helpers (auto-commit + persist) ─────────────────────────────────────
 
 def run(sql, params=()):
+    """Execute a single write statement, commit, and persist to DB_SRC via save_db()."""
     c = _conn()
     try:
         c.execute(sql, params)

@@ -34,6 +34,10 @@ __all__ = [
 # ─────────────────────────────────────────────────────────────────
 
 def get_dashboard():
+    """Return all KPI data for the dashboard: today's sales, MTD/LTM revenue, AR/AP totals,
+    overdue invoices and bills, raw material stock value, and finished goods stock.
+    Uses lazy imports from invoices, purchasing, and inventory to avoid circular deps.
+    """
     from modules.invoices   import compute_invoice_balance
     from modules.purchasing import compute_bill_balance
     from modules.inventory  import get_stock_map, get_finished_stock_map

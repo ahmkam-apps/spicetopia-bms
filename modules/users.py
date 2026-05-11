@@ -86,10 +86,17 @@ def ensure_users_table():
 # ═══════════════════════════════════════════════════════════════════
 
 def list_users():
+    """Return all users (id, username, display_name, role, active, permissions) ordered by id.
+    Password hashes are never returned.
+    """
     return qry("SELECT id, username, display_name, role, active, permissions, created_at FROM users ORDER BY id")
 
 
 def create_user(data, requesting_role):
+    """Create a new user. Admin only. Required: username, password (min 6 chars).
+    Optional: displayName, role (default 'user'), permissions (list of extra permission strings).
+    Valid roles: admin, sales, warehouse, accountant, field_rep, user.
+    """
     if requesting_role != 'admin':
         raise ValueError("Only admins can create users")
     username = data.get('username', '').strip()
@@ -130,6 +137,9 @@ def create_user(data, requesting_role):
 
 
 def update_user(user_id, data, requesting_role, requesting_user_id):
+    """Update a user. Any user can change their own password. Only admins can change
+    displayName, role, active, and permissions. Returns updated user row (no password hash).
+    """
     user = qry1("SELECT * FROM users WHERE id=?", (user_id,))
     if not user:
         raise ValueError("User not found")

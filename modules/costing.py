@@ -366,6 +366,9 @@ def import_prices_master(rows):
 # ─────────────────────────────────────────────────────────────────
 
 def get_ingredient_price_history(ingredient_id=None, limit=50):
+    """Return ingredient cost change history with ingredient code and name.
+    Pass ingredient_id to filter to one ingredient; omit for all (most recent 50).
+    """
     sql = """
         SELECT ph.*, i.code, i.name
         FROM ingredient_price_history ph

@@ -236,6 +236,7 @@ def get_procurement_list(wo_id):
 # ─────────────────────────────────────────────────────────────────
 
 def list_work_orders():
+    """Return the 200 most recent work orders with product, SKU, and linked order number."""
     return qry("""
         SELECT wo.*, p.name as product_name, p.code as product_code,
                ps.label as pack_size, pv.sku_code,
@@ -250,6 +251,10 @@ def list_work_orders():
 
 
 def create_work_order(data):
+    """Create a standalone work order (not linked to a customer order).
+    Required: productVariantId, qtyUnits. Optional: targetDate, notes.
+    For WOs linked to a customer order item use POST /api/customer-orders/:id/items/:item_id/work-order.
+    """
     validate_fields(data, [
         {'field': 'productVariantId', 'label': 'Product variant', 'type': 'int', 'min': 1},
         {'field': 'qtyUnits',         'label': 'Quantity',         'type': 'int', 'min': 1},
@@ -353,6 +358,9 @@ def update_work_order(wo_id, data):
 
 
 def update_work_order_status(wo_id, status):
+    """Set WO status directly. Allowed values: planned, in_progress, cancelled.
+    Use convert_wo_to_batch() to move a WO to 'completed'.
+    """
     allowed = ('planned', 'in_progress', 'cancelled')
     if status not in allowed:
         raise ValueError(f"Invalid status. Must be one of: {', '.join(allowed)}")
@@ -615,6 +623,7 @@ def import_bom_master(rows):
     skipped  = 0
 
     def _col(row, *names):
+        """Case-insensitive column lookup across aliased CSV/XLSX headers."""
         for n in names:
             for k, v in row.items():
                 if k.strip().lower() == n.lower():

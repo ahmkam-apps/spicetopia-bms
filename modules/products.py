@@ -165,6 +165,7 @@ def update_product(code, data):
 
 
 def deactivate_product(code):
+    """Deactivate a product and all its variants. Blocks if any UNPAID/PARTIAL invoices exist."""
     prod = qry1("SELECT id, name FROM products WHERE code=?", (code,))
     if not prod:
         raise ValueError(f"Product '{code}' not found")

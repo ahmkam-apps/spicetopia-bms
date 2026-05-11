@@ -227,6 +227,10 @@ def _get_session_by_token(token: str):
 
 
 def login_user(username, password):
+    """Authenticate a user. Returns session dict with token on success.
+    Auto-upgrades SHA-256 passwords to Argon2id on first login after migration.
+    Raises ValueError on bad credentials.
+    """
     user   = qry1("SELECT * FROM users WHERE username=? AND active=1", (username,))
     scheme = user['auth_scheme'] if user else 'sha256'
     if not user or not _verify_pw(password, user['password_hash'], user.get('salt', ''), scheme):
@@ -269,6 +273,7 @@ def login_user(username, password):
 
 
 def logout_user(token):
+    """Delete the session row for the given token. Silently ignores errors."""
     try:
         run("DELETE FROM sessions WHERE token=?", (token,))
     except Exception:
@@ -278,6 +283,7 @@ def logout_user(token):
 def get_session(handler, qs=None):
     """Resolve session from Bearer header, cookie, or query-string token."""
     def _lookup(token):
+        """Resolve token string to session dict, or None."""
         if not token:
             return None
         return _get_session_by_token(token)

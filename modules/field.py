@@ -64,10 +64,14 @@ __all__ = [
 # ─────────────────────────────────────────────────────────────────
 
 def _lookup_customer_by_code(code):
+    """Fetch an active customer row by code (e.g. SP-CUST-0001). Returns None if not found."""
     return qry1("SELECT * FROM customers WHERE code=? AND active=1", (code,))
 
 
 def _lookup_variant_by_sku_pair(product_code, pack_size):
+    """Fetch an active variant row by (product_code, pack_size label), e.g. ('SPGM', '100g').
+    Replaces the old ref['var_by_sku'] in-memory dict lookup.
+    """
     return qry1("""
         SELECT pv.*, ps.label as pack_size, ps.grams as pack_grams,
                p.code as product_code, p.name as product_name
@@ -83,10 +87,12 @@ def _lookup_variant_by_sku_pair(product_code, pack_size):
 # ─────────────────────────────────────────────────────────────────
 
 def list_zones():
+    """Return all active zones ordered by name."""
     return qry("SELECT * FROM zones WHERE active=1 ORDER BY name")
 
 
 def create_zone(data):
+    """Create a new zone. Required: name. Optional: city/description."""
     name = data.get('name', '').strip()
     if not name:
         raise ValueError("Zone name is required")
@@ -103,6 +109,7 @@ def create_zone(data):
 
 
 def update_zone(zone_id, data):
+    """Update an existing zone. Accepts name, city/description, active."""
     z = qry1("SELECT * FROM zones WHERE id=?", (zone_id,))
     if not z:
         raise ValueError(f"Zone not found: {zone_id}")
@@ -130,6 +137,7 @@ def update_zone(zone_id, data):
 # ─────────────────────────────────────────────────────────────────
 
 def list_routes(zone_id=None):
+    """Return active routes with zone name. Pass zone_id to filter to one zone."""
     if zone_id:
         return qry("""
             SELECT r.*, z.name as zone_name
@@ -144,6 +152,7 @@ def list_routes(zone_id=None):
 
 
 def create_route(data):
+    """Create a route under a zone. Required: zoneId, name. Optional: visitDays (e.g. 'mon,wed,fri')."""
     zone_id = data.get('zoneId') or data.get('zone_id')
     name    = data.get('name', '').strip()
     if not zone_id or not name:
@@ -169,6 +178,7 @@ def create_route(data):
 
 
 def update_route(route_id, data):
+    """Update a route's name, visitDays, or active flag."""
     r = qry1("SELECT * FROM routes WHERE id=?", (route_id,))
     if not r:
         raise ValueError(f"Route not found: {route_id}")
@@ -198,6 +208,7 @@ def update_route(route_id, data):
 # ─────────────────────────────────────────────────────────────────
 
 def list_reps(active_only=True):
+    """Return sales reps with their primary zone name. Set active_only=False to include inactive."""
     sql = """
         SELECT sr.*, z.name as zone_name
         FROM sales_reps sr
@@ -209,6 +220,7 @@ def list_reps(active_only=True):
 
 
 def get_rep(rep_id):
+    """Return full rep profile: base row + routes, active salary, active commission rule, outstanding advances."""
     rep = qry1("SELECT * FROM sales_reps WHERE id=?", (rep_id,))
     if not rep:
         return None
@@ -234,6 +246,11 @@ def get_rep(rep_id):
 
 
 def create_rep(data):
+    """Create a new sales rep. Required: name, phone.
+    Optional: email, notes, joinDate, designation, pin, baseSalary, fuelAllowance,
+              mobileAllowance, otherAllowance, commissionPct, acceleratorPct, flatTargetBonus.
+    Salary and commission rules are inserted as effective-today records if provided.
+    """
     name  = data.get('name', '').strip()
     phone = data.get('phone', '').strip()
     if not name:
@@ -305,6 +322,11 @@ def create_rep(data):
 
 
 def update_rep(rep_id, data):
+    """Update rep profile fields and/or salary/commission rules.
+    Passing baseSalary creates a new salary record (deactivating the old one).
+    Passing commissionPct creates a new commission rule (deactivating the old one).
+    Passing pin re-hashes it with SHA-256.
+    """
     rep = qry1("SELECT * FROM sales_reps WHERE id=?", (rep_id,))
     if not rep:
         raise ValueError(f"Rep not found: {rep_id}")
@@ -371,6 +393,7 @@ def update_rep(rep_id, data):
 
 
 def assign_rep_route(rep_id, route_id):
+    """Assign a rep to a route (idempotent — silently succeeds if already assigned)."""
     if not qry1("SELECT id FROM sales_reps WHERE id=?", (rep_id,)):
         raise ValueError(f"Rep not found: {rep_id}")
     if not qry1("SELECT id FROM routes WHERE id=? AND active=1", (route_id,)):
@@ -392,6 +415,7 @@ def assign_rep_route(rep_id, route_id):
 
 
 def unassign_rep_route(assign_id):
+    """End a rep-route assignment by setting assigned_to=today on the rep_routes row."""
     c = _conn()
     try:
         c.execute("UPDATE rep_routes SET assigned_to=? WHERE id=?",
@@ -408,6 +432,9 @@ def unassign_rep_route(assign_id):
 # ─────────────────────────────────────────────────────────────────
 
 def set_rep_target(rep_id, data):
+    """Upsert monthly targets for a rep. Required: period (YYYY-MM).
+    Optional: targetAmount (revenue target in PKR), visitTarget (int).
+    """
     period = (data.get('period') or data.get('month', '') or '').strip()
     if not period:
         raise ValueError("period (YYYY-MM) is required")
@@ -432,6 +459,9 @@ def set_rep_target(rep_id, data):
 
 
 def record_advance(rep_id, data):
+    """Record a salary advance for a rep. Required: amount (PKR > 0).
+    Optional: advanceDate (YYYY-MM-DD), monthlyRecovery (PKR/month), notes.
+    """
     amount = float(data.get('amount', 0) or 0)
     if amount <= 0:
         raise ValueError("Amount must be positive")
@@ -457,6 +487,9 @@ def record_advance(rep_id, data):
 # ─────────────────────────────────────────────────────────────────
 
 def record_beat_visit(data):
+    """Log a beat visit. Required: repId, routeId, customerId.
+    Optional: visitDate (YYYY-MM-DD, default today), outcome (default 'visited'), notes.
+    """
     rep_id     = data.get('repId')
     route_id   = data.get('routeId')
     cust_id    = data.get('customerId')
@@ -484,6 +517,10 @@ def record_beat_visit(data):
 # ─────────────────────────────────────────────────────────────────
 
 def create_field_order(data):
+    """Create a legacy field order (rep-initiated, not via order.html portal).
+    Required: repId, customerId, items[{productVariantId, quantity, unitPrice}].
+    Optional: routeId, orderDate, notes, cashCollected.
+    """
     rep_id        = data.get('repId')
     route_id      = data.get('routeId')
     cust_id       = data.get('customerId')
@@ -524,6 +561,7 @@ def create_field_order(data):
 
 
 def get_field_order(order_id):
+    """Return a single legacy field order with its items, rep name, customer name, and route name."""
     order = qry1("""
         SELECT fo.*, sr.name as rep_name, c.name as customer_name,
                r.name as route_name
@@ -761,6 +799,10 @@ def calculate_payroll(rep_id, period):
 
 
 def run_payroll(period, rep_ids=None):
+    """Compute and save draft payroll rows for all active reps (or a subset via rep_ids list).
+    Skips reps already finalized for this period. Overwrites existing draft rows.
+    Returns list of payroll dicts with status='draft' or 'already_finalized'.
+    """
     all_reps = qry("SELECT id FROM sales_reps WHERE (status IS NULL OR status='active')")
     if rep_ids:
         all_reps = [r for r in all_reps if r['id'] in rep_ids]
@@ -816,6 +858,7 @@ def run_payroll(period, rep_ids=None):
 
 
 def finalize_payroll(rep_id, period):
+    """Finalize a draft payroll run: marks it 'final' and marks all period advances as recovered."""
     run = qry1("SELECT * FROM payroll_runs WHERE rep_id=? AND period=?", (rep_id, period))
     if not run:
         raise ValueError("No payroll run found for this rep/period")
@@ -837,6 +880,7 @@ def finalize_payroll(rep_id, period):
 
 
 def list_payroll_runs(period=None):
+    """List payroll runs with rep names. Pass period (YYYY-MM) to filter; otherwise returns last 200."""
     if period:
         return qry("""
             SELECT pr.*, sr.name as rep_name
