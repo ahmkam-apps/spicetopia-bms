@@ -13792,6 +13792,7 @@ if __name__ == '__main__':
     ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
     ensure_variant_wastage_pct()         # wastage_pct column on product_variants
     ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
+    ensure_clean_product_codes()          # normalize product codes → SPGM/SPCM, rebuild SKU codes
     ensure_clean_customer_codes()        # fix SP-SP-CUST-* double-prefix → SP-CUST-*
     ensure_clean_supplier_codes()        # normalize SUP-001/SP-SUP-0001 → SP-SUP-XXXX
     _reset_admin_pw_if_requested()       # one-shot reset via RESET_ADMIN_PW env var

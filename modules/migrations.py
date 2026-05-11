@@ -31,6 +31,7 @@ __all__ = [
     'ensure_margin_alerts_table',
     'ensure_field_otp_table',
     'ensure_ingredient_price_volatile',
+    'ensure_clean_product_codes',
 ]
 
 
@@ -1314,6 +1315,77 @@ def ensure_margin_alerts_table():
 # ═══════════════════════════════════════════════════════════════════
 #  FIELD OTP
 # ═══════════════════════════════════════════════════════════════════
+
+def ensure_clean_product_codes():
+    """Normalize product codes to SPGM/SPCM and rebuild variant SKU codes.
+
+    Identifies products by name (Garam Masala → SPGM, Chaat Masala → SPCM).
+    Also updates product_variants.sku_code, sales.product_code,
+    invoice_items.product_code, and production_batches references.
+    Safe to run on both DEV and PROD — idempotent (skips if already correct).
+    """
+    MAPPINGS = [
+        ('SPGM', ['garam']),
+        ('SPCM', ['chaat']),
+    ]
+    try:
+        c = _conn()
+        try:
+            products = c.execute("SELECT id, code, name FROM products").fetchall()
+            for prod in products:
+                pid   = prod['id']
+                pcode = prod['code']
+                pname = (prod['name'] or '').lower()
+
+                # Determine canonical code from product name
+                canonical = None
+                for target_code, keywords in MAPPINGS:
+                    if any(kw in pname for kw in keywords):
+                        canonical = target_code
+                        break
+                if not canonical or pcode == canonical:
+                    continue  # already correct or unknown product
+
+                print(f"  → Renaming product '{pcode}' → '{canonical}' (name: {prod['name']})")
+
+                # 1. Update products.code
+                c.execute("UPDATE products SET code=? WHERE id=?", (canonical, pid))
+
+                # 2. Rebuild variant SKU codes: canonical + '-' + pack_grams
+                variants = c.execute("""
+                    SELECT pv.id, pv.sku_code, ps.grams
+                    FROM product_variants pv
+                    LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                    WHERE pv.product_id=?
+                """, (pid,)).fetchall()
+
+                for v in variants:
+                    grams = int(v['grams']) if v['grams'] else 0
+                    new_sku = f"{canonical}-{grams}" if grams else canonical
+                    old_sku = v['sku_code']
+                    if old_sku == new_sku:
+                        continue
+                    print(f"    SKU: '{old_sku}' → '{new_sku}'")
+                    c.execute("UPDATE product_variants SET sku_code=? WHERE id=?", (new_sku, v['id']))
+                    # Update denormalised text references
+                    c.execute("UPDATE sales          SET product_code=?, sku_code=? WHERE sku_code=?",   (canonical, new_sku, old_sku))
+                    c.execute("UPDATE invoice_items  SET product_code=? WHERE sku_code=?",               (canonical, old_sku))
+                    c.execute("UPDATE customer_order_items SET product_variant_id=product_variant_id WHERE product_variant_id=?", (v['id'],))
+
+                # Update sales/invoices that stored old product code but no sku_code
+                c.execute("UPDATE sales         SET product_code=? WHERE product_code=?", (canonical, pcode))
+                c.execute("UPDATE invoice_items SET product_code=? WHERE product_code=?", (canonical, pcode))
+
+            c.commit()
+            print("  ✓ ensure_clean_product_codes done")
+        except Exception as e:
+            c.rollback()
+            print(f"  ⚠ ensure_clean_product_codes error (non-fatal): {e}")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_clean_product_codes outer error (non-fatal): {e}")
+
 
 def ensure_ingredient_price_volatile():
     """Add price_volatile column to ingredients (idempotent)."""
