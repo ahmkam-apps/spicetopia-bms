@@ -1324,10 +1324,18 @@ def ensure_clean_product_codes():
     invoice_items.product_code, and production_batches references.
     Safe to run on both DEV and PROD — idempotent (skips if already correct).
     """
-    MAPPINGS = [
-        ('SPGM', ['garam']),
-        ('SPCM', ['chaat']),
-    ]
+    # Match by name keywords OR by code containing GM/CM fragments
+    def _canonical(pcode, pname):
+        pcode_up = pcode.upper()
+        pname_lo = pname.lower()
+        if pcode_up == 'SPGM' or pcode_up == 'SPCM':
+            return pcode_up  # already canonical
+        if 'garam' in pname_lo or 'GM' in pcode_up:
+            return 'SPGM'
+        if 'chaat' in pname_lo or 'CM' in pcode_up:
+            return 'SPCM'
+        return None
+
     try:
         c = _conn()
         try:
@@ -1335,14 +1343,9 @@ def ensure_clean_product_codes():
             for prod in products:
                 pid   = prod['id']
                 pcode = prod['code']
-                pname = (prod['name'] or '').lower()
+                pname = prod['name'] or ''
 
-                # Determine canonical code from product name
-                canonical = None
-                for target_code, keywords in MAPPINGS:
-                    if any(kw in pname for kw in keywords):
-                        canonical = target_code
-                        break
+                canonical = _canonical(pcode, pname)
                 if not canonical or pcode == canonical:
                     continue  # already correct or unknown product
 
