@@ -1346,15 +1346,19 @@ def ensure_clean_product_codes():
                 pname = prod['name'] or ''
 
                 canonical = _canonical(pcode, pname)
-                if not canonical or pcode == canonical:
-                    continue  # already correct or unknown product
+                if not canonical:
+                    continue  # unknown product — skip
 
-                print(f"  → Renaming product '{pcode}' → '{canonical}' (name: {prod['name']})")
+                # 1. Update products.code if not already canonical
+                if pcode != canonical:
+                    print(f"  → Renaming product '{pcode}' → '{canonical}' (name: {prod['name']})")
+                    c.execute("UPDATE products SET code=? WHERE id=?", (canonical, pid))
+                    # Update sales/invoices that stored old product code
+                    c.execute("UPDATE sales         SET product_code=? WHERE product_code=?", (canonical, pcode))
+                    c.execute("UPDATE invoice_items SET product_code=? WHERE product_code=?", (canonical, pcode))
 
-                # 1. Update products.code
-                c.execute("UPDATE products SET code=? WHERE id=?", (canonical, pid))
-
-                # 2. Rebuild variant SKU codes: canonical + '-' + pack_grams
+                # 2. Always rebuild variant SKU codes: canonical + '-' + pack_grams
+                #    (handles case where products.code was already canonical but variants were wrong)
                 variants = c.execute("""
                     SELECT pv.id, pv.sku_code, ps.grams
                     FROM product_variants pv
@@ -1374,10 +1378,6 @@ def ensure_clean_product_codes():
                     c.execute("UPDATE sales          SET product_code=?, sku_code=? WHERE sku_code=?",   (canonical, new_sku, old_sku))
                     c.execute("UPDATE invoice_items  SET product_code=? WHERE sku_code=?",               (canonical, old_sku))
                     c.execute("UPDATE customer_order_items SET product_variant_id=product_variant_id WHERE product_variant_id=?", (v['id'],))
-
-                # Update sales/invoices that stored old product code but no sku_code
-                c.execute("UPDATE sales         SET product_code=? WHERE product_code=?", (canonical, pcode))
-                c.execute("UPDATE invoice_items SET product_code=? WHERE product_code=?", (canonical, pcode))
 
             c.commit()
             print("  ✓ ensure_clean_product_codes done")
