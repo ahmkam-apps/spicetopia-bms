@@ -29,6 +29,7 @@ __all__ = [
     'ensure_price_types_sprint6',
     'ensure_price_history_extended',
     'ensure_margin_alerts_table',
+    'ensure_field_otp_table',
 ]
 
 
@@ -1305,5 +1306,30 @@ def ensure_margin_alerts_table():
             )
         """)
         c.commit()
+    finally:
+        c.close()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  FIELD OTP
+# ═══════════════════════════════════════════════════════════════════
+
+def ensure_field_otp_table():
+    """Create field_otp table for WhatsApp OTP login (idempotent)."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS field_otp (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                phone      TEXT NOT NULL,
+                code       TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used       INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_field_otp_phone ON field_otp(phone)")
+        c.commit()
+        print("  ✓ field_otp table ready")
     finally:
         c.close()

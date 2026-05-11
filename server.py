@@ -10220,6 +10220,35 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, {'error': str(e)}, 401)
                 return
 
+            # POST /api/field/send-otp  (no session — sends WhatsApp OTP to rep)
+            if path == '/api/field/send-otp':
+                ip    = _get_client_ip(self)
+                phone = data.get('phone', '').strip()
+                try:
+                    _check_rate_limit(ip)
+                    result = send_field_otp(phone)
+                    send_json(self, result)
+                except ValueError as e:
+                    _record_failed_attempt(ip)
+                    send_json(self, {'error': str(e)}, 400)
+                return
+
+            # POST /api/field/verify-otp  (no session — verifies OTP, returns field session)
+            if path == '/api/field/verify-otp':
+                ip    = _get_client_ip(self)
+                phone = data.get('phone', '').strip()
+                code  = str(data.get('code', '')).strip()
+                try:
+                    _check_rate_limit(ip)
+                    rep = verify_field_otp(phone, code)
+                    _clear_rate_limit(ip)
+                    result = _create_field_session(rep)
+                    send_field_login_response(self, result)
+                except ValueError as e:
+                    _record_failed_attempt(ip)
+                    send_json(self, {'error': str(e)}, 401)
+                return
+
             # ── B2B PORTAL — POST /api/field/customers  (field rep session) ──
             if path == '/api/field/customers':
                 fsess = _get_field_session(self, qs)
@@ -13777,6 +13806,7 @@ if __name__ == '__main__':
     ensure_price_types_sprint6()         # update price_type labels + add bulk
     ensure_price_history_extended()      # adds change_type, config_key, changed_by, note to price_history
     ensure_margin_alerts_table()         # margin_alerts table for floor breach tracking
+    ensure_field_otp_table()             # field_otp table for WhatsApp OTP login
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
     import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh

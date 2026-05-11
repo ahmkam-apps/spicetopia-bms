@@ -50,7 +50,7 @@ __all__ = [
     # Session management
     '_get_session_by_token', 'login_user', 'logout_user', 'get_session', '_session_cleanup',
     # Field rep auth
-    'field_login', '_get_field_session',
+    'field_login', '_get_field_session', '_create_field_session',
 ]
 
 # ── Module-level config ────────────────────────────────────────────────────────
@@ -346,6 +346,22 @@ def field_login(phone, pin):
     if pin_hash != rep['pin_hash']:
         raise ValueError("Incorrect PIN")
 
+    token      = secrets.token_hex(24)
+    now        = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+    expires_at = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')
+    perms      = json.dumps([])
+    run("""
+        INSERT INTO sessions (token, user_id, username, display_name, role, permissions, created_at, expires_at, last_seen_at)
+        VALUES (?, ?, ?, ?, 'field_rep', ?, ?, ?, ?)
+    """, (token, rep['id'], rep['phone'], rep['name'], perms, now, expires_at, now))
+    return {'token': token, 'repId': rep['id'], 'name': rep['name'], 'setcookie': True}
+
+
+def _create_field_session(rep):
+    """Create a field rep session token for an already-authenticated rep dict.
+    Called after OTP verification (identity already confirmed — no PIN check).
+    Returns same shape as field_login: {'token', 'repId', 'name', 'setcookie'}.
+    """
     token      = secrets.token_hex(24)
     now        = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
     expires_at = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')

@@ -28,7 +28,9 @@ Already extracted (NOT re-exported here):
 
 import hashlib
 import json
-from datetime import date, timedelta
+import random
+import string
+from datetime import date, timedelta, datetime
 
 from modules.utils  import *   # r2, today, fmtpkr, validate_fields
 from modules.db     import *   # _conn, qry, qry1, run, save_db
@@ -56,6 +58,8 @@ __all__ = [
     '_is_out_of_route', '_wa_notify_out_of_route',
     # Direct sales
     'create_sale', 'create_multi_sale',
+    # OTP login
+    'send_field_otp', 'verify_field_otp',
 ]
 
 
@@ -1198,3 +1202,70 @@ def create_multi_sale(data):
     save_db()
     return {'invoiceNumber': inv_num, 'invoiceId': inv_db_id,
             'total': invoice_total, 'saleIds': sale_ids, 'lineCount': len(resolved)}
+
+
+# ─────────────────────────────────────────────────────────────────
+#  WHATSAPP OTP LOGIN
+# ─────────────────────────────────────────────────────────────────
+
+def send_field_otp(phone):
+    """Generate and send a 6-digit OTP via CallMeBot WhatsApp.
+    Rate-limited to 3 requests per phone per 10 minutes.
+    Raises ValueError if rep not found, no WA API key, or rate limited.
+    """
+    rep = qry1("SELECT * FROM sales_reps WHERE phone=? AND status='active'", (phone,))
+    if not rep:
+        raise ValueError("No active rep found with this phone number")
+    if not rep.get('whatsapp_apikey'):
+        raise ValueError("WhatsApp OTP not configured for this number. Contact admin.")
+
+    # Rate limit: max 3 OTPs per phone per 10 minutes
+    recent = qry("""
+        SELECT COUNT(*) as cnt FROM field_otp
+        WHERE phone=? AND created_at > datetime('now', '-10 minutes')
+    """, (phone,))
+    if recent and recent[0]['cnt'] >= 3:
+        raise ValueError("Too many OTP requests. Please wait 10 minutes and try again.")
+
+    code = ''.join(random.choices(string.digits, k=6))
+
+    c = _conn()
+    try:
+        c.execute("""INSERT INTO field_otp (phone, code, expires_at)
+                     VALUES (?, ?, datetime('now', '+5 minutes'))""", (phone, code))
+        c.commit()
+    finally:
+        c.close()
+
+    from modules.orders import _wa_send
+    msg = f"Your Spicetopia login code is: {code}\nValid for 5 minutes. Do not share this code."
+    _wa_send(phone, rep['whatsapp_apikey'], msg)
+    masked = phone[:3] + '****' + phone[-3:] if len(phone) > 6 else '****'
+    return {'sent': True, 'phone': masked}
+
+
+def verify_field_otp(phone, code):
+    """Verify a WhatsApp OTP. Returns the sales_rep row on success.
+    Raises ValueError if code invalid, expired, or already used.
+    """
+    row = qry1("""
+        SELECT * FROM field_otp
+        WHERE phone=? AND code=? AND used=0
+          AND expires_at > datetime('now')
+        ORDER BY id DESC LIMIT 1
+    """, (phone, code))
+    if not row:
+        raise ValueError("Invalid or expired OTP. Please request a new code.")
+
+    # Mark used immediately (single-use)
+    c = _conn()
+    try:
+        c.execute("UPDATE field_otp SET used=1 WHERE id=?", (row['id'],))
+        c.commit()
+    finally:
+        c.close()
+
+    rep = qry1("SELECT * FROM sales_reps WHERE phone=? AND status='active'", (phone,))
+    if not rep:
+        raise ValueError("Rep account not found or inactive.")
+    return rep

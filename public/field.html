@@ -156,11 +156,42 @@ select.form-input { background: #fff; }
     <input class="login-input" id="login-phone" type="tel" placeholder="03001234567"
       inputmode="numeric" autocomplete="tel">
 
-    <label class="login-label">4-Digit PIN</label>
-    <input class="login-input pin-input" id="login-pin" type="password"
-      maxlength="4" placeholder="••••" inputmode="numeric">
+    <!-- PIN section -->
+    <div id="login-pin-section">
+      <label class="login-label">4-Digit PIN</label>
+      <input class="login-input pin-input" id="login-pin" type="password"
+        maxlength="4" placeholder="••••" inputmode="numeric">
+      <button class="login-btn" onclick="doLogin()">Sign In</button>
+      <button class="login-btn" id="otp-switch-btn" onclick="switchToOtp()"
+        style="margin-top:10px;background:#fff;color:var(--saffron);border:1.5px solid var(--saffron);">
+        Sign in with WhatsApp OTP instead
+      </button>
+    </div>
 
-    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <!-- OTP section (hidden by default) -->
+    <div id="login-otp-section" style="display:none">
+      <label class="login-label">WhatsApp OTP</label>
+      <p style="font-size:12px;color:var(--text-2);margin:0 0 10px;">
+        We'll send a 6-digit code to your WhatsApp number.
+      </p>
+      <button class="login-btn" id="send-otp-btn" onclick="sendOtp()">Send OTP via WhatsApp</button>
+      <div id="otp-input-wrap" style="display:none;margin-top:14px;">
+        <label class="login-label">Enter 6-Digit Code</label>
+        <input class="login-input pin-input" id="login-otp" type="text"
+          maxlength="6" placeholder="––––––" inputmode="numeric"
+          style="letter-spacing:12px;font-size:22px;">
+        <button class="login-btn" onclick="verifyOtp()" style="margin-top:10px;">Verify &amp; Sign In</button>
+        <button class="login-btn" onclick="sendOtp()" id="resend-otp-btn"
+          style="margin-top:8px;background:#fff;color:var(--text-2);border:1.5px solid var(--border);font-size:13px;">
+          Resend Code
+        </button>
+      </div>
+      <button onclick="switchToPin()"
+        style="background:none;border:none;color:var(--saffron);font-size:13px;margin-top:12px;cursor:pointer;width:100%;text-align:center;">
+        ← Back to PIN login
+      </button>
+    </div>
+
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
@@ -341,6 +372,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('login-pin').addEventListener('keyup', e => {
     if (e.key === 'Enter') doLogin();
   });
+  // Enter key on OTP triggers verify
+  document.getElementById('login-otp').addEventListener('keyup', e => {
+    if (e.key === 'Enter') verifyOtp();
+  });
 });
 
 // ──────────────────────────────────────────────
@@ -374,6 +409,67 @@ async function doLogin() {
   }
 }
 
+function switchToOtp() {
+  document.getElementById('login-pin-section').style.display = 'none';
+  document.getElementById('login-otp-section').style.display = 'block';
+  document.getElementById('otp-input-wrap').style.display = 'none';
+  document.getElementById('login-error').style.display = 'none';
+}
+
+function switchToPin() {
+  document.getElementById('login-otp-section').style.display = 'none';
+  document.getElementById('login-pin-section').style.display = 'block';
+  document.getElementById('login-error').style.display = 'none';
+}
+
+async function sendOtp() {
+  const phone = document.getElementById('login-phone').value.trim();
+  if (!phone) { showError('Enter your phone number first'); return; }
+  const btn = document.getElementById('send-otp-btn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  document.getElementById('login-error').style.display = 'none';
+  try {
+    const r = await fetch('/api/field/send-otp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({phone})
+    });
+    const d = await r.json();
+    if (!r.ok) { showError(d.error || 'Failed to send OTP'); btn.disabled = false; btn.textContent = 'Send OTP via WhatsApp'; return; }
+    document.getElementById('otp-input-wrap').style.display = 'block';
+    btn.textContent = 'Sent ✓';
+    setTimeout(() => { btn.disabled = false; btn.textContent = 'Resend OTP'; }, 30000);
+    document.getElementById('login-otp').focus();
+  } catch(e) {
+    showError('Connection error. Try again.');
+    btn.disabled = false; btn.textContent = 'Send OTP via WhatsApp';
+  }
+}
+
+async function verifyOtp() {
+  const phone = document.getElementById('login-phone').value.trim();
+  const code  = document.getElementById('login-otp').value.trim();
+  if (!phone || !code) { showError('Enter your phone and OTP code'); return; }
+  document.getElementById('login-error').style.display = 'none';
+  try {
+    const r = await fetch('/api/field/verify-otp', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({phone, code})
+    });
+    const d = await r.json();
+    if (!r.ok) { showError(d.error || 'Invalid OTP'); return; }
+    state.repId   = d.repId;
+    state.repName = d.name;
+    sessionStorage.setItem('field_rep_id',   d.repId);
+    sessionStorage.setItem('field_rep_name', d.name);
+    showApp();
+  } catch(e) {
+    showError('Connection error. Try again.');
+  }
+}
+
 function showError(msg) {
   const el = document.getElementById('login-error');
   el.textContent = msg;
@@ -386,6 +482,11 @@ function doLogout() {
   // Expire the httpOnly cookie server-side by clearing it
   document.cookie = 'field_token=; Max-Age=0; Path=/;';
   document.getElementById('app').style.display = 'none';
+  // Reset login form to PIN view
+  switchToPin();
+  document.getElementById('login-pin').value = '';
+  document.getElementById('login-otp').value = '';
+  document.getElementById('otp-input-wrap').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
 }
 
