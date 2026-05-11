@@ -641,8 +641,18 @@ def import_bom_master(rows):
         groups[pcode].append((i, row))
 
     for pcode, group_rows in groups.items():
-        # Validate product exists
-        prod = qry1("SELECT id, code, name FROM products WHERE code=?", (pcode,))
+        # Validate product exists — try exact match first, then fuzzy on code/name
+        prod = qry1("SELECT id, code, name FROM products WHERE UPPER(code)=?", (pcode.upper(),))
+        if not prod:
+            # Fuzzy fallback: pcode contains GM → Garam Masala, CM → Chaat Masala
+            if 'GM' in pcode.upper():
+                prod = qry1("""SELECT id, code, name FROM products WHERE active=1
+                               AND (UPPER(code) LIKE '%GM%' OR LOWER(name) LIKE '%garam%')
+                               ORDER BY id LIMIT 1""")
+            elif 'CM' in pcode.upper():
+                prod = qry1("""SELECT id, code, name FROM products WHERE active=1
+                               AND (UPPER(code) LIKE '%CM%' OR LOWER(name) LIKE '%chaat%')
+                               ORDER BY id LIMIT 1""")
         if not prod:
             for i, _ in group_rows:
                 errors.append(f"Row {i}: product '{pcode}' not found")

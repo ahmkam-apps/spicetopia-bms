@@ -1340,31 +1340,55 @@ def ensure_clean_product_codes():
         c = _conn()
         try:
             products = c.execute("SELECT id, code, name FROM products").fetchall()
+
+            # Group by canonical code — PROD may have multiple rows for same product
+            # e.g. SPCM-50, SPCM-100, SPCM-1000 as separate product rows
+            from collections import defaultdict as _dd
+            groups = _dd(list)
             for prod in products:
-                pid   = prod['id']
-                pcode = prod['code']
-                pname = prod['name'] or ''
+                can = _canonical(prod['code'], prod['name'] or '')
+                if can:
+                    groups[can].append(prod)
 
-                canonical = _canonical(pcode, pname)
-                if not canonical:
-                    continue  # unknown product — skip
+            for canonical, prods in groups.items():
+                if not prods:
+                    continue
 
-                # 1. Update products.code if not already canonical
-                if pcode != canonical:
-                    print(f"  → Renaming product '{pcode}' → '{canonical}' (name: {prod['name']})")
-                    c.execute("UPDATE products SET code=? WHERE id=?", (canonical, pid))
-                    # Update sales/invoices that stored old product code
-                    c.execute("UPDATE sales         SET product_code=? WHERE product_code=?", (canonical, pcode))
-                    c.execute("UPDATE invoice_items SET product_code=? WHERE product_code=?", (canonical, pcode))
+                # Sort so the one with the most variants becomes the "keeper"
+                # (or just take the first one alphabetically)
+                prods_with_counts = []
+                for p in prods:
+                    vc = c.execute("SELECT COUNT(*) FROM product_variants WHERE product_id=?", (p['id'],)).fetchone()[0]
+                    prods_with_counts.append((vc, p))
+                prods_with_counts.sort(key=lambda x: -x[0])
 
-                # 2. Always rebuild variant SKU codes: canonical + '-' + pack_grams
-                #    (handles case where products.code was already canonical but variants were wrong)
+                keeper = prods_with_counts[0][1]  # keep the one with most variants
+                keeper_id = keeper['id']
+
+                # Rename keeper to canonical if needed
+                if keeper['code'] != canonical:
+                    print(f"  → Renaming product '{keeper['code']}' → '{canonical}'")
+                    c.execute("UPDATE products SET code=? WHERE id=?", (canonical, keeper_id))
+                    c.execute("UPDATE sales         SET product_code=? WHERE product_code=?", (canonical, keeper['code']))
+                    c.execute("UPDATE invoice_items SET product_code=? WHERE product_code=?", (canonical, keeper['code']))
+
+                # Handle duplicates: re-parent their variants to keeper, then deactivate
+                for _, dup in prods_with_counts[1:]:
+                    dup_id = dup['id']
+                    print(f"  → Merging duplicate product '{dup['code']}' (id={dup_id}) into '{canonical}' (id={keeper_id})")
+                    c.execute("UPDATE product_variants SET product_id=? WHERE product_id=?", (keeper_id, dup_id))
+                    c.execute("UPDATE sales         SET product_code=? WHERE product_code=?", (canonical, dup['code']))
+                    c.execute("UPDATE invoice_items SET product_code=? WHERE product_code=?", (canonical, dup['code']))
+                    c.execute("UPDATE production_batches SET product_id=? WHERE product_id=?", (keeper_id, dup_id))
+                    c.execute("UPDATE products SET active=0 WHERE id=?", (dup_id,))
+
+                # Rebuild variant SKU codes for keeper: canonical + '-' + pack_grams
                 variants = c.execute("""
                     SELECT pv.id, pv.sku_code, ps.grams
                     FROM product_variants pv
                     LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
                     WHERE pv.product_id=?
-                """, (pid,)).fetchall()
+                """, (keeper_id,)).fetchall()
 
                 for v in variants:
                     grams = int(v['grams']) if v['grams'] else 0
@@ -1374,10 +1398,8 @@ def ensure_clean_product_codes():
                         continue
                     print(f"    SKU: '{old_sku}' → '{new_sku}'")
                     c.execute("UPDATE product_variants SET sku_code=? WHERE id=?", (new_sku, v['id']))
-                    # Update denormalised text references
-                    c.execute("UPDATE sales          SET product_code=?, sku_code=? WHERE sku_code=?",   (canonical, new_sku, old_sku))
-                    c.execute("UPDATE invoice_items  SET product_code=? WHERE sku_code=?",               (canonical, old_sku))
-                    c.execute("UPDATE customer_order_items SET product_variant_id=product_variant_id WHERE product_variant_id=?", (v['id'],))
+                    c.execute("UPDATE sales          SET product_code=?, sku_code=? WHERE sku_code=?", (canonical, new_sku, old_sku))
+                    c.execute("UPDATE invoice_items  SET product_code=? WHERE sku_code=?", (canonical, old_sku))
 
             c.commit()
             print("  ✓ ensure_clean_product_codes done")
