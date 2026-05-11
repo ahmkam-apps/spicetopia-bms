@@ -194,9 +194,10 @@ select.form-input { background: #fff; }
   <div class="screen" id="screen-order">
     <div class="card" style="margin-bottom:12px">
       <div class="card-title">Customer</div>
-      <select class="form-input" id="order-customer">
+      <select class="form-input" id="order-customer" onchange="onCustomerChange()">
         <option value="">Select customer…</option>
       </select>
+      <div id="cust-info" style="margin-top:8px;font-size:12px;color:var(--text-2);display:none"></div>
     </div>
     <div class="card" style="margin-bottom:12px">
       <div class="card-title">Add Products</div>
@@ -214,6 +215,14 @@ select.form-input { background: #fff; }
     </div>
     <textarea class="form-input" id="order-notes" placeholder="Notes…" rows="2"
       style="margin-bottom:12px"></textarea>
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Cash Collected</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:14px;color:var(--text-2);font-weight:600">PKR</span>
+        <input class="form-input" id="order-cash" type="number" min="0" step="1"
+          placeholder="0" inputmode="decimal" style="flex:1">
+      </div>
+    </div>
     <button class="btn btn-success" onclick="submitOrder()">Submit Order</button>
     <button class="btn btn-secondary" onclick="clearOrder()">Clear</button>
   </div>
@@ -291,6 +300,8 @@ const state = {
   routes:     [],
   customers:  [],
   products:   [],
+  productsByType: {},   // cache: { RETAIL: [...], DIRECT: [...] }
+  selectedCustType: 'RETAIL',
   orderItems: [],
   todayVisits:  [],
   todayOrders:  [],
@@ -390,51 +401,121 @@ async function showApp() {
 }
 
 async function loadAppData() {
-  // Load today's routes, customers, products in parallel
-  // Cookie is sent automatically via credentials: 'same-origin'
   const opts = { credentials: 'same-origin' };
   try {
-    const [routesR, prodsR, custsR] = await Promise.all([
+    const [routesR, custsR] = await Promise.all([
       fetch('/api/field/my-routes', opts),
-      fetch('/api/products',        opts),
       fetch('/api/customers?all=1', opts),
     ]);
     state.routes    = routesR.ok ? await routesR.json() : [];
-    const prods     = prodsR.ok  ? await prodsR.json()  : [];
     state.customers = custsR.ok  ? await custsR.json()  : [];
 
-    // Build product + variant list for order dropdown
-    state.products = [];
-    prods.forEach(p => {
-      if (p.active === 0) return;
-      state.products.push({
-        variantId: p.variant_id || p.id,
-        label: `${p.name}`,
-        packSize: p.pack_size || '',
-        sku: p.code,
-        // Default price — will be 0, rep enters manually
-        price: 0,
-      });
-    });
-
+    await loadProducts('RETAIL');   // load default price tier
+    await loadTodayData();          // restore visits + orders from server
     populateDropdowns();
   } catch(e) {
     console.error('loadAppData error', e);
   }
 }
 
+async function loadProducts(custType) {
+  custType = (custType || 'RETAIL').toUpperCase();
+  if (state.productsByType[custType]) {
+    state.products = state.productsByType[custType];
+    populateProductDropdown();
+    return;
+  }
+  try {
+    const r = await fetch('/api/field/products?customerType=' + custType,
+                          { credentials: 'same-origin' });
+    if (!r.ok) return;
+    const data = await r.json();
+    const mapped = data.map(p => ({
+      variantId: p.variant_id,
+      label:     p.product_name + ' ' + p.pack_size,
+      packSize:  p.pack_size,
+      sku:       p.sku_code,
+      price:     p.price || 0,
+    }));
+    state.productsByType[custType] = mapped;
+    state.products = mapped;
+    populateProductDropdown();
+  } catch(e) {
+    console.error('loadProducts error', e);
+  }
+}
+
+async function loadTodayData() {
+  const today = new Date().toISOString().slice(0, 10);
+  const opts  = { credentials: 'same-origin' };
+  try {
+    const [visitsR, ordersR] = await Promise.all([
+      fetch('/api/beat-visits?repId=' + state.repId + '&date=' + today, opts),
+      fetch('/api/field-orders?repId=' + state.repId + '&dateFrom=' + today + '&dateTo=' + today, opts),
+    ]);
+    if (visitsR.ok) {
+      const visits = await visitsR.json();
+      state.todayVisits = (Array.isArray(visits) ? visits : []).map(v => ({
+        customer_id: v.customer_id,
+        outcome:     v.outcome,
+      }));
+    }
+    if (ordersR.ok) {
+      const orders = await ordersR.json();
+      state.todayOrders = (Array.isArray(orders) ? orders : []).map(o => ({
+        id:    o.id,
+        total: o.total || 0,
+      }));
+    }
+  } catch(e) {
+    console.error('loadTodayData error', e);
+  }
+}
+
 function populateDropdowns() {
-  // Customer dropdowns
   const custOpts = state.customers.map(c =>
-    `<option value="${c.id}">${escH(c.name)} (${escH(c.code)})</option>`).join('');
+    `<option value="${c.id}" data-type="${escH(c.customer_type||'RETAIL')}">${escH(c.name)} (${escH(c.code)})</option>`).join('');
   document.getElementById('order-customer').innerHTML = '<option value="">Select customer…</option>' + custOpts;
   document.getElementById('visit-customer').innerHTML = '<option value="">Select customer…</option>' + custOpts;
+  populateProductDropdown();
+}
 
-  // Product dropdown
+function populateProductDropdown() {
   const prodOpts = state.products.map(p =>
-    `<option value="${p.variantId}" data-sku="${p.sku}" data-price="${p.price}">${escH(p.label)}</option>`
+    '<option value="' + p.variantId + '" data-price="' + p.price + '">' +
+    escH(p.label) + (p.price ? '  —  PKR ' + p.price.toLocaleString() : '') +
+    '</option>'
   ).join('');
   document.getElementById('order-product').innerHTML = '<option value="">Select product…</option>' + prodOpts;
+}
+
+async function onCustomerChange() {
+  const sel  = document.getElementById('order-customer');
+  const custId = sel.value;
+  const infoEl = document.getElementById('cust-info');
+
+  if (!custId) { infoEl.style.display = 'none'; return; }
+
+  const cust = state.customers.find(c => c.id == custId);
+  if (!cust) { infoEl.style.display = 'none'; return; }
+
+  // Show customer type badge
+  const typeLabel = { RETAIL: 'Retail', DIRECT: 'Direct Sale', WHOLESALE: 'Wholesale' };
+  infoEl.innerHTML = '<span style="background:var(--border);padding:2px 8px;border-radius:10px;font-weight:600">' +
+    escH(typeLabel[cust.customer_type] || cust.customer_type || 'Retail') + '</span>';
+  infoEl.style.display = 'block';
+
+  // Reload product prices for this customer type
+  const newType = (cust.customer_type || 'RETAIL').toUpperCase();
+  if (newType !== state.selectedCustType) {
+    state.selectedCustType = newType;
+    // Clear order items — prices have changed
+    if (state.orderItems.length > 0) {
+      state.orderItems = [];
+      renderOrderItems();
+    }
+    await loadProducts(newType);
+  }
 }
 
 // ──────────────────────────────────────────────
@@ -511,16 +592,18 @@ function quickVisit(customerId, routeId) {
 //  ORDER SCREEN
 // ──────────────────────────────────────────────
 function addOrderItem() {
-  const sel   = document.getElementById('order-product');
-  const vid   = sel.value;
-  const label = sel.options[sel.selectedIndex]?.text || '';
+  const sel = document.getElementById('order-product');
+  const vid = sel.value;
   if (!vid) return;
 
-  // Check if already added
   const existing = state.orderItems.find(i => i.variantId == vid);
   if (existing) { existing.qty++; renderOrderItems(); return; }
 
-  state.orderItems.push({variantId: vid, name: label, qty: 1, unitPrice: 0});
+  const product = state.products.find(p => p.variantId == vid);
+  const label   = product ? product.label : (sel.options[sel.selectedIndex]?.text || '');
+  const price   = product ? (product.price || 0) : 0;
+
+  state.orderItems.push({variantId: vid, name: label, qty: 1, unitPrice: price});
   renderOrderItems();
 }
 
@@ -564,12 +647,15 @@ async function submitOrder() {
   const emptyPrice = state.orderItems.filter(i => i.unitPrice <= 0);
   if (emptyPrice.length) return alert('Please enter unit price for all items');
 
-  const routeId = state.routes[0]?.id;  // Use first route
+  const routeId     = state.routes[0]?.id;
+  const cashRaw     = document.getElementById('order-cash').value.trim();
+  const cashCollected = cashRaw ? parseFloat(cashRaw) : 0;
   const payload = {
-    repId:      state.repId,
-    routeId:    routeId || null,
-    customerId: parseInt(custId),
-    notes:      document.getElementById('order-notes').value.trim(),
+    repId:         state.repId,
+    routeId:       routeId || null,
+    customerId:    parseInt(custId),
+    notes:         document.getElementById('order-notes').value.trim(),
+    cashCollected: cashCollected,
     items: state.orderItems.map(i => ({
       variantId: i.variantId,
       qty:       i.qty,
@@ -599,9 +685,12 @@ async function submitOrder() {
 
 function clearOrder() {
   state.orderItems = [];
+  state.selectedCustType = 'RETAIL';
   document.getElementById('order-customer').value = '';
   document.getElementById('order-notes').value = '';
   document.getElementById('order-product').value = '';
+  document.getElementById('order-cash').value = '';
+  document.getElementById('cust-info').style.display = 'none';
   renderOrderItems();
 }
 
