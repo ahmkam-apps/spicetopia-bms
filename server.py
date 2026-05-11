@@ -13718,6 +13718,7 @@ from modules.orders      import *   # _enforce_credit_limit, _wa_send, _wa_admin
 from modules.invoices    import *   # compute_invoice_balance, _compute_invoice_status, _sync_invoice_status, get_ar_aging, create_invoice, add_invoice_item, remove_invoice_item, record_customer_payment, allocate_customer_payment, pay_invoice_direct, deallocate_payment, adjust_invoice, void_invoice, generate_invoice_pdf, generate_statement_pdf, _pdf_colors, _pkr
 from modules.purchasing  import *   # compute_bill_balance, _compute_bill_status, _sync_bill_status, get_ap_aging, create_supplier_bill, update_supplier_bill, record_supplier_payment, allocate_supplier_payment, pay_bill_direct, deallocate_supplier_payment, adjust_bill, void_supplier_bill, list_purchase_orders, get_purchase_order, create_purchase_order, update_purchase_order, update_purchase_order_status, bom_calculate_ingredients, generate_po_pdf
 from modules.production  import *   # check_wo_feasibility, get_procurement_list, list_work_orders, create_work_order, convert_wo_to_batch, update_work_order, update_work_order_status, create_production_batch, create_or_update_bom, import_bom_master
+from modules.costing     import *   # get_costing_config, compute_standard_cost, get_all_standard_costs, get_batch_variances, update_costing_config, set_product_price, import_prices_master, get_price_history, get_ingredient_price_history, seed_price_history, get_margin_alerts, dismiss_margin_alert, send_margin_alert_email
 
 
 # ═══════════════════════════════════════════════════════════════════
