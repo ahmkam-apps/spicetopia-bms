@@ -30,6 +30,7 @@ __all__ = [
     'ensure_price_history_extended',
     'ensure_margin_alerts_table',
     'ensure_field_otp_table',
+    'ensure_ingredient_price_volatile',
 ]
 
 
@@ -1313,6 +1314,21 @@ def ensure_margin_alerts_table():
 # ═══════════════════════════════════════════════════════════════════
 #  FIELD OTP
 # ═══════════════════════════════════════════════════════════════════
+
+def ensure_ingredient_price_volatile():
+    """Add price_volatile column to ingredients (idempotent)."""
+    c = _conn()
+    try:
+        cols = [r['name'] for r in c.execute("PRAGMA table_info(ingredients)").fetchall()]
+        if 'price_volatile' not in cols:
+            c.execute("ALTER TABLE ingredients ADD COLUMN price_volatile INTEGER DEFAULT 0")
+            c.commit()
+            print("  ✓ ingredients.price_volatile column added")
+        else:
+            print("  ✓ ingredients.price_volatile already exists")
+    finally:
+        c.close()
+
 
 def ensure_field_otp_table():
     """Create field_otp table for WhatsApp OTP login (idempotent)."""

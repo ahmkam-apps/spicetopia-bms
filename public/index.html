@@ -11403,9 +11403,11 @@ async function renderIngredientsAdmin() {
     return 'OK';
   };
 
-  const renderRow = i => `
+  const renderRow = i => {
+    const volBadge = i.price_volatile ? '<span title="Price volatile — margin check runs on every update" style="margin-left:6px;font-size:11px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:4px;padding:1px 5px;vertical-align:middle">⚠ Volatile</span>' : '';
+    return `
   <tr id="ing-row-${i.id}" style="${!i.active ? 'opacity:0.5' : ''}">
-    <td><strong style="font-family:monospace">${i.code}</strong>${i.name ? `<br><span style="font-size:11px;color:var(--text-2)">${i.name}</span>` : ''}</td>
+    <td><strong style="font-family:monospace">${i.code}</strong>${volBadge}${i.name ? '<br><span style="font-size:11px;color:var(--text-2)">' + i.name + '</span>' : ''}</td>
     <td class="num text-right">${fmt(i.balanceGrams || 0, 0)}g</td>
     <td class="num text-right">${fmt(i.reorder_level || 0, 0)}g</td>
     <td class="num text-right"><strong>${fmtPKR(i.cost_per_kg)}/kg</strong></td>
@@ -11413,7 +11415,7 @@ async function renderIngredientsAdmin() {
     <td><span class="badge ${badgeCls(i)}">${badgeTxt(i)}</span></td>
     <td style="white-space:nowrap">
       ${i.active !== 0 ? `
-        <button class="btn btn-xs btn-outline" onclick="ingShowEdit(${i.id},'${i.code}',${i.cost_per_kg||0},${i.reorder_level||0},'${i.unit||'kg'}','${(i.name||'').replace(/'/g,"\\'")}')">Edit</button>
+        <button class="btn btn-xs btn-outline" onclick="ingShowEdit(${i.id},'${i.code}',${i.cost_per_kg||0},${i.reorder_level||0},'${i.unit||'kg'}','${(i.name||'').replace(/'/g,"\\'")}',${i.price_volatile?1:0})">Edit</button>
         <button class="btn btn-xs" style="margin-left:4px;background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili)" onclick="ingDeactivate('${i.code}','${i.code}')">Deactivate</button>
       ` : `
         <button class="btn btn-xs" style="background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="ingReactivate('${i.code}')">Reactivate</button>
@@ -11433,6 +11435,12 @@ async function renderIngredientsAdmin() {
               <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="pcs">pcs</option>
             </select>
           </div>
+          <div class="form-group" style="flex:0 0 auto">
+            <label style="font-size:12px;display:block;margin-bottom:6px">Price Volatile</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="ie-volatile-${i.id}"> ⚠ Flag
+            </label>
+          </div>
           <div class="form-group" style="flex:0;display:flex;gap:8px">
             <button class="btn btn-primary btn-sm" onclick="ingSubmitEdit(${i.id},'${i.code}')">Save</button>
             <button class="btn btn-outline btn-sm" onclick="ingCancelEdit(${i.id})">Cancel</button>
@@ -11441,6 +11449,7 @@ async function renderIngredientsAdmin() {
       </div>
     </td>
   </tr>`;
+  };
 
   return `
   <div class="section-header">
@@ -11518,19 +11527,21 @@ async function ingSubmitAdd() {
   } catch(e) { showMsg('ing-add-msg', e.message, 'error'); }
 }
 
-function ingShowEdit(id, code, cost, reorder, unit, name) {
+function ingShowEdit(id, code, cost, reorder, unit, name, volatile) {
   document.querySelectorAll('tr[id^="ing-edit-"]').forEach(el => el.style.display = 'none');
   const row = document.getElementById('ing-edit-' + id);
   if (!row) return;
   row.style.display = '';
-  const nameEl    = document.getElementById('ie-name-' + id);
-  const costEl    = document.getElementById('ie-cost-' + id);
-  const reorderEl = document.getElementById('ie-reorder-' + id);
-  const unitEl    = document.getElementById('ie-unit-' + id);
-  if (nameEl)    nameEl.value    = name || '';
-  if (costEl)    costEl.value    = cost;
-  if (reorderEl) reorderEl.value = reorder;
-  if (unitEl)    unitEl.value    = unit;
+  const nameEl     = document.getElementById('ie-name-' + id);
+  const costEl     = document.getElementById('ie-cost-' + id);
+  const reorderEl  = document.getElementById('ie-reorder-' + id);
+  const unitEl     = document.getElementById('ie-unit-' + id);
+  const volatileEl = document.getElementById('ie-volatile-' + id);
+  if (nameEl)     nameEl.value     = name || '';
+  if (costEl)     costEl.value     = cost;
+  if (reorderEl)  reorderEl.value  = reorder;
+  if (unitEl)     unitEl.value     = unit;
+  if (volatileEl) volatileEl.checked = !!volatile;
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   nameEl?.focus();
 }
@@ -11541,15 +11552,16 @@ function ingCancelEdit(id) {
 }
 
 async function ingSubmitEdit(id, code) {
-  const name    = document.getElementById('ie-name-' + id)?.value?.trim() || '';
-  const cost    = parseFloat(document.getElementById('ie-cost-' + id)?.value || 0);
-  const reorder = parseFloat(document.getElementById('ie-reorder-' + id)?.value || 0);
-  const unit    = document.getElementById('ie-unit-' + id)?.value || 'kg';
-  const msgEl   = 'ing-edit-msg-' + id;
+  const name     = document.getElementById('ie-name-' + id)?.value?.trim() || '';
+  const cost     = parseFloat(document.getElementById('ie-cost-' + id)?.value || 0);
+  const reorder  = parseFloat(document.getElementById('ie-reorder-' + id)?.value || 0);
+  const unit     = document.getElementById('ie-unit-' + id)?.value || 'kg';
+  const volatile = document.getElementById('ie-volatile-' + id)?.checked ? 1 : 0;
+  const msgEl    = 'ing-edit-msg-' + id;
   if (cost < 0) { showMsg(msgEl,'Cost cannot be negative','error'); return; }
   try {
-    await PUT('/api/ingredients/' + code, { name, cost_per_kg: cost, reorder_level: reorder, unit });
-    showMsg(msgEl, `✓ ${code} updated`, 'success');
+    await PUT('/api/ingredients/' + code, { name, cost_per_kg: cost, reorder_level: reorder, unit, price_volatile: volatile });
+    showMsg(msgEl, '✓ ' + code + ' updated', 'success');
     setTimeout(() => nav('ingredients-admin'), 600);
   } catch(e) { showMsg(msgEl, e.message, 'error'); }
 }

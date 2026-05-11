@@ -13807,6 +13807,7 @@ if __name__ == '__main__':
     ensure_price_history_extended()      # adds change_type, config_key, changed_by, note to price_history
     ensure_margin_alerts_table()         # margin_alerts table for floor breach tracking
     ensure_field_otp_table()             # field_otp table for WhatsApp OTP login
+    ensure_ingredient_price_volatile()   # price_volatile flag on ingredients
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
     import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh

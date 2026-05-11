@@ -291,6 +291,18 @@ def update_ingredient(code, data):
             c2.commit()
         finally:
             c2.close()
+        # If volatile ingredient, trigger margin alert check in background
+        if ing.get('price_volatile'):
+            import threading
+            def _check():
+                try:
+                    from modules.costing import get_margin_alerts
+                    get_margin_alerts()
+                except Exception:
+                    pass
+            threading.Thread(target=_check, daemon=True).start()
+    if 'price_volatile' in data:
+        set_parts.append("price_volatile=?"); vals.append(1 if data['price_volatile'] else 0)
     if 'unit' in data:
         set_parts.append("unit=?"); vals.append(str(data['unit']).strip() or 'kg')
     if 'reorder_level' in data:
@@ -441,20 +453,23 @@ def import_ingredients_master(rows):
             errors.append(f"Row {i}: cost_per_kg cannot be negative"); continue
         name = str(row.get('name') or row.get('Ingredient Name (English)') or '').strip()
         unit = str(row.get('unit', 'kg')).strip() or 'kg'
+        vol_raw = str(row.get('price_volatile', '')).strip().lower()
+        volatile = 1 if vol_raw in ('1', 'yes', 'true', 'y') else 0
         incoming_codes.add(code)
-        parsed.append((i, code, cost, name, unit))
+        parsed.append((i, code, cost, name, unit, volatile))
 
     # ── Pass 2: upsert each valid row ────────────────────────────────
-    for i, code, cost, name, unit in parsed:
+    for i, code, cost, name, unit, volatile in parsed:
         existing = qry1("SELECT id FROM ingredients WHERE code=?", (code,))
         try:
             if existing:
                 c = _conn()
                 try:
                     c.execute("""UPDATE ingredients
-                                 SET cost_per_kg=?, unit=?, name=?, active=1, updated_at=?
+                                 SET cost_per_kg=?, unit=?, name=?, active=1,
+                                     price_volatile=?, updated_at=?
                                  WHERE code=?""",
-                              (cost, unit, name, today(), code))
+                              (cost, unit, name, volatile, today(), code))
                     c.commit()
                 finally:
                     c.close()
@@ -462,9 +477,11 @@ def import_ingredients_master(rows):
             else:
                 c = _conn()
                 try:
-                    c.execute("""INSERT INTO ingredients (code, name, unit, cost_per_kg, reorder_level, active, created_at)
-                                 VALUES (?, ?, ?, ?, 0, 1, ?)""",
-                              (code, name, unit, cost, today()))
+                    c.execute("""INSERT INTO ingredients
+                                     (code, name, unit, cost_per_kg, reorder_level,
+                                      active, price_volatile, created_at)
+                                 VALUES (?, ?, ?, ?, 0, 1, ?, ?)""",
+                              (code, name, unit, cost, volatile, today()))
                     c.commit()
                 finally:
                     c.close()
