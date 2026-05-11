@@ -157,8 +157,14 @@ html, body {
 .sidebar-footer {
   padding: 12px 16px; margin-top: auto;
   border-top: 1px solid var(--pepper-mid);
-  font-size: 11px; color: var(--cumin); letter-spacing: 0.3px;
+  font-size: 10px; color: var(--cumin); letter-spacing: 0.3px;
+  display: flex; flex-direction: column; gap: 6px;
 }
+.sidebar-footer-built {
+  font-size: 9px; color: var(--cumin); letter-spacing: 0.4px;
+  text-transform: uppercase; opacity: 0.6;
+}
+.sidebar-visium-logo { display: flex; align-items: center; opacity: 0.75; }
 
 /* ── Nav divider ─────────────────────────────────────────────────── */
 .nav-divider {
@@ -668,7 +674,19 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('system')" id="nav-system" style="display:none"><span class="icon" data-icon="monitor"></span> System</div>
 
     </nav>
-    <div class="sidebar-footer">Spicetopia BMS © 2026</div>
+    <div class="sidebar-footer">
+      <span class="sidebar-footer-built">Developed by</span>
+      <div class="sidebar-visium-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 28" width="104" height="28">
+          <!-- Visium wavy-lines symbol -->
+          <path d="M2,7 C5,4.5 9,9.5 13,7 C17,4.5 21,9.5 25,7" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2,14 C5,11.5 9,16.5 13,14 C17,11.5 21,16.5 25,14" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2,21 C5,18.5 9,23.5 13,21 C17,18.5 21,23.5 25,21" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- VISIUM text -->
+          <text x="32" y="20" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="600" letter-spacing="1.5" fill="white">VISIUM</text>
+        </svg>
+      </div>
+    </div>
   </div>
 
   <!-- Main content -->
