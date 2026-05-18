@@ -32,6 +32,9 @@ __all__ = [
     'ensure_field_otp_table',
     'ensure_ingredient_price_volatile',
     'ensure_clean_product_codes',
+    'ensure_web_price_type',
+    'ensure_25g_pack_and_spgm25',
+    'ensure_web_prices',
 ]
 
 
