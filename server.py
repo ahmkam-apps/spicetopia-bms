@@ -8673,6 +8673,32 @@ class Handler(BaseHTTPRequestHandler):
                 }, code)
                 return
 
+            # ── GET /api/public/prices — no auth, consumer website price feed ──
+            if path == '/api/public/prices':
+                rows = qry("""
+                    SELECT
+                        p.code          AS product_code,
+                        p.name          AS product_name,
+                        pv.sku_code,
+                        ps.label        AS pack_size,
+                        ps.grams,
+                        pp.price,
+                        pp.effective_from
+                    FROM product_prices pp
+                    JOIN price_types pt      ON pt.id = pp.price_type_id AND pt.code = 'web'
+                    JOIN product_variants pv ON pv.id = pp.product_variant_id AND pv.active_flag = 1
+                    JOIN products p          ON p.id  = pv.product_id AND p.active = 1
+                    JOIN pack_sizes ps       ON ps.id = pv.pack_size_id
+                    WHERE pp.active_flag = 1
+                    ORDER BY p.code, ps.grams
+                """)
+                send_json(self, {
+                    'currency':   'PKR',
+                    'prices':     rows,
+                    'updated_at': today(),
+                })
+                return
+
             # ── Auth gate (all /api/ except auth endpoints) ──────
             sess = None   # will be set by get_session below
             if path not in ('/api/auth/login', '/api/auth/me'):
@@ -13742,7 +13768,7 @@ from modules.customers  import *   # create_customer, update_customer, import_cu
 from modules.suppliers  import *   # create_supplier, update_supplier, import_suppliers_master, _ensure_supplier_zone_col, ensure_clean_supplier_codes, _suppliers_with_zones
 from modules.products   import *   # create_product, update_product, deactivate_product, deactivate_variant, import_products_master, ensure_variant_wastage_pct, ensure_variant_gtin
 from modules.inventory   import *   # get_stock_map, get_wo_reserved_stock_map, get_finished_stock_map, get_soft_hold_qty, get_hard_reserved_qty, get_available_for_soft_hold, get_stock_situation, create_adjustment, create_ingredient, update_ingredient, bulk_update_ingredient_costs, deactivate_ingredient, reactivate_ingredient, import_ingredients_master
-from modules.migrations  import *   # ensure_full_schema, ensure_system_settings_schema, _migrate_invoice_items_line_total, ensure_work_orders_table, ensure_customer_orders_schema, ensure_review_queue_schema, _migrate_supplier_bills_void, _migrate_change_log_void_action, _migrate_customer_type_wholesale, _ensure_b2b_order_columns, ensure_supplier_bills_schema, ensure_purchase_orders_schema, ensure_batch_cost_column, ensure_master_schema, ensure_costing_config, ensure_price_types_sprint6, ensure_price_history_extended, ensure_margin_alerts_table
+from modules.migrations  import *   # ensure_full_schema, ensure_system_settings_schema, _migrate_invoice_items_line_total, ensure_work_orders_table, ensure_customer_orders_schema, ensure_review_queue_schema, _migrate_supplier_bills_void, _migrate_change_log_void_action, _migrate_customer_type_wholesale, _ensure_b2b_order_columns, ensure_supplier_bills_schema, ensure_purchase_orders_schema, ensure_batch_cost_column, ensure_master_schema, ensure_costing_config, ensure_price_types_sprint6, ensure_price_history_extended, ensure_margin_alerts_table, ensure_web_price_type, ensure_25g_pack_and_spgm25, ensure_web_prices
 from modules.orders      import *   # _enforce_credit_limit, _wa_send, _wa_admin, _wa_rep, _wa_notify_order_approved, _wa_notify_order_rejected, _wa_notify_order_received, _wa_notify_hold_expiring, _wa_notify_out_of_route, place_soft_hold, release_soft_hold, convert_soft_hold_to_hard_reservation, check_and_expire_holds, create_customer_order_external, get_review_queue, approve_order_with_edit, update_order_item_qty, reject_order, reopen_rejected_order, _order_status, _order_detail, list_customer_orders, _check_order_stock_warnings, create_customer_order, update_customer_order, add_customer_order_item, confirm_customer_order, cancel_customer_order, create_wo_from_order_item, generate_invoice_from_order
 from modules.invoices    import *   # compute_invoice_balance, _compute_invoice_status, _sync_invoice_status, get_ar_aging, create_invoice, add_invoice_item, remove_invoice_item, record_customer_payment, allocate_customer_payment, pay_invoice_direct, deallocate_payment, adjust_invoice, void_invoice, generate_invoice_pdf, generate_statement_pdf, _pdf_colors, _pkr
 from modules.purchasing  import *   # compute_bill_balance, _compute_bill_status, _sync_bill_status, get_ap_aging, create_supplier_bill, update_supplier_bill, record_supplier_payment, allocate_supplier_payment, pay_bill_direct, deallocate_supplier_payment, adjust_bill, void_supplier_bill, list_purchase_orders, get_purchase_order, create_purchase_order, update_purchase_order, update_purchase_order_status, bom_calculate_ingredients, generate_po_pdf
@@ -13809,6 +13835,9 @@ if __name__ == '__main__':
     ensure_margin_alerts_table()         # margin_alerts table for floor breach tracking
     ensure_field_otp_table()             # field_otp table for WhatsApp OTP login
     ensure_ingredient_price_volatile()   # price_volatile flag on ingredients
+    ensure_web_price_type()              # 'web' price type for consumer website
+    ensure_25g_pack_and_spgm25()         # 25g pack size + SPGM-25 variant for website
+    ensure_web_prices()                  # seed initial web prices (only if not already set)
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
     import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh

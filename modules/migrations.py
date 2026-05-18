@@ -1446,3 +1446,111 @@ def ensure_field_otp_table():
         print("  ✓ field_otp table ready")
     finally:
         c.close()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  CONSUMER WEBSITE (chachamasala.com)
+# ═══════════════════════════════════════════════════════════════════
+
+def ensure_web_price_type():
+    """Add 'web' price type for consumer website pricing. Idempotent."""
+    c = _conn()
+    try:
+        c.execute("INSERT OR IGNORE INTO price_types (code, label) VALUES ('web', 'Web / Online')")
+        c.commit()
+        print("  ✓ price_types: web / Web Online added")
+    except Exception as e:
+        print(f"  ✗ ensure_web_price_type error: {e}")
+    finally:
+        c.close()
+
+
+def ensure_25g_pack_and_spgm25():
+    """Add 25g pack size and SPGM-25 product variant for consumer website. Idempotent."""
+    c = _conn()
+    try:
+        # 1. Add 25g pack size
+        c.execute("INSERT OR IGNORE INTO pack_sizes (label, grams) VALUES ('25g', 25)")
+
+        # 2. Get pack size id
+        ps = c.execute("SELECT id FROM pack_sizes WHERE label='25g'").fetchone()
+        if not ps:
+            print("  ✗ 25g pack size not found after insert")
+            return
+        ps_id = ps[0]
+
+        # 3. Get SPGM product
+        prod = c.execute("SELECT id FROM products WHERE code='SPGM' AND active=1").fetchone()
+        if not prod:
+            print("  ✗ SPGM product not found — skipping SPGM-25 variant")
+            return
+        prod_id = prod[0]
+
+        # 4. Inherit wastage_pct from existing SPGM variant
+        existing = c.execute(
+            "SELECT wastage_pct FROM product_variants WHERE product_id=? AND active_flag=1 LIMIT 1",
+            (prod_id,)
+        ).fetchone()
+        wastage = existing[0] if existing else 0.0
+
+        # 5. Insert SPGM-25 only if not already present
+        existing_var = c.execute("SELECT id FROM product_variants WHERE sku_code='SPGM-25'").fetchone()
+        if not existing_var:
+            c.execute("""
+                INSERT INTO product_variants (product_id, pack_size_id, sku_code, active_flag, wastage_pct)
+                VALUES (?, ?, 'SPGM-25', 1, ?)
+            """, (prod_id, ps_id, wastage))
+            print("  ✓ SPGM-25 variant created")
+        else:
+            print("  ✓ SPGM-25 variant already exists")
+
+        c.commit()
+    except Exception as e:
+        print(f"  ✗ ensure_25g_pack_and_spgm25 error: {e}")
+    finally:
+        c.close()
+
+
+def ensure_web_prices():
+    """Seed initial web prices for consumer website SKUs. Only seeds if no active web price exists — never overwrites ERP-managed prices. Idempotent."""
+    WEB_PRICES = {
+        'SPCM-50':   100.0,
+        'SPCM-100':  195.0,
+        'SPCM-1000': 1600.0,
+        'SPGM-25':   165.0,
+        'SPGM-50':   300.0,
+    }
+    c = _conn()
+    try:
+        pt = c.execute("SELECT id FROM price_types WHERE code='web'").fetchone()
+        if not pt:
+            print("  ✗ web price type not found — run ensure_web_price_type first")
+            return
+        pt_id = pt[0]
+
+        for sku, price in WEB_PRICES.items():
+            pv = c.execute("SELECT id FROM product_variants WHERE sku_code=?", (sku,)).fetchone()
+            if not pv:
+                print(f"  ✗ variant {sku} not found — skipping web price seed")
+                continue
+            pv_id = pv[0]
+
+            # Only seed if no active web price exists (respect ERP-managed updates)
+            existing = c.execute(
+                "SELECT id FROM product_prices WHERE product_variant_id=? AND price_type_id=? AND active_flag=1",
+                (pv_id, pt_id)
+            ).fetchone()
+            if not existing:
+                c.execute("""
+                    INSERT INTO product_prices (product_variant_id, price_type_id, price, effective_from, active_flag)
+                    VALUES (?, ?, ?, date('now'), 1)
+                """, (pv_id, pt_id, price))
+                print(f"  ✓ web price seeded: {sku} = PKR {price}")
+            else:
+                print(f"  · web price already set: {sku}")
+
+        c.commit()
+    except Exception as e:
+        print(f"  ✗ ensure_web_prices error: {e}")
+    finally:
+        c.close()
