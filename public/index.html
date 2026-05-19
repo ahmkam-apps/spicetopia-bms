@@ -8634,6 +8634,7 @@ async function gtinSave(variantId) {
   try {
     await PUT(`/api/products/variants/${variantId}/gtin`, { gtin: gtin || null });
     msg.textContent = '✓ Saved'; msg.style.color = 'var(--cardamom)';
+    state.ref = await GET('/api/ref');
     setTimeout(() => { gtinCancel(variantId); nav('products'); }, 900);
   } catch(e) {
     msg.textContent = e.message; msg.style.color = 'var(--chili)';
@@ -8667,6 +8668,7 @@ async function skuSave(variantId) {
   try {
     await PUT(`/api/products/variants/${variantId}/sku`, { sku_code: sku });
     msg.textContent = '✓ Saved'; msg.style.color = 'var(--cardamom)';
+    state.ref = await GET('/api/ref');
     setTimeout(() => { skuCancel(variantId); nav('products'); }, 900);
   } catch(e) {
     msg.textContent = e.message; msg.style.color = 'var(--chili)';
