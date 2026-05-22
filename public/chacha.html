@@ -3,43 +3,45 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Chacha Masala™ — Decades of family recipes, now in your kitchen. Order Chaat Masala and Garam Masala on WhatsApp.">
+  <meta name="description" content="Chacha Masala™ — Decades of family recipes, now in your kitchen. Order Chaat Masala, Garam Masala and Fish Masala on WhatsApp.">
   <title>Chacha Masala™ — The Art of Flavor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --ivory:      #FAF7F2;
-      --ivory-dark: #F0EBE3;
-      --charcoal:   #1A1A1A;
-      --charcoal-2: #2C2C2C;
-      --muted:      #7A7470;
-      --border:     #DDD8D0;
-      --terra:      #B8693E;
+      --bg:        #0F0F0F;
+      --surface:   #181818;
+      --surface-2: #202020;
+      --ivory:     #F2EDE4;
+      --ivory-dim: #9A9490;
+      --terra:     #B8693E;
+      --terra-dim: #7A3E20;
+      --border:    #282828;
+      --border-2:  #333;
     }
 
     html { scroll-behavior: smooth; }
 
     body {
-      background: var(--ivory);
-      color: var(--charcoal);
+      background: var(--bg);
+      color: var(--ivory);
       font-family: 'Inter', sans-serif;
       font-weight: 300;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ── NAV ─────────────────────────────────────────── */
+    /* ── NAV ───────────────────────────────────────────── */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       display: flex; align-items: center; justify-content: space-between;
       padding: 1.2rem 2.5rem;
-      background: rgba(250,247,242,0.94);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      background: rgba(15,15,15,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
     }
     .nav-brand {
@@ -49,21 +51,21 @@
       letter-spacing: 0.22em;
       text-transform: uppercase;
       text-decoration: none;
-      color: var(--charcoal);
+      color: var(--ivory);
     }
     .nav-links { display: flex; align-items: center; gap: 2rem; }
     .nav-link {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       text-decoration: none;
-      color: var(--muted);
+      color: var(--ivory-dim);
       transition: color 0.2s;
     }
-    .nav-link:hover { color: var(--charcoal); }
+    .nav-link:hover { color: var(--ivory); }
     .btn-wa-nav {
       display: inline-flex; align-items: center; gap: 0.45rem;
-      background: var(--charcoal);
+      background: var(--terra);
       color: var(--ivory);
       font-family: 'Inter', sans-serif;
       font-size: 0.68rem;
@@ -71,241 +73,285 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
       text-decoration: none;
-      padding: 0.55rem 1.1rem;
+      padding: 0.55rem 1.2rem;
       transition: background 0.2s;
       white-space: nowrap;
     }
-    .btn-wa-nav:hover { background: var(--charcoal-2); }
+    .btn-wa-nav:hover { background: #A05534; }
     .btn-wa-nav svg { width: 12px; height: 12px; fill: currentColor; flex-shrink: 0; }
 
-    /* ── HERO ─────────────────────────────────────────── */
+    /* ── HERO ───────────────────────────────────────────── */
     #hero {
       min-height: 100vh;
       display: flex; flex-direction: column;
       justify-content: center; align-items: center;
       text-align: center;
-      padding: 9rem 2rem 5rem;
+      padding: 9rem 2rem 6rem;
+      position: relative;
+      overflow: hidden;
+    }
+    #hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 60% 40%, rgba(184,105,62,0.08) 0%, transparent 65%);
+      pointer-events: none;
     }
     .hero-eyebrow {
-      font-size: 0.65rem;
-      letter-spacing: 0.3em;
+      font-size: 0.62rem;
+      letter-spacing: 0.35em;
       text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 2rem;
+      color: var(--terra);
+      margin-bottom: 2.5rem;
     }
     .hero-title {
       font-family: 'Cormorant Garant', serif;
-      font-size: clamp(3.5rem, 11vw, 8rem);
+      font-size: clamp(4rem, 13vw, 10rem);
       font-weight: 300;
-      line-height: 1.0;
+      line-height: 0.95;
       letter-spacing: -0.02em;
       margin-bottom: 2rem;
+      color: var(--ivory);
     }
-    .hero-title em { font-style: italic; }
+    .hero-title em {
+      font-style: italic;
+      color: var(--terra);
+    }
     .hero-rule {
-      width: 40px; height: 1px;
-      background: var(--border);
+      width: 1px; height: 60px;
+      background: linear-gradient(to bottom, var(--terra), transparent);
       margin: 0 auto 2rem;
     }
     .hero-sub {
-      font-size: 0.95rem;
-      color: var(--muted);
-      max-width: 360px;
+      font-size: 0.9rem;
+      color: var(--ivory-dim);
+      max-width: 340px;
       margin: 0 auto 3rem;
-      line-height: 1.9;
+      line-height: 2;
       font-weight: 300;
     }
     .hero-cta {
-      display: inline-flex; align-items: center; gap: 0.6rem;
-      background: var(--charcoal);
+      display: inline-flex; align-items: center; gap: 0.65rem;
+      background: var(--terra);
       color: var(--ivory);
       font-family: 'Inter', sans-serif;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 400;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
       text-decoration: none;
-      padding: 1rem 2.2rem;
+      padding: 1.1rem 2.5rem;
       transition: background 0.2s;
     }
-    .hero-cta:hover { background: var(--charcoal-2); }
+    .hero-cta:hover { background: #A05534; }
     .hero-cta svg { width: 15px; height: 15px; fill: currentColor; }
     .hero-scroll {
-      margin-top: 5rem;
-      font-size: 0.65rem;
-      letter-spacing: 0.25em;
+      position: absolute; bottom: 2.5rem; left: 50%; transform: translateX(-50%);
+      font-size: 0.62rem;
+      letter-spacing: 0.3em;
       text-transform: uppercase;
-      color: var(--border);
-      animation: bob 2s ease-in-out infinite;
+      color: var(--border-2);
+      animation: bob 2.5s ease-in-out infinite;
     }
     @keyframes bob {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(6px); }
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(8px); }
     }
 
-    /* ── PRODUCTS ─────────────────────────────────────── */
+    /* ── PRODUCTS ───────────────────────────────────────── */
     #products {
-      padding: 7rem 2rem;
-      background: var(--ivory);
+      padding: 8rem 2rem;
+      background: var(--bg);
     }
     .products-header {
       text-align: center;
-      max-width: 480px;
-      margin: 0 auto 5rem;
+      margin-bottom: 5rem;
     }
     .section-label {
-      font-size: 0.62rem;
-      letter-spacing: 0.32em;
+      font-size: 0.6rem;
+      letter-spacing: 0.35em;
       text-transform: uppercase;
-      color: var(--muted);
+      color: var(--terra);
       margin-bottom: 1.2rem;
     }
     .section-title {
       font-family: 'Cormorant Garant', serif;
-      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-size: clamp(2.2rem, 5vw, 4rem);
       font-weight: 300;
-      line-height: 1.1;
-      margin-bottom: 1.2rem;
+      line-height: 1.05;
+      color: var(--ivory);
     }
     .section-title em { font-style: italic; }
-    .products-intro-text {
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.9;
-    }
+
     .products-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 2px;
-      max-width: 900px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      max-width: 1080px;
       margin: 0 auto;
+      background: var(--border);
     }
     .product-card {
-      background: var(--ivory-dark);
-      padding: 3.5rem 2.5rem;
+      background: var(--surface);
+      padding: 3.5rem 2rem 2.5rem;
       text-align: center;
       display: flex; flex-direction: column; align-items: center;
+      transition: background 0.3s;
+      position: relative;
+    }
+    .product-card:hover { background: var(--surface-2); }
+
+    /* Product image — photo or elegant placeholder */
+    .product-img-wrap {
+      width: 180px; height: 220px;
+      margin-bottom: 2.5rem;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
     }
     .product-img {
-      width: 160px;
-      height: 220px;
-      object-fit: contain;
-      margin-bottom: 2.5rem;
-      filter: drop-shadow(0 12px 28px rgba(0,0,0,0.14));
-      transition: transform 0.4s ease;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      filter: brightness(0.92) contrast(1.05);
+      transition: transform 0.5s ease, filter 0.3s;
     }
-    .product-card:hover .product-img { transform: translateY(-6px); }
+    .product-card:hover .product-img {
+      transform: scale(1.03);
+      filter: brightness(1) contrast(1.05);
+    }
+    /* Placeholder shown when image missing */
+    .product-img-placeholder {
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--border-2);
+    }
+
     .product-name {
       font-family: 'Cormorant Garant', serif;
-      font-size: 1.7rem;
+      font-size: 1.75rem;
       font-weight: 400;
+      color: var(--ivory);
       margin-bottom: 0.3rem;
     }
     .product-sub {
-      font-size: 0.68rem;
+      font-size: 0.65rem;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--muted);
+      color: var(--ivory-dim);
       margin-bottom: 2rem;
     }
     .price-table {
       width: 100%;
-      margin-bottom: 2rem;
       border-top: 1px solid var(--border);
+      margin-bottom: 2rem;
     }
     .price-row {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 0.65rem 0;
+      padding: 0.7rem 0;
       border-bottom: 1px solid var(--border);
     }
     .price-size {
-      font-size: 0.8rem;
-      color: var(--muted);
-      letter-spacing: 0.05em;
+      font-size: 0.78rem;
+      color: var(--ivory-dim);
     }
     .price-val {
       font-family: 'Cormorant Garant', serif;
       font-size: 1.1rem;
-      font-weight: 500;
-      color: var(--charcoal);
+      color: var(--ivory);
       transition: color 0.3s;
     }
-    .price-val.loading { color: var(--border); }
+    .price-val.loading { color: var(--border-2); }
     .btn-order {
       display: block; width: 100%;
-      border: 1px solid var(--charcoal);
+      border: 1px solid var(--border-2);
       background: transparent;
-      color: var(--charcoal);
+      color: var(--ivory-dim);
       font-family: 'Inter', sans-serif;
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       font-weight: 400;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
       text-decoration: none;
-      padding: 0.85rem 1.5rem;
+      padding: 0.9rem 1.5rem;
       text-align: center;
       transition: all 0.22s;
       cursor: pointer;
     }
     .btn-order:hover {
-      background: var(--charcoal);
-      color: var(--ivory);
+      border-color: var(--terra);
+      color: var(--terra);
     }
 
-    /* ── STORY ────────────────────────────────────────── */
+    /* ── STORY ───────────────────────────────────────────── */
     #story {
-      background: var(--charcoal);
-      color: var(--ivory);
-      padding: 7rem 2rem;
+      padding: 8rem 2rem;
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
     }
-    #story .section-label { color: rgba(250,247,242,0.35); }
-    #story .section-title { color: var(--ivory); }
+    #story::before {
+      content: '"';
+      position: absolute;
+      top: -2rem; left: -1rem;
+      font-family: 'Cormorant Garant', serif;
+      font-size: 30rem;
+      line-height: 1;
+      color: rgba(255,255,255,0.02);
+      pointer-events: none;
+      user-select: none;
+    }
     .story-inner {
       max-width: 1000px;
       margin: 0 auto;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 6rem;
+      gap: 7rem;
       align-items: center;
+      position: relative;
     }
-    .story-left {}
+    .story-left .section-label { margin-bottom: 1.5rem; }
+    .story-left .section-title { margin-bottom: 2.5rem; }
     .story-left p {
-      font-size: 0.95rem;
-      line-height: 2;
-      color: rgba(250,247,242,0.65);
-      margin-bottom: 1.5rem;
+      font-size: 0.92rem;
+      line-height: 2.1;
+      color: var(--ivory-dim);
+      margin-bottom: 1.4rem;
     }
-    .story-left p:last-child { margin-bottom: 0; }
+    .story-left p:last-of-type { margin-bottom: 0; }
     .story-signoff {
       margin-top: 2.5rem;
-      font-size: 0.68rem;
-      letter-spacing: 0.22em;
+      font-size: 0.62rem;
+      letter-spacing: 0.25em;
       text-transform: uppercase;
-      color: rgba(250,247,242,0.3);
+      color: var(--terra);
     }
     .story-pull {
       font-family: 'Cormorant Garant', serif;
-      font-size: clamp(1.7rem, 2.8vw, 2.6rem);
+      font-size: clamp(1.7rem, 2.5vw, 2.5rem);
       font-weight: 300;
       font-style: italic;
-      line-height: 1.4;
-      color: rgba(250,247,242,0.9);
-      padding-left: 2.5rem;
-      border-left: 1px solid rgba(250,247,242,0.15);
+      line-height: 1.5;
+      color: var(--ivory);
+      padding-left: 3rem;
+      border-left: 1px solid var(--terra);
     }
 
-    /* ── WHERE TO BUY ─────────────────────────────────── */
+    /* ── WHERE TO BUY ───────────────────────────────────── */
     #buy {
-      padding: 7rem 2rem;
+      padding: 8rem 2rem;
+      background: var(--bg);
       text-align: center;
     }
-    .buy-inner { max-width: 540px; margin: 0 auto; }
+    .buy-inner { max-width: 520px; margin: 0 auto; }
     #buy .section-title { margin-bottom: 1.2rem; }
     .buy-sub {
-      font-size: 0.9rem;
-      color: var(--muted);
-      line-height: 1.9;
-      margin-bottom: 3rem;
+      font-size: 0.88rem;
+      color: var(--ivory-dim);
+      line-height: 2;
+      margin-bottom: 3.5rem;
     }
     .buy-actions {
       display: flex; flex-wrap: wrap;
@@ -314,7 +360,7 @@
     }
     .btn-primary {
       display: inline-flex; align-items: center; gap: 0.55rem;
-      background: var(--charcoal);
+      background: var(--terra);
       color: var(--ivory);
       font-family: 'Inter', sans-serif;
       font-size: 0.72rem;
@@ -322,62 +368,79 @@
       letter-spacing: 0.15em;
       text-transform: uppercase;
       text-decoration: none;
-      padding: 1rem 2rem;
+      padding: 1.1rem 2.2rem;
       transition: background 0.2s;
     }
-    .btn-primary:hover { background: var(--charcoal-2); }
+    .btn-primary:hover { background: #A05534; }
     .btn-primary svg { width: 14px; height: 14px; fill: currentColor; }
     .btn-secondary {
       display: inline-flex; align-items: center; gap: 0.55rem;
       background: transparent;
-      border: 1px solid var(--border);
-      color: var(--charcoal);
+      border: 1px solid var(--border-2);
+      color: var(--ivory-dim);
       font-family: 'Inter', sans-serif;
       font-size: 0.72rem;
       font-weight: 400;
       letter-spacing: 0.15em;
       text-transform: uppercase;
       text-decoration: none;
-      padding: 1rem 2rem;
+      padding: 1.1rem 2.2rem;
       transition: all 0.2s;
     }
-    .btn-secondary:hover { border-color: var(--charcoal); }
+    .btn-secondary:hover { border-color: var(--ivory-dim); color: var(--ivory); }
     .buy-note {
-      font-size: 0.68rem;
-      letter-spacing: 0.18em;
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: var(--border);
+      color: var(--border-2);
     }
 
-    /* ── FOOTER ───────────────────────────────────────── */
+    /* ── FOOTER ──────────────────────────────────────────── */
     footer {
-      background: var(--charcoal);
-      color: rgba(250,247,242,0.3);
+      background: #080808;
+      border-top: 1px solid var(--border);
       padding: 3.5rem 2rem;
       text-align: center;
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       letter-spacing: 0.06em;
-      line-height: 2.2;
+      line-height: 2.4;
+      color: var(--border-2);
     }
     .footer-brand {
       font-family: 'Cormorant Garant', serif;
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       font-weight: 500;
       letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: rgba(250,247,242,0.55);
-      margin-bottom: 1rem;
+      color: var(--ivory-dim);
+      margin-bottom: 0.8rem;
       display: block;
     }
 
-    /* ── RESPONSIVE ───────────────────────────────────── */
-    @media (max-width: 720px) {
+    /* ── FADE IN ON SCROLL ──────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── RESPONSIVE ──────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .products-grid { grid-template-columns: 1fr; }
+      .products-grid { background: none; gap: 2px; }
+      .story-inner { grid-template-columns: 1fr; gap: 3rem; }
+      .story-pull { font-size: 1.55rem; padding-left: 1.5rem; }
+    }
+    @media (max-width: 600px) {
       nav { padding: 1rem 1.25rem; }
       .nav-links .nav-link { display: none; }
-      .story-inner { grid-template-columns: 1fr; gap: 3rem; }
-      .story-pull { font-size: 1.6rem; padding-left: 1.5rem; }
+      #hero { padding: 8rem 1.5rem 5rem; }
       #products, #story, #buy { padding: 5rem 1.25rem; }
-      .products-grid { grid-template-columns: 1fr; }
+      .hero-title { font-size: 3.8rem; }
     }
   </style>
 </head>
@@ -392,17 +455,17 @@
     <a href="#buy" class="nav-link">Order</a>
     <a href="https://wa.me/923001234567?text=Hi!%20I%27d%20like%20to%20order%20from%20Chacha%20Masala." class="btn-wa-nav" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-      Order on WhatsApp
+      Order
     </a>
   </div>
 </nav>
 
 <!-- HERO -->
 <section id="hero">
-  <p class="hero-eyebrow">A Product of Spicetopia™ &nbsp;·&nbsp; Karachi, Pakistan</p>
+  <p class="hero-eyebrow">Karachi, Pakistan &nbsp;·&nbsp; Est. by Family</p>
   <h1 class="hero-title">The Art<br>of <em>Flavor.</em></h1>
   <div class="hero-rule"></div>
-  <p class="hero-sub">Decades of family recipes, now in your kitchen. Chacha's masalas — made with care, shared with love.</p>
+  <p class="hero-sub">Decades of family recipes, now in your kitchen.</p>
   <a href="https://wa.me/923001234567?text=Hi!%20I%27d%20like%20to%20order%20from%20Chacha%20Masala." class="hero-cta" target="_blank" rel="noopener">
     <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
     Order on WhatsApp
@@ -412,16 +475,25 @@
 
 <!-- PRODUCTS -->
 <section id="products">
-  <div class="products-header">
-    <p class="section-label">Our Products</p>
-    <h2 class="section-title">Made for<br><em>Every Kitchen.</em></h2>
-    <p class="products-intro-text">Two masalas. Each one a lifetime of Chacha's craft, now yours to bring home.</p>
+  <div class="products-header reveal">
+    <p class="section-label">Our Masalas</p>
+    <h2 class="section-title">Three Masalas.<br><em>One Family.</em></h2>
   </div>
+
   <div class="products-grid">
 
     <!-- Chaat Masala -->
-    <div class="product-card">
-      <img src="/images/chaat_masala_mockup.jpg" alt="Chacha's Chaat Masala" class="product-img">
+    <div class="product-card reveal">
+      <div class="product-img-wrap">
+        <img src="/images/chaat_masala_bowl.jpg" alt="Chacha's Chaat Masala in stone bowl" class="product-img"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="product-img-placeholder" style="display:none; background: radial-gradient(circle at 40% 35%, #7A3020, #2A1008);">
+          <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="30" cy="32" rx="22" ry="14" fill="rgba(184,105,62,0.15)" stroke="rgba(184,105,62,0.2)" stroke-width="1"/>
+            <ellipse cx="30" cy="28" rx="18" ry="10" fill="rgba(184,105,62,0.1)"/>
+          </svg>
+        </div>
+      </div>
       <p class="product-name">Chaat Masala</p>
       <p class="product-sub">The soul of every chaat</p>
       <div class="price-table">
@@ -442,8 +514,17 @@
     </div>
 
     <!-- Garam Masala -->
-    <div class="product-card">
-      <img src="/images/garam_masala_mockup.png" alt="Chacha's Garam Masala" class="product-img">
+    <div class="product-card reveal">
+      <div class="product-img-wrap">
+        <img src="/images/garam_masala_bowl.jpg" alt="Chacha's Garam Masala in stone bowl" class="product-img"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="product-img-placeholder" style="display:none; background: radial-gradient(circle at 40% 35%, #4A2810, #1A0C04);">
+          <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="30" cy="32" rx="22" ry="14" fill="rgba(120,70,30,0.2)" stroke="rgba(120,70,30,0.25)" stroke-width="1"/>
+            <ellipse cx="30" cy="28" rx="18" ry="10" fill="rgba(120,70,30,0.12)"/>
+          </svg>
+        </div>
+      </div>
       <p class="product-name">Garam Masala</p>
       <p class="product-sub">The warmth of Sunday cooking</p>
       <div class="price-table">
@@ -459,20 +540,47 @@
       <a href="https://wa.me/923001234567?text=Hi!%20I%27d%20like%20to%20order%20Chacha%27s%20Garam%20Masala." class="btn-order" target="_blank" rel="noopener">Order on WhatsApp</a>
     </div>
 
+    <!-- Fish Masala -->
+    <div class="product-card reveal">
+      <div class="product-img-wrap">
+        <img src="/images/fish_masala_bowl.jpg" alt="Chacha's Fish Masala in stone bowl" class="product-img"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="product-img-placeholder" style="display:none; background: radial-gradient(circle at 40% 35%, #8A2010, #2A0808);">
+          <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="30" cy="32" rx="22" ry="14" fill="rgba(200,60,40,0.15)" stroke="rgba(200,60,40,0.2)" stroke-width="1"/>
+            <ellipse cx="30" cy="28" rx="18" ry="10" fill="rgba(200,60,40,0.1)"/>
+          </svg>
+        </div>
+      </div>
+      <p class="product-name">Fish Masala</p>
+      <p class="product-sub">Bold, fragrant, coastal</p>
+      <div class="price-table">
+        <div class="price-row">
+          <span class="price-size">50g</span>
+          <span class="price-val loading" id="price-spfm-50">—</span>
+        </div>
+        <div class="price-row">
+          <span class="price-size">100g</span>
+          <span class="price-val loading" id="price-spfm-100">—</span>
+        </div>
+      </div>
+      <a href="https://wa.me/923001234567?text=Hi!%20I%27d%20like%20to%20order%20Chacha%27s%20Fish%20Masala." class="btn-order" target="_blank" rel="noopener">Order on WhatsApp</a>
+    </div>
+
   </div>
 </section>
 
 <!-- OUR STORY -->
 <section id="story">
   <div class="story-inner">
-    <div class="story-left">
+    <div class="story-left reveal">
       <p class="section-label">Our Story</p>
       <h2 class="section-title">Who is<br><em>Chacha?</em></h2>
       <p>Our father was a civil engineer by trade, but the kitchen was where he truly came alive. For him, the art of cooking was about sharing it with the people he loved.</p>
       <p>After decades of his recipes bringing our family joy, we're sharing it with you.</p>
       <p class="story-signoff">From our family to yours.</p>
     </div>
-    <blockquote class="story-pull">
+    <blockquote class="story-pull reveal">
       "The art of cooking was about sharing it with the people he loved."
     </blockquote>
   </div>
@@ -480,7 +588,7 @@
 
 <!-- WHERE TO BUY -->
 <section id="buy">
-  <div class="buy-inner">
+  <div class="buy-inner reveal">
     <p class="section-label">Where to Buy</p>
     <h2 class="section-title">Order Today.<br><em>Delivered to You.</em></h2>
     <p class="buy-sub">Order directly on WhatsApp for delivery across Karachi and Hyderabad. Fresh, fast, straight from us to your door.</p>
@@ -493,7 +601,7 @@
         @chachamasala
       </a>
     </div>
-    <p class="buy-note">Available in select stores in Karachi &amp; Hyderabad</p>
+    <p class="buy-note">Available in select stores · Karachi &amp; Hyderabad</p>
   </div>
 </section>
 
@@ -502,31 +610,40 @@
   <span class="footer-brand">Chacha Masala™</span>
   A Product of Spicetopia™ &nbsp;·&nbsp; Karachi, Pakistan<br>
   A-5, ROW K, Block 1, Gulshan-e-Kaneez Fatima, Gulzar e Hijri, Sch-33, Karachi<br>
-  For Sale in Pakistan Only<br><br>
-  &copy; 2026 Spicetopia™. All rights reserved.
+  For Sale in Pakistan Only &nbsp;·&nbsp; &copy; 2026 Spicetopia™
 </footer>
 
 <script>
-  // Load live prices from ERP public API
+  // ── Live prices from ERP ─────────────────────────────
   (async function () {
     try {
-      const res = await fetch('/api/public/prices');
+      var res = await fetch('/api/public/prices');
       if (!res.ok) return;
-      const data = await res.json();
-      const prices = data.prices || [];
+      var data = await res.json();
+      var prices = data.prices || [];
       prices.forEach(function (p) {
-        // sku_code e.g. "SPCM-50" → element id "price-spcm-50"
-        var elId = 'price-' + p.sku_code.toLowerCase();
-        var el = document.getElementById(elId);
+        var el = document.getElementById('price-' + p.sku_code.toLowerCase());
         if (el && p.price != null) {
-          el.textContent = '₨ ' + Number(p.price).toLocaleString('en-PK');
+          el.textContent = '₨ ' + Number(p.price).toLocaleString('en-PK');
           el.classList.remove('loading');
         }
       });
-    } catch (e) {
-      // Fail silently — prices display as dashes if API unreachable
-    }
+    } catch (e) { /* fail silently */ }
   })();
+
+  // ── Scroll reveal ────────────────────────────────────
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.reveal').forEach(function (el) {
+    observer.observe(el);
+  });
 </script>
 </body>
 </html>
