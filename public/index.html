@@ -2238,7 +2238,7 @@ async function renderOrdersInvoices() {
   return `
   <div class="section-header">
     <h2>Orders &amp; Invoices</h2>
-    ${_oiTab === 'orders' ? '<button class="btn btn-primary" onclick="openNewOrderForm()">＋ New Order</button> <button class="btn btn-outline" onclick="openWaParseModal()" style="margin-left:8px">📲 From WhatsApp</button>' : ''}
+    ${_oiTab === 'orders' ? '<div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="openNewOrderForm()">＋ New Order</button><button class="btn btn-outline" onclick="openWaParseModal()">📲 From WhatsApp</button></div>' : ''}
   </div>
 
   ${tabBar}
