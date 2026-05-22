@@ -2849,6 +2849,146 @@ def _wa_notify_hold_expired(order_id):
 
 
 # ═══════════════════════════════════════════════════════════════════
+#  WHATSAPP ORDER PARSER — Claude API powered
+# ═══════════════════════════════════════════════════════════════════
+
+def _normalise_phone(raw):
+    """Normalise Pakistani phone numbers to 03xxxxxxxxx format."""
+    if not raw:
+        return None
+    p = re.sub(r'[\s\-\(\)\+]', '', str(raw))
+    if p.startswith('923') and len(p) == 12:
+        p = '0' + p[2:]
+    if p.startswith('92') and len(p) == 12:
+        p = '0' + p[2:]
+    if p.startswith('3') and len(p) == 10:
+        p = '0' + p
+    return p if len(p) >= 10 else raw
+
+
+def parse_whatsapp_order(message: str) -> dict:
+    """
+    Use Claude API (Haiku) to extract order details from a WhatsApp message.
+    Returns pre-fill payload for the ERP order form.
+    """
+    import os
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        return {'error': 'ANTHROPIC_API_KEY not configured', 'parsed': False}
+
+    # ── Load all active SKUs from DB for the prompt ──────────────
+    variants = qry("""
+        SELECT pv.id as variant_id, pv.sku_code,
+               p.name as product_name, ps.label as pack_size,
+               pv.active_flag
+        FROM product_variants pv
+        JOIN products p    ON p.id  = pv.product_id
+        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+        WHERE pv.active_flag = 1
+        ORDER BY p.name, ps.grams
+    """)
+    sku_list = '\n'.join(
+        f"  - {v['product_name']} {v['pack_size']} → sku_code: {v['sku_code']}, variant_id: {v['variant_id']}"
+        for v in variants
+    )
+
+    system_prompt = f"""You are an order parser for Chacha's Masala, a Pakistani spice brand.
+Extract order details from a WhatsApp message and return ONLY valid JSON.
+
+Available products:
+{sku_list}
+
+Return this exact JSON structure (use null for missing fields, 0 for missing quantities):
+{{
+  "name": "customer name or null",
+  "phone": "phone number or null",
+  "address": "delivery address or null",
+  "items": [
+    {{"variant_id": 1, "sku_code": "SPCM-50", "product_name": "Chaat Masala", "pack_size": "50g", "qty": 2}}
+  ]
+}}
+
+Rules:
+- Only include items with qty > 0
+- Match product names tolerantly (e.g. "chaat" → Chaat Masala, "garam" → Garam Masala, "fish" → Fish Masala)
+- If no items found return empty items array
+- Return ONLY the JSON object, no other text"""
+
+    try:
+        import urllib.request, urllib.error
+        payload = json.dumps({
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': 512,
+            'system': system_prompt,
+            'messages': [{'role': 'user', 'content': message}]
+        }).encode('utf-8')
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages',
+            data=payload,
+            headers={
+                'x-api-key': api_key,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read().decode('utf-8'))
+        raw_text = body['content'][0]['text'].strip()
+        parsed = json.loads(raw_text)
+    except Exception as e:
+        _log('error', 'wa_parse_failed', error=str(e))
+        return {'error': f'Parse failed: {str(e)}', 'parsed': False}
+
+    # ── Normalise phone ───────────────────────────────────────────
+    if parsed.get('phone'):
+        parsed['phone'] = _normalise_phone(parsed['phone'])
+
+    # ── Look up existing customer by phone ────────────────────────
+    existing_customer = None
+    if parsed.get('phone'):
+        existing_customer = qry1(
+            "SELECT id, code, name, address FROM customers WHERE phone=? LIMIT 1",
+            (parsed['phone'],)
+        )
+
+    # ── Enrich items with prices ──────────────────────────────────
+    items = parsed.get('items', [])
+    for item in items:
+        vid = item.get('variant_id')
+        if vid:
+            price_row = qry1("""
+                SELECT p.price FROM prices p
+                JOIN price_types pt ON pt.id = p.price_type_id
+                WHERE p.variant_id=? AND pt.code='web' AND p.active_flag=1
+                LIMIT 1
+            """, (vid,))
+            if not price_row:
+                price_row = qry1("""
+                    SELECT p.price FROM prices p
+                    JOIN price_types pt ON pt.id = p.price_type_id
+                    WHERE p.variant_id=? AND pt.code='standard' AND p.active_flag=1
+                    LIMIT 1
+                """, (vid,))
+            item['unit_price'] = float(price_row['price']) if price_row else 0.0
+        else:
+            item['unit_price'] = 0.0
+        item['line_total'] = item['unit_price'] * int(item.get('qty', 0))
+
+    raw_total = sum(i['line_total'] for i in items)
+
+    return {
+        'parsed': True,
+        'name':     parsed.get('name'),
+        'phone':    parsed.get('phone'),
+        'address':  parsed.get('address'),
+        'items':    items,
+        'raw_total': raw_total,
+        'existing_customer': existing_customer,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  REVIEW QUEUE — ORDER INTAKE & MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════
 
@@ -10577,6 +10717,16 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # ── Phase 3: Review Queue endpoints ──────────────────────────
+
+            # POST /api/orders/parse  — parse WhatsApp message via Claude API
+            if path == '/api/orders/parse':
+                if not require(sess, 'admin', 'sales'):
+                    send_error(self, 'Permission denied', 403); return
+                msg = data.get('message', '').strip()
+                if not msg:
+                    send_error(self, 'message is required', 400); return
+                send_json(self, parse_whatsapp_order(msg), 200)
+                return
 
             # POST /api/orders/external  — external order intake (consumer/retailer/field rep)
             if path == '/api/orders/external':

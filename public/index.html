@@ -2238,7 +2238,7 @@ async function renderOrdersInvoices() {
   return `
   <div class="section-header">
     <h2>Orders &amp; Invoices</h2>
-    ${_oiTab === 'orders' ? '<button class="btn btn-primary" onclick="openNewOrderForm()">＋ New Order</button>' : ''}
+    ${_oiTab === 'orders' ? '<button class="btn btn-primary" onclick="openNewOrderForm()">＋ New Order</button> <button class="btn btn-outline" onclick="openWaParseModal()" style="margin-left:8px">📲 From WhatsApp</button>' : ''}
   </div>
 
   ${tabBar}
@@ -11974,6 +11974,162 @@ async function runBackupNow(btn) {
   } finally {
     btn.disabled = false;
     btn.textContent = '▶ Run Backup Now';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  WHATSAPP ORDER PARSER
+// ═══════════════════════════════════════════════════════════════════
+
+function openWaParseModal() {
+  var existing = document.getElementById('wa-parse-overlay');
+  if (existing) existing.remove();
+
+  var ov = document.createElement('div');
+  ov.id = 'wa-parse-overlay';
+  ov.className = 'modal-overlay';
+  ov.style.zIndex = '2000';
+  ov.innerHTML = '<div class="modal" style="min-width:340px;max-width:680px;width:92vw;max-height:92vh;overflow-y:auto">'
+    + '<h3 style="margin-bottom:16px">📲 New Order from WhatsApp</h3>'
+    + '<label class="form-label">Paste WhatsApp message</label>'
+    + '<textarea id="wa-msg-input" class="form-input" rows="10" style="font-size:13px;font-family:monospace;width:100%;margin-bottom:12px" placeholder="Hi Chacha\'s! I\'d like to place an order.&#10;&#10;Name: Ahmed&#10;Phone: 0300-1234567&#10;Delivery Address: Block 5, Gulshan, Karachi&#10;&#10;Items:&#10;• Chaat Masala 50g — Qty: 2&#10;• Garam Masala 50g — Qty: 1"></textarea>'
+    + '<div style="display:flex;gap:8px;margin-bottom:16px">'
+    + '<button class="btn btn-primary" id="wa-parse-btn" onclick="runWaParse()">🔍 Parse Order</button>'
+    + '<button class="btn btn-outline" onclick="document.getElementById(\'wa-parse-overlay\').remove()">Cancel</button>'
+    + '</div>'
+    + '<div id="wa-parse-result" style="display:none"></div>'
+    + '</div>';
+  ov.addEventListener('click', function(e) { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+async function runWaParse() {
+  var msg = document.getElementById('wa-msg-input').value.trim();
+  if (!msg) { alert('Paste the WhatsApp message first.'); return; }
+
+  var btn = document.getElementById('wa-parse-btn');
+  btn.disabled = true;
+  btn.textContent = 'Parsing…';
+
+  var resultDiv = document.getElementById('wa-parse-result');
+  resultDiv.style.display = 'none';
+
+  try {
+    var d = await api('POST', '/api/orders/parse', { message: msg });
+    if (!d.parsed) throw new Error(d.error || 'Parse failed');
+    _renderWaParseResult(d);
+  } catch(e) {
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div class="alert alert-error">❌ ' + e.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Parse Order';
+  }
+}
+
+function _renderWaParseResult(d) {
+  var resultDiv = document.getElementById('wa-parse-result');
+  resultDiv.style.display = 'block';
+
+  var customerHtml = '';
+  if (d.existing_customer) {
+    customerHtml = '<div style="background:var(--cardamom-pale);border:1px solid var(--cardamom);padding:8px 12px;margin-bottom:8px;font-size:13px">'
+      + '✅ Existing customer found: <strong>' + d.existing_customer.name + '</strong> (' + d.existing_customer.code + ')'
+      + '</div>';
+  } else if (d.name || d.phone) {
+    customerHtml = '<div style="background:var(--saffron-pale);border:1px solid var(--saffron);padding:8px 12px;margin-bottom:8px;font-size:13px">'
+      + '🆕 New customer will be created on confirm'
+      + '</div>';
+  }
+
+  var itemRows = '';
+  (d.items || []).forEach(function(item) {
+    itemRows += '<tr>'
+      + '<td style="padding:6px 8px">' + item.product_name + ' ' + item.pack_size + '</td>'
+      + '<td style="padding:6px 8px;text-align:center"><input type="number" min="1" value="' + item.qty + '" style="width:60px;text-align:center" class="form-input" id="wa-qty-' + item.variant_id + '"></td>'
+      + '<td style="padding:6px 8px;text-align:right">₨ ' + (item.unit_price||0).toLocaleString() + '</td>'
+      + '<td style="padding:6px 8px;text-align:right" id="wa-line-' + item.variant_id + '">₨ ' + (item.line_total||0).toLocaleString() + '</td>'
+      + '</tr>';
+  });
+
+  resultDiv.innerHTML = customerHtml
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
+    + '<div><label class="form-label">Customer Name</label>'
+    + '<input class="form-input" id="wa-f-name" value="' + (d.name||'') + '"></div>'
+    + '<div><label class="form-label">Phone</label>'
+    + '<input class="form-input" id="wa-f-phone" value="' + (d.phone||'') + '"></div>'
+    + '</div>'
+    + '<div style="margin-bottom:12px"><label class="form-label">Delivery Address</label>'
+    + '<input class="form-input" id="wa-f-address" value="' + (d.address||'') + '"></div>'
+    + '<table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:13px">'
+    + '<thead><tr style="border-bottom:1px solid var(--border)">'
+    + '<th style="padding:6px 8px;text-align:left">Item</th>'
+    + '<th style="padding:6px 8px;text-align:center">Qty</th>'
+    + '<th style="padding:6px 8px;text-align:right">Unit Price</th>'
+    + '<th style="padding:6px 8px;text-align:right">Total</th>'
+    + '</tr></thead><tbody>' + itemRows + '</tbody>'
+    + '<tfoot><tr><td colspan="3" style="padding:8px;text-align:right;font-weight:600">Order Total</td>'
+    + '<td style="padding:8px;text-align:right;font-weight:600" id="wa-grand-total">₨ ' + (d.raw_total||0).toLocaleString() + '</td>'
+    + '</tr></tfoot></table>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button class="btn btn-primary" onclick="confirmWaOrder(' + JSON.stringify(d).replace(/"/g, '&quot;') + ')">✅ Create Order</button>'
+    + '<button class="btn btn-outline" onclick="document.getElementById(\'wa-parse-overlay\').remove()">Cancel</button>'
+    + '</div>';
+}
+
+async function confirmWaOrder(parsed) {
+  var name    = document.getElementById('wa-f-name').value.trim();
+  var phone   = document.getElementById('wa-f-phone').value.trim();
+  var address = document.getElementById('wa-f-address').value.trim();
+
+  if (!name) { alert('Customer name is required.'); return; }
+  if (!phone) { alert('Phone number is required.'); return; }
+  if (!(parsed.items||[]).length) { alert('No items found in order.'); return; }
+
+  // Collect updated qtys
+  var items = (parsed.items||[]).map(function(item) {
+    var qtyEl = document.getElementById('wa-qty-' + item.variant_id);
+    return {
+      variantId:  item.variant_id,
+      qty:        qtyEl ? parseInt(qtyEl.value)||1 : item.qty,
+      unitPrice:  item.unit_price || 0
+    };
+  }).filter(function(i) { return i.qty > 0; });
+
+  var custCode = parsed.existing_customer ? parsed.existing_customer.code : null;
+
+  // If new customer, create them first
+  if (!custCode) {
+    try {
+      var city = address ? address.split(',').pop().trim() : 'Karachi';
+      var cData = await api('POST', '/api/customers', {
+        name: name,
+        phone: phone,
+        city: city,
+        address: address,
+        customerType: 'RETAIL'
+      });
+      custCode = cData.code;
+      await loadRef();
+    } catch(e) {
+      alert('Could not create customer: ' + e.message);
+      return;
+    }
+  }
+
+  // Create the order
+  try {
+    var oData = await api('POST', '/api/orders/external', {
+      custCode:     custCode,
+      order_source: 'consumer_website',
+      notes:        'WhatsApp order — ' + name + ' — ' + address,
+      items:        items
+    });
+    document.getElementById('wa-parse-overlay').remove();
+    await nav('customer-orders');
+    showToast('Order created: ' + (oData.orderId || oData.id || ''));
+  } catch(e) {
+    alert('Could not create order: ' + e.message);
   }
 }
 
