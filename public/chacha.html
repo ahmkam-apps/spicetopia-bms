@@ -285,6 +285,44 @@
       color: var(--terra);
     }
 
+    /* ── BULK STRIP ─────────────────────────────────────── */
+    #bulk {
+      background: var(--terra);
+      padding: 3.5rem 2rem;
+      text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 1rem;
+    }
+    .bulk-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: rgba(242,237,228,0.6);
+    }
+    .bulk-text {
+      font-size: 0.92rem;
+      color: var(--ivory);
+      max-width: 420px;
+      line-height: 1.8;
+    }
+    .bulk-btn {
+      display: inline-block;
+      border: 1px solid rgba(242,237,228,0.5);
+      color: var(--ivory);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 0.8rem 1.8rem;
+      margin-top: 0.5rem;
+      transition: all 0.2s;
+    }
+    .bulk-btn:hover {
+      background: rgba(242,237,228,0.12);
+      border-color: var(--ivory);
+    }
+
     /* ── STORY ───────────────────────────────────────────── */
     #story {
       padding: 8rem 2rem;
@@ -505,10 +543,6 @@
           <span class="price-size">100g</span>
           <span class="price-val loading" id="price-spcm-100">—</span>
         </div>
-        <div class="price-row">
-          <span class="price-size">1000g</span>
-          <span class="price-val loading" id="price-spcm-1000">—</span>
-        </div>
       </div>
       <a href="https://wa.me/923001234567?text=Hi!%20I%27d%20like%20to%20order%20Chacha%27s%20Chaat%20Masala." class="btn-order" target="_blank" rel="noopener">Order on WhatsApp</a>
     </div>
@@ -569,6 +603,15 @@
 
   </div>
 </section>
+
+<!-- BULK STRIP -->
+<div id="bulk">
+  <p class="bulk-label">Restaurants &amp; Caterers</p>
+  <p class="bulk-text">Serving a crowd? We supply bulk orders for restaurants, caterers, and trade. WhatsApp us for pricing.</p>
+  <a href="https://wa.me/923001234567?text=Hi!%20I%27m%20interested%20in%20bulk%20or%20trade%20pricing%20for%20Chacha%20Masala." class="bulk-btn" target="_blank" rel="noopener">
+    Enquire on WhatsApp
+  </a>
+</div>
 
 <!-- OUR STORY -->
 <section id="story">
