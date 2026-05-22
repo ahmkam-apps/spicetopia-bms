@@ -8529,6 +8529,15 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, "Order portal not found", 404)
                 return
 
+            # ── Consumer website — chachamasala.com ──────────────────
+            if host in ('chachamasala.com', 'www.chachamasala.com'):
+                chacha_page = PUBLIC_DIR / 'chacha.html'
+                if chacha_page.exists():
+                    self._serve_file(chacha_page, 'text/html; charset=utf-8')
+                else:
+                    send_error(self, "Page not found", 404)
+                return
+
             if path == '' or path == '/':
                 self._serve_file(PUBLIC_DIR / 'index.html', 'text/html')
                 return
