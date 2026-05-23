@@ -1363,6 +1363,28 @@ def run_backup() -> dict:
     size_kb = dest.stat().st_size // 1024
     _log('info', 'backup_created', path=str(dest), size_kb=size_kb)
     print(f"  ✓ Backup created: {dest.name} ({size_kb} KB)")
+
+    # Backup recipe images — zip the recipe-images folder alongside the DB backup
+    try:
+        import zipfile as _zf
+        img_dir = Path(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data')) / 'recipe-images'
+        if img_dir.is_dir() and any(img_dir.iterdir()):
+            img_zip = BACKUP_PATH / f"recipe_images_{ts}.zip"
+            with _zf.ZipFile(img_zip, 'w', _zf.ZIP_DEFLATED) as zf:
+                for img_file in img_dir.iterdir():
+                    if img_file.is_file():
+                        zf.write(img_file, img_file.name)
+            # Prune old image zips matching backup retention
+            for f in BACKUP_PATH.glob("recipe_images_*.zip"):
+                try:
+                    if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                        f.unlink()
+                except Exception:
+                    pass
+            print(f"  ✓ Recipe images backed up: {img_zip.name}")
+    except Exception as e:
+        print(f"  ⚠ Recipe image backup skipped: {e}")
+
     return {'path': str(dest), 'filename': dest.name, 'size_kb': size_kb, 'ts': ts}
 
 
@@ -3831,6 +3853,24 @@ def update_customer(cust_id, data):
 #  BUSINESS LOGIC — PRODUCTS
 # ═══════════════════════════════════════════════════════════════════
 
+def _save_recipe_sub(c, rid, data):
+    """Replace steps and ingredients for a recipe (call inside open transaction)."""
+    steps = data.get('steps') or []
+    ingredients = data.get('ingredients') or []
+    c.execute("DELETE FROM recipe_steps WHERE recipe_id=?", (rid,))
+    for i, s in enumerate(steps):
+        instr = (s.get('instruction') or '').strip()
+        if instr:
+            c.execute("INSERT INTO recipe_steps (recipe_id, step_number, instruction) VALUES (?,?,?)",
+                      (rid, i + 1, instr))
+    c.execute("DELETE FROM recipe_ingredients WHERE recipe_id=?", (rid,))
+    for i, ing in enumerate(ingredients):
+        item = (ing.get('item') or '').strip()
+        if item:
+            c.execute("INSERT INTO recipe_ingredients (recipe_id, sort_order, item) VALUES (?,?,?)",
+                      (rid, i, item))
+
+
 def create_product(data):
     """
     Each pack size is treated as a separate product.
@@ -4614,7 +4654,7 @@ def list_customer_orders(status_filter=None):
     """Return all orders with summary counts, newest first."""
     sql = """
         SELECT co.id, co.order_number, co.order_date, co.required_date,
-               co.status, co.notes, co.created_at,
+               co.status, co.notes, co.created_at, co.order_source,
                c.name as customer_name, c.code as customer_code,
                COUNT(DISTINCT coi.id)  as item_count,
                COALESCE(SUM(coi.qty_ordered), 0)  as total_qty,
@@ -7558,8 +7598,11 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
         SELECT inv.*, c.name as customer_name, c.customer_type, c.code as cust_code,
                c.account_number as cust_acct, c.email as customer_email,
                c.phone as customer_phone, c.city as customer_city,
-               c.address as customer_address, c.credit_limit
-        FROM invoices inv JOIN customers c ON c.id=inv.customer_id
+               c.address as customer_address, c.credit_limit,
+               co.order_source
+        FROM invoices inv
+        JOIN customers c ON c.id=inv.customer_id
+        LEFT JOIN customer_orders co ON co.id=inv.customer_order_id
         WHERE inv.id=?
     """, (inv_id,))
     if not inv:
@@ -7603,12 +7646,24 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
 
     story = []
 
+    # ── Payment terms (based on order source) ───────────────────────
+    order_source = inv.get('order_source') or ''
+    if order_source == 'consumer_website':
+        payment_terms_text = 'Due on Delivery'
+    else:
+        terms_days = int(inv.get('payment_terms_days') or 30)
+        payment_terms_text = 'Net ' + str(terms_days) + ' Days'
+
     # ── Header band ─────────────────────────────────────────────────
     from reportlab.platypus import FrameBreak
+    header_contact = [
+        Paragraph('<b>Chacha Masala™</b>', s_title),
+        Paragraph('chachamasala.com  |  wa.me/923359997283  |  hello@chachamasala.com', s_sub),
+    ]
     header_data = [[
-        Paragraph('<b>SPICETOPIA</b>', s_title),
+        header_contact,
         Paragraph(
-            f'<b>TAX INVOICE</b><br/>'
+            f'<b>INVOICE</b><br/>'
             f'<font size="10">{inv["invoice_number"]}</font>',
             ParagraphStyle('invnum', fontName='Helvetica-Bold', fontSize=14,
                            leading=18, textColor=clr['white'], alignment=TA_RIGHT)
@@ -7639,7 +7694,7 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
     ]
     if inv.get('customer_address'):
         bill_to_lines.append(Paragraph(inv['customer_address'], s_small))
-    if inv.get('customer_city'):
+    if inv.get('customer_city') and inv.get('customer_city') != inv.get('customer_address'):
         bill_to_lines.append(Paragraph(inv['customer_city'], s_small))
     if inv.get('customer_phone'):
         bill_to_lines.append(Paragraph(f'Tel: {inv["customer_phone"]}', s_small))
@@ -7654,6 +7709,9 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
             Spacer(1, 6),
             Paragraph('DUE DATE', s_label),
             Paragraph(due_date_fmt, s_value),
+            Spacer(1, 6),
+            Paragraph('PAYMENT TERMS', s_label),
+            Paragraph(payment_terms_text, s_value),
             Spacer(1, 6),
             Paragraph('STATUS', s_label),
             Paragraph(f'<font color="{status_color}"><b>{status}</b></font>', s_value),
@@ -7791,11 +7849,11 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
     story.append(Spacer(1, 6))
     story.append(Paragraph(
         'Thank you for your business. Please quote the invoice number on all payments. '
-        'For queries contact accounts@spicetopia.com',
+        'For queries: chachamasala.com  |  hello@chachamasala.com  |  WhatsApp +92 335 999 7283',
         s_footer))
     story.append(Spacer(1, 4))
     story.append(Paragraph(
-        f'Generated by Spicetopia BMS — {date.today().isoformat()}',
+        f'Chacha Masala™ — {date.today().isoformat()}',
         s_footer))
 
     doc = SimpleDocTemplate(buf, pagesize=A4,
@@ -8851,6 +8909,57 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
+            # ── GET /api/public/recipes — no auth, recipe listing ──
+            if path == '/api/public/recipes':
+                rows = qry("""
+                    SELECT r.id, r.title, r.slug, r.masala_code, r.description,
+                           r.prep_mins, r.cook_mins, r.serves, r.image_path, r.sort_order
+                    FROM recipes r WHERE r.active=1 ORDER BY r.sort_order ASC, r.id ASC
+                """)
+                for row in rows:
+                    if row.get('image_path'):
+                        row['image_url'] = '/api/public/recipe-images/' + row['image_path']
+                    else:
+                        row['image_url'] = None
+                send_json(self, rows)
+                return
+
+            # ── GET /api/public/recipes/:slug — no auth, single recipe ──
+            if path.startswith('/api/public/recipes/') and len(path.split('/')) == 5:
+                slug = path.split('/')[-1]
+                recipe = qry1("SELECT * FROM recipes WHERE slug=? AND active=1", (slug,))
+                if not recipe:
+                    send_error(self, 'Recipe not found', 404); return
+                recipe['steps']       = qry("SELECT * FROM recipe_steps WHERE recipe_id=? ORDER BY step_number", (recipe['id'],))
+                recipe['ingredients'] = qry("SELECT * FROM recipe_ingredients WHERE recipe_id=? ORDER BY sort_order", (recipe['id'],))
+                if recipe.get('image_path'):
+                    recipe['image_url'] = '/api/public/recipe-images/' + recipe['image_path']
+                else:
+                    recipe['image_url'] = None
+                send_json(self, recipe)
+                return
+
+            # ── GET /api/public/recipe-images/:filename — serve uploaded image ──
+            if path.startswith('/api/public/recipe-images/'):
+                import mimetypes
+                filename = path.split('/')[-1]
+                # Sanitise — no path traversal
+                filename = os.path.basename(filename)
+                img_dir  = os.path.join(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data'), 'recipe-images')
+                img_path = os.path.join(img_dir, filename)
+                if not os.path.isfile(img_path):
+                    send_error(self, 'Image not found', 404); return
+                mime = mimetypes.guess_type(img_path)[0] or 'application/octet-stream'
+                with open(img_path, 'rb') as f:
+                    data = f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', mime)
+                self.send_header('Content-Length', str(len(data)))
+                self.send_header('Cache-Control', 'public, max-age=86400')
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
             # ── Auth gate (all /api/ except auth endpoints) ──────
             sess = None   # will be set by get_session below
             if path not in ('/api/auth/login', '/api/auth/me'):
@@ -9085,6 +9194,35 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/dashboard
             if path == '/api/dashboard':
                 send_json(self, get_dashboard())
+                return
+
+            # GET /api/recipes  (admin)
+            if path == '/api/recipes':
+                if not require(sess, 'admin', 'sales', 'warehouse', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                rows = qry("""
+                    SELECT r.id, r.title, r.slug, r.masala_code, r.description,
+                           r.prep_mins, r.cook_mins, r.serves, r.image_path,
+                           r.active, r.sort_order, r.created_at
+                    FROM recipes r ORDER BY r.sort_order ASC, r.id ASC
+                """)
+                for row in rows:
+                    row['image_url'] = ('/api/public/recipe-images/' + row['image_path']) if row.get('image_path') else None
+                send_json(self, rows)
+                return
+
+            # GET /api/recipes/:id  (admin — full detail with steps + ingredients)
+            if path.startswith('/api/recipes/') and len(path.split('/')) == 4 and path.split('/')[3].isdigit():
+                if not require(sess, 'admin', 'sales', 'warehouse', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                rid = int(path.split('/')[3])
+                recipe = qry1("SELECT * FROM recipes WHERE id=?", (rid,))
+                if not recipe:
+                    send_error(self, 'Recipe not found', 404); return
+                recipe['steps']       = qry("SELECT * FROM recipe_steps WHERE recipe_id=? ORDER BY step_number", (rid,))
+                recipe['ingredients'] = qry("SELECT * FROM recipe_ingredients WHERE recipe_id=? ORDER BY sort_order", (rid,))
+                recipe['image_url']   = ('/api/public/recipe-images/' + recipe['image_path']) if recipe.get('image_path') else None
+                send_json(self, recipe)
                 return
 
             # GET /api/products
@@ -11160,6 +11298,70 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'code': code})
                 return
 
+            # ── RECIPES ───────────────────────────────────────────────────
+
+            # POST /api/recipes  (admin only — create recipe)
+            if path == '/api/recipes':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                title       = (data.get('title') or '').strip()
+                masala_code = (data.get('masala_code') or '').strip()
+                if not title:
+                    send_error(self, 'Title is required', 400); return
+                if masala_code not in ('SPCM', 'SPGM', 'SPFM'):
+                    send_error(self, 'masala_code must be SPCM, SPGM or SPFM', 400); return
+                import re as _re
+                slug = _re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+                description = (data.get('description') or '').strip()
+                prep_mins   = int(data.get('prep_mins') or 0)
+                cook_mins   = int(data.get('cook_mins') or 0)
+                serves      = int(data.get('serves') or 4)
+                sort_order  = int(data.get('sort_order') or 0)
+                image_path  = None
+                # Handle base64 image upload
+                if data.get('image_b64') and data.get('image_ext'):
+                    import base64, uuid as _uuid
+                    img_dir = os.path.join(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data'), 'recipe-images')
+                    os.makedirs(img_dir, exist_ok=True)
+                    ext = data['image_ext'].lower().lstrip('.')
+                    filename = _uuid.uuid4().hex + '.' + ext
+                    with open(os.path.join(img_dir, filename), 'wb') as f:
+                        f.write(base64.b64decode(data['image_b64']))
+                    image_path = filename
+                c = _conn()
+                try:
+                    c.execute("""
+                        INSERT INTO recipes (title, slug, masala_code, description,
+                            prep_mins, cook_mins, serves, image_path, sort_order)
+                        VALUES (?,?,?,?,?,?,?,?,?)
+                    """, (title, slug, masala_code, description, prep_mins, cook_mins, serves, image_path, sort_order))
+                    rid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                    _save_recipe_sub(c, rid, data)
+                    c.commit()
+                finally:
+                    c.close()
+                send_json(self, {'ok': True, 'id': rid, 'slug': slug}, 201)
+                return
+
+            # POST /api/recipes/:id/image  (admin only — replace image)
+            if path.startswith('/api/recipes/') and path.endswith('/image'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                rid = int(path.split('/')[3])
+                if not data.get('image_b64') or not data.get('image_ext'):
+                    send_error(self, 'image_b64 and image_ext required', 400); return
+                import base64, uuid as _uuid
+                img_dir = os.path.join(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data'), 'recipe-images')
+                os.makedirs(img_dir, exist_ok=True)
+                ext = data['image_ext'].lower().lstrip('.')
+                filename = _uuid.uuid4().hex + '.' + ext
+                with open(os.path.join(img_dir, filename), 'wb') as f:
+                    f.write(base64.b64decode(data['image_b64']))
+                run("UPDATE recipes SET image_path=? WHERE id=?", (filename, rid))
+                send_json(self, {'ok': True, 'image_path': filename,
+                                 'image_url': '/api/public/recipe-images/' + filename})
+                return
+
             # POST /api/products  (admin only)
             if path == '/api/products':
                 if not require(sess, 'admin'):
@@ -11370,6 +11572,49 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
+            # PUT /api/recipes/:id  (admin only — update metadata + steps + ingredients)
+            if path.startswith('/api/recipes/') and len(path.split('/')) == 4 and path.split('/')[3].isdigit():
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                rid = int(path.split('/')[3])
+                import re as _re
+                title       = (data.get('title') or '').strip()
+                masala_code = (data.get('masala_code') or '').strip()
+                if not title:
+                    send_error(self, 'Title is required', 400); return
+                if masala_code not in ('SPCM', 'SPGM', 'SPFM'):
+                    send_error(self, 'masala_code must be SPCM, SPGM or SPFM', 400); return
+                slug        = _re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+                description = (data.get('description') or '').strip()
+                prep_mins   = int(data.get('prep_mins') or 0)
+                cook_mins   = int(data.get('cook_mins') or 0)
+                serves      = int(data.get('serves') or 4)
+                sort_order  = int(data.get('sort_order') or 0)
+                active      = 1 if data.get('active', True) else 0
+                c = _conn()
+                try:
+                    c.execute("""UPDATE recipes SET title=?, slug=?, masala_code=?, description=?,
+                                 prep_mins=?, cook_mins=?, serves=?, sort_order=?, active=?
+                                 WHERE id=?""",
+                              (title, slug, masala_code, description, prep_mins, cook_mins,
+                               serves, sort_order, active, rid))
+                    _save_recipe_sub(c, rid, data)
+                    c.commit()
+                finally:
+                    c.close()
+                send_json(self, {'ok': True, 'id': rid, 'slug': slug})
+                return
+
+            # PUT /api/recipes/:id/active  (admin only — toggle publish)
+            if path.startswith('/api/recipes/') and path.endswith('/active'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                rid    = int(path.split('/')[3])
+                active = 1 if data.get('active') else 0
+                run("UPDATE recipes SET active=? WHERE id=?", (active, rid))
+                send_json(self, {'ok': True, 'id': rid, 'active': active})
+                return
+
             # PUT /api/products/variants/:id/wastage  (admin only)
             parts = path.split('/')
             if (path.startswith('/api/products/variants/') and
@@ -11436,6 +11681,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.commit()
                 finally:
                     c.close()
+                load_ref()
                 send_json(self, {'ok': True, 'variant_id': variant_id, 'show_online': show_online})
                 return
 
@@ -11627,6 +11873,15 @@ class Handler(BaseHTTPRequestHandler):
             sess = get_session(self)
             if not sess:
                 send_json(self, {'error': 'Unauthorized'}, 401); return
+
+            # DELETE /api/recipes/:id  → soft deactivate (admin only)
+            if path.startswith('/api/recipes/') and len(path.split('/')) == 4:
+                if sess['role'] != 'admin':
+                    send_error(self, 'Admin only', 403); return
+                rid = int(path.split('/')[3])
+                run("UPDATE recipes SET active=0 WHERE id=?", (rid,))
+                send_json(self, {'ok': True, 'id': rid})
+                return
 
             # DELETE /api/customers/:id  → soft deactivate (admin only)
             if path.startswith('/api/customers/') and len(path.split('/')) == 4:
@@ -12309,6 +12564,51 @@ def ensure_variant_show_online():
             c.close()
     except Exception as e:
         print(f"  ⚠ ensure_variant_show_online: {e}")
+
+
+def ensure_recipe_tables():
+    """Create recipes, recipe_steps, recipe_ingredients tables. Idempotent."""
+    try:
+        c = _conn()
+        try:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS recipes (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title       TEXT    NOT NULL,
+                    slug        TEXT    NOT NULL UNIQUE,
+                    masala_code TEXT    NOT NULL,
+                    description TEXT,
+                    prep_mins   INTEGER DEFAULT 0,
+                    cook_mins   INTEGER DEFAULT 0,
+                    serves      INTEGER DEFAULT 4,
+                    image_path  TEXT,
+                    active      INTEGER DEFAULT 1,
+                    sort_order  INTEGER DEFAULT 0,
+                    created_at  TEXT    DEFAULT (datetime('now'))
+                )
+            """)
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS recipe_steps (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recipe_id   INTEGER NOT NULL REFERENCES recipes(id),
+                    step_number INTEGER NOT NULL,
+                    instruction TEXT    NOT NULL
+                )
+            """)
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS recipe_ingredients (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recipe_id   INTEGER NOT NULL REFERENCES recipes(id),
+                    sort_order  INTEGER DEFAULT 0,
+                    item        TEXT    NOT NULL
+                )
+            """)
+            c.commit()
+            print("  ✓ recipe tables ready")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_recipe_tables: {e}")
 
 
 def ensure_variant_gtin():
@@ -14119,6 +14419,7 @@ if __name__ == '__main__':
     ensure_web_price_type()              # 'web' price type for consumer website
     ensure_25g_pack_and_spgm25()         # 25g pack size + SPGM-25 variant for website
     ensure_web_prices()                  # seed initial web prices (only if not already set)
+    ensure_recipe_tables()               # recipes, recipe_steps, recipe_ingredients
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
     import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh

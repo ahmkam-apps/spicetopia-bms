@@ -660,6 +660,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('customers')" id="nav-customers" style="display:none"><span class="icon" data-icon="users"></span> Customers</div>
       <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers" style="display:none"><span class="icon" data-icon="factory"></span> Suppliers</div>
       <div class="nav-item" onclick="nav('products')" id="nav-products" style="display:none"><span class="icon" data-icon="package"></span> Products</div>
+      <div class="nav-item" onclick="nav('recipes')" id="nav-recipes" style="display:none"><span class="icon" data-icon="book-open"></span> Recipes</div>
       <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon" data-icon="briefcase"></span> Sales Reps</div>
       <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes" style="display:none"><span class="icon" data-icon="map"></span> Zones &amp; Routes</div>
       <!-- Pricing -->
@@ -758,6 +759,7 @@ const ALL_MODULES = [
   { id:'production',       label:'Production',         section:'Operations' },
   { id:'pl-report',        label:'P&L Report',         section:'Reports' },
   { id:'margins',          label:'Margin Report',      section:'Reports' },
+  { id:'recipes',          label:'Recipes',            section:'Admin / Owner' },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -823,7 +825,7 @@ function applyRoleUI(role) {
   // Admin-only nav items (master data + pricing + system all under Admin/Owner section)
   const adminOnlyIds = [
     'nav-section-admin',
-    'nav-customers','nav-suppliers','nav-products','nav-sales-reps','nav-zones-routes',
+    'nav-customers','nav-suppliers','nav-products','nav-recipes','nav-sales-reps','nav-zones-routes',
     'nav-price-master','nav-prices-costs',
     'nav-users','nav-payroll','nav-master-data','nav-ingredients-admin','nav-audit','nav-system'
   ];
@@ -1069,6 +1071,7 @@ async function render(page, arg) {
       case 'inventory':   c.innerHTML = await renderInventory();   break;
       case 'production':  c.innerHTML = await renderProduction();  break;
       case 'products':      c.innerHTML = await renderProducts();      break;
+      case 'recipes':       c.innerHTML = await renderRecipes();       break;
       case 'prices-costs':  c.innerHTML = await renderPricesCosts();  break;
       case 'pl-report':       c.innerHTML = await renderPLReport(arg);    break;
       case 'margins':         c.innerHTML = await renderMargins();         break;
@@ -2377,19 +2380,24 @@ async function renderCustomerOrders() {
   const orders = await GET('/api/customer-orders');
   await loadSalesPrices();
 
-  const rows = orders.map(o => `
-    <tr onclick="openOrderDetail(${o.id})" style="cursor:pointer" class="hover-row">
-      <td><strong>${o.order_number}</strong></td>
-      <td>${o.customer_name}</td>
-      <td>${fmtDate(o.order_date)}</td>
-      <td>${o.required_date ? fmtDate(o.required_date) : '—'}</td>
-      <td>${_orderStatusBadge(o.status)}</td>
-      <td class="num">${o.item_count}</td>
-      <td class="num">${fmtPKR(o.order_value)}</td>
-      <td class="num">${o.wo_count}</td>
-      <td class="num">${o.invoice_count}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-3);padding:32px">No orders yet</td></tr>';
+  const rows = orders.map(o => {
+    var srcBadge = '';
+    if (o.order_source === 'consumer_website')      srcBadge = '<span style="background:#EAF3FF;color:var(--mac-blue);font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px">🛒 Web</span>';
+    else if (o.order_source === 'retailer_self_service') srcBadge = '<span style="background:#F0FDF4;color:var(--cardamom);font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px">🏪 B2B</span>';
+    else if (o.order_source === 'field_rep')        srcBadge = '<span style="background:#FEF3E2;color:var(--saffron);font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px">👤 Rep</span>';
+    return '<tr onclick="openOrderDetail(' + o.id + ')" style="cursor:pointer" class="hover-row">' +
+      '<td><strong>' + o.order_number + '</strong></td>' +
+      '<td>' + o.customer_name + '</td>' +
+      '<td>' + fmtDate(o.order_date) + '</td>' +
+      '<td>' + (o.required_date ? fmtDate(o.required_date) : '—') + '</td>' +
+      '<td>' + _orderStatusBadge(o.status) + '</td>' +
+      '<td>' + (srcBadge || '<span style="color:var(--text-3);font-size:11px">—</span>') + '</td>' +
+      '<td class="num">' + o.item_count + '</td>' +
+      '<td class="num">' + fmtPKR(o.order_value) + '</td>' +
+      '<td class="num">' + o.wo_count + '</td>' +
+      '<td class="num">' + o.invoice_count + '</td>' +
+      '</tr>';
+  }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text-3);padding:32px">No orders yet</td></tr>';
 
   return `
   <div class="card mb-16">
@@ -2400,7 +2408,7 @@ async function renderCustomerOrders() {
     <table class="data-table">
       <thead><tr>
         <th>Order #</th><th>Customer</th><th>Order Date</th><th>Required By</th>
-        <th>Status</th><th class="num">Items</th><th class="num">Value</th>
+        <th>Status</th><th>Source</th><th class="num">Items</th><th class="num">Value</th>
         <th class="num">WOs</th><th class="num">Invoices</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -3766,7 +3774,7 @@ function _renderInvoiceDetail(inv) {
 async function _downloadPDF(url, fallbackName) {
   try {
     const res = await fetch(url, {
-      headers: { 'Authorization': 'Bearer ' + state.token }
+      headers: { 'Authorization': 'Bearer ' + authToken() }
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
@@ -8489,6 +8497,262 @@ async function saveProductGroup(codes) {
     await refreshAll();
     setTimeout(() => nav('products'), 800);
   } catch(e) { showMsg(msgEl, e.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RECIPES
+// ═══════════════════════════════════════════════════════════════
+let _recipeList = [];
+let _recipeEditId = null;
+let _recipeIngLines = [];
+let _recipeStepLines = [];
+let _recipeIngNext = 1;
+let _recipeStepNext = 1;
+
+function _recipeMasalaBadge(code) {
+  var map = { SPCM: ['Chaat Masala','#d97706','#fffbeb'], SPGM: ['Garam Masala','#7c3aed','#f5f3ff'], SPFM: ['Fish Masala','#0369a1','#e0f2fe'] };
+  var m = map[code] || [code, '#6b7280', '#f3f4f6'];
+  return '<span style="background:' + m[2] + ';color:' + m[1] + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">' + m[0] + '</span>';
+}
+
+async function renderRecipes() {
+  _recipeList = await GET('/api/recipes');
+  var rows = _recipeList.map(function(r) {
+    var img = r.image_url
+      ? '<img src="' + r.image_url + '" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">'
+      : '<div style="width:48px;height:48px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:18px">🍽</div>';
+    var active = r.active ? '✅ Live' : '⚫ Hidden';
+    var activeStyle = r.active ? 'color:var(--cardamom);font-weight:600' : 'color:var(--text-3)';
+    return '<tr id="recipe-row-' + r.id + '">' +
+      '<td>' + img + '</td>' +
+      '<td><strong>' + r.title + '</strong></td>' +
+      '<td>' + _recipeMasalaBadge(r.masala_code) + '</td>' +
+      '<td>' + (r.prep_mins + r.cook_mins) + ' min · serves ' + r.serves + '</td>' +
+      '<td><span style="' + activeStyle + '">' + active + '</span></td>' +
+      '<td style="white-space:nowrap">' +
+        '<button class="btn btn-xs btn-outline" onclick="editRecipe(' + r.id + ')">Edit</button> ' +
+        '<button class="btn btn-xs btn-outline" onclick="toggleRecipeActive(' + r.id + ',' + r.active + ')" style="margin-left:4px">' + (r.active ? 'Unpublish' : 'Publish') + '</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:32px">No recipes yet — click ＋ New Recipe to add one</td></tr>';
+
+  return '<div class="card mb-16">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+      '<div><h3 style="margin:0">Recipes</h3>' +
+      '<p style="color:var(--text-3);font-size:13px;margin:4px 0 0">Published recipes appear on chachamasala.com/recipes</p></div>' +
+      '<button class="btn btn-primary" onclick="openNewRecipe()">＋ New Recipe</button>' +
+    '</div>' +
+    '<table class="data-table">' +
+      '<thead><tr><th style="width:60px"></th><th>Title</th><th>Masala</th><th>Time</th><th>Status</th><th></th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>' +
+  '</div>' +
+  '<div id="recipe-form-wrap"></div>';
+}
+
+async function toggleRecipeActive(id, current) {
+  var newVal = current ? 0 : 1;
+  await api('PUT', '/api/recipes/' + id + '/active', { active: newVal });
+  nav('recipes');
+}
+
+async function editRecipe(id) {
+  var recipe = await GET('/api/recipes/' + id);
+  _recipeEditId = id;
+  _recipeIngLines = (recipe.ingredients || []).map(function(ing, i) { return { id: ++_recipeIngNext, item: ing.item }; });
+  _recipeStepLines = (recipe.steps || []).map(function(s, i) { return { id: ++_recipeStepNext, instruction: s.instruction }; });
+  _showRecipeForm(recipe);
+  document.getElementById('recipe-form-wrap').scrollIntoView({ behavior: 'smooth' });
+}
+
+function openNewRecipe() {
+  _recipeEditId = null;
+  _recipeIngLines = [];
+  _recipeStepLines = [];
+  _recipeIngNext = 1;
+  _recipeStepNext = 1;
+  _showRecipeForm(null);
+  document.getElementById('recipe-form-wrap').scrollIntoView({ behavior: 'smooth' });
+}
+
+function _showRecipeForm(r) {
+  var isEdit = !!r;
+  var masalaOpts = ['SPCM','SPGM','SPFM'].map(function(code) {
+    var labels = { SPCM:'Chaat Masala', SPGM:'Garam Masala', SPFM:'Fish Masala' };
+    var sel = (r && r.masala_code === code) ? ' selected' : (!r && code === 'SPCM' ? ' selected' : '');
+    return '<option value="' + code + '"' + sel + '>' + labels[code] + '</option>';
+  }).join('');
+
+  var imgPreview = (r && r.image_url)
+    ? '<img id="recipe-img-preview" src="' + r.image_url + '" style="max-width:160px;max-height:120px;border-radius:8px;border:1px solid var(--border);margin-top:8px;display:block">'
+    : '<div id="recipe-img-preview" style="display:none"></div>';
+
+  document.getElementById('recipe-form-wrap').innerHTML =
+    '<div class="card mb-16" id="recipe-form-card">' +
+      '<h3 style="margin:0 0 16px">' + (isEdit ? 'Edit Recipe' : 'New Recipe') + '</h3>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">' +
+        '<div style="grid-column:1/3"><label class="form-label">Title</label>' +
+          '<input type="text" id="rf-title" class="form-input" placeholder="e.g. Fruit Chaat" value="' + (r ? r.title : '') + '"></div>' +
+        '<div><label class="form-label">Masala</label>' +
+          '<select id="rf-masala" class="form-input">' + masalaOpts + '</select></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px"><label class="form-label">Description</label>' +
+        '<textarea id="rf-desc" class="form-input" rows="2" placeholder="Short intro about this dish">' + (r ? (r.description || '') : '') + '</textarea></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">' +
+        '<div><label class="form-label">Prep (mins)</label><input type="number" id="rf-prep" class="form-input" value="' + (r ? r.prep_mins : 0) + '" min="0"></div>' +
+        '<div><label class="form-label">Cook (mins)</label><input type="number" id="rf-cook" class="form-input" value="' + (r ? r.cook_mins : 0) + '" min="0"></div>' +
+        '<div><label class="form-label">Serves</label><input type="number" id="rf-serves" class="form-input" value="' + (r ? r.serves : 4) + '" min="1"></div>' +
+      '</div>' +
+      '<div style="margin-bottom:16px"><label class="form-label">Photo</label>' +
+        '<input type="file" id="rf-image" class="form-input" accept="image/*" onchange="previewRecipeImage(this)">' +
+        imgPreview +
+      '</div>' +
+      '<hr style="border:none;border-top:1px solid var(--border);margin:16px 0">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">' +
+        '<div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+            '<strong style="font-size:14px">Ingredients</strong>' +
+            '<button class="btn btn-xs btn-outline" onclick="addRecipeIng()">＋ Add</button>' +
+          '</div>' +
+          '<div id="rf-ing-list"></div>' +
+        '</div>' +
+        '<div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+            '<strong style="font-size:14px">Steps</strong>' +
+            '<button class="btn btn-xs btn-outline" onclick="addRecipeStep()">＋ Add</button>' +
+          '</div>' +
+          '<div id="rf-step-list"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div id="rf-msg" style="margin-top:12px"></div>' +
+      '<div style="display:flex;gap:10px;margin-top:16px">' +
+        '<button class="btn btn-primary" onclick="saveRecipe()">💾 Save Recipe</button>' +
+        '<button class="btn btn-outline" onclick="closeRecipeForm()">Cancel</button>' +
+        (isEdit ? '<button class="btn btn-outline" onclick="deleteRecipe(' + r.id + ')" style="margin-left:auto;color:var(--chili)">🗑 Delete</button>' : '') +
+      '</div>' +
+    '</div>';
+
+  _renderIngList();
+  _renderStepList();
+}
+
+function previewRecipeImage(input) {
+  var preview = document.getElementById('recipe-img-preview');
+  if (!input.files || !input.files[0]) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    preview.tagName === 'DIV' && (preview.outerHTML = '<img id="recipe-img-preview" src="' + e.target.result + '" style="max-width:160px;max-height:120px;border-radius:8px;border:1px solid var(--border);margin-top:8px;display:block">');
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function addRecipeIng() {
+  _recipeIngLines.push({ id: _recipeIngNext++, item: '' });
+  _renderIngList();
+}
+function removeRecipeIng(id) {
+  _recipeIngLines = _recipeIngLines.filter(function(l) { return l.id !== id; });
+  _renderIngList();
+}
+function _renderIngList() {
+  var el = document.getElementById('rf-ing-list');
+  if (!el) return;
+  if (!_recipeIngLines.length) { el.innerHTML = '<p style="color:var(--text-3);font-size:13px">No ingredients yet</p>'; return; }
+  el.innerHTML = _recipeIngLines.map(function(l) {
+    return '<div style="display:flex;gap:6px;margin-bottom:6px" id="ing-row-' + l.id + '">' +
+      '<input type="text" class="form-input" style="flex:1" placeholder="e.g. 2 cups yogurt" value="' + (l.item || '') + '" oninput="updateIngItem(' + l.id + ',this.value)">' +
+      '<button class="btn btn-xs btn-outline" onclick="removeRecipeIng(' + l.id + ')" style="padding:4px 8px">✕</button>' +
+    '</div>';
+  }).join('');
+}
+function updateIngItem(id, val) {
+  var line = _recipeIngLines.find(function(l) { return l.id === id; });
+  if (line) line.item = val;
+}
+
+function addRecipeStep() {
+  _recipeStepLines.push({ id: _recipeStepNext++, instruction: '' });
+  _renderStepList();
+}
+function removeRecipeStep(id) {
+  _recipeStepLines = _recipeStepLines.filter(function(l) { return l.id !== id; });
+  _renderStepList();
+}
+function _renderStepList() {
+  var el = document.getElementById('rf-step-list');
+  if (!el) return;
+  if (!_recipeStepLines.length) { el.innerHTML = '<p style="color:var(--text-3);font-size:13px">No steps yet</p>'; return; }
+  el.innerHTML = _recipeStepLines.map(function(l, i) {
+    return '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start" id="step-row-' + l.id + '">' +
+      '<span style="min-width:22px;height:22px;border-radius:50%;background:var(--saffron);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:8px">' + (i + 1) + '</span>' +
+      '<textarea class="form-input" style="flex:1;min-height:56px" placeholder="Describe this step..." oninput="updateStepInstruction(' + l.id + ',this.value)">' + (l.instruction || '') + '</textarea>' +
+      '<button class="btn btn-xs btn-outline" onclick="removeRecipeStep(' + l.id + ')" style="padding:4px 8px;margin-top:4px">✕</button>' +
+    '</div>';
+  }).join('');
+}
+function updateStepInstruction(id, val) {
+  var line = _recipeStepLines.find(function(l) { return l.id === id; });
+  if (line) line.instruction = val;
+}
+
+async function saveRecipe() {
+  var title   = (document.getElementById('rf-title').value || '').trim();
+  var masala  = document.getElementById('rf-masala').value;
+  var desc    = (document.getElementById('rf-desc').value || '').trim();
+  var prep    = parseInt(document.getElementById('rf-prep').value) || 0;
+  var cook    = parseInt(document.getElementById('rf-cook').value) || 0;
+  var serves  = parseInt(document.getElementById('rf-serves').value) || 4;
+  var msg     = document.getElementById('rf-msg');
+
+  if (!title) { msg.innerHTML = '<span style="color:var(--chili)">Title is required.</span>'; return; }
+
+  var payload = {
+    title: title, masala_code: masala, description: desc,
+    prep_mins: prep, cook_mins: cook, serves: serves, active: 1,
+    ingredients: _recipeIngLines.filter(function(l) { return l.item.trim(); }).map(function(l) { return { item: l.item.trim() }; }),
+    steps: _recipeStepLines.filter(function(l) { return l.instruction.trim(); }).map(function(l) { return { instruction: l.instruction.trim() }; })
+  };
+
+  // Handle image upload
+  var fileInput = document.getElementById('rf-image');
+  if (fileInput && fileInput.files && fileInput.files[0]) {
+    var file = fileInput.files[0];
+    var ext  = file.name.split('.').pop();
+    var b64  = await new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onload = function(e) { resolve(e.target.result.split(',')[1]); };
+      reader.readAsDataURL(file);
+    });
+    payload.image_b64 = b64;
+    payload.image_ext = ext;
+  }
+
+  msg.innerHTML = '<span style="color:var(--text-3)">Saving…</span>';
+  try {
+    if (_recipeEditId) {
+      await api('PUT', '/api/recipes/' + _recipeEditId, payload);
+    } else {
+      await api('POST', '/api/recipes', payload);
+    }
+    msg.innerHTML = '<span style="color:var(--cardamom)">✓ Saved!</span>';
+    setTimeout(function() { nav('recipes'); }, 900);
+  } catch(e) {
+    msg.innerHTML = '<span style="color:var(--chili)">Error: ' + e.message + '</span>';
+  }
+}
+
+async function deleteRecipe(id) {
+  if (!confirm('Delete this recipe? It will be hidden from the website.')) return;
+  await api('DELETE', '/api/recipes/' + id);
+  nav('recipes');
+}
+
+function closeRecipeForm() {
+  var wrap = document.getElementById('recipe-form-wrap');
+  if (wrap) wrap.innerHTML = '';
+  _recipeEditId = null;
 }
 
 // ═══════════════════════════════════════════════════════════════
