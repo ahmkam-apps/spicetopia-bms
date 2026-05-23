@@ -2457,7 +2457,7 @@ def load_ref():
 
     variants = qry("""
         SELECT pv.id, pv.sku_code, pv.product_id, pv.pack_size_id, pv.active_flag,
-               pv.gtin,
+               pv.gtin, COALESCE(pv.show_online, 0) as show_online,
                p.code as product_code, p.name as product_name,
                ps.label as pack_size, ps.grams as pack_grams
         FROM product_variants pv
@@ -8828,14 +8828,17 @@ class Handler(BaseHTTPRequestHandler):
                     SELECT
                         p.code          AS product_code,
                         p.name          AS product_name,
+                        pv.id           AS variant_id,
                         pv.sku_code,
                         ps.label        AS pack_size,
                         ps.grams,
                         pp.price,
-                        pp.effective_from
+                        pp.effective_from,
+                        COALESCE(pv.show_online, 0) AS show_online
                     FROM product_prices pp
                     JOIN price_types pt      ON pt.id = pp.price_type_id AND pt.code = 'web'
                     JOIN product_variants pv ON pv.id = pp.product_variant_id AND pv.active_flag = 1
+                                            AND COALESCE(pv.show_online, 0) = 1
                     JOIN products p          ON p.id  = pv.product_id AND p.active = 1
                     JOIN pack_sizes ps       ON ps.id = pv.pack_size_id
                     WHERE pp.active_flag = 1
@@ -10438,6 +10441,89 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, str(e), 400)
                 return
 
+            # POST /api/public/orders  — no-auth consumer order intake from chacha.html
+            if path == '/api/public/orders':
+                # Validate required fields
+                name   = (data.get('name') or '').strip()
+                phone  = _normalise_phone(data.get('phone') or '')
+                area   = (data.get('area') or '').strip()
+                email  = (data.get('email') or '').strip() or None
+                items  = data.get('items', [])
+                if not name:
+                    send_error(self, 'name is required', 400); return
+                if not phone or len(phone) < 10:
+                    send_error(self, 'valid phone number required', 400); return
+                if not items:
+                    send_error(self, 'at least one item required', 400); return
+                # Validate items: each must have variant_id (int) and qty > 0
+                clean_items = []
+                for it in items:
+                    try:
+                        vid = int(it.get('variant_id') or it.get('variantId') or 0)
+                        qty = float(it.get('qty', 0))
+                    except (TypeError, ValueError):
+                        send_error(self, 'invalid item format', 400); return
+                    if vid <= 0 or qty <= 0:
+                        send_error(self, 'invalid item: variant_id and qty required', 400); return
+                    # Confirm variant exists and is show_online=1
+                    var_row = qry1("""
+                        SELECT pv.id, p.code as productCode, ps.label as packSize, pp.price
+                        FROM product_variants pv
+                        JOIN products p    ON p.id  = pv.product_id AND p.active=1
+                        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                        LEFT JOIN (
+                            SELECT pp2.product_variant_id, pp2.price
+                            FROM product_prices pp2
+                            JOIN price_types pt2 ON pt2.id = pp2.price_type_id AND pt2.code='web'
+                            WHERE pp2.active_flag=1
+                            ORDER BY pp2.effective_from DESC
+                        ) pp ON pp.product_variant_id = pv.id
+                        WHERE pv.id=? AND pv.active_flag=1 AND COALESCE(pv.show_online,0)=1
+                    """, (vid,))
+                    if not var_row:
+                        send_error(self, f'Product {vid} not available for online orders', 400); return
+                    clean_items.append({
+                        'variantId': vid,
+                        'qty': qty,
+                        'unitPrice': var_row['price'] or 0,
+                    })
+                # Find or create consumer customer by phone
+                cust_row = qry1("SELECT code FROM customers WHERE phone=?", (phone,))
+                if not cust_row:
+                    # Create a DIRECT customer (consumer)
+                    new_cust = create_customer({
+                        'name':         name,
+                        'city':         area or 'Karachi',
+                        'phone':        phone,
+                        'email':        email or '',
+                        'customerType': 'DIRECT',
+                        'address':      area or '',
+                    })
+                    cust_code = new_cust['code']
+                else:
+                    cust_code = cust_row['code']
+                # Submit order via standard external intake
+                order_data = {
+                    'custCode':     cust_code,
+                    'order_source': 'consumer_website',
+                    'notes':        ('Online order. Area: ' + area) if area else 'Online order',
+                    'items':        clean_items,
+                }
+                try:
+                    result = create_customer_order_external(order_data)
+                except ValueError as ve:
+                    send_error(self, str(ve), 400); return
+                except Exception as ex:
+                    _log('error', 'public_order_failed', error=str(ex))
+                    send_error(self, 'Could not place order. Please try again.', 500); return
+                send_json(self, {
+                    'ok':      True,
+                    'orderId': result.get('orderId'),
+                    'ref':     result.get('orderCode') or result.get('orderId'),
+                    'message': 'Order received! We will contact you to confirm delivery.',
+                }, 201)
+                return
+
             # Auth gate for all other POST endpoints
             sess = get_session(self)
             if not sess:
@@ -11334,6 +11420,25 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'ok': True, 'variant_id': variant_id, 'gtin': gtin_val})
                 return
 
+            # PUT /api/products/variants/:id/show-online  (admin only)
+            if (path.startswith('/api/products/variants/') and
+                    len(parts) == 6 and parts[5] == 'show-online'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                variant_id  = int(parts[4])
+                show_online = 1 if data.get('show_online') else 0
+                c = _conn()
+                try:
+                    c.execute(
+                        "UPDATE product_variants SET show_online=? WHERE id=?",
+                        (show_online, variant_id)
+                    )
+                    c.commit()
+                finally:
+                    c.close()
+                send_json(self, {'ok': True, 'variant_id': variant_id, 'show_online': show_online})
+                return
+
             # PUT /api/costing/config  (admin only)
             if path == '/api/costing/config':
                 if not require(sess, 'admin'):
@@ -12188,6 +12293,22 @@ def ensure_variant_wastage_pct():
         c.commit()
     finally:
         c.close()
+
+
+def ensure_variant_show_online():
+    """Add show_online column to product_variants. Idempotent."""
+    try:
+        c = _conn()
+        try:
+            existing = {r[1] for r in c.execute("PRAGMA table_info(product_variants)").fetchall()}
+            if 'show_online' not in existing:
+                c.execute("ALTER TABLE product_variants ADD COLUMN show_online INTEGER DEFAULT 0")
+                c.commit()
+                print("  ✓ product_variants: added show_online column")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_variant_show_online: {e}")
 
 
 def ensure_variant_gtin():
@@ -13977,6 +14098,7 @@ if __name__ == '__main__':
     ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
     ensure_variant_wastage_pct()         # wastage_pct column on product_variants
     ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
+    ensure_variant_show_online()         # show_online flag for consumer website
     ensure_clean_product_codes()          # normalize product codes → SPGM/SPCM, rebuild SKU codes
     ensure_clean_customer_codes()        # fix SP-SP-CUST-* double-prefix → SP-CUST-*
     ensure_clean_supplier_codes()        # normalize SUP-001/SP-SUP-0001 → SP-SUP-XXXX

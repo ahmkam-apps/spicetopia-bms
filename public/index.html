@@ -8276,8 +8276,8 @@ async function renderProducts() {
       return gA - gB;
     });
 
-    // Column header row — Pack Size | SKU Code | GTIN-13 | Stock | (Edit)
-    const cols = `80px 160px 180px 90px${isAdmin?' 140px':''}`;
+    // Column header row — Pack Size | SKU Code | GTIN-13 | Stock | (Online) | (Edit)
+    const cols = `80px 160px 180px 90px${isAdmin?' 80px 140px':''}`;
     const header = `
       <div style="display:grid;grid-template-columns:${cols};
                   gap:0;padding:6px 14px;border-bottom:1px solid var(--border);
@@ -8286,7 +8286,8 @@ async function renderProducts() {
         <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">SKU Code</span>
         <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">GTIN-13</span>
         <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;text-align:right">Stock</span>
-        ${isAdmin ? `<span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;text-align:center">Edit</span>` : ''}
+        ${isAdmin ? '<span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;text-align:center">Online</span>' : ''}
+        ${isAdmin ? '<span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;text-align:center">Edit</span>' : ''}
       </div>`;
 
     const rows = grp.items.map(({ p, v }) => {
@@ -8307,17 +8308,28 @@ async function renderProducts() {
         <span style="font-size:12px;font-weight:600;color:${stockColor};text-align:right">
           ${stock > 0 ? stock + ' units' : 'No stock'}
         </span>
-        ${isAdmin ? `
-        <div style="display:flex;gap:4px;justify-content:center">
-          <button onclick="skuShowEdit(${v.id},'${v.sku_code}')"
-            title="Edit SKU Code"
-            style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);
-                   background:var(--surface-2);cursor:pointer;color:var(--text-2)">✏ SKU</button>
-          <button onclick="gtinShowEdit(${v.id},'${v.gtin||''}')"
-            title="Edit GTIN"
-            style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);
-                   background:var(--surface-2);cursor:pointer;color:var(--text-2)">✏ GTIN</button>
-        </div>` : ''}
+        ${isAdmin ? (
+          '<div style="display:flex;justify-content:center;align-items:center">' +
+            '<button id="online-btn-' + v.id + '" onclick="toggleShowOnline(' + v.id + ',' + (v.show_online||0) + ')" ' +
+            'title="Toggle online store visibility" ' +
+            'style="font-size:11px;padding:3px 10px;border-radius:20px;border:none;cursor:pointer;font-weight:600;' +
+            (v.show_online ? 'background:#1a7a4a;color:#fff' : 'background:var(--surface-2);color:var(--text-3);border:1px solid var(--border)') + '">' +
+            (v.show_online ? '🌐 Live' : 'Off') +
+            '</button>' +
+          '</div>'
+        ) : ''}
+        ${isAdmin ? (
+          '<div style="display:flex;gap:4px;justify-content:center">' +
+            '<button onclick="skuShowEdit(' + v.id + ',\'' + v.sku_code + '\')" ' +
+            'title="Edit SKU Code" ' +
+            'style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);' +
+            'background:var(--surface-2);cursor:pointer;color:var(--text-2)">✏ SKU</button>' +
+            '<button onclick="gtinShowEdit(' + v.id + ',\'' + (v.gtin||'') + '\')" ' +
+            'title="Edit GTIN" ' +
+            'style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);' +
+            'background:var(--surface-2);cursor:pointer;color:var(--text-2)">✏ GTIN</button>' +
+          '</div>'
+        ) : ''}
       </div>
       <div id="sku-edit-${v.id}" style="display:none;padding:8px 14px;
            border-bottom:1px solid var(--cardamom);background:var(--surface-2);
@@ -8672,6 +8684,20 @@ async function skuSave(variantId) {
     setTimeout(() => { skuCancel(variantId); nav('products'); }, 900);
   } catch(e) {
     msg.textContent = e.message; msg.style.color = 'var(--chili)';
+  }
+}
+
+async function toggleShowOnline(variantId, currentVal) {
+  const newVal = currentVal ? 0 : 1;
+  const btn = document.getElementById('online-btn-' + variantId);
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    await api('PUT', '/api/products/variants/' + variantId + '/show-online', { show_online: newVal });
+    state.ref = await GET('/api/ref');
+    nav('products');
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = currentVal ? '🌐 Live' : 'Off'; }
+    alert('Could not update: ' + e.message);
   }
 }
 

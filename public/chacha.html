@@ -497,6 +497,133 @@
       .hero-title { font-size: 2.8rem; }
       .nav-brand { font-size: 0.7rem; letter-spacing: 0.15em; }
     }
+
+    /* ── ORDER MODAL ──────────────────────────────────── */
+    #order-modal {
+      display: none;
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.88);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      overflow-y: auto;
+      padding: 1.5rem 1rem;
+    }
+    #order-modal.open { display: flex; align-items: flex-start; justify-content: center; }
+    .order-modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      width: 100%; max-width: 520px;
+      margin: auto; padding: 2.5rem 2.5rem 2rem;
+      position: relative;
+    }
+    .order-modal-close {
+      position: absolute; top: 1.2rem; right: 1.5rem;
+      background: none; border: none; cursor: pointer;
+      color: var(--ivory-dim); font-size: 1.4rem; line-height: 1; padding: 4px;
+    }
+    .order-modal-close:hover { color: var(--ivory); }
+    .order-modal-title {
+      font-family: 'Cormorant Garant', serif;
+      font-size: 1.65rem; font-weight: 300; margin-bottom: 0.2rem;
+    }
+    .order-section-label {
+      font-size: 0.6rem; letter-spacing: 0.25em; text-transform: uppercase;
+      color: var(--terra); margin: 1.8rem 0 1rem;
+    }
+    .order-product-group {
+      margin-bottom: 1.1rem; padding-bottom: 1.1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .order-product-group:last-child { border-bottom: none; margin-bottom: 0; }
+    .order-product-name {
+      font-size: 0.75rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--ivory); margin-bottom: 0.75rem;
+    }
+    .order-size-row {
+      display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem;
+    }
+    .order-size-label {
+      flex: 1; padding: 0.55rem 0.7rem;
+      background: var(--surface-2); border: 1px solid var(--border);
+      color: var(--ivory-dim); font-size: 0.75rem;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .order-size-price { color: var(--ivory); font-weight: 400; }
+    .order-qty-ctrl { display: flex; align-items: center; gap: 0; }
+    .order-qty-btn {
+      width: 30px; height: 30px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      color: var(--ivory); font-size: 1.1rem; line-height: 1;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s; flex-shrink: 0;
+    }
+    .order-qty-btn:hover { background: var(--border-2); }
+    .order-qty-val {
+      min-width: 32px; text-align: center;
+      font-size: 0.85rem; font-weight: 500;
+      background: var(--surface-2); border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border); height: 30px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .order-field { margin-bottom: 1rem; }
+    .order-label {
+      display: block; font-size: 0.62rem; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--ivory-dim); margin-bottom: 0.4rem;
+    }
+    .order-input, .order-select {
+      width: 100%; background: var(--surface-2);
+      border: 1px solid var(--border-2); color: var(--ivory);
+      font-family: 'Inter', sans-serif; font-size: 0.85rem; font-weight: 300;
+      padding: 0.75rem 0.9rem; appearance: none; -webkit-appearance: none;
+      outline: none; transition: border-color 0.2s; border-radius: 0;
+    }
+    .order-input:focus, .order-select:focus { border-color: var(--terra); }
+    .order-select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239A9490'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+    }
+    .order-select option { background: #181818; }
+    .order-err { font-size: 0.7rem; color: #e05555; margin-top: 0.3rem; display: none; }
+    .order-err.show { display: block; }
+    .order-total-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.2rem 0; border-top: 1px solid var(--border-2);
+      margin-top: 1.4rem;
+    }
+    .order-total-label {
+      font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ivory-dim);
+    }
+    .order-total-amount {
+      font-family: 'Cormorant Garant', serif; font-size: 1.6rem; font-weight: 300;
+    }
+    .order-submit-btn {
+      width: 100%; background: var(--terra); color: var(--ivory); border: none;
+      font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 400;
+      letter-spacing: 0.2em; text-transform: uppercase;
+      padding: 1.1rem; cursor: pointer; transition: background 0.2s; margin-top: 0.5rem;
+    }
+    .order-submit-btn:hover:not(:disabled) { background: #A05534; }
+    .order-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .order-payment-note {
+      font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--border-2); text-align: center; margin-top: 0.9rem;
+    }
+    #order-success { display: none; text-align: center; padding: 3rem 1rem; }
+    #order-success .ok-icon { font-size: 2.8rem; margin-bottom: 1.2rem; }
+    #order-success h3 {
+      font-family: 'Cormorant Garant', serif; font-size: 1.9rem; font-weight: 300;
+      margin-bottom: 0.8rem;
+    }
+    #order-success p { font-size: 0.85rem; color: var(--ivory-dim); line-height: 2; }
+    #order-success .close-success {
+      display: inline-block; margin-top: 2rem;
+      font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--terra); cursor: pointer; border-bottom: 1px solid var(--terra-dim);
+    }
+    @media (max-width: 600px) {
+      .order-modal-box { padding: 2rem 1.25rem 1.5rem; }
+    }
   </style>
 </head>
 <body>
@@ -561,7 +688,7 @@
           <span class="price-val loading" id="price-spcm-100">—</span>
         </div>
       </div>
-      <a href="https://wa.me/923359997283?text=Hi%20Chacha%27s!%20I%27d%20like%20to%20place%20an%20order.%0A%0AName%3A%20%0APhone%3A%20%0ADelivery%20Address%3A%20%0A%0AItems%3A%0A%E2%80%A2%20Chaat%20Masala%2050g%20(%E2%82%A8100)%20%E2%80%94%20Qty%3A%20%0A%E2%80%A2%20Chaat%20Masala%20100g%20(%E2%82%A8195)%20%E2%80%94%20Qty%3A%20%0A%0APayment%3A%20Cash%20on%20Delivery" class="btn-order" target="_blank" rel="noopener">Order on WhatsApp</a>
+      <button class="btn-order" onclick="openOrderModal('SPCM')">Order Now</button>
     </div>
 
     <!-- Garam Masala -->
@@ -588,7 +715,7 @@
           <span class="price-val loading" id="price-spgm-50">—</span>
         </div>
       </div>
-      <a href="https://wa.me/923359997283?text=Hi%20Chacha%27s!%20I%27d%20like%20to%20place%20an%20order.%0A%0AName%3A%20%0APhone%3A%20%0ADelivery%20Address%3A%20%0A%0AItems%3A%0A%E2%80%A2%20Garam%20Masala%2025g%20(%E2%82%A8165)%20%E2%80%94%20Qty%3A%20%0A%E2%80%A2%20Garam%20Masala%2050g%20(%E2%82%A8300)%20%E2%80%94%20Qty%3A%20%0A%0APayment%3A%20Cash%20on%20Delivery" class="btn-order" target="_blank" rel="noopener">Order on WhatsApp</a>
+      <button class="btn-order" onclick="openOrderModal('SPGM')">Order Now</button>
     </div>
 
     <!-- Fish Masala -->
@@ -615,7 +742,7 @@
           <span class="price-val loading" id="price-spfm-100">—</span>
         </div>
       </div>
-      <a href="https://wa.me/923359997283?text=Hi%20Chacha%27s!%20I%27d%20like%20to%20place%20an%20order.%0A%0AName%3A%20%0APhone%3A%20%0ADelivery%20Address%3A%20%0A%0AItems%3A%0A%E2%80%A2%20Fish%20Masala%2050g%20%E2%80%94%20Qty%3A%20%0A%E2%80%A2%20Fish%20Masala%20100g%20%E2%80%94%20Qty%3A%20%0A%0APayment%3A%20Cash%20on%20Delivery" class="btn-order" target="_blank" rel="noopener">Order on WhatsApp</a>
+      <button class="btn-order" onclick="openOrderModal('SPFM')">Order Now</button>
     </div>
 
   </div>
@@ -673,23 +800,263 @@
   For Sale in Pakistan Only &nbsp;·&nbsp; &copy; 2026 Spicetopia™
 </footer>
 
+<!-- ORDER MODAL -->
+<div id="order-modal" role="dialog" aria-modal="true" aria-label="Place your order">
+  <div class="order-modal-box">
+    <button class="order-modal-close" onclick="closeOrderModal()" aria-label="Close">&times;</button>
+
+    <!-- FORM VIEW -->
+    <div id="order-form-view">
+      <h2 class="order-modal-title">Place Your Order</h2>
+      <p style="font-size:0.75rem;color:var(--ivory-dim);margin-top:0.3rem">Delivered to your door across Karachi &amp; Hyderabad</p>
+
+      <p class="order-section-label">Your Items</p>
+      <div id="order-products-container">
+        <p style="font-size:0.8rem;color:var(--ivory-dim)">Loading products…</p>
+      </div>
+      <div class="order-err" id="err-items">Please add at least one item</div>
+
+      <p class="order-section-label">Your Details</p>
+      <div class="order-field">
+        <label class="order-label" for="ord-name">Full Name *</label>
+        <input id="ord-name" type="text" class="order-input" placeholder="e.g. Ahmed Khan" autocomplete="name">
+        <div class="order-err" id="err-name">Please enter your name</div>
+      </div>
+      <div class="order-field">
+        <label class="order-label" for="ord-phone">Mobile Number *</label>
+        <input id="ord-phone" type="tel" class="order-input" placeholder="03xx-xxxxxxx" autocomplete="tel">
+        <div class="order-err" id="err-phone">Please enter a valid Pakistani mobile number</div>
+      </div>
+      <div class="order-field">
+        <label class="order-label" for="ord-area">Delivery Area *</label>
+        <select id="ord-area" class="order-select">
+          <option value="">Select your area…</option>
+          <option value="Gulshan-e-Iqbal / Scheme 33">Gulshan-e-Iqbal / Scheme 33</option>
+          <option value="PECHS / Bahadurabad">PECHS / Bahadurabad</option>
+          <option value="DHA / Clifton">DHA / Clifton</option>
+          <option value="North Nazimabad / Federal B Area">North Nazimabad / Federal B Area</option>
+          <option value="Malir / Korangi">Malir / Korangi</option>
+          <option value="Hyderabad">Hyderabad</option>
+          <option value="Other">Other — we will confirm delivery</option>
+        </select>
+        <div class="order-err" id="err-area">Please select your delivery area</div>
+      </div>
+      <div class="order-field">
+        <label class="order-label" for="ord-email">Email (optional)</label>
+        <input id="ord-email" type="email" class="order-input" placeholder="For order confirmation" autocomplete="email">
+      </div>
+
+      <div class="order-total-row">
+        <span class="order-total-label">Total</span>
+        <span class="order-total-amount" id="ord-total">₨ 0</span>
+      </div>
+
+      <button class="order-submit-btn" id="ord-submit-btn" onclick="submitOrder()">Place Order</button>
+      <p class="order-payment-note">Cash on Delivery &nbsp;·&nbsp; We will confirm via WhatsApp</p>
+    </div>
+
+    <!-- SUCCESS VIEW -->
+    <div id="order-success">
+      <div class="ok-icon">✓</div>
+      <h3>Order Received!</h3>
+      <p>Thank you. We will contact you on WhatsApp to confirm your delivery slot.</p>
+      <span class="close-success" onclick="closeOrderModal()">Close</span>
+    </div>
+  </div>
+</div>
+
 <script>
-  // ── Live prices from ERP ─────────────────────────────
+  // ── State ─────────────────────────────────────────────
+  var _onlineProducts = [];  // [{product_code, product_name, variants: [{variant_id, pack_size, grams, sku_code, price}]}]
+  var _qtyMap = {};          // variant_id → qty
+
+  // ── Live prices + product data from ERP ──────────────
   (async function () {
     try {
       var res = await fetch('/api/public/prices');
       if (!res.ok) return;
       var data = await res.json();
       var prices = data.prices || [];
+
+      // Update price display on product cards
       prices.forEach(function (p) {
-        var el = document.getElementById('price-' + p.sku_code.toLowerCase());
+        var el = document.getElementById('price-' + p.sku_code.toLowerCase().replace(/-/g, '-'));
+        if (!el) {
+          // Also try without product code prefix
+          var skuLower = p.sku_code.toLowerCase();
+          el = document.getElementById('price-' + skuLower);
+        }
         if (el && p.price != null) {
           el.textContent = '₨ ' + Number(p.price).toLocaleString('en-PK');
           el.classList.remove('loading');
         }
       });
+
+      // Group by product_code for order form
+      var grouped = {};
+      prices.forEach(function (p) {
+        if (!grouped[p.product_code]) {
+          grouped[p.product_code] = { product_code: p.product_code, product_name: p.product_name, variants: [] };
+        }
+        grouped[p.product_code].variants.push({
+          variant_id: p.variant_id,
+          pack_size:  p.pack_size,
+          grams:      p.grams,
+          sku_code:   p.sku_code,
+          price:      p.price
+        });
+        _qtyMap[p.variant_id] = 0;
+      });
+      _onlineProducts = Object.values(grouped);
+      _buildOrderForm();
+
     } catch (e) { /* fail silently */ }
   })();
+
+  function _buildOrderForm() {
+    var container = document.getElementById('order-products-container');
+    if (!container) return;
+    if (!_onlineProducts.length) {
+      container.innerHTML = '<p style="font-size:0.8rem;color:var(--ivory-dim)">No products currently available for online order.</p>';
+      return;
+    }
+    var html = '';
+    _onlineProducts.forEach(function (prod) {
+      html += '<div class="order-product-group">';
+      html += '<p class="order-product-name">' + prod.product_name + '</p>';
+      prod.variants.forEach(function (v) {
+        var priceStr = v.price != null ? '₨ ' + Number(v.price).toLocaleString('en-PK') : '—';
+        html += '<div class="order-size-row">';
+        html += '<div class="order-size-label">';
+        html += '<span>' + v.pack_size + '</span>';
+        html += '<span class="order-size-price">' + priceStr + '</span>';
+        html += '</div>';
+        html += '<div class="order-qty-ctrl">';
+        html += '<button class="order-qty-btn" onclick="_dec(' + v.variant_id + ')" aria-label="Decrease">−</button>';
+        html += '<div class="order-qty-val" id="qty-' + v.variant_id + '">0</div>';
+        html += '<button class="order-qty-btn" onclick="_inc(' + v.variant_id + ')" aria-label="Increase">+</button>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  function _inc(vid) {
+    _qtyMap[vid] = (_qtyMap[vid] || 0) + 1;
+    var el = document.getElementById('qty-' + vid);
+    if (el) el.textContent = _qtyMap[vid];
+    _updateTotal();
+  }
+
+  function _dec(vid) {
+    if ((_qtyMap[vid] || 0) > 0) {
+      _qtyMap[vid]--;
+      var el = document.getElementById('qty-' + vid);
+      if (el) el.textContent = _qtyMap[vid];
+      _updateTotal();
+    }
+  }
+
+  function _getPrice(vid) {
+    for (var i = 0; i < _onlineProducts.length; i++) {
+      var prod = _onlineProducts[i];
+      for (var j = 0; j < prod.variants.length; j++) {
+        if (prod.variants[j].variant_id === vid) return prod.variants[j].price || 0;
+      }
+    }
+    return 0;
+  }
+
+  function _updateTotal() {
+    var total = 0;
+    Object.keys(_qtyMap).forEach(function (vid) {
+      var qty = _qtyMap[vid] || 0;
+      if (qty > 0) total += qty * _getPrice(parseInt(vid));
+    });
+    var el = document.getElementById('ord-total');
+    if (el) el.textContent = '₨ ' + Number(total).toLocaleString('en-PK');
+  }
+
+  function openOrderModal(preselect) {
+    // Reset form
+    document.getElementById('order-form-view').style.display = '';
+    document.getElementById('order-success').style.display = 'none';
+    // Reset qtys
+    Object.keys(_qtyMap).forEach(function (k) { _qtyMap[k] = 0; });
+    document.querySelectorAll('.order-qty-val').forEach(function (el) { el.textContent = '0'; });
+    _updateTotal();
+    // Clear errors
+    document.querySelectorAll('.order-err').forEach(function (el) { el.classList.remove('show'); });
+    // Open
+    document.getElementById('order-modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    // If preselect: scroll to / highlight that product group (future enhancement — skip for now)
+  }
+
+  function closeOrderModal() {
+    document.getElementById('order-modal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // Close on backdrop click
+  document.getElementById('order-modal').addEventListener('click', function (e) {
+    if (e.target === this) closeOrderModal();
+  });
+
+  // Close on Escape
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeOrderModal();
+  });
+
+  async function submitOrder() {
+    // Clear errors
+    document.querySelectorAll('.order-err').forEach(function (el) { el.classList.remove('show'); });
+
+    // Collect items
+    var items = [];
+    Object.keys(_qtyMap).forEach(function (vid) {
+      var qty = _qtyMap[vid] || 0;
+      if (qty > 0) items.push({ variant_id: parseInt(vid), qty: qty });
+    });
+
+    var name  = (document.getElementById('ord-name').value || '').trim();
+    var phone = (document.getElementById('ord-phone').value || '').trim();
+    var area  = (document.getElementById('ord-area').value || '').trim();
+    var email = (document.getElementById('ord-email').value || '').trim();
+
+    var valid = true;
+    if (!items.length) { document.getElementById('err-items').classList.add('show'); valid = false; }
+    if (!name) { document.getElementById('err-name').classList.add('show'); valid = false; }
+    if (!phone || !/^(03\d{9}|92\d{10}|\+92\d{10})$/.test(phone.replace(/[\s\-]/g, ''))) {
+      document.getElementById('err-phone').classList.add('show'); valid = false;
+    }
+    if (!area) { document.getElementById('err-area').classList.add('show'); valid = false; }
+    if (!valid) return;
+
+    var btn = document.getElementById('ord-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Placing order…';
+
+    try {
+      var res = await fetch('/api/public/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, phone: phone, area: area, email: email || null, items: items })
+      });
+      var body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Something went wrong');
+      // Show success
+      document.getElementById('order-form-view').style.display = 'none';
+      document.getElementById('order-success').style.display = 'block';
+    } catch (err) {
+      alert('Could not place order: ' + err.message + '\n\nPlease try ordering on WhatsApp instead.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Place Order';
+    }
+  }
 
   // ── Scroll reveal ────────────────────────────────────
   var observer = new IntersectionObserver(function (entries) {

@@ -745,7 +745,7 @@ def list_customer_orders(status_filter=None):
     """Return all orders with summary counts, newest first."""
     sql = """
         SELECT co.id, co.order_number, co.order_date, co.required_date,
-               co.status, co.notes, co.created_at,
+               co.status, co.notes, co.created_at, co.order_source,
                c.name as customer_name, c.code as customer_code,
                COUNT(DISTINCT coi.id)  as item_count,
                COALESCE(SUM(coi.qty_ordered), 0)  as total_qty,

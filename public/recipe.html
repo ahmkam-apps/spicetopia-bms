@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipe — Chacha Masala™</title>
+  <meta name="description" content="Authentic Pakistani recipe using Chacha Masala.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0e0b07;
+      --bg2: #15110a;
+      --saffron: #C8873A;
+      --saffron-light: #e8a555;
+      --text: #f5f0e8;
+      --text-muted: #a89880;
+      --border: rgba(200,135,58,0.2);
+      --card-bg: #1a140d;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; }
+
+    /* NAV */
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(14,11,7,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 5vw; display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .nav-brand { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--saffron); text-decoration: none; letter-spacing: .5px; }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-link { color: var(--text-muted); text-decoration: none; font-size: 13px; letter-spacing: .5px; transition: color .2s; }
+    .nav-link:hover { color: var(--text); }
+    .btn-nav { background: var(--saffron); color: #fff; border: none; padding: .5rem 1.2rem; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; transition: background .2s; }
+    .btn-nav:hover { background: var(--saffron-light); }
+
+    /* HERO IMAGE */
+    .recipe-hero { width: 100%; height: clamp(240px, 40vw, 480px); position: relative; overflow: hidden; background: var(--bg2); }
+    .recipe-hero img { width: 100%; height: 100%; object-fit: cover; opacity: .85; }
+    .recipe-hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(14,11,7,.85) 0%, transparent 60%); }
+    .recipe-hero-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 6rem; }
+
+    /* CONTENT */
+    .recipe-wrap { max-width: 760px; margin: 0 auto; padding: 0 5vw 80px; }
+    .recipe-header { padding: 32px 0 24px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+    .recipe-masala-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 4px 10px; border-radius: 10px; margin-bottom: 14px; }
+    .badge-SPCM { background: #fffbeb; color: #d97706; }
+    .badge-SPGM { background: #f5f3ff; color: #7c3aed; }
+    .badge-SPFM { background: #e0f2fe; color: #0369a1; }
+    .recipe-title { font-family: 'Playfair Display', serif; font-size: clamp(1.8rem, 5vw, 2.8rem); font-weight: 700; line-height: 1.2; margin-bottom: 14px; }
+    .recipe-desc { color: var(--text-muted); font-size: 1rem; line-height: 1.75; margin-bottom: 20px; }
+    .recipe-meta-bar { display: flex; gap: 24px; flex-wrap: wrap; }
+    .recipe-meta-item { display: flex; flex-direction: column; gap: 3px; }
+    .recipe-meta-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }
+    .recipe-meta-value { font-size: 15px; font-weight: 600; color: var(--text); }
+
+    /* BODY */
+    .recipe-body { display: grid; grid-template-columns: 1fr 1.6fr; gap: 40px; }
+    @media (max-width: 640px) { .recipe-body { grid-template-columns: 1fr; } }
+
+    .section-heading { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--saffron); margin-bottom: 16px; }
+
+    /* INGREDIENTS */
+    .ingredients-list { list-style: none; }
+    .ingredients-list li { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); display: flex; align-items: center; gap: 10px; }
+    .ingredients-list li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--saffron); flex-shrink: 0; }
+
+    /* STEPS */
+    .steps-list { list-style: none; display: flex; flex-direction: column; gap: 20px; }
+    .step-item { display: flex; gap: 14px; align-items: flex-start; }
+    .step-number { min-width: 30px; height: 30px; border-radius: 50%; background: var(--saffron); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+    .step-text { font-size: 15px; line-height: 1.75; color: var(--text); padding-top: 4px; }
+
+    /* CTA */
+    .recipe-cta { margin-top: 48px; padding: 32px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; text-align: center; }
+    .recipe-cta p { color: var(--text-muted); font-size: 14px; margin-bottom: 16px; }
+    .btn-order-cta { background: var(--saffron); color: #fff; border: none; padding: .85rem 2rem; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; transition: background .2s; }
+    .btn-order-cta:hover { background: var(--saffron-light); }
+
+    /* BACK LINK */
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); text-decoration: none; font-size: 13px; padding: 20px 5vw 0; transition: color .2s; }
+    .back-link:hover { color: var(--saffron); }
+
+    /* LOADING / ERROR */
+    .page-center { display: flex; align-items: center; justify-content: center; min-height: 50vh; color: var(--text-muted); font-size: 1rem; }
+
+    /* FOOTER */
+    footer { border-top: 1px solid var(--border); padding: 32px 5vw; text-align: center; color: var(--text-muted); font-size: 12px; }
+    footer a { color: var(--saffron); text-decoration: none; }
+
+    @media (max-width: 600px) { .nav-links .nav-link { display: none; } }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/chacha.html" class="nav-brand">Chacha Masala™</a>
+  <div class="nav-links">
+    <a href="/chacha.html#products" class="nav-link">Products</a>
+    <a href="/recipes.html" class="nav-link">Recipes</a>
+    <a href="/chacha.html#story" class="nav-link">Our Story</a>
+    <button class="btn-nav" onclick="window.location='/chacha.html';setTimeout(function(){if(window.openOrderModal)openOrderModal();},400)">Order Now</button>
+  </div>
+</nav>
+
+<a href="/recipes.html" class="back-link">← All Recipes</a>
+
+<div id="page-content"><div class="page-center">Loading recipe…</div></div>
+
+<footer>
+  <p>© 2026 Chacha Masala™ · <a href="/chacha.html">Home</a> · <a href="/recipes.html">Recipes</a> · <a href="https://wa.me/923359997283">WhatsApp</a></p>
+</footer>
+
+<script>
+function masalaLabel(code) {
+  return { SPCM: 'Chaat Masala', SPGM: 'Garam Masala', SPFM: 'Fish Masala' }[code] || code;
+}
+
+function renderRecipe(r) {
+  var totalMins = (r.prep_mins || 0) + (r.cook_mins || 0);
+
+  var heroHtml = r.image_url
+    ? '<div class="recipe-hero"><img src="' + r.image_url + '" alt="' + r.title + '"><div class="recipe-hero-overlay"></div></div>'
+    : '<div class="recipe-hero"><div class="recipe-hero-placeholder">🍽</div></div>';
+
+  var metaItems = [];
+  if (r.prep_mins) metaItems.push({ label: 'Prep', value: r.prep_mins + ' min' });
+  if (r.cook_mins) metaItems.push({ label: 'Cook', value: r.cook_mins + ' min' });
+  if (totalMins)   metaItems.push({ label: 'Total', value: totalMins + ' min' });
+  if (r.serves)    metaItems.push({ label: 'Serves', value: r.serves });
+  var metaHtml = metaItems.map(function(m) {
+    return '<div class="recipe-meta-item"><span class="recipe-meta-label">' + m.label + '</span><span class="recipe-meta-value">' + m.value + '</span></div>';
+  }).join('');
+
+  var ingsHtml = (r.ingredients && r.ingredients.length)
+    ? '<ul class="ingredients-list">' + r.ingredients.map(function(i) { return '<li>' + i.item + '</li>'; }).join('') + '</ul>'
+    : '<p style="color:var(--text-muted);font-size:14px">—</p>';
+
+  var stepsHtml = (r.steps && r.steps.length)
+    ? '<ol class="steps-list">' + r.steps.map(function(s, i) {
+        return '<li class="step-item"><div class="step-number">' + (i + 1) + '</div><div class="step-text">' + s.instruction + '</div></li>';
+      }).join('') + '</ol>'
+    : '<p style="color:var(--text-muted);font-size:14px">—</p>';
+
+  document.title = r.title + ' — Chacha Masala™';
+
+  document.getElementById('page-content').innerHTML =
+    heroHtml +
+    '<div class="recipe-wrap">' +
+      '<div class="recipe-header">' +
+        '<span class="recipe-masala-badge badge-' + r.masala_code + '">' + masalaLabel(r.masala_code) + '</span>' +
+        '<h1 class="recipe-title">' + r.title + '</h1>' +
+        (r.description ? '<p class="recipe-desc">' + r.description + '</p>' : '') +
+        (metaHtml ? '<div class="recipe-meta-bar">' + metaHtml + '</div>' : '') +
+      '</div>' +
+      '<div class="recipe-body">' +
+        '<div>' +
+          '<p class="section-heading">Ingredients</p>' +
+          ingsHtml +
+        '</div>' +
+        '<div>' +
+          '<p class="section-heading">Method</p>' +
+          stepsHtml +
+        '</div>' +
+      '</div>' +
+      '<div class="recipe-cta">' +
+        '<p>Ready to cook? Get your Chacha Masala delivered.</p>' +
+        '<button class="btn-order-cta" onclick="window.location=\'/chacha.html\'">Order Now →</button>' +
+      '</div>' +
+    '</div>';
+}
+
+var slug = new URLSearchParams(window.location.search).get('slug');
+if (!slug) {
+  document.getElementById('page-content').innerHTML = '<div class="page-center">Recipe not found. <a href="/recipes.html" style="color:var(--saffron);margin-left:8px">Browse all recipes →</a></div>';
+} else {
+  fetch('/api/public/recipes/' + slug)
+    .then(function(res) {
+      if (!res.ok) throw new Error('not found');
+      return res.json();
+    })
+    .then(renderRecipe)
+    .catch(function() {
+      document.getElementById('page-content').innerHTML = '<div class="page-center">Recipe not found. <a href="/recipes.html" style="color:var(--saffron);margin-left:8px">Browse all recipes →</a></div>';
+    });
+}
+</script>
+</body>
+</html>
