@@ -11370,6 +11370,15 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result, 201)
                 return
 
+            # POST /api/products/:code/variants  — add pack size to existing product (admin only)
+            if path.startswith('/api/products/') and path.endswith('/variants') and len(path.split('/')) == 5:
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                prod_code = path.split('/')[3]
+                result = create_product_variant(prod_code, data)
+                send_json(self, result, 201)
+                return
+
             # ── FIELD AUTH (no BMS session required) ─────────────────────
             # ── ZONES ─────────────────────────────────────────────────────
             # POST /api/zones  (admin only)
@@ -14346,7 +14355,7 @@ from modules.auth   import *   # _hash_pw, _hash_pw_new, _verify_pw, login_user,
 from modules.users      import *   # ensure_users_table, list_users, create_user, update_user, _reset_admin_pw_if_requested
 from modules.customers  import *   # create_customer, update_customer, import_customers_master, ensure_clean_customer_codes, assign_customer_route, list_route_customers, field_lookup_customers, field_create_customer
 from modules.suppliers  import *   # create_supplier, update_supplier, import_suppliers_master, _ensure_supplier_zone_col, ensure_clean_supplier_codes, _suppliers_with_zones
-from modules.products   import *   # create_product, update_product, deactivate_product, deactivate_variant, import_products_master, ensure_variant_wastage_pct, ensure_variant_gtin
+from modules.products   import *   # create_product, create_product_variant, update_product, deactivate_product, deactivate_variant, import_products_master, ensure_variant_wastage_pct, ensure_variant_gtin
 from modules.inventory   import *   # get_stock_map, get_wo_reserved_stock_map, get_finished_stock_map, get_soft_hold_qty, get_hard_reserved_qty, get_available_for_soft_hold, get_stock_situation, create_adjustment, create_ingredient, update_ingredient, bulk_update_ingredient_costs, deactivate_ingredient, reactivate_ingredient, import_ingredients_master
 from modules.migrations  import *   # ensure_full_schema, ensure_system_settings_schema, _migrate_invoice_items_line_total, ensure_work_orders_table, ensure_customer_orders_schema, ensure_review_queue_schema, _migrate_supplier_bills_void, _migrate_change_log_void_action, _migrate_customer_type_wholesale, _ensure_b2b_order_columns, ensure_supplier_bills_schema, ensure_purchase_orders_schema, ensure_batch_cost_column, ensure_master_schema, ensure_costing_config, ensure_price_types_sprint6, ensure_price_history_extended, ensure_margin_alerts_table, ensure_web_price_type, ensure_25g_pack_and_spgm25, ensure_web_prices
 from modules.orders      import *   # _enforce_credit_limit, _wa_send, _wa_admin, _wa_rep, _wa_notify_order_approved, _wa_notify_order_rejected, _wa_notify_order_received, _wa_notify_hold_expiring, _wa_notify_out_of_route, place_soft_hold, release_soft_hold, convert_soft_hold_to_hard_reservation, check_and_expire_holds, create_customer_order_external, get_review_queue, approve_order_with_edit, update_order_item_qty, reject_order, reopen_rejected_order, _order_status, _order_detail, list_customer_orders, _check_order_stock_warnings, create_customer_order, update_customer_order, add_customer_order_item, confirm_customer_order, cancel_customer_order, create_wo_from_order_item, generate_invoice_from_order

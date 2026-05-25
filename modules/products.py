@@ -17,7 +17,7 @@ __all__ = [
     # Startup migrations
     'ensure_variant_wastage_pct', 'ensure_variant_gtin',
     # CRUD
-    'create_product', 'update_product', 'deactivate_product', 'deactivate_variant',
+    'create_product', 'create_product_variant', 'update_product', 'deactivate_product', 'deactivate_variant',
     # Bulk import
     'import_products_master',
 ]
@@ -79,57 +79,84 @@ def ensure_variant_gtin():
 # ═══════════════════════════════════════════════════════════════════
 
 def create_product(data):
-    """
-    Each pack size is treated as a separate product.
-    One call = one product + one pack-size variant (one SKU).
-    """
+    """Create a new product line (no variant required).
+    Product code is flat (SPFM). Pack size is optional — add variants separately via create_product_variant."""
     code         = data.get('code', '').strip().upper()
+    if code.startswith('SP-'):
+        code = code[3:]
     name         = data.get('name', '').strip()
     name_urdu    = data.get('nameUrdu', '').strip()
     blend_code   = data.get('blendCode', '').strip()
-    pack_size_id = data.get('packSizeId')
 
     if not code:
-        raise ValueError("Product code is required")
+        raise ValueError("Product code is required (e.g. SPFM)")
     if not name:
         raise ValueError("Product name is required")
+    if qry1("SELECT id FROM products WHERE code=?", (code,)):
+        raise ValueError(f"Product code '{code}' already exists")
+
+    c = _conn()
+    try:
+        c.execute(
+            "INSERT INTO products (code, name, name_urdu, blend_code, active) VALUES (?,?,?,?,1)",
+            (code, name, name_urdu, blend_code)
+        )
+        c.commit()
+    except Exception:
+        c.rollback(); raise
+    finally:
+        c.close()
+
+    save_db()
+    _refresh_ref()
+    return {'code': code, 'name': name}
+
+
+def create_product_variant(code, data):
+    """Add a new pack-size variant to an existing product. SKU auto-set to CODE-grams."""
+    prod = qry1("SELECT id, name FROM products WHERE code=? AND active=1", (code,))
+    if not prod:
+        raise ValueError(f"Product '{code}' not found")
+
+    pack_size_id = data.get('packSizeId')
     if not pack_size_id:
         raise ValueError("Pack size is required")
-
     pack_size_id = int(pack_size_id)
+
     ps = qry1("SELECT id, label FROM pack_sizes WHERE id=?", (pack_size_id,))
     if not ps:
         raise ValueError("Invalid pack size")
 
     pack_grams = ps['label'].replace('g', '')
-    base       = code if code.startswith('SP-') else f"SP-{code}"
-    full_code  = f"{base}-{pack_grams}"
-    if qry1("SELECT id FROM products WHERE code=?", (full_code,)):
-        raise ValueError(f"Product '{full_code}' ({name} {ps['label']}) already exists")
+    sku_code   = f"{code}-{pack_grams}"
+
+    if qry1("SELECT id FROM product_variants WHERE product_id=? AND pack_size_id=?",
+            (prod['id'], pack_size_id)):
+        raise ValueError(f"{sku_code} already exists for {prod['name']}")
+
+    if qry1("SELECT id FROM product_variants WHERE sku_code=? AND active_flag=1", (sku_code,)):
+        raise ValueError(f"SKU code {sku_code} is already taken by another product")
 
     c = _conn()
     try:
+        # Rename any inactive variant occupying this sku_code (DB has UNIQUE constraint)
+        old = c.execute("SELECT id FROM product_variants WHERE sku_code=? AND active_flag=0",
+                        (sku_code,)).fetchone()
+        if old:
+            c.execute("UPDATE product_variants SET sku_code=? WHERE id=?",
+                      (f"{sku_code}_DEL{old[0]}", old[0]))
         c.execute("""
-            INSERT INTO products (code, name, name_urdu, blend_code, active)
-            VALUES (?,?,?,?,1)
-        """, (full_code, name, name_urdu, blend_code))
-        prod_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-        c.execute("INSERT OR IGNORE INTO id_counters (entity, last_num) VALUES ('sku', 0)")
-        c.execute("UPDATE id_counters SET last_num=last_num+1 WHERE entity='sku'")
-        num      = c.execute("SELECT last_num FROM id_counters WHERE entity='sku'").fetchone()[0]
-        sku_code = f"SP-SKU-{num:04d}"
-        c.execute("""
-            INSERT INTO product_variants (sku_code, product_id, pack_size_id, active_flag)
-            VALUES (?,?,?,1)
-        """, (sku_code, prod_id, pack_size_id))
+            INSERT INTO product_variants (sku_code, product_id, pack_size_id, active_flag, wastage_pct)
+            VALUES (?,?,?,1,0)
+        """, (sku_code, prod['id'], pack_size_id))
+        variant_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
         c.commit()
     finally:
         c.close()
 
     save_db()
     _refresh_ref()
-    return {'code': full_code, 'name': name, 'packSize': ps['label'], 'sku': sku_code}
+    return {'code': code, 'name': prod['name'], 'packSize': ps['label'], 'sku': sku_code, 'variantId': variant_id}
 
 
 def update_product(code, data):
@@ -165,11 +192,12 @@ def update_product(code, data):
 
 
 def deactivate_product(code):
-    """Deactivate a product and all its variants. Blocks if any UNPAID/PARTIAL invoices exist."""
+    """Delete a product and all its variants. Hard deletes if no history exists, soft deletes otherwise."""
     prod = qry1("SELECT id, name FROM products WHERE code=?", (code,))
     if not prod:
         raise ValueError(f"Product '{code}' not found")
 
+    # Block if any open invoices reference this product
     open_orders = qry("""
         SELECT COUNT(*) as cnt FROM invoice_items ii
         JOIN invoices inv ON inv.id = ii.invoice_id
@@ -179,17 +207,46 @@ def deactivate_product(code):
     if open_orders and open_orders[0]['cnt'] > 0:
         raise ValueError(f"Cannot remove: {open_orders[0]['cnt']} open invoice(s) reference this product. Close them first.")
 
+    # Check for any historical records (closed invoices, sales, orders)
+    history = qry1("""
+        SELECT
+          (SELECT COUNT(*) FROM invoice_items ii
+           JOIN product_variants pv ON pv.id = ii.product_variant_id
+           WHERE pv.product_id = ?) +
+          (SELECT COUNT(*) FROM sales s
+           JOIN product_variants pv ON pv.id = s.product_variant_id
+           WHERE pv.product_id = ?) +
+          (SELECT COUNT(*) FROM customer_order_items coi
+           JOIN product_variants pv ON pv.id = coi.product_variant_id
+           WHERE pv.product_id = ?) AS total
+    """, (prod['id'], prod['id'], prod['id']))
+    has_history = history and history['total'] > 0
+
     c = _conn()
     try:
-        c.execute("UPDATE products SET active=0 WHERE id=?", (prod['id'],))
-        c.execute("UPDATE product_variants SET active_flag=0 WHERE product_id=?", (prod['id'],))
-        c.commit()
+        if has_history:
+            # Soft delete — preserve historical data
+            c.execute("UPDATE products SET active=0 WHERE id=?", (prod['id'],))
+            c.execute("UPDATE product_variants SET active_flag=0 WHERE product_id=?", (prod['id'],))
+            c.commit()
+            result = {'removed': code, 'name': prod['name'], 'method': 'soft'}
+        else:
+            # Hard delete — no history, safe to remove permanently
+            c.execute("PRAGMA foreign_keys = OFF")
+            c.execute("DELETE FROM product_prices WHERE product_variant_id IN (SELECT id FROM product_variants WHERE product_id=?)", (prod['id'],))
+            c.execute("DELETE FROM bom_items WHERE bom_version_id IN (SELECT id FROM bom_versions WHERE product_id=?)", (prod['id'],))
+            c.execute("DELETE FROM bom_versions WHERE product_id=?", (prod['id'],))
+            c.execute("DELETE FROM product_variants WHERE product_id=?", (prod['id'],))
+            c.execute("DELETE FROM products WHERE id=?", (prod['id'],))
+            c.execute("PRAGMA foreign_keys = ON")
+            c.commit()
+            result = {'removed': code, 'name': prod['name'], 'method': 'hard'}
     finally:
         c.close()
 
     save_db()
     _refresh_ref()
-    return {'removed': code, 'name': prod['name']}
+    return result
 
 
 def deactivate_variant(variant_id):
