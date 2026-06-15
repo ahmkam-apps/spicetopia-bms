@@ -1,1 +1,0 @@
-{"port": 8770, "db_path": "/tmp/spice_test.db", "session_expiry": "12h", "backup_keep": "7d"}
