@@ -174,6 +174,30 @@ def run():
               {"period_month": "2026-07", "channel": "retail", "target_units": 1500}, token=tok)
     assert_status(tg, 201, "POST target (201)")
 
+    # ── M3: risk assessment + scenario comparison ───────────────────────────
+    # data state: capacity 1200, peak demand 1200 (>85% util → yellow), cash clears
+    # threshold (green), one non-backup mfr no backup (yellow) → overall yellow
+    rk = GET(f"/api/planning/versions/{ver}/risk", token=tok)
+    if rk.status_code == 200:
+        d = rk.json(); cats = d.get("categories", {})
+        _pass("Risk overall = yellow") if d.get("overall") == "yellow" else _fail("Risk overall = yellow", str(d.get("overall")))
+        _pass("Capacity risk yellow (>85% util)") if cats.get("capacity", {}).get("level") == "yellow" else _fail("Capacity risk yellow", str(cats.get("capacity")))
+        _pass("Cash risk green") if cats.get("cash", {}).get("level") == "green" else _fail("Cash risk green", str(cats.get("cash")))
+        _pass("Supply risk yellow (no backup mfr)") if cats.get("supply", {}).get("level") == "yellow" else _fail("Supply risk yellow", str(cats.get("supply")))
+        _pass("Stockout not_assessed (M4 deferred)") if cats.get("stockout", {}).get("level") == "not_assessed" else _fail("Stockout not_assessed", str(cats.get("stockout")))
+    else:
+        _fail("GET risk", rk.text[:120])
+
+    cmp = GET(f"/api/planning/compare?versions={ver}", token=tok)
+    if cmp.status_code == 200:
+        d = cmp.json()
+        if d.get("safest_version_id") == ver and len(d.get("scenarios", [])) == 1:
+            _pass("Compare returns scenario + safest_version_id")
+        else:
+            _fail("Compare returns scenario + safest_version_id", str(d)[:160])
+    else:
+        _fail("GET compare", cmp.text[:120])
+
     # ── deletes ────────────────────────────────────────────────────────────
     fl = GET(f"/api/planning/versions/{ver}/forecast", token=tok)
     if fl.status_code == 200 and fl.json():

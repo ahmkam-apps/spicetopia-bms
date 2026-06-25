@@ -1,10 +1,10 @@
 {
-  "captured_at": "2026-06-24T21:14:07.206847",
+  "captured_at": "2026-06-25T16:48:06.994187",
   "summary": {
-    "passed": 184,
+    "passed": 190,
     "failed": 1,
     "skipped": 8,
-    "total": 193
+    "total": 199
   },
   "modules": [
     {
@@ -114,8 +114,8 @@
     {
       "module": "planning",
       "label": "Planning Input System",
-      "total": 29,
-      "passed": 29,
+      "total": 35,
+      "passed": 35,
       "failed": 0,
       "skipped": 0
     }

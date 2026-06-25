@@ -33,6 +33,8 @@ __all__ = [
     'list_pricing', 'upsert_pricing', 'delete_pricing',
     # M2 — outputs
     'capacity_vs_demand', 'production_required', 'cash_flow',
+    # M3 — risk + scenario comparison
+    'risk_assessment', 'compare_scenarios',
 ]
 
 SCENARIO_TYPES = ('draft', 'approved', 'conservative', 'expected', 'aggressive', 'revised')
@@ -903,4 +905,131 @@ def cash_flow(version_id):
         'breaches_threshold': breaches,
         'assumptions_note': 'budgets are monthly recurring; freight = units × freight_cost_per_unit',
         'months': months,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  M3 — RISK ASSESSMENT + SCENARIO COMPARISON  (calculation — never stored)
+# ═══════════════════════════════════════════════════════════════════
+
+_RISK_ORDER = {'green': 0, 'yellow': 1, 'red': 2}  # not_assessed excluded from "overall"
+
+
+def _risk_config():
+    """Thresholds — overridable via costing_config keys (planning_*), else defaults.
+    Keeps them admin-tunable without hardcoding."""
+    cfg = {}
+    if _table_exists('costing_config'):
+        for r in qry("SELECT key, value FROM costing_config WHERE key LIKE 'planning_%'"):
+            cfg[r['key']] = r['value']
+
+    def f(key, default):
+        try:
+            return float(cfg.get(key, default))
+        except (TypeError, ValueError):
+            return default
+    return {
+        'cash_warn_pct': f('planning_cash_warn_pct', 0.10),      # within 10% of threshold → yellow
+        'capacity_warn_util': f('planning_capacity_warn_util', 0.85),  # >85% utilization → yellow
+    }
+
+
+def risk_assessment(version_id):
+    """Red/Yellow/Green risk for one plan version across categories.
+    Overall = worst assessed category. Categories that lack inputs are 'not_assessed'.
+    (Stockout needs the M4 finished-goods snapshot — reported not_assessed until then.)"""
+    v = get_plan_version(version_id)
+    cfg = _risk_config()
+    cats = {}
+
+    # ── Capacity ──
+    cap = capacity_vs_demand(version_id)
+    if not cap['has_capacity']:
+        cats['capacity'] = {'level': 'not_assessed', 'detail': 'No manufacturing capacity entered'}
+    else:
+        base = cap['base_monthly_capacity']
+        if not cap['can_meet']:
+            cats['capacity'] = {'level': 'red',
+                                'detail': f"Capacity deficit — worst {cap['worst_deficit']:.0f} units/mo short"}
+        elif base > 0 and cap['peak_demand'] > base * cfg['capacity_warn_util']:
+            cats['capacity'] = {'level': 'yellow',
+                                'detail': f"Peak demand {cap['peak_demand']:.0f} > {cfg['capacity_warn_util']*100:.0f}% of capacity {base:.0f}"}
+        else:
+            cats['capacity'] = {'level': 'green', 'detail': 'Capacity covers demand'}
+
+    # ── Cash ──
+    cf = cash_flow(version_id)
+    if not (cf['has_pricing'] and cf['has_financial']):
+        cats['cash'] = {'level': 'not_assessed', 'detail': 'Needs scenario pricing + financial inputs'}
+    else:
+        thr = cf['minimum_cash_threshold']
+        minb = cf['min_running_balance']
+        if cf['breaches_threshold'] or (thr is None and minb < 0):
+            d = f"Cash dips to {minb:.0f}" + (f", below threshold {thr:.0f}" if thr is not None else " (goes negative)")
+            cats['cash'] = {'level': 'red', 'detail': d}
+        elif thr is not None and minb < thr * (1 + cfg['cash_warn_pct']):
+            cats['cash'] = {'level': 'yellow',
+                            'detail': f"Min cash {minb:.0f} within {cfg['cash_warn_pct']*100:.0f}% of threshold {thr:.0f}"}
+        else:
+            cats['cash'] = {'level': 'green', 'detail': f"Min cash {minb:.0f} clears the threshold"}
+
+    # ── Supply resilience (single point of failure) ──
+    mfrs = list_manufacturing(version_id)
+    non_backup = [m for m in mfrs if not m['is_backup']]
+    backup = [m for m in mfrs if m['is_backup']]
+    if not mfrs:
+        cats['supply'] = {'level': 'not_assessed', 'detail': 'No manufacturer assigned'}
+    elif not non_backup:
+        cats['supply'] = {'level': 'red', 'detail': 'No primary (non-backup) manufacturer'}
+    elif not backup:
+        cats['supply'] = {'level': 'yellow', 'detail': 'Single point of failure — no backup manufacturer'}
+    else:
+        cats['supply'] = {'level': 'green', 'detail': 'Primary + backup manufacturer in place'}
+
+    # ── Stockout (deferred to M4 inventory snapshot) ──
+    cats['stockout'] = {'level': 'not_assessed', 'detail': 'Finished-goods inventory snapshot (M4) not yet available'}
+
+    assessed = [c['level'] for c in cats.values() if c['level'] in _RISK_ORDER]
+    overall = max(assessed, key=lambda l: _RISK_ORDER[l]) if assessed else 'not_assessed'
+    return {'version_id': version_id, 'name': v['name'], 'scenario_type': v['scenario_type'],
+            'overall': overall, 'categories': cats}
+
+
+def compare_scenarios(version_ids):
+    """Side-by-side metrics for N versions + a 'safest' ranking.
+    Safest = lowest overall risk, then not breaching cash, then highest min cash, then can-meet."""
+    if not version_ids:
+        raise ValueError("Provide at least one version id to compare")
+    rows = []
+    for vid in version_ids:
+        v = get_plan_version(vid)
+        ps = projected_sales(vid)
+        cap = capacity_vs_demand(vid)
+        cf = cash_flow(vid)
+        risk = risk_assessment(vid)
+        rows.append({
+            'version_id': vid, 'name': v['name'], 'scenario_type': v['scenario_type'],
+            'total_units': ps['totals']['units'], 'total_revenue': ps['totals']['revenue'],
+            'can_meet': cap['can_meet'] if cap['has_capacity'] else None,
+            'worst_deficit': cap['worst_deficit'] if cap['has_capacity'] else None,
+            'min_running_balance': cf['min_running_balance'] if cf['has_financial'] else None,
+            'breaches_threshold': cf['breaches_threshold'] if cf['has_financial'] else None,
+            'overall_risk': risk['overall'],
+        })
+
+    rank_order = {'green': 0, 'yellow': 1, 'not_assessed': 2, 'red': 3}
+
+    def safety_key(r):
+        mb = r['min_running_balance']
+        return (
+            rank_order.get(r['overall_risk'], 2),
+            1 if r['breaches_threshold'] else 0,
+            -(mb if mb is not None else float('-inf')),
+            0 if r['can_meet'] else 1,
+        )
+    ranked = sorted(rows, key=safety_key)
+    return {
+        'scenarios': rows,
+        'ranked': [r['version_id'] for r in ranked],
+        'safest_version_id': ranked[0]['version_id'] if ranked else None,
     }

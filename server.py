@@ -9292,6 +9292,13 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, 'Admin only', 403); return
                 send_json(self, list_manufacturers())
                 return
+            if path == '/api/planning/compare':
+                if not require(get_session(self, qs), 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                _raw  = qs.get('versions', [''])[0]
+                _vids = [int(x) for x in _raw.split(',') if x.strip().isdigit()]
+                send_json(self, compare_scenarios(_vids))
+                return
             if path.startswith('/api/planning/versions/') and path.split('/')[4].isdigit():
                 if not require(get_session(self, qs), 'admin'):
                     send_error(self, 'Admin only', 403); return
@@ -9318,6 +9325,8 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, production_required(vid)); return
                 if len(parts) == 6 and parts[5] == 'cash-flow':
                     send_json(self, cash_flow(vid)); return
+                if len(parts) == 6 and parts[5] == 'risk':
+                    send_json(self, risk_assessment(vid)); return
 
             send_error(self, "Not found", 404)
 
