@@ -9292,6 +9292,11 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, 'Admin only', 403); return
                 send_json(self, list_manufacturers())
                 return
+            if path == '/api/planning/variants':
+                if not require(get_session(self, qs), 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                send_json(self, list_active_variants())
+                return
             if path == '/api/planning/compare':
                 if not require(get_session(self, qs), 'admin'):
                     send_error(self, 'Admin only', 403); return

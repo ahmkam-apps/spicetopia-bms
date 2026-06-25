@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spicetopia — Planning</title>
+<style>
+  :root { --terra:#b5532a; --saffron:#e0a82e; --ink:#2b2118; --cream:#faf6ef;
+          --line:#e6ddd0; --green:#2e7d32; --yellow:#c79a00; --red:#c62828; --muted:#8a7f70; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:var(--cream); color:var(--ink); }
+  header { background:var(--terra); color:#fff; padding:12px 18px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; font-weight:700; }
+  header .spacer { flex:1; }
+  select, input, button { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:7px; background:#fff; }
+  button { background:var(--terra); color:#fff; border:none; cursor:pointer; }
+  button.sec { background:#fff; color:var(--terra); border:1px solid var(--terra); }
+  button:disabled { opacity:.5; cursor:default; }
+  .wrap { max-width:1100px; margin:0 auto; padding:18px; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin:14px 0; }
+  .tabs button { background:#fff; color:var(--ink); border:1px solid var(--line); padding:7px 12px; }
+  .tabs button.active { background:var(--saffron); color:var(--ink); border-color:var(--saffron); font-weight:700; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .card h2 { margin:0 0 12px; font-size:15px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; }
+  .row label { display:flex; flex-direction:column; font-size:12px; color:var(--muted); gap:3px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { text-align:left; padding:7px 9px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; }
+  .pill { padding:2px 9px; border-radius:99px; font-size:12px; font-weight:700; color:#fff; }
+  .green{background:var(--green);} .yellow{background:var(--yellow);} .red{background:var(--red);} .na{background:var(--muted);}
+  .kpi { display:inline-block; min-width:150px; margin:6px 14px 6px 0; }
+  .kpi .v { font-size:22px; font-weight:700; } .kpi .l { font-size:12px; color:var(--muted); }
+  #status { font-size:13px; padding:8px 12px; border-radius:8px; margin-bottom:12px; display:none; }
+  #status.err { display:block; background:#fdecea; color:var(--red); }
+  #status.ok { display:block; background:#e8f5e9; color:var(--green); }
+  #login { max-width:340px; margin:80px auto; }
+  .hidden { display:none; }
+  .muted { color:var(--muted); font-size:12px; }
+  .right { text-align:right; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="card">
+  <h2>Spicetopia Planning — Sign in</h2>
+  <div class="row"><label style="flex:1">Username<input id="lu" autocomplete="username"></label></div>
+  <div class="row"><label style="flex:1">Password<input id="lp" type="password" autocomplete="current-password"></label></div>
+  <button onclick="doLogin()">Sign in</button>
+  <div id="loginErr" class="muted" style="color:var(--red);margin-top:8px"></div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header>
+    <h1>🌶️ Spicetopia Planning</h1>
+    <label class="muted" style="color:#fff">Plan version&nbsp;
+      <select id="verSel" onchange="onVersionChange()"></select>
+    </label>
+    <button class="sec" onclick="showNewVersion()">＋ New version</button>
+    <span class="spacer"></span>
+    <span id="who" class="muted" style="color:#fff"></span>
+    <button class="sec" onclick="logout()">Sign out</button>
+  </header>
+
+  <div class="wrap">
+    <div id="status"></div>
+
+    <div id="newVersionCard" class="card hidden">
+      <h2>New plan version</h2>
+      <div class="row">
+        <label>Name<input id="nvName" placeholder="e.g. Launch — Expected"></label>
+        <label>Scenario
+          <select id="nvType">
+            <option value="draft">draft</option>
+            <option value="expected" selected>expected</option>
+            <option value="conservative">conservative</option>
+            <option value="aggressive">aggressive</option>
+            <option value="approved">approved</option>
+            <option value="revised">revised</option>
+          </select>
+        </label>
+        <label>Start month<input id="nvStart" type="month"></label>
+        <label>Horizon (months)<input id="nvMonths" type="number" value="12" min="1" max="36" style="width:90px"></label>
+        <button onclick="createVersion()">Create</button>
+        <button class="sec" onclick="hideNewVersion()">Cancel</button>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+    <div id="view"></div>
+  </div>
+</div>
+
+<script>
+const CHANNELS = ['retail','distributor','ecommerce','other'];
+let TOKEN = localStorage.getItem('spx_plan_token') || '';
+let VERSIONS = [], VARIANTS = [], CURVER = null, TAB = 'forecast';
+
+const TABS = [
+  ['forecast','Sales Forecast'], ['pricing','Pricing'], ['manufacturing','Manufacturing'],
+  ['financial','Financial'], ['projected','Projected Sales'], ['capacity','Capacity'],
+  ['production','Production'], ['cashflow','Cash Flow'], ['risk','Risk'], ['compare','Compare'],
+];
+
+// ── API ──
+async function api(method, path, body) {
+  const opt = { method, headers: { 'Content-Type':'application/json' } };
+  if (TOKEN) opt.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (body) opt.body = JSON.stringify(body);
+  const r = await fetch(path, opt);
+  let data = null;
+  try { data = await r.json(); } catch(e) {}
+  if (!r.ok) throw new Error((data && data.error) ? data.error : ('HTTP ' + r.status));
+  return data;
+}
+function status(msg, ok) {
+  const el = document.getElementById('status');
+  el.textContent = msg; el.className = ok ? 'ok' : 'err';
+  if (ok) setTimeout(() => { el.className=''; }, 2500);
+}
+const money = n => (n==null ? '—' : '₨' + Number(n).toLocaleString(undefined,{maximumFractionDigits:0}));
+const num = n => (n==null ? '—' : Number(n).toLocaleString(undefined,{maximumFractionDigits:0}));
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ── Auth ──
+async function doLogin() {
+  const u = document.getElementById('lu').value, p = document.getElementById('lp').value;
+  try {
+    const d = await api('POST','/api/auth/login',{username:u,password:p});
+    TOKEN = d.token; localStorage.setItem('spx_plan_token', TOKEN);
+    document.getElementById('who').textContent = u;
+    await boot();
+  } catch(e) { document.getElementById('loginErr').textContent = e.message; }
+}
+function logout() { localStorage.removeItem('spx_plan_token'); TOKEN=''; location.reload(); }
+
+async function boot() {
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  renderTabs();
+  try {
+    VARIANTS = await api('GET','/api/planning/variants');
+    await loadVersions();
+  } catch(e) {
+    if (String(e.message).match(/401|403|Unauthorized|Admin/)) { logout(); return; }
+    status(e.message, false);
+  }
+}
+
+async function loadVersions() {
+  VERSIONS = await api('GET','/api/planning/versions');
+  const sel = document.getElementById('verSel');
+  sel.innerHTML = VERSIONS.map(v => `<option value="${v.id}">${esc(v.name)} · ${esc(v.scenario_type)}${v.status==='approved'?' ✓':''}</option>`).join('');
+  if (VERSIONS.length) { if (!CURVER || !VERSIONS.find(v=>v.id==CURVER)) CURVER = VERSIONS[0].id; sel.value = CURVER; }
+  else { CURVER = null; }
+  renderView();
+}
+function onVersionChange(){ CURVER = parseInt(document.getElementById('verSel').value); renderView(); }
+
+function showNewVersion(){ document.getElementById('newVersionCard').classList.remove('hidden'); }
+function hideNewVersion(){ document.getElementById('newVersionCard').classList.add('hidden'); }
+async function createVersion() {
+  const name = document.getElementById('nvName').value.trim();
+  const body = {
+    name, scenario_type: document.getElementById('nvType').value,
+    horizon_months: parseInt(document.getElementById('nvMonths').value)||12,
+  };
+  const sm = document.getElementById('nvStart').value; if (sm) body.horizon_start_month = sm;
+  try {
+    const v = await api('POST','/api/planning/versions', body);
+    CURVER = v.id; hideNewVersion(); document.getElementById('nvName').value='';
+    await loadVersions(); status('Version created', true);
+  } catch(e){ status(e.message,false); }
+}
+
+// ── Tabs ──
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = TABS.map(([k,l]) =>
+    `<button class="${k===TAB?'active':''}" onclick="setTab('${k}')">${l}</button>`).join('');
+}
+function setTab(k){ TAB=k; renderTabs(); renderView(); }
+
+function variantOptions(sel) {
+  return VARIANTS.map(v => `<option value="${v.variant_id}" ${sel==v.variant_id?'selected':''}>${esc(v.product_name)} ${esc(v.pack_size)}</option>`).join('');
+}
+function channelOptions(){ return CHANNELS.map(c=>`<option value="${c}">${c}</option>`).join(''); }
+
+// ── Views ──
+async function renderView() {
+  const view = document.getElementById('view');
+  if (!CURVER) { view.innerHTML = '<div class="card">No plan version yet. Create one to begin.</div>'; return; }
+  try {
+    if (TAB==='forecast')      return await viewForecast(view);
+    if (TAB==='pricing')       return await viewPricing(view);
+    if (TAB==='manufacturing') return await viewManufacturing(view);
+    if (TAB==='financial')     return await viewFinancial(view);
+    if (TAB==='projected')     return await viewOutput(view,'projected-sales','Projected Sales', renderProjected);
+    if (TAB==='capacity')      return await viewOutput(view,'capacity-vs-demand','Capacity vs Demand', renderCapacity);
+    if (TAB==='production')    return await viewOutput(view,'production-required','Production Required', renderProduction);
+    if (TAB==='cashflow')      return await viewOutput(view,'cash-flow','Cash Flow', renderCashflow);
+    if (TAB==='risk')          return await viewOutput(view,'risk','Risk Assessment', renderRisk);
+    if (TAB==='compare')       return await viewCompare(view);
+  } catch(e){ view.innerHTML = `<div class="card">Error: ${esc(e.message)}</div>`; }
+}
+
+async function viewForecast(view) {
+  const rows = await api('GET',`/api/planning/versions/${CURVER}/forecast`);
+  view.innerHTML = `
+    <div class="card"><h2>Add / update forecast</h2>
+      <div class="row">
+        <label>SKU<select id="fVar">${variantOptions()}</select></label>
+        <label>Month<input id="fMonth" type="month"></label>
+        <label>Channel<select id="fCh">${channelOptions()}</select></label>
+        <label>Units<input id="fUnits" type="number" min="0" style="width:110px"></label>
+        <button onclick="addForecast()">Save</button>
+      </div>
+    </div>
+    <div class="card"><h2>Forecast rows (${rows.length})</h2>
+      <table><thead><tr><th>Month</th><th>SKU</th><th>Channel</th><th class="right">Units</th><th></th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${esc(r.period_month)}</td><td>${esc(r.product_name)} ${esc(r.sku_code)}</td><td>${esc(r.channel)}</td><td class="right">${num(r.units_forecast)}</td><td><button class="sec" onclick="delRow('forecast',${r.id})">✕</button></td></tr>`).join('')}</tbody></table>
+    </div>`;
+}
+async function addForecast() {
+  const body = { variant_id: parseInt(document.getElementById('fVar').value),
+    period_month: document.getElementById('fMonth').value,
+    channel: document.getElementById('fCh').value,
+    units_forecast: parseFloat(document.getElementById('fUnits').value)||0 };
+  try { await api('POST',`/api/planning/versions/${CURVER}/forecast`, body); status('Saved',true); renderView(); }
+  catch(e){ status(e.message,false); }
+}
+
+async function viewPricing(view) {
+  const rows = await api('GET',`/api/planning/versions/${CURVER}/pricing`);
+  view.innerHTML = `
+    <div class="card"><h2>Scenario pricing</h2>
+      <div class="row">
+        <label>SKU<select id="pVar">${variantOptions()}</select></label>
+        <label>Unit cost<input id="pCost" type="number" min="0" style="width:100px"></label>
+        <label>Wholesale<input id="pWhole" type="number" min="0" style="width:100px"></label>
+        <label>Retail<input id="pRetail" type="number" min="0" style="width:100px"></label>
+        <button onclick="addPricing()">Save</button>
+      </div>
+      <p class="muted">Scenario assumptions only — separate from the live price book.</p>
+    </div>
+    <div class="card"><h2>Prices (${rows.length})</h2>
+      <table><thead><tr><th>SKU</th><th class="right">Cost</th><th class="right">Wholesale</th><th class="right">Retail</th><th></th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${esc(r.product_name)} ${esc(r.sku_code)}</td><td class="right">${money(r.product_cost)}</td><td class="right">${money(r.wholesale_price)}</td><td class="right">${money(r.retail_price)}</td><td><button class="sec" onclick="delRow('pricing',${r.id})">✕</button></td></tr>`).join('')}</tbody></table>
+    </div>`;
+}
+async function addPricing() {
+  const body = { variant_id: parseInt(document.getElementById('pVar').value),
+    product_cost: document.getElementById('pCost').value, wholesale_price: document.getElementById('pWhole').value,
+    retail_price: document.getElementById('pRetail').value };
+  try { await api('POST',`/api/planning/versions/${CURVER}/pricing`, body); status('Saved',true); renderView(); }
+  catch(e){ status(e.message,false); }
+}
+
+async function viewManufacturing(view) {
+  const [mfrs, caps] = await Promise.all([
+    api('GET','/api/planning/manufacturers'),
+    api('GET',`/api/planning/versions/${CURVER}/manufacturing`)
+  ]);
+  const mopts = mfrs.map(m=>`<option value="${m.id}">${esc(m.name)}${m.is_backup?' (backup)':''}</option>`).join('');
+  view.innerHTML = `
+    <div class="card"><h2>Manufacturer</h2>
+      <div class="row">
+        <label>Name<input id="mName"></label>
+        <label>Backup?<select id="mBackup"><option value="">No</option><option value="1">Yes</option></select></label>
+        <button onclick="addManufacturer()">Add manufacturer</button>
+      </div>
+    </div>
+    <div class="card"><h2>Capacity for this version</h2>
+      <div class="row">
+        <label>Manufacturer<select id="cMfr">${mopts}</select></label>
+        <label>Monthly capacity<input id="cCap" type="number" min="0" style="width:120px"></label>
+        <label>Batch size<input id="cBatch" type="number" min="0" style="width:100px"></label>
+        <label>MOQ<input id="cMoq" type="number" min="0" style="width:90px"></label>
+        <label>Lead days<input id="cLead" type="number" min="0" style="width:90px"></label>
+        <button onclick="addCapacity()">Save capacity</button>
+      </div>
+      <table><thead><tr><th>Manufacturer</th><th class="right">Capacity/mo</th><th class="right">Batch</th><th class="right">MOQ</th><th class="right">Lead</th><th></th></tr></thead>
+      <tbody>${caps.map(c=>`<tr><td>${esc(c.manufacturer_name)}${c.is_backup?' <span class="pill na">backup</span>':''}</td><td class="right">${num(c.monthly_capacity_units)}</td><td class="right">${num(c.batch_size)}</td><td class="right">${num(c.moq)}</td><td class="right">${num(c.lead_time_days)}</td><td><button class="sec" onclick="delRow('manufacturing',${c.id})">✕</button></td></tr>`).join('')}</tbody></table>
+    </div>`;
+}
+async function addManufacturer() {
+  try { await api('POST','/api/planning/manufacturers',{name:document.getElementById('mName').value, is_backup: !!document.getElementById('mBackup').value}); status('Manufacturer added',true); renderView(); }
+  catch(e){ status(e.message,false); }
+}
+async function addCapacity() {
+  const body = { manufacturer_id: parseInt(document.getElementById('cMfr').value),
+    monthly_capacity_units: document.getElementById('cCap').value, batch_size: document.getElementById('cBatch').value,
+    moq: document.getElementById('cMoq').value, lead_time_days: document.getElementById('cLead').value };
+  try { await api('POST',`/api/planning/versions/${CURVER}/manufacturing`, body); status('Saved',true); renderView(); }
+  catch(e){ status(e.message,false); }
+}
+
+async function viewFinancial(view) {
+  const f = await api('GET',`/api/planning/versions/${CURVER}/financial`);
+  const fld = (id,label,val) => `<label>${label}<input id="${id}" type="number" value="${val==null?'':val}" style="width:140px"></label>`;
+  view.innerHTML = `
+    <div class="card"><h2>Financial assumptions</h2>
+      <div class="row">
+        ${fld('finCash','Beginning cash',f.beginning_cash)}
+        ${fld('finMin','Min cash threshold',f.minimum_cash_threshold)}
+        ${fld('finMkt','Marketing /mo',f.marketing_budget)}
+        ${fld('finPay','Payroll /mo',f.payroll_budget)}
+        ${fld('finFreight','Freight / unit',f.freight_cost_per_unit)}
+        ${fld('finOpex','Other opex /mo',f.other_opex_monthly)}
+        <button onclick="saveFinancial()">Save</button>
+      </div>
+      <p class="muted">Budgets are treated as monthly recurring.</p>
+    </div>`;
+}
+async function saveFinancial() {
+  const g = id => document.getElementById(id).value;
+  const body = { beginning_cash:g('finCash'), minimum_cash_threshold:g('finMin'), marketing_budget:g('finMkt'),
+    payroll_budget:g('finPay'), freight_cost_per_unit:g('finFreight'), other_opex_monthly:g('finOpex') };
+  try { await api('POST',`/api/planning/versions/${CURVER}/financial`, body); status('Saved',true); }
+  catch(e){ status(e.message,false); }
+}
+
+async function delRow(kind, id) {
+  const map = { forecast:'forecast', pricing:'pricing', manufacturing:'manufacturing' };
+  try { await api('DELETE',`/api/planning/${map[kind]}/${id}`); status('Removed',true); renderView(); }
+  catch(e){ status(e.message,false); }
+}
+
+// ── Outputs ──
+async function viewOutput(view, ep, title, renderer) {
+  const d = await api('GET',`/api/planning/versions/${CURVER}/${ep}`);
+  view.innerHTML = `<div class="card"><h2>${title}</h2>${renderer(d)}</div>`;
+}
+function renderProjected(d) {
+  let h = `<div><span class="kpi"><div class="v">${num(d.totals.units)}</div><div class="l">Total units</div></span>
+    <span class="kpi"><div class="v">${money(d.totals.revenue)}</div><div class="l">Total revenue${d.has_pricing?'':' (set pricing)'}</div></span></div>`;
+  h += `<table><thead><tr><th>Window</th><th class="right">Units</th><th class="right">Revenue</th></tr></thead><tbody>`;
+  ['m3','m6','m12'].forEach(k=>{ const w=d.windows[k]; h+=`<tr><td>${k.slice(1)} months</td><td class="right">${num(w.units)}</td><td class="right">${money(w.revenue)}</td></tr>`; });
+  h += `</tbody></table><h3 class="muted">By channel</h3><table><thead><tr><th>Channel</th><th class="right">Units</th><th class="right">Revenue</th></tr></thead><tbody>`;
+  Object.keys(d.by_channel).forEach(c=>{ const x=d.by_channel[c]; h+=`<tr><td>${esc(c)}</td><td class="right">${num(x.units)}</td><td class="right">${money(x.revenue)}</td></tr>`; });
+  return h + '</tbody></table>';
+}
+function renderCapacity(d) {
+  if (!d.has_capacity) return '<p class="muted">No manufacturing capacity entered for this version.</p>';
+  let h = `<div><span class="kpi"><div class="v">${num(d.base_monthly_capacity)}</div><div class="l">Base capacity/mo</div></span>
+    <span class="kpi"><div class="v"><span class="pill ${d.can_meet?'green':'red'}">${d.can_meet?'CAN MEET':'DEFICIT'}</span></div><div class="l">Peak demand ${num(d.peak_demand)}</div></span></div>`;
+  h += `<table><thead><tr><th>Month</th><th class="right">Demand</th><th class="right">Capacity</th><th class="right">Surplus/Deficit</th></tr></thead><tbody>`;
+  d.months.forEach(m=>{ h+=`<tr><td>${esc(m.period_month)}</td><td class="right">${num(m.demand)}</td><td class="right">${num(m.capacity)}</td><td class="right" style="color:${m.deficit>0?'var(--red)':'var(--green)'}">${m.deficit>0?'-'+num(m.deficit):'+'+num(m.surplus)}</td></tr>`; });
+  return h + '</tbody></table>';
+}
+function renderProduction(d) {
+  let h = `<div><span class="kpi"><div class="v">${num(d.total_required)}</div><div class="l">Total units to produce</div></span>
+    <span class="kpi"><div class="l">Rounding: batch ${num(d.rounding.batch_size)||'—'}, MOQ ${num(d.rounding.moq)||'—'}</div></span></div>`;
+  h += `<table><thead><tr><th>Month</th><th class="right">Demand</th><th class="right">Required (raw)</th><th class="right">Required (rounded)</th></tr></thead><tbody>`;
+  d.months.forEach(m=>{ h+=`<tr><td>${esc(m.period_month)}</td><td class="right">${num(m.demand)}</td><td class="right">${num(m.required_raw)}</td><td class="right"><b>${num(m.required_rounded)}</b></td></tr>`; });
+  return h + '</tbody></table>';
+}
+function renderCashflow(d) {
+  if (!d.has_financial) return '<p class="muted">Enter financial assumptions to project cash flow.</p>';
+  let h = `<div><span class="kpi"><div class="v">${money(d.ending_balance)}</div><div class="l">Ending balance</div></span>
+    <span class="kpi"><div class="v">${money(d.min_running_balance)}</div><div class="l">Lowest point</div></span>
+    <span class="kpi"><div class="v"><span class="pill ${d.breaches_threshold?'red':'green'}">${d.breaches_threshold?'BREACH':'OK'}</span></div><div class="l">vs ${money(d.minimum_cash_threshold)} min</div></span></div>`;
+  h += `<table><thead><tr><th>Month</th><th class="right">In</th><th class="right">Out</th><th class="right">Net</th><th class="right">Balance</th></tr></thead><tbody>`;
+  d.months.forEach(m=>{ h+=`<tr><td>${esc(m.period_month)}</td><td class="right">${money(m.cash_in)}</td><td class="right">${money(m.cash_out)}</td><td class="right">${money(m.net)}</td><td class="right" style="color:${m.below_threshold?'var(--red)':'inherit'}"><b>${money(m.running_balance)}</b></td></tr>`; });
+  return h + `</tbody></table><p class="muted">${esc(d.assumptions_note||'')}</p>`;
+}
+function lvl(l){ const c={green:'green',yellow:'yellow',red:'red'}[l]||'na'; return `<span class="pill ${c}">${esc((l||'n/a').toUpperCase())}</span>`; }
+function renderRisk(d) {
+  let h = `<div style="margin-bottom:10px">Overall: ${lvl(d.overall)}</div>`;
+  h += `<table><thead><tr><th>Category</th><th>Level</th><th>Detail</th></tr></thead><tbody>`;
+  Object.keys(d.categories).forEach(k=>{ const c=d.categories[k]; h+=`<tr><td>${esc(k)}</td><td>${lvl(c.level)}</td><td class="muted">${esc(c.detail)}</td></tr>`; });
+  return h + '</tbody></table>';
+}
+
+async function viewCompare(view) {
+  const opts = VERSIONS.map(v=>`<label style="flex-direction:row;align-items:center;gap:5px"><input type="checkbox" class="cmpChk" value="${v.id}"> ${esc(v.name)}</label>`).join('');
+  view.innerHTML = `<div class="card"><h2>Compare scenarios</h2><div class="row">${opts}<button onclick="runCompare()">Compare</button></div><div id="cmpOut"></div></div>`;
+}
+async function runCompare() {
+  const ids = Array.from(document.querySelectorAll('.cmpChk:checked')).map(c=>c.value);
+  if (!ids.length) { status('Pick at least one version',false); return; }
+  try {
+    const d = await api('GET',`/api/planning/compare?versions=${ids.join(',')}`);
+    let h = `<p class="muted">Safest: <b>${esc((VERSIONS.find(v=>v.id==d.safest_version_id)||{}).name||'—')}</b></p>`;
+    h += `<table><thead><tr><th>Scenario</th><th class="right">Units</th><th class="right">Revenue</th><th>Capacity</th><th class="right">Min cash</th><th>Risk</th></tr></thead><tbody>`;
+    d.scenarios.forEach(s=>{ const safe = s.version_id==d.safest_version_id;
+      h+=`<tr style="${safe?'background:#fff7e6':''}"><td>${esc(s.name)} ${safe?'⭐':''}</td><td class="right">${num(s.total_units)}</td><td class="right">${money(s.total_revenue)}</td><td>${s.can_meet==null?'—':(s.can_meet?'<span class="pill green">meet</span>':'<span class="pill red">deficit</span>')}</td><td class="right">${money(s.min_running_balance)}</td><td>${lvl(s.overall_risk)}</td></tr>`; });
+    document.getElementById('cmpOut').innerHTML = h + '</tbody></table>';
+  } catch(e){ status(e.message,false); }
+}
+
+// ── Start ──
+if (TOKEN) boot(); else document.getElementById('login').classList.remove('hidden');
+</script>
+</body>
+</html>

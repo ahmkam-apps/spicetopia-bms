@@ -35,6 +35,8 @@ __all__ = [
     'capacity_vs_demand', 'production_required', 'cash_flow',
     # M3 — risk + scenario comparison
     'risk_assessment', 'compare_scenarios',
+    # UI helper
+    'list_active_variants',
 ]
 
 SCENARIO_TYPES = ('draft', 'approved', 'conservative', 'expected', 'aggressive', 'revised')
@@ -52,6 +54,18 @@ def _now():
 
 def _table_exists(name):
     return bool(qry1("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)))
+
+
+def list_active_variants():
+    """Active SKUs for planning UI dropdowns: {variant_id, sku_code, product_name, pack_size}."""
+    return qry("""
+        SELECT pv.id AS variant_id, pv.sku_code, p.name AS product_name, ps.label AS pack_size
+        FROM product_variants pv
+        JOIN products p    ON p.id  = pv.product_id
+        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+        WHERE pv.active_flag = 1
+        ORDER BY p.name, ps.grams
+    """)
 
 
 def _norm_month(val):
