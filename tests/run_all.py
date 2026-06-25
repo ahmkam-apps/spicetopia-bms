@@ -51,6 +51,7 @@ MODULES = [
     ("field",          "test_field",           "Field Operations"),
     ("reports",        "test_reports",         "Reports & Dashboard"),
     ("business_rules", "test_business_rules",  "Business Rules"),
+    ("planning",       "test_planning",        "Planning Input System"),
 ]
 
 def _bar(char="─", n=60):

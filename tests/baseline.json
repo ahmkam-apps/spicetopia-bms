@@ -1,10 +1,10 @@
 {
-  "captured_at": "2026-05-09T23:59:05.541728",
+  "captured_at": "2026-06-24T21:14:07.206847",
   "summary": {
-    "passed": 157,
-    "failed": 0,
-    "skipped": 7,
-    "total": 164
+    "passed": 184,
+    "failed": 1,
+    "skipped": 8,
+    "total": 193
   },
   "modules": [
     {
@@ -43,8 +43,8 @@
       "module": "inventory",
       "label": "Inventory & Ingredients",
       "total": 12,
-      "passed": 12,
-      "failed": 0,
+      "passed": 11,
+      "failed": 1,
       "skipped": 0
     },
     {
@@ -107,7 +107,15 @@
       "module": "business_rules",
       "label": "Business Rules",
       "total": 6,
-      "passed": 6,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 1
+    },
+    {
+      "module": "planning",
+      "label": "Planning Input System",
+      "total": 29,
+      "passed": 29,
       "failed": 0,
       "skipped": 0
     }

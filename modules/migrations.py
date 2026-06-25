@@ -35,6 +35,13 @@ __all__ = [
     'ensure_web_price_type',
     'ensure_25g_pack_and_spgm25',
     'ensure_web_prices',
+    'ensure_variant_show_online',
+    'ensure_recipe_tables',
+    'ensure_change_log_reason',
+    'ensure_planning_foundations',
+    'ensure_plan_version_horizon',
+    'ensure_plan_sales_tables',
+    'ensure_plan_m2_tables',
 ]
 
 
@@ -1557,3 +1564,295 @@ def ensure_web_prices():
         print(f"  ✗ ensure_web_prices error: {e}")
     finally:
         c.close()
+
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  PLANNING + RECIPE + VARIANT (moved from server.py — S0 safe slice)
+#  All idempotent; use only _conn from modules.db.
+# ═══════════════════════════════════════════════════════════════════
+
+def ensure_variant_show_online():
+    """Add show_online column to product_variants. Idempotent."""
+    try:
+        c = _conn()
+        try:
+            existing = {r[1] for r in c.execute("PRAGMA table_info(product_variants)").fetchall()}
+            if 'show_online' not in existing:
+                c.execute("ALTER TABLE product_variants ADD COLUMN show_online INTEGER DEFAULT 0")
+                c.commit()
+                print("  ✓ product_variants: added show_online column")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_variant_show_online: {e}")
+
+
+def ensure_recipe_tables():
+    """Create recipes, recipe_steps, recipe_ingredients tables. Idempotent."""
+    try:
+        c = _conn()
+        try:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS recipes (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title       TEXT    NOT NULL,
+                    slug        TEXT    NOT NULL UNIQUE,
+                    masala_code TEXT    NOT NULL,
+                    description TEXT,
+                    prep_mins   INTEGER DEFAULT 0,
+                    cook_mins   INTEGER DEFAULT 0,
+                    serves      INTEGER DEFAULT 4,
+                    image_path  TEXT,
+                    active      INTEGER DEFAULT 1,
+                    sort_order  INTEGER DEFAULT 0,
+                    created_at  TEXT    DEFAULT (datetime('now'))
+                )
+            """)
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS recipe_steps (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recipe_id   INTEGER NOT NULL REFERENCES recipes(id),
+                    step_number INTEGER NOT NULL,
+                    instruction TEXT    NOT NULL
+                )
+            """)
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS recipe_ingredients (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recipe_id   INTEGER NOT NULL REFERENCES recipes(id),
+                    sort_order  INTEGER DEFAULT 0,
+                    item        TEXT    NOT NULL
+                )
+            """)
+            c.commit()
+            print("  ✓ recipe tables ready")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_recipe_tables: {e}")
+
+
+def ensure_change_log_reason():
+    """Add nullable `reason` column to change_log so planning edits can record WHY.
+
+    Reuses the existing system-wide audit table instead of a parallel one.
+    Nullable + app-enforced: mandatory only for edits to approved/revised plan
+    versions; NULL for drafts and all existing non-planning audit rows. Idempotent.
+    NOTE: if change_log is ever rebuilt (see _migrate_change_log_void_action's
+    change_log_new copy pattern), carry the `reason` column forward.
+    """
+    try:
+        c = _conn()
+        try:
+            existing = {r[1] for r in c.execute("PRAGMA table_info(change_log)").fetchall()}
+            if 'reason' not in existing:
+                c.execute("ALTER TABLE change_log ADD COLUMN reason TEXT")
+                print("  ✓ change_log: added reason column")
+            c.commit()
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_change_log_reason: {e}")
+
+
+def ensure_planning_foundations():
+    """Create the plan_version spine (Planning Input Module, M0). Idempotent.
+
+    All planning input tables (M1+) FK to plan_version(id). Scenarios, drafts,
+    approvals and revisions are all plan_version rows. Money/approve gating is
+    enforced in the app layer (cost permission), not here.
+    """
+    try:
+        c = _conn()
+        try:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS plan_version (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name              TEXT    NOT NULL,
+                    scenario_type     TEXT    NOT NULL
+                                        CHECK (scenario_type IN
+                                          ('draft','approved','conservative',
+                                           'expected','aggressive','revised')),
+                    status            TEXT    NOT NULL DEFAULT 'draft'
+                                        CHECK (status IN ('draft','approved','archived')),
+                    parent_version_id INTEGER REFERENCES plan_version(id),
+                    notes             TEXT,
+                    created_by        TEXT,
+                    created_at        TEXT    DEFAULT (datetime('now')),
+                    approved_by       TEXT,
+                    approved_at       TEXT,
+                    updated_by        TEXT,
+                    updated_at        TEXT    DEFAULT (datetime('now'))
+                )
+            """)
+            # At most one ACTIVE approved launch plan at a time.
+            c.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS one_approved_launch_plan
+                ON plan_version (scenario_type)
+                WHERE scenario_type = 'approved' AND status = 'approved'
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_plan_version_status ON plan_version (status)")
+            c.commit()
+            print("  ✓ planning: plan_version spine ready")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_planning_foundations: {e}")
+
+
+def ensure_plan_version_horizon():
+    """Add per-version planning horizon columns to plan_version (M1). Idempotent.
+
+    horizon_start_month: anchor month 'YYYY-MM-01' (NULL = infer from earliest forecast).
+    horizon_months:      window length, default 12. Per-version so scenarios can differ.
+    """
+    try:
+        c = _conn()
+        try:
+            existing = {r[1] for r in c.execute("PRAGMA table_info(plan_version)").fetchall()}
+            if 'horizon_start_month' not in existing:
+                c.execute("ALTER TABLE plan_version ADD COLUMN horizon_start_month TEXT")
+                print("  ✓ plan_version: added horizon_start_month")
+            if 'horizon_months' not in existing:
+                c.execute("ALTER TABLE plan_version ADD COLUMN horizon_months INTEGER DEFAULT 12")
+                print("  ✓ plan_version: added horizon_months")
+            c.commit()
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_plan_version_horizon: {e}")
+
+
+def ensure_plan_sales_tables():
+    """Create plan_sales_forecast + plan_sales_target (M1). Idempotent.
+
+    Both FK to plan_version. Grain: month × variant × channel (forecast),
+    month × channel (target). Monthly atomic grain; window is per-version (horizon).
+    """
+    try:
+        c = _conn()
+        try:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS plan_sales_forecast (
+                    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_version_id        INTEGER NOT NULL REFERENCES plan_version(id) ON DELETE CASCADE,
+                    period_month           TEXT    NOT NULL,
+                    variant_id             INTEGER NOT NULL REFERENCES product_variants(id),
+                    channel                TEXT    NOT NULL
+                                             CHECK (channel IN ('retail','distributor','ecommerce','other')),
+                    units_forecast         REAL    NOT NULL DEFAULT 0,
+                    store_count            INTEGER,
+                    sell_through_per_store REAL,
+                    created_by             TEXT,
+                    created_at             TEXT    DEFAULT (datetime('now')),
+                    updated_by             TEXT,
+                    updated_at             TEXT    DEFAULT (datetime('now')),
+                    UNIQUE (plan_version_id, period_month, variant_id, channel)
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_plan_forecast_version ON plan_sales_forecast (plan_version_id)")
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS plan_sales_target (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_version_id INTEGER NOT NULL REFERENCES plan_version(id) ON DELETE CASCADE,
+                    period_month    TEXT    NOT NULL,
+                    channel         TEXT    NOT NULL
+                                      CHECK (channel IN ('retail','distributor','ecommerce','other')),
+                    target_units    REAL,
+                    target_revenue  REAL,
+                    created_by      TEXT,
+                    created_at      TEXT    DEFAULT (datetime('now')),
+                    updated_by      TEXT,
+                    updated_at      TEXT    DEFAULT (datetime('now')),
+                    UNIQUE (plan_version_id, period_month, channel)
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_plan_target_version ON plan_sales_target (plan_version_id)")
+            c.commit()
+            print("  ✓ planning: sales forecast + target tables ready")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_plan_sales_tables: {e}")
+
+
+def ensure_plan_m2_tables():
+    """Create M2 planning tables: manufacturer, manufacturing capacity, financial,
+    scenario pricing. Idempotent.
+
+    plan_manufacturer is global (reused across versions); the rest FK to plan_version.
+    plan_pricing is scenario pricing — separate from the live product_prices book —
+    and is money-sensitive (admin-gated at the API).
+    """
+    try:
+        c = _conn()
+        try:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS plan_manufacturer (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name       TEXT    NOT NULL,
+                    is_backup  INTEGER NOT NULL DEFAULT 0,
+                    created_by TEXT,
+                    created_at TEXT    DEFAULT (datetime('now')),
+                    updated_by TEXT,
+                    updated_at TEXT    DEFAULT (datetime('now'))
+                )
+            """)
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS plan_manufacturing (
+                    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_version_id          INTEGER NOT NULL REFERENCES plan_version(id) ON DELETE CASCADE,
+                    manufacturer_id          INTEGER NOT NULL REFERENCES plan_manufacturer(id),
+                    monthly_capacity_units   REAL    NOT NULL DEFAULT 0,
+                    batch_size               REAL,
+                    moq                      REAL,
+                    lead_time_days           INTEGER,
+                    packaging_capacity_units REAL,
+                    bottleneck_process       TEXT,
+                    cost_per_run             REAL,
+                    created_by               TEXT,
+                    created_at               TEXT    DEFAULT (datetime('now')),
+                    updated_by               TEXT,
+                    updated_at               TEXT    DEFAULT (datetime('now')),
+                    UNIQUE (plan_version_id, manufacturer_id)
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_plan_mfg_version ON plan_manufacturing (plan_version_id)")
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS plan_financial (
+                    plan_version_id        INTEGER PRIMARY KEY REFERENCES plan_version(id) ON DELETE CASCADE,
+                    beginning_cash         REAL,
+                    marketing_budget       REAL,
+                    payroll_budget         REAL,
+                    freight_cost_per_unit  REAL,
+                    other_opex_monthly     REAL,
+                    minimum_cash_threshold REAL,
+                    created_by             TEXT,
+                    created_at             TEXT    DEFAULT (datetime('now')),
+                    updated_by             TEXT,
+                    updated_at             TEXT    DEFAULT (datetime('now'))
+                )
+            """)
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS plan_pricing (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_version_id INTEGER NOT NULL REFERENCES plan_version(id) ON DELETE CASCADE,
+                    variant_id      INTEGER NOT NULL REFERENCES product_variants(id),
+                    product_cost    REAL,
+                    wholesale_price REAL,
+                    retail_price    REAL,
+                    created_by      TEXT,
+                    created_at      TEXT    DEFAULT (datetime('now')),
+                    updated_by      TEXT,
+                    updated_at      TEXT    DEFAULT (datetime('now')),
+                    UNIQUE (plan_version_id, variant_id)
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_plan_pricing_version ON plan_pricing (plan_version_id)")
+            c.commit()
+            print("  ✓ planning: M2 tables (manufacturing, financial, pricing) ready")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_plan_m2_tables: {e}")
