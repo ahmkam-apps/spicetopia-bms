@@ -7869,6 +7869,35 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
+            # GET /api/admin/backup/download  — stream a fresh consistent DB snapshot (admin only)
+            # Auth via query token so a plain browser link works.
+            if path == '/api/admin/backup/download':
+                dsess = get_session(self, qs)
+                if not dsess or dsess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                import tempfile as _tf
+                _ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                _tmp = Path(_tf.gettempdir()) / f"spicetopia_dl_{_ts}.db"
+                try:
+                    _src = sqlite3.connect(str(DB_TMP)); _dst = sqlite3.connect(str(_tmp))
+                    try:
+                        _src.backup(_dst)          # online backup — consistent, no write lock
+                    finally:
+                        _dst.close(); _src.close()
+                    _data = _tmp.read_bytes()
+                finally:
+                    try: _tmp.unlink()
+                    except Exception: pass
+                _fname = f"spicetopia_backup_{_ts}.db"
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/octet-stream')
+                self.send_header('Content-Disposition', f'attachment; filename="{_fname}"')
+                self.send_header('Content-Length', str(len(_data)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(_data)
+                return
+
             # GET /api/admin/settings  — return runtime + DB settings (admin only)
             if path == '/api/admin/settings':
                 if not sess or sess['role'] != 'admin':
@@ -9332,6 +9361,8 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, cash_flow(vid)); return
                 if len(parts) == 6 and parts[5] == 'risk':
                     send_json(self, risk_assessment(vid)); return
+                if len(parts) == 6 and parts[5] == 'ingredients':
+                    send_json(self, ingredient_requirements(vid)); return
 
             send_error(self, "Not found", 404)
 

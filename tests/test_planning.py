@@ -198,6 +198,17 @@ def run():
     else:
         _fail("GET compare", cmp.text[:120])
 
+    # ── Ingredients to Buy (reuses BOM engine; shape-check, env-robust) ──────
+    ing = GET(f"/api/planning/versions/{ver}/ingredients", token=tok)
+    if ing.status_code == 200:
+        d = ing.json()
+        if all(k in d for k in ('ingredients', 'variants_without_bom', 'total_estimated_cost')):
+            _pass("Ingredients-to-buy endpoint returns expected shape")
+        else:
+            _fail("Ingredients-to-buy shape", str(d)[:160])
+    else:
+        _fail("GET ingredients", ing.text[:120])
+
     # ── deletes ────────────────────────────────────────────────────────────
     fl = GET(f"/api/planning/versions/{ver}/forecast", token=tok)
     if fl.status_code == 200 and fl.json():

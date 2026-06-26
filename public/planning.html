@@ -55,10 +55,10 @@
 <div id="app" class="hidden">
   <header>
     <h1>🌶️ Spicetopia Planning</h1>
-    <label class="muted" style="color:#fff">Plan version&nbsp;
+    <label class="muted" style="color:#fff">Plan&nbsp;
       <select id="verSel" onchange="onVersionChange()"></select>
     </label>
-    <button class="sec" onclick="showNewVersion()">＋ New version</button>
+    <button class="sec" onclick="showNewVersion()">＋ New plan</button>
     <span class="spacer"></span>
     <span id="who" class="muted" style="color:#fff"></span>
     <button class="sec" onclick="logout()">Sign out</button>
@@ -68,7 +68,7 @@
     <div id="status"></div>
 
     <div id="newVersionCard" class="card hidden">
-      <h2>New plan version</h2>
+      <h2>New plan</h2>
       <div class="row">
         <label>Name<input id="nvName" placeholder="e.g. Launch — Expected"></label>
         <label>Scenario
@@ -101,7 +101,8 @@ let VERSIONS = [], VARIANTS = [], CURVER = null, TAB = 'forecast';
 const TABS = [
   ['forecast','Sales Forecast'], ['pricing','Pricing'], ['manufacturing','Manufacturing'],
   ['financial','Financial'], ['projected','Projected Sales'], ['capacity','Capacity'],
-  ['production','Production'], ['cashflow','Cash Flow'], ['risk','Risk'], ['compare','Compare'],
+  ['production','Production'], ['ingredients','Ingredients to Buy'],
+  ['cashflow','Cash Flow'], ['risk','Risk'], ['compare','Compare'],
 ];
 
 // ── API ──
@@ -122,6 +123,7 @@ function status(msg, ok) {
 }
 const money = n => (n==null ? '—' : '₨' + Number(n).toLocaleString(undefined,{maximumFractionDigits:0}));
 const num = n => (n==null ? '—' : Number(n).toLocaleString(undefined,{maximumFractionDigits:0}));
+const kg  = n => (n==null ? '—' : Number(n).toLocaleString(undefined,{maximumFractionDigits:2}));
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 // ── Auth ──
@@ -171,7 +173,7 @@ async function createVersion() {
   try {
     const v = await api('POST','/api/planning/versions', body);
     CURVER = v.id; hideNewVersion(); document.getElementById('nvName').value='';
-    await loadVersions(); status('Version created', true);
+    await loadVersions(); status('Plan created', true);
   } catch(e){ status(e.message,false); }
 }
 
@@ -190,7 +192,7 @@ function channelOptions(){ return CHANNELS.map(c=>`<option value="${c}">${c}</op
 // ── Views ──
 async function renderView() {
   const view = document.getElementById('view');
-  if (!CURVER) { view.innerHTML = '<div class="card">No plan version yet. Create one to begin.</div>'; return; }
+  if (!CURVER) { view.innerHTML = '<div class="card">No plan yet. Create one to begin.</div>'; return; }
   try {
     if (TAB==='forecast')      return await viewForecast(view);
     if (TAB==='pricing')       return await viewPricing(view);
@@ -199,6 +201,7 @@ async function renderView() {
     if (TAB==='projected')     return await viewOutput(view,'projected-sales','Projected Sales', renderProjected);
     if (TAB==='capacity')      return await viewOutput(view,'capacity-vs-demand','Capacity vs Demand', renderCapacity);
     if (TAB==='production')    return await viewOutput(view,'production-required','Production Required', renderProduction);
+    if (TAB==='ingredients')   return await viewOutput(view,'ingredients','Ingredients to Buy', renderIngredients);
     if (TAB==='cashflow')      return await viewOutput(view,'cash-flow','Cash Flow', renderCashflow);
     if (TAB==='risk')          return await viewOutput(view,'risk','Risk Assessment', renderRisk);
     if (TAB==='compare')       return await viewCompare(view);
@@ -364,6 +367,16 @@ function renderCashflow(d) {
   h += `<table><thead><tr><th>Month</th><th class="right">In</th><th class="right">Out</th><th class="right">Net</th><th class="right">Balance</th></tr></thead><tbody>`;
   d.months.forEach(m=>{ h+=`<tr><td>${esc(m.period_month)}</td><td class="right">${money(m.cash_in)}</td><td class="right">${money(m.cash_out)}</td><td class="right">${money(m.net)}</td><td class="right" style="color:${m.below_threshold?'var(--red)':'inherit'}"><b>${money(m.running_balance)}</b></td></tr>`; });
   return h + `</tbody></table><p class="muted">${esc(d.assumptions_note||'')}</p>`;
+}
+function renderIngredients(d) {
+  let h = '';
+  if (d.variants_without_bom && d.variants_without_bom.length)
+    h += `<div style="background:#fdecea;color:var(--red);padding:8px 12px;border-radius:8px;margin-bottom:10px">No BOM set for: ${d.variants_without_bom.map(esc).join(', ')} — set the recipe in the ERP (Production → BOM Setup), then these ingredients will appear.</div>`;
+  h += `<div><span class="kpi"><div class="v">${money(d.total_estimated_cost)}</div><div class="l">Estimated purchase cost</div></span></div>`;
+  if (!d.ingredients.length) return h + '<p class="muted">No ingredient requirements yet — add a sales forecast, and make sure each SKU has a BOM in the ERP.</p>';
+  h += `<table><thead><tr><th>Ingredient</th><th class="right">Needed kg</th><th class="right">In stock kg</th><th class="right">To order kg</th><th class="right">₨/kg</th><th class="right">Est. cost</th></tr></thead><tbody>`;
+  d.ingredients.forEach(i=>{ h+=`<tr><td>${esc(i.ing_code)}</td><td class="right">${kg(i.needed_kg)}</td><td class="right">${kg(i.available_kg)}</td><td class="right" style="${i.to_order_kg>0?'color:var(--red);font-weight:700':''}">${kg(i.to_order_kg)}</td><td class="right">${num(i.cost_per_kg)}</td><td class="right">${money(i.estimated_cost)}</td></tr>`; });
+  return h + `</tbody></table><p class="muted">${esc(d.note||'')}</p>`;
 }
 function lvl(l){ const c={green:'green',yellow:'yellow',red:'red'}[l]||'na'; return `<span class="pill ${c}">${esc((l||'n/a').toUpperCase())}</span>`; }
 function renderRisk(d) {

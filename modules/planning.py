@@ -37,6 +37,8 @@ __all__ = [
     'risk_assessment', 'compare_scenarios',
     # UI helper
     'list_active_variants',
+    # Ingredients to buy (reuses existing BOM engine)
+    'ingredient_requirements',
 ]
 
 SCENARIO_TYPES = ('draft', 'approved', 'conservative', 'expected', 'aggressive', 'revised')
@@ -1046,4 +1048,78 @@ def compare_scenarios(version_ids):
         'scenarios': rows,
         'ranked': [r['version_id'] for r in ranked],
         'safest_version_id': ranked[0]['version_id'] if ranked else None,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  INGREDIENTS TO BUY  (reuses the existing BOM engine — no recipe stored here)
+# ═══════════════════════════════════════════════════════════════════
+
+def ingredient_requirements(version_id):
+    """Consolidated ingredient purchase list for a plan, from its forecast.
+
+    Pipeline: forecast units per SKU (within horizon) → existing
+    bom_calculate_ingredients() per SKU → aggregate NEEDED kg per ingredient
+    across SKUs → net against current stock ONCE (stock is shared, not summed) →
+    cost from the ingredient master. Codes only; the legend stays off-system.
+    SKUs without an active BOM are listed separately (not silently skipped)."""
+    from modules.purchasing import bom_calculate_ingredients
+    v = get_plan_version(version_id)
+    _, window, rows = _window_forecast(v)
+
+    units_by_variant = {}
+    for r in rows:
+        units_by_variant[r['variant_id']] = units_by_variant.get(r['variant_id'], 0) + (r['units'] or 0)
+
+    agg = {}          # ing_id -> {ing_code, needed_kg, available_kg}
+    no_bom = []
+    for vid_, units in units_by_variant.items():
+        if units <= 0:
+            continue
+        try:
+            res = bom_calculate_ingredients(vid_, units)
+        except ValueError:
+            no_bom.append(vid_)
+            continue
+        for ing in res['ingredients']:
+            a = agg.setdefault(ing['ingId'], {'ing_code': ing['ingCode'], 'needed_kg': 0.0,
+                                              'available_kg': ing['availableKg']})
+            a['needed_kg'] += ing['neededKg']
+            a['available_kg'] = ing['availableKg']   # shared stock — overwrite, never sum
+
+    costmap = {}
+    if agg:
+        ids = list(agg.keys())
+        ph = ",".join("?" * len(ids))
+        for r in qry(f"SELECT id, COALESCE(cost_per_kg,0) AS cost FROM ingredients WHERE id IN ({ph})", tuple(ids)):
+            costmap[r['id']] = r['cost']
+
+    items, total_cost = [], 0.0
+    for ing_id, a in agg.items():
+        to_order = max(0.0, round(a['needed_kg'] - a['available_kg'], 3))
+        cpk = costmap.get(ing_id, 0) or 0
+        cost = round(to_order * cpk, 2)
+        total_cost += cost
+        items.append({
+            'ingredient_id': ing_id, 'ing_code': a['ing_code'],
+            'needed_kg': round(a['needed_kg'], 3), 'available_kg': round(a['available_kg'], 3),
+            'to_order_kg': to_order, 'cost_per_kg': cpk, 'estimated_cost': cost,
+            'sufficient': to_order < 0.001,
+        })
+    items.sort(key=lambda x: (-x['to_order_kg'], x['ing_code']))
+
+    nobom_labels = []
+    for vid_ in no_bom:
+        r = qry1("""SELECT pv.sku_code, p.name FROM product_variants pv
+                    JOIN products p ON p.id=pv.product_id WHERE pv.id=?""", (vid_,))
+        nobom_labels.append((f"{r['name']} {r['sku_code']}" if r else str(vid_)))
+
+    return {
+        'version_id': version_id, 'window_months': window,
+        'ingredients': items,
+        'total_estimated_cost': round(total_cost, 2),
+        'variants_without_bom': nobom_labels,
+        'has_data': bool(items),
+        'note': 'Quantities from forecast production volume, run through the live BOM; '
+                'netted against current ingredient stock. Costs from the ingredient master.',
     }
