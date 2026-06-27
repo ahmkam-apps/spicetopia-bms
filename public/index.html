@@ -630,8 +630,8 @@ input[type="radio"]    { accent-color: var(--saffron); }
 <!-- ── BODY ROW: sidebar + content below the topbar ─────────────── -->
 <div id="body-row">
 
-  <!-- Sidebar (no logo — it lives in the topbar now) -->
-  <div id="sidebar">
+  <!-- Sidebar (no logo — it lives in the topbar now). Starts hidden: Home is the landing and is full-screen; render() shows it when a module opens. -->
+  <div id="sidebar" style="display:none">
     <nav class="sidebar-nav" style="flex:1; padding: 8px 0;">
 
       <!-- Home — Start Here landing -->
