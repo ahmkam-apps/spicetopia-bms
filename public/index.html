@@ -1055,6 +1055,9 @@ function nav(page, arg) {
 
 async function render(page, arg) {
   const c = document.getElementById('content');
+  // Full-screen Home — hide the sidebar on the landing, show it inside every module
+  const _sb = document.getElementById('sidebar');
+  if (_sb) _sb.style.display = (page === 'home') ? 'none' : '';
   // Access guard
   if (!canAccess(page)) {
     c.innerHTML = `
