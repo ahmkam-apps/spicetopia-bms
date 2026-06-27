@@ -42,6 +42,8 @@ __all__ = [
     'ensure_plan_version_horizon',
     'ensure_plan_sales_tables',
     'ensure_plan_m2_tables',
+    'ensure_plan_code',
+    'ensure_plan_release',
 ]
 
 
@@ -1856,3 +1858,68 @@ def ensure_plan_m2_tables():
             c.close()
     except Exception as e:
         print(f"  ⚠ ensure_plan_m2_tables: {e}")
+
+
+def ensure_plan_code():
+    """Add a human-friendly PLAN-### code to plan_version. Idempotent.
+
+    Adds plan_code TEXT + a unique index. Backfills any rows missing a code in
+    creation order (id ASC) so the oldest plan becomes PLAN-001. New plans get
+    their code generated at create time in modules/planning.create_plan_version.
+    """
+    try:
+        c = _conn()
+        try:
+            cols = {r[1] for r in c.execute("PRAGMA table_info(plan_version)").fetchall()}
+            if 'plan_code' not in cols:
+                c.execute("ALTER TABLE plan_version ADD COLUMN plan_code TEXT")
+                print("  ✓ plan_version: added plan_code")
+            missing = c.execute(
+                "SELECT id FROM plan_version WHERE plan_code IS NULL OR plan_code='' ORDER BY id ASC"
+            ).fetchall()
+            if missing:
+                mx = c.execute(
+                    "SELECT MAX(CAST(SUBSTR(plan_code,6) AS INTEGER)) FROM plan_version WHERE plan_code LIKE 'PLAN-%'"
+                ).fetchone()[0] or 0
+                n = mx
+                for (rid,) in missing:
+                    n += 1
+                    c.execute("UPDATE plan_version SET plan_code=? WHERE id=?", (f"PLAN-{n:03d}", rid))
+                print(f"  ✓ plan_version: backfilled {len(missing)} plan_code(s)")
+            c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_plan_code ON plan_version(plan_code)")
+            c.commit()
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_plan_code: {e}")
+
+
+def ensure_plan_release():
+    """Create plan_release — the log of plan-month production released to the ERP as
+    Work Orders (in-house handoff). Idempotent.
+
+    UNIQUE(plan_version_id, period_month, variant_id) makes re-releasing a SKU-month a
+    no-op (prevents duplicate WOs) and is the traceability + released-state record.
+    """
+    try:
+        c = _conn()
+        try:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS plan_release (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_version_id  INTEGER NOT NULL REFERENCES plan_version(id) ON DELETE CASCADE,
+                    period_month     TEXT    NOT NULL,
+                    variant_id       INTEGER NOT NULL REFERENCES product_variants(id),
+                    work_order_id    INTEGER,
+                    released_by      TEXT,
+                    released_at      TEXT    DEFAULT (datetime('now')),
+                    UNIQUE (plan_version_id, period_month, variant_id)
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_plan_release_version ON plan_release (plan_version_id)")
+            c.commit()
+            print("  ✓ planning: plan_release (manufacturing handoff log) ready")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_plan_release: {e}")

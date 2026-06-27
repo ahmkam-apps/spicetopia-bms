@@ -4,108 +4,225 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Spicetopia — Planning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root { --terra:#b5532a; --saffron:#e0a82e; --ink:#2b2118; --cream:#faf6ef;
-          --line:#e6ddd0; --green:#2e7d32; --yellow:#c79a00; --red:#c62828; --muted:#8a7f70; }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:var(--cream); color:var(--ink); }
-  header { background:var(--terra); color:#fff; padding:12px 18px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
-  header h1 { font-size:18px; margin:0; font-weight:700; }
-  header .spacer { flex:1; }
-  select, input, button { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:7px; background:#fff; }
-  button { background:var(--terra); color:#fff; border:none; cursor:pointer; }
-  button.sec { background:#fff; color:var(--terra); border:1px solid var(--terra); }
-  button:disabled { opacity:.5; cursor:default; }
-  .wrap { max-width:1100px; margin:0 auto; padding:18px; }
-  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin:14px 0; }
-  .tabs button { background:#fff; color:var(--ink); border:1px solid var(--line); padding:7px 12px; }
-  .tabs button.active { background:var(--saffron); color:var(--ink); border-color:var(--saffron); font-weight:700; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
-  .card h2 { margin:0 0 12px; font-size:15px; }
-  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; }
-  .row label { display:flex; flex-direction:column; font-size:12px; color:var(--muted); gap:3px; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th,td { text-align:left; padding:7px 9px; border-bottom:1px solid var(--line); }
-  th { color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; }
-  .pill { padding:2px 9px; border-radius:99px; font-size:12px; font-weight:700; color:#fff; }
-  .green{background:var(--green);} .yellow{background:var(--yellow);} .red{background:var(--red);} .na{background:var(--muted);}
-  .kpi { display:inline-block; min-width:150px; margin:6px 14px 6px 0; }
-  .kpi .v { font-size:22px; font-weight:700; } .kpi .l { font-size:12px; color:var(--muted); }
-  #status { font-size:13px; padding:8px 12px; border-radius:8px; margin-bottom:12px; display:none; }
-  #status.err { display:block; background:#fdecea; color:var(--red); }
-  #status.ok { display:block; background:#e8f5e9; color:var(--green); }
-  #login { max-width:340px; margin:80px auto; }
-  .hidden { display:none; }
-  .muted { color:var(--muted); font-size:12px; }
-  .right { text-align:right; }
+  :root{
+    --paper:#F4F0E7; --card:#FCFAF5; --ink:#2A211A; --ink-2:#7C6F5E; --ink-3:#A89A85;
+    --rule:#E4DACA; --rule-2:#D8CCB7;
+    --terra:#9A4A24; --gold:#A9863F; --gold-soft:#F1E9D6;
+    --green:#5E7245; --green-soft:#EAEEDD; --yellow:#A9863F; --red:#B23A2E; --red-soft:#F6E7E2;
+    --serif:"Fraunces",Georgia,"Times New Roman",serif;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased;}
+  .lbl,.label{font-size:10.5px; text-transform:uppercase; letter-spacing:.16em; color:var(--ink-3); font-weight:500;}
+  .serif{font-family:var(--serif);}
+  .hidden{display:none;}
+  .spacer{flex:1;}
+
+  .topbar{display:flex; align-items:center; gap:18px; padding:18px 40px; border-bottom:1px solid var(--rule); flex-wrap:wrap;}
+  .brand{font-family:var(--serif); font-size:20px; font-weight:500;}
+  .brand small{font-family:var(--sans); font-size:9.5px; text-transform:uppercase; letter-spacing:.22em; color:var(--ink-3); display:block; font-weight:500;}
+  .sel-wrap{font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-3); display:flex; align-items:center; gap:8px;}
+  .sel-wrap select{font-family:var(--sans); font-size:13px; text-transform:none; letter-spacing:0; color:var(--ink); border:1px solid var(--rule-2); border-radius:7px; padding:6px 9px; background:#fff;}
+  .who{font-size:12px; color:var(--ink-3);}
+  .txt-btn{background:none; border:none; color:var(--ink); font-family:var(--sans); font-size:13px; cursor:pointer; padding:6px 2px; border-bottom:1px solid var(--ink);}
+  .txt-btn:hover{color:var(--terra); border-color:var(--terra);}
+  .primary{background:var(--terra); color:#fff; border:none; padding:11px 22px; font-family:var(--sans); font-size:13px; letter-spacing:.04em; text-transform:uppercase; cursor:pointer; border-radius:2px;}
+  .primary.sm{padding:8px 15px; font-size:11.5px;}
+  .primary:disabled{opacity:.5; cursor:default;}
+
+  .wrap{max-width:880px; margin:0 auto; padding:36px 40px 80px;}
+  #status{font-size:13px; padding:9px 14px; border-radius:4px; margin-bottom:18px; display:none;}
+  #status.err{display:block; background:var(--red-soft); color:var(--red);}
+  #status.ok{display:block; background:var(--green-soft); color:#3f5230;}
+
+  .context{display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; font-size:12px; color:var(--ink-2); margin-bottom:12px;}
+  .context .code{font-family:var(--serif); color:var(--terra); letter-spacing:.03em;}
+  .context .here{color:var(--ink); font-weight:500;}
+  .stepper{display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; padding-bottom:16px; border-bottom:1px solid var(--rule); margin-bottom:10px;}
+  .wstep{display:flex; align-items:center; gap:8px; color:var(--ink-3); cursor:pointer;}
+  .wstep .circ{width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:500; border:1.5px solid var(--rule-2); background:#fff; color:var(--ink-3);}
+  .wstep .t{font-size:13px;}
+  .wstep.done{color:var(--ink-2);}
+  .wstep.done .circ{background:var(--gold); border-color:var(--gold); color:#fff;}
+  .wstep.current{color:var(--ink); font-weight:500;}
+  .wstep.current .circ{background:var(--terra); border-color:var(--terra); color:#fff;}
+  .progress-label{font-size:11px; letter-spacing:.04em; color:var(--ink-3); margin:14px 0 34px;}
+
+  .step-head{margin-bottom:30px;}
+  .step-head .kicker{margin-bottom:10px;}
+  .step-head h1{font-family:var(--serif); font-weight:500; font-size:33px; line-height:1.12; margin:0 0 14px; letter-spacing:-0.01em;}
+  .step-head p{margin:0; max-width:580px; font-size:15px; line-height:1.6; color:var(--ink-2);}
+  .howto{display:flex; flex-wrap:wrap; gap:0; margin-top:22px; border-top:1px solid var(--rule);}
+  .howto > div{flex:1; min-width:115px; padding:14px 0; border-bottom:1px solid var(--rule);}
+  .howto .num{font-family:var(--serif); font-size:20px; color:var(--terra);}
+  .howto .cap{font-size:12.5px; color:var(--ink-2); margin-top:4px;}
+
+  .section{margin:0 0 36px;}
+  .section-head{display:flex; align-items:center; justify-content:space-between; padding-bottom:10px; border-bottom:1px solid var(--rule); margin-bottom:18px;}
+  .section > .label{display:block; padding-bottom:10px; border-bottom:1px solid var(--rule); margin-bottom:18px;}
+  .empty{font-size:13.5px; color:var(--ink-3); font-style:italic;}
+
+  .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:24px 26px; align-items:end;}
+  .field label{display:block; margin-bottom:7px;}
+  .field .hint{font-size:11.5px; color:var(--ink-2); margin:-2px 0 7px; line-height:1.4; font-style:italic;}
+  .field .ig{display:flex; align-items:baseline; border-bottom:1px solid var(--rule-2);}
+  .field .ig:focus-within{border-bottom:1.5px solid var(--terra);}
+  .field .ig input,.field .ig select{width:100%; padding:9px 0; border:none; background:transparent; font-family:var(--sans); font-size:15px; color:var(--ink);}
+  .field .ig input:focus,.field .ig select:focus{outline:none;}
+  .field .afix{font-size:14px; color:var(--ink-3); padding-right:6px;}
+  .field .afix.suf{padding-right:0; padding-left:6px;}
+  .warn{color:var(--red); font-size:11.5px; margin-top:5px; display:none;}
+  .warn.show{display:block;}
+
+  table{width:100%; border-collapse:collapse;}
+  th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.13em; color:var(--ink-3); font-weight:500; padding:0 10px 13px 0;}
+  th.r,td.r{text-align:right;}
+  td{padding:14px 10px 14px 0; border-top:1px solid var(--rule); font-size:14px; vertical-align:middle;}
+  td.sku,td.code{font-family:var(--serif); font-size:15px;}
+  td.code{color:var(--terra); letter-spacing:.03em;}
+  tr.cur td{background:var(--gold-soft);}
+  .x{border:none; background:none; color:var(--ink-3); cursor:pointer; font-size:14px;}
+  .curtag{font-size:10.5px; text-transform:uppercase; letter-spacing:.12em; color:var(--gold);}
+  .badge{font-size:10.5px; text-transform:uppercase; letter-spacing:.1em; padding:3px 9px; border-radius:3px;}
+  .badge.ok{background:var(--green-soft); color:#3f5230;}
+  .badge.muted{background:#EEE6D6; color:var(--ink-2);}
+
+  .metrics{display:flex; flex-wrap:wrap; gap:54px; padding:4px 0;}
+  .metric .v{font-family:var(--serif); font-size:40px; font-weight:500; letter-spacing:-0.02em; line-height:1;}
+  .metric .l{font-size:12px; color:var(--ink-2); margin-top:9px; max-width:170px;}
+  .ship-link{margin-top:22px;}
+  .ship-link a,.jump{color:var(--terra); font-size:13px; text-decoration:none; border:none; background:none; cursor:pointer; border-bottom:1px solid var(--terra); padding:0 0 2px;}
+  .foot-note{font-size:11.5px; color:var(--ink-3); margin-top:10px; font-style:italic;}
+  .banner{font-size:13px; color:var(--ink-2); padding:12px 0; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); display:flex; flex-wrap:wrap; align-items:center; gap:14px;}
+  .banner.miss{color:var(--red);}
+
+  .check{display:flex; align-items:center; gap:12px; padding:13px 0; border-top:1px solid var(--rule); font-size:14px;}
+  .check .mk{font-family:var(--serif); font-size:16px; width:22px;}
+  .check .mk.ok{color:var(--green);} .check .mk.no{color:var(--ink-3);}
+  .check .nm{flex:1;}
+
+  .navbtns{display:flex; align-items:center; margin-top:44px; padding-top:22px; border-top:1px solid var(--rule);}
+  .navbtns .spacer{flex:1;}
+  .stepnote{font-size:11.5px; color:var(--ink-3); font-style:italic; margin-left:14px;}
+
+  .modal-backdrop{position:fixed; inset:0; background:rgba(42,33,26,.42); display:flex; align-items:center; justify-content:center; z-index:50; padding:20px;}
+  .modal-backdrop.hidden{display:none;}
+
+  .home{padding:24px 0 10px;}
+  .home-greet{font-size:13px; color:var(--ink-2); margin-bottom:6px;}
+  .home-title{font-family:var(--serif); font-weight:500; font-size:40px; letter-spacing:-0.01em; margin:6px 0 32px;}
+  .home-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px;}
+  .home-card{text-align:left; background:var(--card); border:1px solid var(--rule); border-radius:6px; padding:24px 22px 26px; cursor:pointer; font-family:var(--sans); position:relative; transition:border-color .15s,transform .15s;}
+  .home-card:hover{border-color:var(--terra); transform:translateY(-2px);}
+  .home-card .hc-n{font-family:var(--serif); font-size:22px; color:var(--gold); margin-bottom:16px;}
+  .home-card .hc-t{font-family:var(--serif); font-size:19px; color:var(--ink); margin-bottom:7px; line-height:1.2;}
+  .home-card .hc-d{font-size:12.5px; color:var(--ink-2); line-height:1.5;}
+  .home-card .hc-go{position:absolute; top:22px; right:22px; color:var(--terra); font-size:16px;}
+  .brand.home-link{cursor:pointer;}
+  .modal{background:var(--paper); border-radius:6px; max-width:560px; width:100%; padding:34px 38px;}
+  .modal .kicker{margin-bottom:10px;}
+  .modal h2{font-family:var(--serif); font-weight:500; font-size:26px; margin:0 0 8px;}
+  .modal .msub{font-size:14px; color:var(--ink-2); margin:0 0 24px; line-height:1.55;}
+  .modal .form-grid{margin-bottom:26px;}
+  .modal-actions{display:flex; align-items:center; gap:18px; justify-content:flex-end;}
+
+  #login{max-width:360px; margin:90px auto; background:var(--card); border:1px solid var(--rule); border-radius:8px; padding:32px;}
+  #login h2{font-family:var(--serif); font-weight:500; font-size:24px; margin:0 0 22px;}
+  #login .field{margin-bottom:18px;}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div id="login" class="card">
-  <h2>Spicetopia Planning — Sign in</h2>
-  <div class="row"><label style="flex:1">Username<input id="lu" autocomplete="username"></label></div>
-  <div class="row"><label style="flex:1">Password<input id="lp" type="password" autocomplete="current-password"></label></div>
-  <button onclick="doLogin()">Sign in</button>
-  <div id="loginErr" class="muted" style="color:var(--red);margin-top:8px"></div>
+<div id="login">
+  <h2>Spicetopia Planning</h2>
+  <div class="field"><label class="lbl">Username</label><div class="ig"><input id="lu" autocomplete="username"></div></div>
+  <div class="field"><label class="lbl">Password</label><div class="ig"><input id="lp" type="password" autocomplete="current-password"></div></div>
+  <button class="primary" onclick="doLogin()">Sign in</button>
+  <div id="loginErr" class="warn show" style="color:var(--red);margin-top:14px;display:none"></div>
 </div>
 
-<!-- APP -->
 <div id="app" class="hidden">
-  <header>
-    <h1>🌶️ Spicetopia Planning</h1>
-    <label class="muted" style="color:#fff">Plan&nbsp;
-      <select id="verSel" onchange="onVersionChange()"></select>
-    </label>
-    <button class="sec" onclick="showNewVersion()">＋ New plan</button>
+  <header class="topbar">
+    <div class="brand home-link" onclick="goHome()" title="Home">Spicetopia<small>Planning</small></div>
+    <label class="sel-wrap">Plan <select id="verSel" onchange="onVersionChange()"></select></label>
+    <button class="txt-btn" onclick="showNewPlanModal()">New plan</button>
+    <button class="txt-btn" onclick="openCompare()">Compare</button>
     <span class="spacer"></span>
-    <span id="who" class="muted" style="color:#fff"></span>
-    <button class="sec" onclick="logout()">Sign out</button>
+    <span id="who" class="who"></span>
+    <button class="txt-btn" onclick="logout()">Sign out</button>
   </header>
+
+  <div id="newPlanModal" class="modal-backdrop hidden" onclick="modalBackdrop(event)">
+    <div class="modal">
+      <div class="kicker lbl">New plan</div>
+      <h2>Create a plan</h2>
+      <p class="msub">A plan is one scenario you're modelling — a launch forecast, or a cautious "slow sales" case. Keep several side by side and compare them.</p>
+      <div class="form-grid">
+        <div class="field"><label class="lbl">Plan name</label><div class="hint">A clear label so you recognise it.</div><div class="ig"><input id="mvName" placeholder="Launch 2026 — Expected"></div></div>
+        <div class="field"><label class="lbl">Scenario</label><div class="hint" id="mvTypeHint">Your most likely base case.</div><div class="ig"><select id="mvType" onchange="onScenChange()">
+          <option value="draft">draft</option><option value="expected" selected>expected</option>
+          <option value="conservative">conservative</option><option value="aggressive">aggressive</option>
+          <option value="approved">approved</option><option value="revised">revised</option>
+        </select></div></div>
+        <div class="field"><label class="lbl">Start month</label><div class="hint">First month this plan covers.</div><div class="ig"><input id="mvStart" type="month"></div></div>
+        <div class="field"><label class="lbl">Horizon (months)</label><div class="hint">How far ahead, 1–36.</div><div class="ig"><input id="mvMonths" type="number" min="1" value="12"></div></div>
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Notes</label><div class="hint">Optional — context or assumptions for this plan.</div><div class="ig"><input id="mvNotes" placeholder="optional"></div></div>
+      </div>
+      <div class="warn" id="mvErr"></div>
+      <div class="modal-actions">
+        <button class="txt-btn" onclick="hideNewPlanModal()">Cancel</button>
+        <button class="primary" id="mvCreateBtn" onclick="createVersion()">Create plan</button>
+      </div>
+    </div>
+  </div>
 
   <div class="wrap">
     <div id="status"></div>
-
-    <div id="newVersionCard" class="card hidden">
-      <h2>New plan</h2>
-      <div class="row">
-        <label>Name<input id="nvName" placeholder="e.g. Launch — Expected"></label>
-        <label>Scenario
-          <select id="nvType">
-            <option value="draft">draft</option>
-            <option value="expected" selected>expected</option>
-            <option value="conservative">conservative</option>
-            <option value="aggressive">aggressive</option>
-            <option value="approved">approved</option>
-            <option value="revised">revised</option>
-          </select>
-        </label>
-        <label>Start month<input id="nvStart" type="month"></label>
-        <label>Horizon (months)<input id="nvMonths" type="number" value="12" min="1" max="36" style="width:90px"></label>
-        <button onclick="createVersion()">Create</button>
-        <button class="sec" onclick="hideNewVersion()">Cancel</button>
-      </div>
-    </div>
-
-    <div class="tabs" id="tabs"></div>
+    <div id="context" class="context"></div>
+    <div id="stepper" class="stepper"></div>
+    <div class="progress-label" id="progLabel"></div>
     <div id="view"></div>
   </div>
 </div>
 
 <script>
 const CHANNELS = ['retail','distributor','ecommerce','other'];
-let TOKEN = localStorage.getItem('spx_plan_token') || '';
-let VERSIONS = [], VARIANTS = [], CURVER = null, TAB = 'forecast';
-
-const TABS = [
-  ['forecast','Sales Forecast'], ['pricing','Pricing'], ['manufacturing','Manufacturing'],
-  ['financial','Financial'], ['projected','Projected Sales'], ['capacity','Capacity'],
-  ['production','Production'], ['ingredients','Ingredients to Buy'],
-  ['cashflow','Cash Flow'], ['risk','Risk'], ['compare','Compare'],
+const SCENARIO_HELP = {
+  draft:'Work in progress, not finalised.',
+  expected:'Your most likely base case.',
+  conservative:'A cautious case — lower sales.',
+  aggressive:'An optimistic case — higher sales.',
+  approved:'Locked and signed off — cannot be edited.',
+  revised:'An updated version of an earlier plan.'
+};
+const SCENARIOS = ['draft','expected','conservative','aggressive','approved','revised'];
+const STEPS = [
+  ['plan','Plan basics'], ['forecast','Sales forecast'], ['pricing','Pricing'],
+  ['manufacturing','Manufacturing'], ['financial','Financial'], ['review','Review']
 ];
+const ORDER = STEPS.map(s => s[0]);
+const STEP_WORD = ['One','Two','Three','Four','Five','Six'];
+const STEP_GUIDE = {
+  forecast: { lead:'What do you expect to sell?', body:'Add each product with its month, channel, and number of packs. These figures flow through to revenue, production, and your ingredient shopping list.', steps:['Pick a product','Choose the month','Pick the channel','Enter the units'] },
+  pricing: { lead:'Set the prices for this plan', body:'The cost and selling prices you are assuming. These are scenario assumptions — they do not change your live price book.', steps:['Pick a product','Enter unit cost','Set wholesale','Set retail'] },
+  manufacturing: { lead:'How much can you produce?', body:'Add your production line(s) and how much each can make per month, so we can check whether you can meet demand.', steps:['Add a production line','Select it','Enter capacity','Save'] },
+  financial: { lead:'Your cash and running costs', body:'Tell us your starting cash and monthly costs. We will project cash flow and flag any month you would dip below your comfort level.', steps:['Beginning cash & floor','Monthly fixed costs','Freight per unit','Save'] }
+};
 
-// ── API ──
+let TOKEN = localStorage.getItem('spx_plan_token') || '';
+let VERSIONS = [], VARIANTS = [], CURVER = null;
+let STEP = localStorage.getItem('spx_plan_step') || 'plan';
+let MODE = 'home';
+let PROGRESS = { plan:false, forecast:false, pricing:false, manufacturing:false, financial:false };
+let LAST_FMONTH = '', LAST_FCH = 'retail';
+let FC_ROWS = [], PR_ROWS = [], CAP_ROWS = [];
+
+// ── helpers ──
 async function api(method, path, body) {
   const opt = { method, headers: { 'Content-Type':'application/json' } };
   if (TOKEN) opt.headers['Authorization'] = 'Bearer ' + TOKEN;
@@ -119,12 +236,35 @@ async function api(method, path, body) {
 function status(msg, ok) {
   const el = document.getElementById('status');
   el.textContent = msg; el.className = ok ? 'ok' : 'err';
-  if (ok) setTimeout(() => { el.className=''; }, 2500);
+  if (ok) setTimeout(() => { el.className=''; }, 2800);
 }
-const money = n => (n==null ? '—' : '₨' + Number(n).toLocaleString(undefined,{maximumFractionDigits:0}));
-const num = n => (n==null ? '—' : Number(n).toLocaleString(undefined,{maximumFractionDigits:0}));
+const money = n => (n==null || n==='' ? '—' : '₨' + Number(n).toLocaleString(undefined,{maximumFractionDigits:0}));
+const num = n => (n==null || n==='' ? '—' : Number(n).toLocaleString(undefined,{maximumFractionDigits:0}));
 const kg  = n => (n==null ? '—' : Number(n).toLocaleString(undefined,{maximumFractionDigits:2}));
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cap = s => { s = String(s||''); return s.charAt(0).toUpperCase()+s.slice(1); };
+const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+
+function fld(o) {
+  const val = (o.value==null?'':o.value);
+  let a = 'id="'+o.id+'" type="'+(o.type||'text')+'"';
+  if (o.min!=null) a += ' min="'+o.min+'"';
+  if (o.placeholder) a += ' placeholder="'+esc(o.placeholder)+'"';
+  if (o.oninput) a += ' oninput="'+o.oninput+'"';
+  a += ' value="'+esc(val)+'"';
+  const pre = o.prefix ? '<span class="afix">'+esc(o.prefix)+'</span>' : '';
+  const suf = o.suffix ? '<span class="afix suf">'+esc(o.suffix)+'</span>' : '';
+  return '<div class="field"><label class="lbl" for="'+o.id+'">'+esc(o.label)+'</label>'
+    + (o.help?'<div class="hint">'+esc(o.help)+'</div>':'')
+    + '<div class="ig">'+pre+'<input '+a+'>'+suf+'</div>'
+    + (o.warnId?'<div class="warn" id="'+o.warnId+'"></div>':'')
+    + '</div>';
+}
+function selField(o) {
+  return '<div class="field"><label class="lbl" for="'+o.id+'">'+esc(o.label)+'</label>'
+    + (o.help?'<div class="hint">'+esc(o.help)+'</div>':'')
+    + '<div class="ig"><select id="'+o.id+'"'+(o.onchange?' onchange="'+o.onchange+'"':'')+'>'+o.options+'</select></div></div>';
+}
 
 // ── Auth ──
 async function doLogin() {
@@ -134,14 +274,13 @@ async function doLogin() {
     TOKEN = d.token; localStorage.setItem('spx_plan_token', TOKEN);
     document.getElementById('who').textContent = u;
     await boot();
-  } catch(e) { document.getElementById('loginErr').textContent = e.message; }
+  } catch(e) { const el=document.getElementById('loginErr'); el.textContent=e.message; el.style.display='block'; }
 }
 function logout() { localStorage.removeItem('spx_plan_token'); TOKEN=''; location.reload(); }
 
 async function boot() {
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
-  renderTabs();
   try {
     VARIANTS = await api('GET','/api/planning/variants');
     await loadVersions();
@@ -154,251 +293,561 @@ async function boot() {
 async function loadVersions() {
   VERSIONS = await api('GET','/api/planning/versions');
   const sel = document.getElementById('verSel');
-  sel.innerHTML = VERSIONS.map(v => `<option value="${v.id}">${esc(v.name)} · ${esc(v.scenario_type)}${v.status==='approved'?' ✓':''}</option>`).join('');
-  if (VERSIONS.length) { if (!CURVER || !VERSIONS.find(v=>v.id==CURVER)) CURVER = VERSIONS[0].id; sel.value = CURVER; }
-  else { CURVER = null; }
-  renderView();
+  sel.innerHTML = VERSIONS.map(v => `<option value="${v.id}">${v.plan_code?esc(v.plan_code)+' · ':''}${esc(v.name)} · ${esc(v.scenario_type)}</option>`).join('');
+  if (VERSIONS.length) {
+    const saved = parseInt(localStorage.getItem('spx_plan_ver'));
+    if (!CURVER || !VERSIONS.find(v=>v.id==CURVER)) CURVER = (saved && VERSIONS.find(v=>v.id==saved)) ? saved : VERSIONS[0].id;
+    sel.value = CURVER;
+  } else { CURVER = null; }
+  await refresh();
 }
-function onVersionChange(){ CURVER = parseInt(document.getElementById('verSel').value); renderView(); }
+async function onVersionChange(){ CURVER = parseInt(document.getElementById('verSel').value); await refresh(); }
+async function openPlan(id){ CURVER = parseInt(id); const sel=document.getElementById('verSel'); if(sel) sel.value=id; MODE='wizard'; STEP='plan'; localStorage.setItem('spx_plan_step','plan'); await refresh(); }
 
-function showNewVersion(){ document.getElementById('newVersionCard').classList.remove('hidden'); }
-function hideNewVersion(){ document.getElementById('newVersionCard').classList.add('hidden'); }
-async function createVersion() {
-  const name = document.getElementById('nvName').value.trim();
-  const body = {
-    name, scenario_type: document.getElementById('nvType').value,
-    horizon_months: parseInt(document.getElementById('nvMonths').value)||12,
-  };
-  const sm = document.getElementById('nvStart').value; if (sm) body.horizon_start_month = sm;
+function curVersion(){ return VERSIONS.find(v=>v.id==CURVER) || null; }
+function isApproved(){ const v=curVersion(); return v && v.status==='approved'; }
+
+// ── progress ──
+async function loadProgress() {
+  PROGRESS = { plan:!!CURVER, forecast:false, pricing:false, manufacturing:false, financial:false };
+  if (!CURVER) return;
   try {
-    const v = await api('POST','/api/planning/versions', body);
-    CURVER = v.id; hideNewVersion(); document.getElementById('nvName').value='';
-    await loadVersions(); status('Plan created', true);
-  } catch(e){ status(e.message,false); }
+    const [fc, pr, mf, fin] = await Promise.all([
+      api('GET',`/api/planning/versions/${CURVER}/forecast`),
+      api('GET',`/api/planning/versions/${CURVER}/pricing`),
+      api('GET',`/api/planning/versions/${CURVER}/manufacturing`),
+      api('GET',`/api/planning/versions/${CURVER}/financial`)
+    ]);
+    PROGRESS.forecast = fc.length>0;
+    PROGRESS.pricing = pr.length>0;
+    PROGRESS.manufacturing = mf.length>0;
+    PROGRESS.financial = ['beginning_cash','minimum_cash_threshold','marketing_budget','payroll_budget','freight_cost_per_unit','other_opex_monthly']
+      .some(k => fin[k]!=null && fin[k]!=='');
+  } catch(e) {}
+}
+function stepDone(k){ return PROGRESS[k]===true; }
+
+function renderStepper() {
+  const sp = document.getElementById('stepper');
+  const ctx = document.getElementById('context');
+  if (MODE!=='wizard') { sp.innerHTML=''; if(ctx) ctx.innerHTML=''; document.getElementById('progLabel').textContent=''; return; }
+  sp.innerHTML = STEPS.map(([k,l],i) => {
+    const done = (k!=='review') && stepDone(k);
+    const cur = k===STEP;
+    return '<div class="wstep '+(cur?'current':'')+' '+(done?'done':'')+'" onclick="goStep(\''+k+'\')">'
+      + '<span class="circ">'+(done?'✓':(i+1))+'</span><span class="t">'+esc(l)+'</span></div>';
+  }).join('');
+  const v = curVersion();
+  const idx = ORDER.indexOf(STEP);
+  if (ctx) ctx.innerHTML = v
+    ? '<span class="code">'+esc(v.plan_code||'')+'</span><span>·</span><span>'+esc(v.name)+'</span><span>·</span>'
+      + '<span class="here">Step '+(idx+1)+' of '+STEPS.length+': '+esc(STEPS[idx][1])+'</span>'
+    : '';
+  const inputSteps = ['plan','forecast','pricing','manufacturing','financial'];
+  const completed = inputSteps.filter(stepDone).length;
+  const pct = Math.round(completed/inputSteps.length*100);
+  const left = inputSteps.length - completed;
+  document.getElementById('progLabel').textContent = 'Plan '+pct+'% complete · '+(left===0?'all steps done':left+' step'+(left===1?'':'s')+' remaining');
 }
 
-// ── Tabs ──
-function renderTabs() {
-  document.getElementById('tabs').innerHTML = TABS.map(([k,l]) =>
-    `<button class="${k===TAB?'active':''}" onclick="setTab('${k}')">${l}</button>`).join('');
-}
-function setTab(k){ TAB=k; renderTabs(); renderView(); }
+async function refresh() { if (CURVER) localStorage.setItem('spx_plan_ver', CURVER); await loadProgress(); renderStepper(); await renderView(); }
+function goStep(k){ MODE='wizard'; STEP=k; localStorage.setItem('spx_plan_step',k); renderStepper(); renderView(); }
+function nextStep(){ const i=ORDER.indexOf(STEP); if (i<ORDER.length-1) goStep(ORDER[i+1]); }
+function prevStep(){ const i=ORDER.indexOf(STEP); if (i>0) goStep(ORDER[i-1]); }
+function nextHint(){ const i=ORDER.indexOf(STEP); return i<ORDER.length-1 ? ' · next: '+STEPS[i+1][1]+' →' : ''; }
 
-function variantOptions(sel) {
-  return VARIANTS.map(v => `<option value="${v.variant_id}" ${sel==v.variant_id?'selected':''}>${esc(v.product_name)} ${esc(v.pack_size)}</option>`).join('');
+function variantOptions(sel){ return VARIANTS.map(v => `<option value="${v.variant_id}" ${sel==v.variant_id?'selected':''}>${esc(v.product_name)} ${esc(v.pack_size)}</option>`).join(''); }
+function channelOptions(sel){ return CHANNELS.map(c=>`<option value="${c}" ${sel===c?'selected':''}>${c}</option>`).join(''); }
+
+function navBar(stepKey) {
+  const i = ORDER.indexOf(STEP);
+  const back = i>0 ? '<button class="txt-btn" onclick="prevStep()">← Back</button>' : '';
+  const incomplete = stepKey && stepKey!=='review' && stepKey!=='plan' && !stepDone(stepKey);
+  const note = incomplete ? '<span class="stepnote">You can continue — this step has no data saved yet.</span>' : '';
+  const next = i<ORDER.length-1 ? '<button class="primary" onclick="nextStep()">Next — '+esc(STEPS[i+1][1])+' →</button>' : '';
+  return '<div class="navbtns">'+back+note+'<span class="spacer"></span>'+next+'</div>';
 }
-function channelOptions(){ return CHANNELS.map(c=>`<option value="${c}">${c}</option>`).join(''); }
+
+function stepHeader(stepKey) {
+  const idx = ORDER.indexOf(stepKey);
+  const guide = STEP_GUIDE[stepKey];
+  if (!guide) return '';
+  const howto = guide.steps.map((s,i)=>'<div><div class="num">'+(i+1)+'</div><div class="cap">'+esc(s)+'</div></div>').join('');
+  return '<div class="step-head"><div class="kicker lbl">Step '+STEP_WORD[idx]+'</div>'
+    + '<h1>'+esc(guide.lead)+'</h1><p>'+esc(guide.body)+'</p>'
+    + '<div class="howto">'+howto+'</div></div>';
+}
+
+// ── modal ──
+function mvErr(msg){ const e=document.getElementById('mvErr'); if(!e) return; if(msg){ e.textContent=msg; e.classList.add('show'); } else { e.textContent=''; e.classList.remove('show'); } }
+function showNewPlanModal(){ mvErr(''); document.getElementById('newPlanModal').classList.remove('hidden'); const n=document.getElementById('mvName'); if(n) n.focus(); }
+function hideNewPlanModal(){ document.getElementById('newPlanModal').classList.add('hidden'); }
+function modalBackdrop(e){ if(e && e.target && e.target.id==='newPlanModal') hideNewPlanModal(); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') hideNewPlanModal(); });
+function onScenChange(){ const s=document.getElementById('mvType'); const h=document.getElementById('mvTypeHint'); if(s&&h) h.textContent = SCENARIO_HELP[s.value]||''; }
 
 // ── Views ──
 async function renderView() {
   const view = document.getElementById('view');
-  if (!CURVER) { view.innerHTML = '<div class="card">No plan yet. Create one to begin.</div>'; return; }
+  if (MODE==='home') return viewHome(view);
+  if (MODE==='plans') return viewPlans(view);
+  if (MODE==='compare') return viewCompare(view);
   try {
-    if (TAB==='forecast')      return await viewForecast(view);
-    if (TAB==='pricing')       return await viewPricing(view);
-    if (TAB==='manufacturing') return await viewManufacturing(view);
-    if (TAB==='financial')     return await viewFinancial(view);
-    if (TAB==='projected')     return await viewOutput(view,'projected-sales','Projected Sales', renderProjected);
-    if (TAB==='capacity')      return await viewOutput(view,'capacity-vs-demand','Capacity vs Demand', renderCapacity);
-    if (TAB==='production')    return await viewOutput(view,'production-required','Production Required', renderProduction);
-    if (TAB==='ingredients')   return await viewOutput(view,'ingredients','Ingredients to Buy', renderIngredients);
-    if (TAB==='cashflow')      return await viewOutput(view,'cash-flow','Cash Flow', renderCashflow);
-    if (TAB==='risk')          return await viewOutput(view,'risk','Risk Assessment', renderRisk);
-    if (TAB==='compare')       return await viewCompare(view);
-  } catch(e){ view.innerHTML = `<div class="card">Error: ${esc(e.message)}</div>`; }
+    if (STEP==='plan')          return await viewPlan(view);
+    if (STEP==='forecast')      return await viewForecast(view);
+    if (STEP==='pricing')       return await viewPricing(view);
+    if (STEP==='manufacturing') return await viewManufacturing(view);
+    if (STEP==='financial')     return await viewFinancial(view);
+    if (STEP==='review')        return await viewReview(view);
+  } catch(e){ view.innerHTML = '<div class="step-head"><p class="banner miss">Error: '+esc(e.message)+'</p></div>'; }
 }
 
+function statusBadge(s){ s=s||'draft'; return '<span class="badge '+(s==='approved'?'ok':'muted')+'">'+esc(s)+'</span>'; }
+function horizonText(v){ return (v.horizon_months||12)+' months'+(v.horizon_start_month?' from '+String(v.horizon_start_month).slice(0,7):''); }
+
+// STEP 1 — Plans hub
+async function viewPlan(view) {
+  const v = curVersion();
+  let overview;
+  if (v) {
+    const lock = v.status==='approved';
+    overview = '<div class="step-head"><div class="kicker lbl">'+esc(v.plan_code||'Plan')+'</div>'
+      + '<h1>'+esc(v.name)+'</h1>'
+      + '<p>'+cap(v.scenario_type)+' &nbsp;·&nbsp; '+statusBadge(v.status)+' &nbsp;·&nbsp; '+horizonText(v)+'</p></div>'
+      + '<div class="section"><span class="label">Status</span>'
+      + '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+statusBadge(v.status)
+      + (lock
+          ? '<button class="txt-btn" onclick="unapprovePlan()">Unlock (back to draft)</button><span class="ts">Approved: plan is read-only; release to manufacturing is available on the Review step.</span>'
+          : '<button class="primary sm" onclick="approvePlan()">Approve plan</button><span class="ts">Approving locks the plan and unlocks manufacturing release.</span>')
+      + '</div></div>'
+      + '<div class="section"><span class="label">Edit details'+(lock?' · approved (locked)':'')+'</span>'
+      + '<div class="form-grid">'
+      + fld({id:'evName',label:'Plan name',value:v.name})
+      + selField({id:'evType',label:'Scenario type',options:SCENARIOS.map(s=>'<option value="'+s+'" '+(s===v.scenario_type?'selected':'')+'>'+s+'</option>').join('')})
+      + fld({id:'evStart',label:'Start month',type:'month',value:v.horizon_start_month?String(v.horizon_start_month).slice(0,7):''})
+      + fld({id:'evMonths',label:'Horizon (months)',type:'number',min:1,value:v.horizon_months||12})
+      + fld({id:'evNotes',label:'Notes',help:'Optional — context, assumptions, anything to remember about this plan.',value:v.notes||''})
+      + (lock?'':'<div class="field" style="align-self:end"><button class="primary sm" onclick="saveBasics()">Save changes</button></div>')
+      + '</div></div>';
+  } else {
+    return viewPlans(view);
+  }
+  view.innerHTML = '<button class="jump" onclick="goPlans()" style="margin-bottom:16px">← All plans</button>'
+    + overview + navBar('plan');
+}
+function viewPlans(view) {
+  view.innerHTML = '<div class="step-head"><div class="kicker lbl">Plans</div><h1>Your plans</h1>'
+    + '<p>Pick a plan to open it, or create a new one.</p></div>'
+    + '<div class="section"><div class="section-head"><span class="label">All plans ('+VERSIONS.length+')</span>'
+    + '<button class="primary sm" onclick="showNewPlanModal()">＋ New plan</button></div>'
+    + (VERSIONS.length ? planTable() : '<p class="empty">No plans yet — create one to begin.</p>')
+    + '</div>';
+}
+function planTable() {
+  let h = '<table><thead><tr><th>Code</th><th>Name</th><th>Scenario</th><th>Status</th><th>Horizon</th><th></th></tr></thead><tbody>';
+  VERSIONS.forEach(v => {
+    const cur = v.id==CURVER;
+    h += '<tr class="'+(cur?'cur':'')+'"><td class="code">'+esc(v.plan_code||'—')+'</td>'
+      + '<td class="sku">'+esc(v.name)+'</td><td>'+esc(v.scenario_type)+'</td>'
+      + '<td>'+statusBadge(v.status)+'</td><td>'+(v.horizon_months||12)+' mo</td>'
+      + '<td class="r"><button class="jump" onclick="openPlan('+v.id+')">Open →</button>'+(cur?' <span class="curtag">· current</span>':'')+'</td></tr>';
+  });
+  return h + '</tbody></table>';
+}
+async function createVersion() {
+  mvErr('');
+  const name = g('mvName').trim();
+  if (!name) { mvErr('Give the plan a name first.'); return; }
+  const body = { name, scenario_type: g('mvType'), horizon_months: parseInt(g('mvMonths'))||12 };
+  const notes = g('mvNotes').trim(); if (notes) body.notes = notes;
+  const sm = g('mvStart'); if (sm) body.horizon_start_month = sm;
+  const btn = document.getElementById('mvCreateBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+  try {
+    const v = await api('POST','/api/planning/versions', body);
+    CURVER = v.id; STEP='plan'; MODE='wizard';
+    document.getElementById('mvName').value='';
+    hideNewPlanModal();
+    await loadVersions(); status('Plan '+(v.plan_code||'')+' created.', true);
+  } catch(e){ mvErr(e.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Create plan'; } }
+}
+async function approvePlan() {
+  try { await api('POST',`/api/planning/versions/${CURVER}/approve`); status('Plan approved — release is now available on the Review step.',true); await loadVersions(); }
+  catch(e){ status(e.message,false); }
+}
+async function unapprovePlan() {
+  try { await api('POST',`/api/planning/versions/${CURVER}/unapprove`); status('Reverted to draft — editable again.',true); await loadVersions(); }
+  catch(e){ status(e.message,false); }
+}
+async function saveBasics() {
+  const body = { name:g('evName').trim(), scenario_type:g('evType'), notes:g('evNotes'), horizon_months: parseInt(g('evMonths'))||12 };
+  const sm = g('evStart'); body.horizon_start_month = sm || null;
+  try { await api('PUT',`/api/planning/versions/${CURVER}`, body); status('Saved'+nextHint(),true); await loadVersions(); }
+  catch(e){ status(e.message,false); }
+}
+
+// STEP 2 — Sales forecast
 async function viewForecast(view) {
   const rows = await api('GET',`/api/planning/versions/${CURVER}/forecast`);
-  view.innerHTML = `
-    <div class="card"><h2>Add / update forecast</h2>
-      <div class="row">
-        <label>SKU<select id="fVar">${variantOptions()}</select></label>
-        <label>Month<input id="fMonth" type="month"></label>
-        <label>Channel<select id="fCh">${channelOptions()}</select></label>
-        <label>Units<input id="fUnits" type="number" min="0" style="width:110px"></label>
-        <button onclick="addForecast()">Save</button>
-      </div>
-    </div>
-    <div class="card"><h2>Forecast rows (${rows.length})</h2>
-      <table><thead><tr><th>Month</th><th>SKU</th><th>Channel</th><th class="right">Units</th><th></th></tr></thead>
-      <tbody>${rows.map(r=>`<tr><td>${esc(r.period_month)}</td><td>${esc(r.product_name)} ${esc(r.sku_code)}</td><td>${esc(r.channel)}</td><td class="right">${num(r.units_forecast)}</td><td><button class="sec" onclick="delRow('forecast',${r.id})">✕</button></td></tr>`).join('')}</tbody></table>
-    </div>`;
+  FC_ROWS = rows;
+  const lock = isApproved();
+  const form = lock ? '' : '<div class="section"><span class="label">Add expected sales</span><div class="form-grid">'
+    + selField({id:'fVar',label:'Product',help:'Product and pack size.',options:variantOptions()})
+    + fld({id:'fMonth',label:'Month',help:'Kept after saving, so you can add more to the same month.',type:'month',value:LAST_FMONTH})
+    + selField({id:'fCh',label:'Channel',help:'Retail = shops, distributor = bulk, ecommerce = online.',options:channelOptions(LAST_FCH)})
+    + fld({id:'fUnits',label:'Units (packs)',help:'How many packs you expect to sell.',type:'number',min:0,placeholder:'500'})
+    + '<div class="field" style="align-self:end"><button class="primary sm" onclick="addForecast()">Save row</button></div>'
+    + '</div></div>';
+  let table = '<div class="section"><span class="label">Forecast entered — '+rows.length+' row'+(rows.length===1?'':'s')+'</span>';
+  if (rows.length) {
+    table += '<table><thead><tr><th>Month</th><th>SKU</th><th>Channel</th><th class="r">Units</th><th></th></tr></thead><tbody>'
+      + rows.map(r=>'<tr><td>'+esc(r.period_month)+'</td><td class="sku">'+esc(r.product_name)+' · '+esc(r.sku_code)+'</td><td>'+esc(r.channel)+'</td><td class="r">'+num(r.units_forecast)+'</td><td class="r">'+(lock?'':'<button class="x" onclick="editForecast('+r.id+')" title="Edit">✎</button> <button class="x" onclick="delRow(\'forecast\','+r.id+')" title="Remove">✕</button>')+'</td></tr>').join('')
+      + '</tbody></table>';
+  } else { table += '<p class="empty">Nothing yet. Add at least one row so we can project sales, production and cash flow.</p>'; }
+  table += '</div>';
+  let costHint = '';
+  if (rows.length) {
+    const ing = await api('GET',`/api/planning/versions/${CURVER}/ingredients`).catch(()=>null);
+    if (ing) costHint = renderForecastCost(ing);
+  }
+  view.innerHTML = stepHeader('forecast') + form + table + costHint + navBar('forecast');
+}
+function renderForecastCost(d) {
+  const toOrder = (d.ingredients||[]).filter(i=>i.to_order_kg>0).length;
+  let h = '<div class="section"><span class="label">Ingredients for this forecast</span>';
+  if (d.variants_without_bom && d.variants_without_bom.length)
+    h += '<div class="banner miss">No recipe (BOM) set for: '+d.variants_without_bom.map(esc).join(', ')+' — set it in the ERP to include these.</div>';
+  if (!d.ingredients || !d.ingredients.length) { return h + '<p class="empty">No ingredient needs computed yet — make sure each SKU has a BOM in the ERP.</p></div>'; }
+  h += '<div class="metrics"><div class="metric"><div class="v">'+money(d.total_estimated_cost)+'</div><div class="l">Estimated ingredients to buy</div></div>'
+    + '<div class="metric"><div class="v">'+num(toOrder)+'</div><div class="l">Ingredients to order</div></div></div>'
+    + '<div class="ship-link"><button class="jump" onclick="goStep(\'review\')">See full shopping list →</button></div>'
+    + '<p class="foot-note">Auto-calculated from each recipe, netted against current stock. Costs from the ingredient master.</p></div>';
+  return h;
 }
 async function addForecast() {
-  const body = { variant_id: parseInt(document.getElementById('fVar').value),
-    period_month: document.getElementById('fMonth').value,
-    channel: document.getElementById('fCh').value,
-    units_forecast: parseFloat(document.getElementById('fUnits').value)||0 };
-  try { await api('POST',`/api/planning/versions/${CURVER}/forecast`, body); status('Saved',true); renderView(); }
+  const units = g('fUnits');
+  if (units==='' || isNaN(parseFloat(units))) { status('Enter the number of units.', false); return; }
+  if (!g('fMonth')) { status('Pick a month.', false); return; }
+  LAST_FMONTH = g('fMonth'); LAST_FCH = g('fCh');
+  const body = { variant_id: parseInt(g('fVar')), period_month: g('fMonth'), channel: g('fCh'), units_forecast: parseFloat(units)||0 };
+  try { await api('POST',`/api/planning/versions/${CURVER}/forecast`, body); status('Saved — month kept, pick the next product.',true); await refresh(); }
   catch(e){ status(e.message,false); }
 }
 
+// STEP 3 — Pricing
 async function viewPricing(view) {
   const rows = await api('GET',`/api/planning/versions/${CURVER}/pricing`);
-  view.innerHTML = `
-    <div class="card"><h2>Scenario pricing</h2>
-      <div class="row">
-        <label>SKU<select id="pVar">${variantOptions()}</select></label>
-        <label>Unit cost<input id="pCost" type="number" min="0" style="width:100px"></label>
-        <label>Wholesale<input id="pWhole" type="number" min="0" style="width:100px"></label>
-        <label>Retail<input id="pRetail" type="number" min="0" style="width:100px"></label>
-        <button onclick="addPricing()">Save</button>
-      </div>
-      <p class="muted">Scenario assumptions only — separate from the live price book.</p>
-    </div>
-    <div class="card"><h2>Prices (${rows.length})</h2>
-      <table><thead><tr><th>SKU</th><th class="right">Cost</th><th class="right">Wholesale</th><th class="right">Retail</th><th></th></tr></thead>
-      <tbody>${rows.map(r=>`<tr><td>${esc(r.product_name)} ${esc(r.sku_code)}</td><td class="right">${money(r.product_cost)}</td><td class="right">${money(r.wholesale_price)}</td><td class="right">${money(r.retail_price)}</td><td><button class="sec" onclick="delRow('pricing',${r.id})">✕</button></td></tr>`).join('')}</tbody></table>
-    </div>`;
+  PR_ROWS = rows;
+  const lock = isApproved();
+  const form = lock ? '' : '<div class="section"><span class="label">Set prices</span><div class="form-grid">'
+    + selField({id:'pVar',label:'Product',options:variantOptions()})
+    + fld({id:'pCost',label:'Unit cost',help:'Cost to make one pack.',type:'number',min:0,prefix:'₨',placeholder:'120',oninput:'checkPriceWarn()',warnId:'pWarn'})
+    + fld({id:'pWhole',label:'Wholesale',help:'Price to distributors.',type:'number',min:0,prefix:'₨',placeholder:'180',oninput:'checkPriceWarn()'})
+    + fld({id:'pRetail',label:'Retail',help:'Shelf / online price.',type:'number',min:0,prefix:'₨',placeholder:'250'})
+    + '<div class="field" style="align-self:end"><button class="primary sm" onclick="addPricing()">Save price</button></div>'
+    + '</div></div>';
+  let table = '<div class="section"><span class="label">Prices entered — '+rows.length+'</span>';
+  if (rows.length) {
+    table += '<table><thead><tr><th>SKU</th><th class="r">Cost</th><th class="r">Wholesale</th><th class="r">Retail</th><th></th></tr></thead><tbody>'
+      + rows.map(r=>'<tr><td class="sku">'+esc(r.product_name)+' · '+esc(r.sku_code)+'</td><td class="r">'+money(r.product_cost)+'</td><td class="r">'+money(r.wholesale_price)+'</td><td class="r">'+money(r.retail_price)+'</td><td class="r">'+(lock?'':'<button class="x" onclick="editPricing('+r.id+')" title="Edit">✎</button> <button class="x" onclick="delRow(\'pricing\','+r.id+')" title="Remove">✕</button>')+'</td></tr>').join('')
+      + '</tbody></table>';
+  } else { table += '<p class="empty">No prices yet. These feed revenue and cash-flow projections.</p>'; }
+  table += '</div>';
+  view.innerHTML = stepHeader('pricing') + form + table + navBar('pricing');
+}
+function checkPriceWarn() {
+  const c = parseFloat(g('pCost')), w = parseFloat(g('pWhole'));
+  const el = document.getElementById('pWarn'); if (!el) return;
+  if (!isNaN(c) && !isNaN(w) && w < c) { el.textContent = '⚠ Wholesale is below unit cost — you would lose money on each pack.'; el.classList.add('show'); }
+  else { el.classList.remove('show'); }
 }
 async function addPricing() {
-  const body = { variant_id: parseInt(document.getElementById('pVar').value),
-    product_cost: document.getElementById('pCost').value, wholesale_price: document.getElementById('pWhole').value,
-    retail_price: document.getElementById('pRetail').value };
-  try { await api('POST',`/api/planning/versions/${CURVER}/pricing`, body); status('Saved',true); renderView(); }
+  if (g('pCost')==='' || g('pWhole')==='') { status('Enter at least unit cost and wholesale.', false); return; }
+  const body = { variant_id: parseInt(g('pVar')), product_cost: g('pCost'), wholesale_price: g('pWhole'), retail_price: g('pRetail') };
+  try { await api('POST',`/api/planning/versions/${CURVER}/pricing`, body); status('Saved'+nextHint(),true); await refresh(); }
   catch(e){ status(e.message,false); }
 }
 
+// STEP 4 — Manufacturing
 async function viewManufacturing(view) {
   const [mfrs, caps] = await Promise.all([
     api('GET','/api/planning/manufacturers'),
     api('GET',`/api/planning/versions/${CURVER}/manufacturing`)
   ]);
-  const mopts = mfrs.map(m=>`<option value="${m.id}">${esc(m.name)}${m.is_backup?' (backup)':''}</option>`).join('');
-  view.innerHTML = `
-    <div class="card"><h2>Manufacturer</h2>
-      <div class="row">
-        <label>Name<input id="mName"></label>
-        <label>Backup?<select id="mBackup"><option value="">No</option><option value="1">Yes</option></select></label>
-        <button onclick="addManufacturer()">Add manufacturer</button>
-      </div>
-    </div>
-    <div class="card"><h2>Capacity for this version</h2>
-      <div class="row">
-        <label>Manufacturer<select id="cMfr">${mopts}</select></label>
-        <label>Monthly capacity<input id="cCap" type="number" min="0" style="width:120px"></label>
-        <label>Batch size<input id="cBatch" type="number" min="0" style="width:100px"></label>
-        <label>MOQ<input id="cMoq" type="number" min="0" style="width:90px"></label>
-        <label>Lead days<input id="cLead" type="number" min="0" style="width:90px"></label>
-        <button onclick="addCapacity()">Save capacity</button>
-      </div>
-      <table><thead><tr><th>Manufacturer</th><th class="right">Capacity/mo</th><th class="right">Batch</th><th class="right">MOQ</th><th class="right">Lead</th><th></th></tr></thead>
-      <tbody>${caps.map(c=>`<tr><td>${esc(c.manufacturer_name)}${c.is_backup?' <span class="pill na">backup</span>':''}</td><td class="right">${num(c.monthly_capacity_units)}</td><td class="right">${num(c.batch_size)}</td><td class="right">${num(c.moq)}</td><td class="right">${num(c.lead_time_days)}</td><td><button class="sec" onclick="delRow('manufacturing',${c.id})">✕</button></td></tr>`).join('')}</tbody></table>
-    </div>`;
+  const lock = isApproved();
+  CAP_ROWS = caps;
+  const mopts = mfrs.map(m=>`<option value="${m.id}">${esc(m.name)}${m.is_backup?' (overflow)':''}</option>`).join('');
+  const addMfr = lock ? '' : '<div class="section"><span class="label">Your production lines</span><div class="form-grid">'
+    + fld({id:'mName',label:'Production line / facility',help:'Name of your production line or facility (e.g. Main line, Karachi unit).'})
+    + selField({id:'mBackup',label:'Second line / overflow?',help:'Mark as overflow if it only runs when the main line is at capacity.',options:'<option value="">No — main line</option><option value="1">Yes — overflow</option>'})
+    + '<div class="field" style="align-self:end"><button class="primary sm" onclick="addManufacturer()">Add line</button></div>'
+    + '</div></div>';
+  const capForm = lock ? '' : '<div class="section"><span class="label">How much can you produce?</span><div class="form-grid">'
+    + selField({id:'cMfr',label:'Production line',options:mopts})
+    + fld({id:'cCap',label:'Monthly capacity',help:'Max packs this line can make per month.',type:'number',min:0,suffix:'packs',placeholder:'5000'})
+    + fld({id:'cBatch',label:'Batch size',help:'Packs per production run. Production rounds up to whole batches.',type:'number',min:0,suffix:'packs',placeholder:'1000'})
+    + fld({id:'cMoq',label:'Minimum run',help:'Smallest production run worth doing.',type:'number',min:0,suffix:'packs',placeholder:'1000'})
+    + fld({id:'cLead',label:'Run lead time',help:'Days from starting a run to finished stock.',type:'number',min:0,suffix:'days',placeholder:'14'})
+    + '<div class="field" style="align-self:end"><button class="primary sm" onclick="addCapacity()">Save capacity</button></div>'
+    + '</div></div>';
+  let table = '<div class="section"><span class="label">Capacity entered — '+caps.length+'</span>';
+  if (caps.length) {
+    table += '<table><thead><tr><th>Line / facility</th><th class="r">Capacity/mo</th><th class="r">Batch</th><th class="r">Min run</th><th class="r">Lead</th><th></th></tr></thead><tbody>'
+      + caps.map(c=>'<tr><td class="sku">'+esc(c.manufacturer_name)+(c.is_backup?' <span class="badge muted">overflow</span>':'')+'</td><td class="r">'+num(c.monthly_capacity_units)+'</td><td class="r">'+num(c.batch_size)+'</td><td class="r">'+num(c.moq)+'</td><td class="r">'+num(c.lead_time_days)+'</td><td class="r">'+(lock?'':'<button class="x" onclick="editCapacity('+c.id+')" title="Edit">✎</button> <button class="x" onclick="delRow(\'manufacturing\','+c.id+')" title="Remove">✕</button>')+'</td></tr>').join('')
+      + '</tbody></table>';
+  } else { table += '<p class="empty">No capacity yet. This lets us check whether you can meet demand.</p>'; }
+  table += '</div>';
+  view.innerHTML = stepHeader('manufacturing') + addMfr + capForm + table + navBar('manufacturing');
 }
 async function addManufacturer() {
-  try { await api('POST','/api/planning/manufacturers',{name:document.getElementById('mName').value, is_backup: !!document.getElementById('mBackup').value}); status('Manufacturer added',true); renderView(); }
+  if (!g('mName').trim()) { status('Enter a production line name.', false); return; }
+  try { await api('POST','/api/planning/manufacturers',{name:g('mName'), is_backup: !!g('mBackup')}); status('Production line added',true); await refresh(); }
   catch(e){ status(e.message,false); }
 }
 async function addCapacity() {
-  const body = { manufacturer_id: parseInt(document.getElementById('cMfr').value),
-    monthly_capacity_units: document.getElementById('cCap').value, batch_size: document.getElementById('cBatch').value,
-    moq: document.getElementById('cMoq').value, lead_time_days: document.getElementById('cLead').value };
-  try { await api('POST',`/api/planning/versions/${CURVER}/manufacturing`, body); status('Saved',true); renderView(); }
+  if (!g('cMfr')) { status('Add a production line first.', false); return; }
+  const body = { manufacturer_id: parseInt(g('cMfr')), monthly_capacity_units: g('cCap'), batch_size: g('cBatch'), moq: g('cMoq'), lead_time_days: g('cLead') };
+  try { await api('POST',`/api/planning/versions/${CURVER}/manufacturing`, body); status('Saved'+nextHint(),true); await refresh(); }
   catch(e){ status(e.message,false); }
 }
 
+// STEP 5 — Financial
 async function viewFinancial(view) {
   const f = await api('GET',`/api/planning/versions/${CURVER}/financial`);
-  const fld = (id,label,val) => `<label>${label}<input id="${id}" type="number" value="${val==null?'':val}" style="width:140px"></label>`;
-  view.innerHTML = `
-    <div class="card"><h2>Financial assumptions</h2>
-      <div class="row">
-        ${fld('finCash','Beginning cash',f.beginning_cash)}
-        ${fld('finMin','Min cash threshold',f.minimum_cash_threshold)}
-        ${fld('finMkt','Marketing /mo',f.marketing_budget)}
-        ${fld('finPay','Payroll /mo',f.payroll_budget)}
-        ${fld('finFreight','Freight / unit',f.freight_cost_per_unit)}
-        ${fld('finOpex','Other opex /mo',f.other_opex_monthly)}
-        <button onclick="saveFinancial()">Save</button>
-      </div>
-      <p class="muted">Budgets are treated as monthly recurring.</p>
-    </div>`;
+  const lock = isApproved();
+  view.innerHTML = stepHeader('financial')
+    + '<div class="section"><span class="label">Cash position</span><div class="form-grid">'
+    + fld({id:'finCash',label:'Beginning cash',help:'Cash the business starts this plan with.',type:'number',prefix:'₨',placeholder:'500,000',oninput:'updateFin()',warnId:'finWarn'})
+    + fld({id:'finMin',label:'Minimum cash floor',help:'Lowest balance you are comfortable with — we flag months below it.',type:'number',prefix:'₨',placeholder:'100,000',oninput:'updateFin()'})
+    + '</div></div>'
+    + '<div class="section"><span class="label">Fixed monthly costs — charged every month</span><div class="form-grid">'
+    + fld({id:'finMkt',label:'Marketing',help:'Ads, promotions — per month.',type:'number',prefix:'₨',suffix:'/mo',oninput:'updateFin()'})
+    + fld({id:'finPay',label:'Payroll',help:'Total monthly wages.',type:'number',prefix:'₨',suffix:'/mo',oninput:'updateFin()'})
+    + fld({id:'finOpex',label:'Other operating',help:'Rent, utilities, software.',type:'number',prefix:'₨',suffix:'/mo',oninput:'updateFin()'})
+    + '</div><div class="metrics" style="margin-top:18px"><div class="metric"><div class="v" id="finFixed">₨0</div><div class="l" id="finFixedL">per month · ₨0 / year</div></div></div></div>'
+    + '<div class="section"><span class="label">Variable cost</span><div class="form-grid">'
+    + fld({id:'finFreight',label:'Freight per unit',help:'Delivery cost per pack sold.',type:'number',prefix:'₨',suffix:'/unit'})
+    + '</div></div>'
+    + '<div class="section">'
+    + fld({id:'finReason',label:'Reason for change (optional)',help:'A short note for the audit log.',placeholder:'optional'})
+    + (lock?'<p class="empty">This plan is approved and cannot be edited.</p>':'<div class="navbtns" style="margin-top:18px"><button class="primary sm" onclick="saveFinancial()">Save financial assumptions</button><span class="spacer"></span></div>')
+    + '</div>'
+    + navBar('financial');
+  setVal('finCash',f.beginning_cash); setVal('finMin',f.minimum_cash_threshold);
+  setVal('finMkt',f.marketing_budget); setVal('finPay',f.payroll_budget);
+  setVal('finOpex',f.other_opex_monthly); setVal('finFreight',f.freight_cost_per_unit);
+  if (lock) document.querySelectorAll('#view input').forEach(i=>i.disabled=true);
+  updateFin();
+}
+function setVal(id,v){ const el=document.getElementById(id); if(el && v!=null) el.value=v; }
+function updateFin() {
+  const mkt=parseFloat(g('finMkt'))||0, pay=parseFloat(g('finPay'))||0, opx=parseFloat(g('finOpex'))||0;
+  const fixed = mkt+pay+opx;
+  const vEl=document.getElementById('finFixed'), lEl=document.getElementById('finFixedL');
+  if (vEl) vEl.textContent = money(fixed);
+  if (lEl) {
+    let t = 'per month · '+money(fixed*12)+' / year';
+    const cash=parseFloat(g('finCash'));
+    if (!isNaN(cash) && fixed>0) { const m=cash/fixed; t += ' · covers ~'+m.toFixed(1)+' months'; }
+    lEl.textContent = t;
+  }
+  const min=parseFloat(g('finMin')), cash=parseFloat(g('finCash')), w=document.getElementById('finWarn');
+  if (w) { if(!isNaN(cash)&&!isNaN(min)&&min>cash){ w.textContent='⚠ Your floor is higher than your beginning cash — you would start below it.'; w.classList.add('show'); } else { w.classList.remove('show'); } }
 }
 async function saveFinancial() {
-  const g = id => document.getElementById(id).value;
   const body = { beginning_cash:g('finCash'), minimum_cash_threshold:g('finMin'), marketing_budget:g('finMkt'),
     payroll_budget:g('finPay'), freight_cost_per_unit:g('finFreight'), other_opex_monthly:g('finOpex') };
-  try { await api('POST',`/api/planning/versions/${CURVER}/financial`, body); status('Saved',true); }
+  const reason = g('finReason').trim(); if (reason) body.reason = reason;
+  try { await api('POST',`/api/planning/versions/${CURVER}/financial`, body); status('Saved'+nextHint(),true); await refresh(); }
   catch(e){ status(e.message,false); }
 }
 
 async function delRow(kind, id) {
-  const map = { forecast:'forecast', pricing:'pricing', manufacturing:'manufacturing' };
-  try { await api('DELETE',`/api/planning/${map[kind]}/${id}`); status('Removed',true); renderView(); }
+  try { await api('DELETE',`/api/planning/${kind}/${id}`); status('Removed',true); await refresh(); }
   catch(e){ status(e.message,false); }
 }
-
-// ── Outputs ──
-async function viewOutput(view, ep, title, renderer) {
-  const d = await api('GET',`/api/planning/versions/${CURVER}/${ep}`);
-  view.innerHTML = `<div class="card"><h2>${title}</h2>${renderer(d)}</div>`;
+function _setv(id,v){ const e=document.getElementById(id); if(e) e.value=(v==null?'':v); }
+function editForecast(id){
+  const r=FC_ROWS.find(x=>x.id==id); if(!r) return;
+  _setv('fVar', r.variant_id); _setv('fMonth', String(r.period_month).slice(0,7)); _setv('fCh', r.channel); _setv('fUnits', r.units_forecast);
+  LAST_FMONTH=String(r.period_month).slice(0,7); LAST_FCH=r.channel;
+  window.scrollTo({top:0,behavior:'smooth'}); status('Editing this row — change values and Save to overwrite.',true);
 }
+function editPricing(id){
+  const r=PR_ROWS.find(x=>x.id==id); if(!r) return;
+  _setv('pVar', r.variant_id); _setv('pCost', r.product_cost); _setv('pWhole', r.wholesale_price); _setv('pRetail', r.retail_price);
+  window.scrollTo({top:0,behavior:'smooth'}); status('Editing this price — change values and Save to overwrite.',true);
+}
+function editCapacity(id){
+  const r=CAP_ROWS.find(x=>x.id==id); if(!r) return;
+  _setv('cMfr', r.manufacturer_id); _setv('cCap', r.monthly_capacity_units); _setv('cBatch', r.batch_size); _setv('cMoq', r.moq); _setv('cLead', r.lead_time_days);
+  window.scrollTo({top:0,behavior:'smooth'}); status('Editing this line — change values and Save to overwrite.',true);
+}
+
+// STEP 6 — Review & Results
+async function viewReview(view) {
+  const v = curVersion();
+  const checklist = ['forecast','pricing','manufacturing','financial'].map(k => {
+    const ok = stepDone(k);
+    const label = STEPS.find(s=>s[0]===k)[1];
+    return '<div class="check"><span class="mk '+(ok?'ok':'no')+'">'+(ok?'✓':'—')+'</span><span class="nm">'+esc(label)+'</span>'+(ok?'<span class="lbl">done</span>':'<button class="jump" onclick="goStep(\''+k+'\')">complete →</button>')+'</div>';
+  }).join('');
+  view.innerHTML = '<div class="step-head"><div class="kicker lbl">'+esc(v?(v.plan_code||'Review'):'Review')+'</div>'
+    + '<h1>'+esc(v?v.name:'Review')+'</h1><p>What you have entered and what it produces. Anything missing links back to the right step.</p></div>'
+    + '<div class="section"><span class="label">Setup checklist</span>'+checklist+'</div>'
+    + '<div id="results"><p class="empty">Loading results…</p></div>';
+  const results = document.getElementById('results');
+  try {
+    const [proj, cap, prod, ing, cash, risk, releases] = await Promise.all([
+      api('GET',`/api/planning/versions/${CURVER}/projected-sales`).catch(()=>null),
+      api('GET',`/api/planning/versions/${CURVER}/capacity-vs-demand`).catch(()=>null),
+      api('GET',`/api/planning/versions/${CURVER}/production-required`).catch(()=>null),
+      api('GET',`/api/planning/versions/${CURVER}/ingredients`).catch(()=>null),
+      api('GET',`/api/planning/versions/${CURVER}/cash-flow`).catch(()=>null),
+      api('GET',`/api/planning/versions/${CURVER}/risk`).catch(()=>null),
+      api('GET',`/api/planning/versions/${CURVER}/releases`).catch(()=>[])
+    ]);
+    let h = '';
+    h += resultSection('Projected sales', proj, renderProjected, !stepDone('forecast'), ['forecast'], 'Add a sales forecast to see projected sales.');
+    h += resultSection('Capacity vs demand', cap, renderCapacity, !stepDone('manufacturing'), ['manufacturing'], 'Add production capacity to check you can meet demand.');
+    h += resultSection('Production required', prod, renderProduction, !stepDone('forecast'), ['forecast'], 'Add a sales forecast to see how much to produce.');
+    h += resultSection('Ingredients to buy', ing, renderIngredients, !stepDone('forecast'), ['forecast'], 'Add a sales forecast (and set BOMs in the ERP).');
+    h += resultSection('Cash flow', cash, renderCashflow, !(stepDone('financial')&&stepDone('pricing')), ['pricing','financial'], 'Cash flow needs both pricing and financial.');
+    h += resultSection('Risk', risk, renderRisk, false, [], '');
+    h += releaseSection(v, prod, releases);
+    results.innerHTML = h;
+  } catch(e) { results.innerHTML = '<p class="banner miss">Error loading results: '+esc(e.message)+'</p>'; }
+}
+function releaseSection(v, prod, releases) {
+  let h = '<div class="section"><span class="label">Release to manufacturing</span>';
+  if (!v || v.status!=='approved')
+    return h + '<p class="empty">Approve this plan (set its status to approved) to release production into the ERP as Work Orders.</p></div>';
+  const months = (prod && prod.months) ? prod.months.map(m=>m.period_month) : [];
+  if (!months.length)
+    return h + '<p class="empty">No production months to release — add a sales forecast first.</p></div>';
+  const opts = months.map(m=>'<option value="'+m+'">'+esc(String(m).slice(0,7))+'</option>').join('');
+  h += '<p class="foot-note" style="font-style:normal;margin:0 0 12px">Creates one Work Order per SKU for the chosen month (in-house). Your team converts each to a batch in the ERP. Already-released SKUs for that month are skipped.</p>';
+  h += '<div style="display:flex;gap:12px;align-items:center;margin-bottom:18px"><select id="relMonth" style="padding:9px;border:1px solid var(--rule-2);border-radius:4px;font-family:var(--sans)">'+opts+'</select>'
+    + '<button class="primary sm" onclick="releaseMonth()">Release to manufacturing</button></div>';
+  if (releases && releases.length) {
+    h += '<table><thead><tr><th>Month</th><th>SKU</th><th class="r">WO #</th><th>Status</th></tr></thead><tbody>'
+      + releases.map(r=>'<tr><td>'+esc(String(r.period_month).slice(0,7))+'</td><td class="sku">'+esc(r.product_name)+' · '+esc(r.sku_code)+'</td><td class="r">'+esc(r.wo_number||('#'+r.work_order_id))+'</td><td>'+esc(r.wo_status||'—')+'</td></tr>').join('')
+      + '</tbody></table>';
+  } else { h += '<p class="empty">Nothing released yet.</p>'; }
+  return h + '</div>';
+}
+async function releaseMonth() {
+  const m = g('relMonth'); if (!m) { status('Pick a month',false); return; }
+  try {
+    const d = await api('POST',`/api/planning/versions/${CURVER}/release`,{period_month:m});
+    status('Released '+d.created_count+' work order'+(d.created_count===1?'':'s')+(d.skipped_count?' ('+d.skipped_count+' already released)':'')+'.', true);
+    renderView();
+  } catch(e){ status(e.message,false); }
+}
+function resultSection(title, data, renderer, missing, jumps, msg) {
+  let body;
+  if (missing) {
+    const links = (jumps||[]).map(k=>'<button class="jump" onclick="goStep(\''+k+'\')">'+esc(STEPS.find(s=>s[0]===k)[1])+' →</button>').join(' ');
+    body = '<div class="banner miss"><span>'+esc(msg)+'</span>'+links+'</div>';
+  } else if (!data) { body = '<p class="empty">Not available.</p>'; }
+  else { try { body = renderer(data); } catch(e){ body = '<p class="empty">Could not render: '+esc(e.message)+'</p>'; } }
+  return '<div class="section"><span class="label">'+esc(title)+'</span>'+body+'</div>';
+}
+
+// ── result renderers ──
 function renderProjected(d) {
-  let h = `<div><span class="kpi"><div class="v">${num(d.totals.units)}</div><div class="l">Total units</div></span>
-    <span class="kpi"><div class="v">${money(d.totals.revenue)}</div><div class="l">Total revenue${d.has_pricing?'':' (set pricing)'}</div></span></div>`;
-  h += `<table><thead><tr><th>Window</th><th class="right">Units</th><th class="right">Revenue</th></tr></thead><tbody>`;
-  ['m3','m6','m12'].forEach(k=>{ const w=d.windows[k]; h+=`<tr><td>${k.slice(1)} months</td><td class="right">${num(w.units)}</td><td class="right">${money(w.revenue)}</td></tr>`; });
-  h += `</tbody></table><h3 class="muted">By channel</h3><table><thead><tr><th>Channel</th><th class="right">Units</th><th class="right">Revenue</th></tr></thead><tbody>`;
-  Object.keys(d.by_channel).forEach(c=>{ const x=d.by_channel[c]; h+=`<tr><td>${esc(c)}</td><td class="right">${num(x.units)}</td><td class="right">${money(x.revenue)}</td></tr>`; });
-  return h + '</tbody></table>';
+  let h = '<div class="metrics"><div class="metric"><div class="v">'+num(d.totals.units)+'</div><div class="l">Total units</div></div>'
+    + '<div class="metric"><div class="v">'+money(d.totals.revenue)+'</div><div class="l">Total revenue'+(d.has_pricing?'':' (set pricing)')+'</div></div></div>';
+  h += '<table style="margin-top:18px"><thead><tr><th>Window</th><th class="r">Units</th><th class="r">Revenue</th></tr></thead><tbody>';
+  ['m3','m6','m12'].forEach(k=>{ const w=d.windows[k]; h+='<tr><td>'+k.slice(1)+' months</td><td class="r">'+num(w.units)+'</td><td class="r">'+money(w.revenue)+'</td></tr>'; });
+  h += '</tbody></table>';
+  return h;
 }
 function renderCapacity(d) {
-  if (!d.has_capacity) return '<p class="muted">No manufacturing capacity entered for this version.</p>';
-  let h = `<div><span class="kpi"><div class="v">${num(d.base_monthly_capacity)}</div><div class="l">Base capacity/mo</div></span>
-    <span class="kpi"><div class="v"><span class="pill ${d.can_meet?'green':'red'}">${d.can_meet?'CAN MEET':'DEFICIT'}</span></div><div class="l">Peak demand ${num(d.peak_demand)}</div></span></div>`;
-  h += `<table><thead><tr><th>Month</th><th class="right">Demand</th><th class="right">Capacity</th><th class="right">Surplus/Deficit</th></tr></thead><tbody>`;
-  d.months.forEach(m=>{ h+=`<tr><td>${esc(m.period_month)}</td><td class="right">${num(m.demand)}</td><td class="right">${num(m.capacity)}</td><td class="right" style="color:${m.deficit>0?'var(--red)':'var(--green)'}">${m.deficit>0?'-'+num(m.deficit):'+'+num(m.surplus)}</td></tr>`; });
+  if (!d.has_capacity) return '<p class="empty">No manufacturing capacity entered.</p>';
+  let h = '<div class="metrics"><div class="metric"><div class="v">'+num(d.base_monthly_capacity)+'</div><div class="l">Base capacity / month</div></div>'
+    + '<div class="metric"><div class="v">'+(d.can_meet?'Meets':'Deficit')+'</div><div class="l">Peak demand '+num(d.peak_demand)+'</div></div></div>';
+  h += '<table style="margin-top:18px"><thead><tr><th>Month</th><th class="r">Demand</th><th class="r">Capacity</th><th class="r">+/−</th></tr></thead><tbody>';
+  d.months.forEach(m=>{ h+='<tr><td>'+esc(m.period_month)+'</td><td class="r">'+num(m.demand)+'</td><td class="r">'+num(m.capacity)+'</td><td class="r" style="color:'+(m.deficit>0?'var(--red)':'var(--green)')+'">'+(m.deficit>0?'-'+num(m.deficit):'+'+num(m.surplus))+'</td></tr>'; });
   return h + '</tbody></table>';
 }
 function renderProduction(d) {
-  let h = `<div><span class="kpi"><div class="v">${num(d.total_required)}</div><div class="l">Total units to produce</div></span>
-    <span class="kpi"><div class="l">Rounding: batch ${num(d.rounding.batch_size)||'—'}, MOQ ${num(d.rounding.moq)||'—'}</div></span></div>`;
-  h += `<table><thead><tr><th>Month</th><th class="right">Demand</th><th class="right">Required (raw)</th><th class="right">Required (rounded)</th></tr></thead><tbody>`;
-  d.months.forEach(m=>{ h+=`<tr><td>${esc(m.period_month)}</td><td class="right">${num(m.demand)}</td><td class="right">${num(m.required_raw)}</td><td class="right"><b>${num(m.required_rounded)}</b></td></tr>`; });
+  let h = '<div class="metrics"><div class="metric"><div class="v">'+num(d.total_required)+'</div><div class="l">Total units to produce</div></div></div>';
+  h += '<table style="margin-top:18px"><thead><tr><th>Month</th><th class="r">Demand</th><th class="r">Raw</th><th class="r">Rounded</th></tr></thead><tbody>';
+  d.months.forEach(m=>{ h+='<tr><td>'+esc(m.period_month)+'</td><td class="r">'+num(m.demand)+'</td><td class="r">'+num(m.required_raw)+'</td><td class="r">'+num(m.required_rounded)+'</td></tr>'; });
   return h + '</tbody></table>';
 }
 function renderCashflow(d) {
-  if (!d.has_financial) return '<p class="muted">Enter financial assumptions to project cash flow.</p>';
-  let h = `<div><span class="kpi"><div class="v">${money(d.ending_balance)}</div><div class="l">Ending balance</div></span>
-    <span class="kpi"><div class="v">${money(d.min_running_balance)}</div><div class="l">Lowest point</div></span>
-    <span class="kpi"><div class="v"><span class="pill ${d.breaches_threshold?'red':'green'}">${d.breaches_threshold?'BREACH':'OK'}</span></div><div class="l">vs ${money(d.minimum_cash_threshold)} min</div></span></div>`;
-  h += `<table><thead><tr><th>Month</th><th class="right">In</th><th class="right">Out</th><th class="right">Net</th><th class="right">Balance</th></tr></thead><tbody>`;
-  d.months.forEach(m=>{ h+=`<tr><td>${esc(m.period_month)}</td><td class="right">${money(m.cash_in)}</td><td class="right">${money(m.cash_out)}</td><td class="right">${money(m.net)}</td><td class="right" style="color:${m.below_threshold?'var(--red)':'inherit'}"><b>${money(m.running_balance)}</b></td></tr>`; });
-  return h + `</tbody></table><p class="muted">${esc(d.assumptions_note||'')}</p>`;
+  if (!d.has_financial) return '<p class="empty">Enter financial assumptions to project cash flow.</p>';
+  let h = '<div class="metrics"><div class="metric"><div class="v">'+money(d.ending_balance)+'</div><div class="l">Ending balance</div></div>'
+    + '<div class="metric"><div class="v">'+money(d.min_running_balance)+'</div><div class="l">Lowest point</div></div>'
+    + '<div class="metric"><div class="v">'+(d.breaches_threshold?'Breach':'OK')+'</div><div class="l">vs '+money(d.minimum_cash_threshold)+' floor</div></div></div>';
+  h += '<table style="margin-top:18px"><thead><tr><th>Month</th><th class="r">In</th><th class="r">Out</th><th class="r">Net</th><th class="r">Balance</th></tr></thead><tbody>';
+  d.months.forEach(m=>{ h+='<tr><td>'+esc(m.period_month)+'</td><td class="r">'+money(m.cash_in)+'</td><td class="r">'+money(m.cash_out)+'</td><td class="r">'+money(m.net)+'</td><td class="r" style="color:'+(m.below_threshold?'var(--red)':'inherit')+'">'+money(m.running_balance)+'</td></tr>'; });
+  return h + '</tbody></table>';
 }
 function renderIngredients(d) {
   let h = '';
   if (d.variants_without_bom && d.variants_without_bom.length)
-    h += `<div style="background:#fdecea;color:var(--red);padding:8px 12px;border-radius:8px;margin-bottom:10px">No BOM set for: ${d.variants_without_bom.map(esc).join(', ')} — set the recipe in the ERP (Production → BOM Setup), then these ingredients will appear.</div>`;
-  h += `<div><span class="kpi"><div class="v">${money(d.total_estimated_cost)}</div><div class="l">Estimated purchase cost</div></span></div>`;
-  if (!d.ingredients.length) return h + '<p class="muted">No ingredient requirements yet — add a sales forecast, and make sure each SKU has a BOM in the ERP.</p>';
-  h += `<table><thead><tr><th>Ingredient</th><th class="right">Needed kg</th><th class="right">In stock kg</th><th class="right">To order kg</th><th class="right">₨/kg</th><th class="right">Est. cost</th></tr></thead><tbody>`;
-  d.ingredients.forEach(i=>{ h+=`<tr><td>${esc(i.ing_code)}</td><td class="right">${kg(i.needed_kg)}</td><td class="right">${kg(i.available_kg)}</td><td class="right" style="${i.to_order_kg>0?'color:var(--red);font-weight:700':''}">${kg(i.to_order_kg)}</td><td class="right">${num(i.cost_per_kg)}</td><td class="right">${money(i.estimated_cost)}</td></tr>`; });
-  return h + `</tbody></table><p class="muted">${esc(d.note||'')}</p>`;
+    h += '<div class="banner miss">No BOM set for: '+d.variants_without_bom.map(esc).join(', ')+' — set the recipe in the ERP.</div>';
+  h += '<div class="metrics"><div class="metric"><div class="v">'+money(d.total_estimated_cost)+'</div><div class="l">Estimated purchase cost</div></div></div>';
+  if (!d.ingredients.length) return h + '<p class="empty">No ingredient requirements yet.</p>';
+  h += '<table style="margin-top:18px"><thead><tr><th>Ingredient</th><th class="r">Needed kg</th><th class="r">In stock</th><th class="r">To order</th><th class="r">₨/kg</th><th class="r">Cost</th></tr></thead><tbody>';
+  d.ingredients.forEach(i=>{ h+='<tr><td>'+esc(i.ing_code)+'</td><td class="r">'+kg(i.needed_kg)+'</td><td class="r">'+kg(i.available_kg)+'</td><td class="r" style="'+(i.to_order_kg>0?'color:var(--red)':'')+'">'+kg(i.to_order_kg)+'</td><td class="r">'+num(i.cost_per_kg)+'</td><td class="r">'+money(i.estimated_cost)+'</td></tr>'; });
+  return h + '</tbody></table>';
 }
-function lvl(l){ const c={green:'green',yellow:'yellow',red:'red'}[l]||'na'; return `<span class="pill ${c}">${esc((l||'n/a').toUpperCase())}</span>`; }
+function lvl(l){ const m={green:'ok',yellow:'muted',red:'miss'}; const cls=m[l]||'muted'; return '<span class="badge '+(cls==='miss'?'':'')+'" style="'+(l==='red'?'background:var(--red-soft);color:var(--red)':l==='green'?'':'')+'">'+esc((l||'n/a').toUpperCase())+'</span>'; }
 function renderRisk(d) {
-  let h = `<div style="margin-bottom:10px">Overall: ${lvl(d.overall)}</div>`;
-  h += `<table><thead><tr><th>Category</th><th>Level</th><th>Detail</th></tr></thead><tbody>`;
-  Object.keys(d.categories).forEach(k=>{ const c=d.categories[k]; h+=`<tr><td>${esc(k)}</td><td>${lvl(c.level)}</td><td class="muted">${esc(c.detail)}</td></tr>`; });
+  let h = '<p style="font-size:14px;margin:0 0 14px">Overall: '+lvl(d.overall)+'</p>';
+  h += '<table><thead><tr><th>Category</th><th>Level</th><th>Detail</th></tr></thead><tbody>';
+  Object.keys(d.categories).forEach(k=>{ const c=d.categories[k]; h+='<tr><td>'+esc(k)+'</td><td>'+lvl(c.level)+'</td><td style="color:var(--ink-2)">'+esc(c.detail)+'</td></tr>'; });
   return h + '</tbody></table>';
 }
 
-async function viewCompare(view) {
-  const opts = VERSIONS.map(v=>`<label style="flex-direction:row;align-items:center;gap:5px"><input type="checkbox" class="cmpChk" value="${v.id}"> ${esc(v.name)}</label>`).join('');
-  view.innerHTML = `<div class="card"><h2>Compare scenarios</h2><div class="row">${opts}<button onclick="runCompare()">Compare</button></div><div id="cmpOut"></div></div>`;
+// ── Landing / home ──
+function timeGreeting(){ const h=new Date().getHours(); return h<12?'Good morning':(h<17?'Good afternoon':'Good evening'); }
+function viewHome(view) {
+  const savedVer = parseInt(localStorage.getItem('spx_plan_ver'));
+  const savedStep = localStorage.getItem('spx_plan_step');
+  const rv = VERSIONS.find(v=>v.id==savedVer);
+  const rlabel = (STEPS.find(s=>s[0]===savedStep)||[])[1];
+  const cards = [];
+  if (rv && rlabel) cards.push(['Resume where you left off', (rv.plan_code?rv.plan_code+' · ':'')+rv.name+' · '+rlabel, 'resumeLast()']);
+  cards.push(['Create a new plan', 'Start a fresh scenario from scratch.', 'showNewPlanModal()']);
+  cards.push(['See current plans', VERSIONS.length+' plan'+(VERSIONS.length===1?'':'s')+' on file — open, edit or compare.', 'goPlans()']);
+  let h = '<div class="home"><div class="home-greet">'+timeGreeting()+'</div>'
+    + '<h1 class="home-title">What would you like to do?</h1><div class="home-cards">';
+  cards.forEach((c,i)=>{ h += '<button class="home-card" onclick="'+c[2]+'"><div class="hc-n">'+String(i+1).padStart(2,'0')+'</div>'
+    + '<div class="hc-t">'+esc(c[0])+'</div><div class="hc-d">'+esc(c[1])+'</div><div class="hc-go">→</div></button>'; });
+  view.innerHTML = h + '</div></div>';
+}
+async function resumeLast(){
+  const v = parseInt(localStorage.getItem('spx_plan_ver'));
+  const s = localStorage.getItem('spx_plan_step') || 'plan';
+  if (v && VERSIONS.find(x=>x.id==v)) { CURVER=v; const sel=document.getElementById('verSel'); if(sel) sel.value=v; }
+  STEP = STEPS.find(x=>x[0]===s) ? s : 'plan'; MODE='wizard'; await refresh();
+}
+async function goPlans(){ MODE='plans'; await refresh(); }
+function goHome(){ MODE='home'; renderStepper(); renderView(); }
+
+// ── Compare ──
+function openCompare(){ MODE='compare'; renderStepper(); renderView(); }
+function viewCompare(view) {
+  const opts = VERSIONS.map(v=>'<label style="display:flex;align-items:center;gap:6px;margin:0 18px 8px 0;font-size:13px"><input type="checkbox" class="cmpChk" value="'+v.id+'"> '+esc(v.plan_code||'')+' '+esc(v.name)+'</label>').join('');
+  view.innerHTML = '<div class="navbtns" style="margin:0 0 18px;border:none;padding:0"><button class="txt-btn" onclick="goStep(\''+STEP+'\')">← Back to wizard</button><span class="spacer"></span></div>'
+    + '<div class="step-head"><div class="kicker lbl">Compare</div><h1>Compare plans</h1><p>Tick two or more plans to see units, revenue, capacity, cash and risk side by side. The safest is starred.</p></div>'
+    + '<div class="section"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:16px">'+opts+'<button class="primary sm" onclick="runCompare()">Compare</button></div><div id="cmpOut"></div></div>';
 }
 async function runCompare() {
   const ids = Array.from(document.querySelectorAll('.cmpChk:checked')).map(c=>c.value);
-  if (!ids.length) { status('Pick at least one version',false); return; }
+  if (!ids.length) { status('Pick at least one plan',false); return; }
   try {
     const d = await api('GET',`/api/planning/compare?versions=${ids.join(',')}`);
-    let h = `<p class="muted">Safest: <b>${esc((VERSIONS.find(v=>v.id==d.safest_version_id)||{}).name||'—')}</b></p>`;
-    h += `<table><thead><tr><th>Scenario</th><th class="right">Units</th><th class="right">Revenue</th><th>Capacity</th><th class="right">Min cash</th><th>Risk</th></tr></thead><tbody>`;
+    let h = '<p class="foot-note" style="font-style:normal">Safest: '+esc((VERSIONS.find(v=>v.id==d.safest_version_id)||{}).name||'—')+'</p>';
+    h += '<table><thead><tr><th>Scenario</th><th class="r">Units</th><th class="r">Revenue</th><th>Capacity</th><th class="r">Min cash</th><th>Risk</th></tr></thead><tbody>';
     d.scenarios.forEach(s=>{ const safe = s.version_id==d.safest_version_id;
-      h+=`<tr style="${safe?'background:#fff7e6':''}"><td>${esc(s.name)} ${safe?'⭐':''}</td><td class="right">${num(s.total_units)}</td><td class="right">${money(s.total_revenue)}</td><td>${s.can_meet==null?'—':(s.can_meet?'<span class="pill green">meet</span>':'<span class="pill red">deficit</span>')}</td><td class="right">${money(s.min_running_balance)}</td><td>${lvl(s.overall_risk)}</td></tr>`; });
+      h+='<tr class="'+(safe?'cur':'')+'"><td class="sku">'+esc(s.name)+(safe?' ★':'')+'</td><td class="r">'+num(s.total_units)+'</td><td class="r">'+money(s.total_revenue)+'</td><td>'+(s.can_meet==null?'—':(s.can_meet?'meets':'deficit'))+'</td><td class="r">'+money(s.min_running_balance)+'</td><td>'+lvl(s.overall_risk)+'</td></tr>'; });
     document.getElementById('cmpOut').innerHTML = h + '</tbody></table>';
   } catch(e){ status(e.message,false); }
 }

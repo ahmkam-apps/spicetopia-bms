@@ -9363,6 +9363,8 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, risk_assessment(vid)); return
                 if len(parts) == 6 and parts[5] == 'ingredients':
                     send_json(self, ingredient_requirements(vid)); return
+                if len(parts) == 6 and parts[5] == 'releases':
+                    send_json(self, list_releases(vid)); return
 
             send_error(self, "Not found", 404)
 
@@ -10498,6 +10500,12 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, upsert_financial(vid, data, sess['username']), 201); return
                 if len(parts) == 6 and parts[5] == 'pricing':
                     send_json(self, upsert_pricing(vid, data, sess['username']), 201); return
+                if len(parts) == 6 and parts[5] == 'release':
+                    send_json(self, release_to_manufacturing(vid, data.get('period_month'), sess['username']), 201); return
+                if len(parts) == 6 and parts[5] == 'approve':
+                    send_json(self, approve_plan_version(vid, sess['username'])); return
+                if len(parts) == 6 and parts[5] == 'unapprove':
+                    send_json(self, unapprove_plan_version(vid, sess['username'])); return
 
             send_error(self, "Not found", 404)
 
@@ -13017,6 +13025,8 @@ if __name__ == '__main__':
     ensure_plan_version_horizon()        # planning M1: per-version horizon columns
     ensure_plan_sales_tables()           # planning M1: plan_sales_forecast + plan_sales_target
     ensure_plan_m2_tables()              # planning M2: manufacturer, manufacturing, financial, pricing
+    ensure_plan_code()                   # planning: PLAN-### human code + backfill existing
+    ensure_plan_release()                # planning: manufacturing-handoff release log
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
     import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh

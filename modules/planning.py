@@ -23,6 +23,7 @@ from modules.db import _conn, qry, qry1, save_db
 __all__ = [
     'SCENARIO_TYPES', 'PLAN_CHANNELS',
     'list_plan_versions', 'get_plan_version', 'create_plan_version', 'update_plan_version',
+    'approve_plan_version', 'unapprove_plan_version',
     'list_sales_forecast', 'upsert_sales_forecast', 'delete_sales_forecast',
     'list_sales_targets', 'upsert_sales_target', 'delete_sales_target',
     'projected_sales',
@@ -39,6 +40,8 @@ __all__ = [
     'list_active_variants',
     # Ingredients to buy (reuses existing BOM engine)
     'ingredient_requirements',
+    # Plan → manufacturing handoff (in-house WO release)
+    'release_to_manufacturing', 'list_releases',
 ]
 
 SCENARIO_TYPES = ('draft', 'approved', 'conservative', 'expected', 'aggressive', 'revised')
@@ -177,13 +180,27 @@ def create_plan_version(data, changed_by):
 
     c = _conn()
     try:
-        c.execute("""
-            INSERT INTO plan_version
-                (name, scenario_type, status, parent_version_id, notes,
-                 horizon_start_month, horizon_months, created_by, updated_by)
-            VALUES (?,?,'draft',?,?,?,?,?,?)
-        """, (name, scenario_type, parent_id, notes, horizon_start, horizon_months,
-              changed_by, changed_by))
+        has_code = any(r[1] == 'plan_code' for r in c.execute("PRAGMA table_info(plan_version)").fetchall())
+        if has_code:
+            mx = c.execute(
+                "SELECT MAX(CAST(SUBSTR(plan_code,6) AS INTEGER)) FROM plan_version WHERE plan_code LIKE 'PLAN-%'"
+            ).fetchone()[0] or 0
+            plan_code = f"PLAN-{mx + 1:03d}"
+            c.execute("""
+                INSERT INTO plan_version
+                    (plan_code, name, scenario_type, status, parent_version_id, notes,
+                     horizon_start_month, horizon_months, created_by, updated_by)
+                VALUES (?,?,?,'draft',?,?,?,?,?,?)
+            """, (plan_code, name, scenario_type, parent_id, notes, horizon_start, horizon_months,
+                  changed_by, changed_by))
+        else:
+            c.execute("""
+                INSERT INTO plan_version
+                    (name, scenario_type, status, parent_version_id, notes,
+                     horizon_start_month, horizon_months, created_by, updated_by)
+                VALUES (?,?,'draft',?,?,?,?,?,?)
+            """, (name, scenario_type, parent_id, notes, horizon_start, horizon_months,
+                  changed_by, changed_by))
         vid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
         _log_change(c, vid, 'INSERT',
                     {'name': name, 'scenario_type': scenario_type, 'horizon_months': horizon_months},
@@ -198,12 +215,17 @@ def create_plan_version(data, changed_by):
 
 
 def update_plan_version(version_id, data, changed_by):
-    """Edit name / notes / horizon of a non-approved version. scenario_type and
-    status changes (approve/clone/archive) are handled by later milestones."""
+    """Edit name / scenario_type / notes / horizon of a non-approved version.
+    status changes (approve/unapprove) are separate actions."""
     v = _require_editable(version_id)
     sets, vals = [], []
     if 'name' in data and str(data['name']).strip():
         sets.append("name=?"); vals.append(str(data['name']).strip())
+    if 'scenario_type' in data and str(data.get('scenario_type') or '').strip():
+        st = str(data['scenario_type']).strip().lower()
+        if st not in SCENARIO_TYPES:
+            raise ValueError(f"scenario_type must be one of {', '.join(SCENARIO_TYPES)}")
+        sets.append("scenario_type=?"); vals.append(st)
     if 'notes' in data:
         sets.append("notes=?"); vals.append((str(data.get('notes') or '').strip() or None))
     if 'horizon_start_month' in data:
@@ -228,6 +250,50 @@ def update_plan_version(version_id, data, changed_by):
         c.commit()
     except Exception:
         c.rollback(); raise
+    finally:
+        c.close()
+    save_db()
+    return get_plan_version(version_id)
+
+
+def approve_plan_version(version_id, changed_by):
+    """Approve a plan (draft → approved). Approved plans become immutable (input edits
+    blocked) and eligible for manufacturing release. The one_approved_launch_plan index
+    only restricts plans whose scenario_type is literally 'approved'."""
+    v = get_plan_version(version_id)
+    if v['status'] == 'approved':
+        return v
+    c = _conn()
+    try:
+        c.execute("""UPDATE plan_version SET status='approved', approved_by=?, approved_at=?,
+                     updated_by=?, updated_at=? WHERE id=?""",
+                  (changed_by, _now(), changed_by, _now(), version_id))
+        _log_change(c, version_id, 'UPDATE', {'action': 'approve', 'status': 'approved'}, changed_by, None)
+        c.commit()
+    except Exception as e:
+        c.rollback()
+        if 'one_approved_launch_plan' in str(e) or 'UNIQUE' in str(e).upper():
+            raise ValueError("Another launch plan is already approved — unlock it first.")
+        raise
+    finally:
+        c.close()
+    save_db()
+    return get_plan_version(version_id)
+
+
+def unapprove_plan_version(version_id, changed_by):
+    """Revert an approved plan back to draft so it can be edited again. (Work orders already
+    released to the ERP are unaffected — plan/actual stay separate.)"""
+    v = get_plan_version(version_id)
+    if v['status'] != 'approved':
+        return v
+    c = _conn()
+    try:
+        c.execute("""UPDATE plan_version SET status='draft', approved_by=NULL, approved_at=NULL,
+                     updated_by=?, updated_at=? WHERE id=?""",
+                  (changed_by, _now(), version_id))
+        _log_change(c, version_id, 'UPDATE', {'action': 'unapprove', 'status': 'draft'}, changed_by, None)
+        c.commit()
     finally:
         c.close()
     save_db()
@@ -1123,3 +1189,103 @@ def ingredient_requirements(version_id):
         'note': 'Quantities from forecast production volume, run through the live BOM; '
                 'netted against current ingredient stock. Costs from the ingredient master.',
     }
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  PLAN → MANUFACTURING HANDOFF  (in-house: release plan-month as Work Orders)
+# ═══════════════════════════════════════════════════════════════════
+
+def list_releases(version_id):
+    """Releases already pushed from this plan to manufacturing (drives released-state)."""
+    get_plan_version(version_id)
+    if not _table_exists('plan_release'):
+        return []
+    return qry("""
+        SELECT r.*, pv.sku_code, p.name AS product_name, w.wo_number, w.status AS wo_status
+        FROM plan_release r
+        JOIN product_variants pv ON pv.id = r.variant_id
+        JOIN products p          ON p.id  = pv.product_id
+        LEFT JOIN work_orders w  ON w.id  = r.work_order_id
+        WHERE r.plan_version_id = ?
+        ORDER BY r.period_month, pv.sku_code
+    """, (version_id,))
+
+
+def release_to_manufacturing(version_id, period_month, changed_by):
+    """Release one plan-month's per-SKU production into the ERP as standalone Work Orders.
+
+    In-house model: each SKU's forecast units for the month are rounded up to the
+    primary line's batch size (and floored at its minimum run), then a standalone WO is
+    created via the ERP's own create_work_order (which generates IDs + checks feasibility).
+    The team converts each WO → Batch through the normal two-step flow; inventory moves
+    only there. Approved plans only. Idempotent per (plan, month, variant) via plan_release.
+    """
+    from modules.production import create_work_order
+    v = get_plan_version(version_id)
+    if v.get('status') != 'approved':
+        raise ValueError("Only an approved plan can release to manufacturing")
+    month = _norm_month(period_month)
+
+    _, _window, rows = _window_forecast(v)
+    units_by_variant = {}
+    for r in rows:
+        if r['period_month'] == month:
+            units_by_variant[r['variant_id']] = units_by_variant.get(r['variant_id'], 0) + (r['units'] or 0)
+    if not units_by_variant:
+        raise ValueError(f"No forecast for {month[:7]} to release")
+
+    prim = qry1("""SELECT m.batch_size, m.moq FROM plan_manufacturing m
+                   JOIN plan_manufacturer mf ON mf.id=m.manufacturer_id
+                   WHERE m.plan_version_id=? AND mf.is_backup=0
+                   ORDER BY m.id LIMIT 1""", (version_id,))
+    batch = (prim or {}).get('batch_size') or None
+    moq = (prim or {}).get('moq') or None
+
+    released = set()
+    if _table_exists('plan_release'):
+        for r in qry("SELECT variant_id FROM plan_release WHERE plan_version_id=? AND period_month=?",
+                     (version_id, month)):
+            released.add(r['variant_id'])
+
+    plan_code = v.get('plan_code') or f"PLAN-{version_id}"
+    label = month[:7]
+    created, skipped = [], []
+    for vid_, units in units_by_variant.items():
+        if units <= 0:
+            continue
+        if vid_ in released:
+            skipped.append({'variant_id': vid_, 'reason': 'already released'})
+            continue
+        qty = units
+        if batch:
+            qty = math.ceil(qty / batch) * batch
+        if moq and qty < moq:
+            qty = moq
+        qty = int(math.ceil(qty))
+        if qty <= 0:
+            continue
+        wo = create_work_order({'productVariantId': vid_, 'qtyUnits': qty,
+                                'targetDate': month, 'notes': f'Plan {plan_code} · {label}'})
+        created.append({'variant_id': vid_, 'qty': qty,
+                        'work_order_id': wo['id'], 'wo_number': wo['woNumber']})
+
+    if created:
+        c = _conn()
+        try:
+            for item in created:
+                c.execute("""INSERT INTO plan_release
+                             (plan_version_id, period_month, variant_id, work_order_id, released_by)
+                             VALUES (?,?,?,?,?)""",
+                          (version_id, month, item['variant_id'], item['work_order_id'], changed_by))
+            _log_change(c, version_id, 'INSERT',
+                        {'action': 'release_to_manufacturing', 'month': month, 'created': created}, changed_by, None)
+            c.commit()
+        except Exception:
+            c.rollback(); raise
+        finally:
+            c.close()
+        save_db()
+
+    return {'version_id': version_id, 'period_month': month,
+            'created': created, 'skipped': skipped,
+            'created_count': len(created), 'skipped_count': len(skipped)}
