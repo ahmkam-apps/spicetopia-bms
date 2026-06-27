@@ -7761,6 +7761,8 @@ function showShortfallPanel(woId, woNum, requirements) {
   const short  = requirements.filter(r => !r.ok);
   const ok     = requirements.filter(r =>  r.ok);
   const fmtKg  = g => (g / 1000).toFixed(2) + ' kg';
+  window._procShort = window._procShort || {};
+  window._procShort[woId] = short;   // stash so the button doesn't inline JSON in its onclick
 
   const shortRows = short.map(r =>
     '<tr style="background:#fff5f5">'
@@ -7797,14 +7799,15 @@ function showShortfallPanel(woId, woNum, requirements) {
     + '</table>'
     + '<div id="wo-shortfall-msg-' + woId + '" style="margin-bottom:8px"></div>'
     + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
-    + '<button class="btn btn-primary" onclick="showProcurementForm(' + woId + ', \'' + woNum + '\', ' + JSON.stringify(short) + ')">🛒 Create Procurement Order</button>'
+    + '<button class="btn btn-primary" onclick="showProcurementForm(' + woId + ', \'' + woNum + '\')">🛒 Create Procurement Order</button>'
     + '<button class="btn btn-outline" onclick="_closeProcModal()">Cancel</button>'
     + '</div>'
     + '<div id="wo-procurement-form-' + woId + '" style="display:none;margin-top:16px"></div>'
   );
 }
 
-async function showProcurementForm(woId, woNum, shortItems) {
+async function showProcurementForm(woId, woNum) {
+  const shortItems = (window._procShort || {})[woId] || [];
   const formDiv = document.getElementById(`wo-procurement-form-${woId}`);
   formDiv.innerHTML = '<div style="color:var(--text-3);font-size:13px">Loading suppliers…</div>';
   formDiv.style.display = 'block';
