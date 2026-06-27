@@ -153,6 +153,7 @@
     <button class="txt-btn" onclick="showNewPlanModal()">New plan</button>
     <button class="txt-btn" onclick="openCompare()">Compare</button>
     <span class="spacer"></span>
+    <button class="txt-btn" onclick="location.href='/'">← ERP Home</button>
     <span id="who" class="who"></span>
     <button class="txt-btn" onclick="logout()">Sign out</button>
   </header>
@@ -214,7 +215,7 @@ const STEP_GUIDE = {
   financial: { lead:'Your cash and running costs', body:'Tell us your starting cash and monthly costs. We will project cash flow and flag any month you would dip below your comfort level.', steps:['Beginning cash & floor','Monthly fixed costs','Freight per unit','Save'] }
 };
 
-let TOKEN = localStorage.getItem('spx_plan_token') || '';
+let TOKEN = localStorage.getItem('spx_plan_token') || localStorage.getItem('erp_token') || '';
 let VERSIONS = [], VARIANTS = [], CURVER = null;
 let STEP = localStorage.getItem('spx_plan_step') || 'plan';
 let MODE = 'home';

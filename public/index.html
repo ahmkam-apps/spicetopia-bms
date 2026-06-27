@@ -634,8 +634,9 @@ input[type="radio"]    { accent-color: var(--saffron); }
   <div id="sidebar">
     <nav class="sidebar-nav" style="flex:1; padding: 8px 0;">
 
-      <!-- Dashboard — always visible at top -->
-      <div class="nav-item active" onclick="nav('dashboard')" id="nav-dashboard"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
+      <!-- Home — Start Here landing -->
+      <div class="nav-item active" onclick="nav('home')" id="nav-home"><span class="icon" data-icon="home"></span> Home</div>
+      <div class="nav-item" onclick="nav('dashboard')" id="nav-dashboard"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
 
       <!-- ── DAILY USE ──────────────────────────────────────────── -->
       <div class="nav-section">Sales</div>
@@ -715,6 +716,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
 //  LUCIDE SVG ICON ENGINE  (sidebar nav icons)
 // ═══════════════════════════════════════════════════════════════
 const LUCIDE_ICONS = {
+  'home': '<path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/>',
   'layout-dashboard': '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
   'file-text':        '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
   'pencil-line':      '<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/>',
@@ -809,6 +811,7 @@ function setTopbarUser(u) {
 function canAccess(pageId) {
   const u = state.currentUser;
   if (!u) return false;
+  if (pageId === 'home') return true;            // home is the universal landing
   if (u.role === 'admin') return true;           // admin always has full access
   // Admin/Owner-only pages
   const adminPages = new Set([
@@ -1035,7 +1038,7 @@ function nav(page, arg) {
   if (ni) ni.classList.add('active');
 
   const titles = {
-    dashboard:'Dashboard', customers:'Customers',
+    home:'Home', dashboard:'Dashboard', customers:'Customers',
     'orders-invoices':'Orders & Invoices', 'customer-orders':'Orders & Invoices',
     'sales':'Orders & Invoices', invoices:'Orders & Invoices',
     'receipts-aging':'Receipts & AR', 'ar-payments':'Receipts & AR', 'ar-aging':'Receipts & AR',
@@ -1065,6 +1068,7 @@ async function render(page, arg) {
   c.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)">Loading…</div>';
   try {
     switch(page) {
+      case 'home':        c.innerHTML = await renderHome();        break;
       case 'dashboard':   c.innerHTML = await renderDashboard();   break;
       case 'customers':       c.innerHTML = await renderCustomers(); initCustomersTable(); break;
       case 'orders-invoices':
@@ -1133,6 +1137,72 @@ async function _updateRqBadge() {
 // ═══════════════════════════════════════════════════════════════
 //  DASHBOARD
 // ═══════════════════════════════════════════════════════════════
+async function renderHome() {
+  const u = state.currentUser || {};
+  const isAdmin = u.role === 'admin';
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? 'Good morning' : (hr < 17 ? 'Good afternoon' : 'Good evening');
+  const name = u.username || u.name || '';
+  let dash = null, rq = [];
+  try { dash = await GET('/api/dashboard'); } catch(e) {}
+  try { rq = await GET('/api/review-queue'); } catch(e) {}
+  const money = n => (n == null ? '—' : '₨' + Number(n).toLocaleString(undefined, {maximumFractionDigits:0}));
+  const toReview  = (rq || []).length;
+  const arDue     = (dash && dash.ar) ? dash.ar.outstanding : null;
+  const lowStock  = (dash && dash.lowStockAlerts) ? dash.lowStockAlerts.length : null;
+  const salesT    = (dash && dash.salesToday) ? dash.salesToday.revenue : null;
+
+  const stat = (v, l, alert) =>
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px">'
+    + '<div style="font-family:var(--font-serif);font-size:28px;font-weight:500;line-height:1;'+(alert?'color:var(--saffron)':'')+'">'+v+'</div>'
+    + '<div style="font-size:12px;color:var(--text-2);margin-top:8px">'+l+'</div></div>';
+  const task = (icon, t, d, onclick) =>
+    '<div onclick="'+onclick+'" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;cursor:pointer;position:relative" '
+    + 'onmouseover="this.style.borderColor=\'var(--saffron)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+    + '<div style="font-size:24px;margin-bottom:12px">'+icon+'</div>'
+    + '<div style="font-family:var(--font-serif);font-size:16px;margin-bottom:4px">'+t+'</div>'
+    + '<div style="font-size:12.5px;color:var(--text-2);line-height:1.45">'+d+'</div>'
+    + '<div style="position:absolute;top:18px;right:18px;color:var(--saffron)">→</div></div>';
+  const mod = (t, s, onclick) =>
+    '<div onclick="'+onclick+'" style="border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;cursor:pointer" '
+    + 'onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'transparent\'">'
+    + '<div style="font-size:13.5px">'+t+'</div><div style="font-size:11px;color:var(--text-3)">'+s+'</div></div>';
+
+  let h = '<div style="max-width:1000px">';
+  h += '<div style="font-size:13px;color:var(--text-2)">'+greet+(name?', '+name:'')+'</div>';
+  h += '<h1 style="font-family:var(--font-serif);font-weight:500;font-size:32px;letter-spacing:-0.01em;margin:6px 0 24px">What would you like to do?</h1>';
+
+  h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px">'
+    + stat(toReview, 'Orders to review', toReview > 0)
+    + stat(money(arDue), 'Money due (AR)', false)
+    + stat(lowStock == null ? '—' : lowStock, 'Low / out of stock', lowStock > 0)
+    + stat(money(salesT), 'Sales today', false)
+    + '</div>';
+
+  h += '<div style="font-family:var(--font-serif);font-size:18px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px">Common tasks</div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px">'
+    + task('🧾','Take an order','Create a customer order and reserve stock.',"nav('orders-invoices')")
+    + task('💵','Record a payment','Log a receipt against an invoice.',"nav('receipts-aging')")
+    + task('🏭','Make a batch','Turn a work order into produced stock.',"nav('production')")
+    + task('🛒','Raise a purchase order','Order ingredients from a supplier.',"nav('purchase-orders')")
+    + task('✅','Review pending orders','Approve or reject the review queue.',"nav('review-queue')")
+    + task('📈','Plan ahead','Forecast, cost, and release production.',"location.href='/planning.html'")
+    + '</div>';
+
+  h += '<div style="font-family:var(--font-serif);font-size:18px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px">Browse by area</div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'
+    + mod('Sales','Orders · Invoices · Field',"nav('orders-invoices')")
+    + mod('Money','Receipts · AR aging',"nav('receipts-aging')")
+    + mod('Procurement','POs · Bills · AP',"nav('purchase-orders')")
+    + mod('Operations','Inventory · Production',"nav('inventory')")
+    + mod('Reports','P&amp;L · Margins · Reps',"nav('margins')")
+    + mod('Planning','Forecast · Scenarios',"location.href='/planning.html'")
+    + (isAdmin ? mod('Admin','Products · Users · Backup',"nav('products')") : '')
+    + (isAdmin ? mod('Master data','Customers · Suppliers',"nav('customers')") : '')
+    + '</div></div>';
+  return h;
+}
+
 async function renderDashboard() {
   const dash = await GET('/api/dashboard');
   state.dash = dash;
@@ -10816,7 +10886,7 @@ async function loadAndRender() {
     state.ref = await GET('/api/ref');
     setStatus('');
     _updateRqBadge();
-    nav('dashboard');
+    nav('home');
   } catch(e) {
     if (e.message && e.message.includes('Session expired')) return; // showLoginScreen already called
     setStatus('Connection error — is the server running?', 'var(--chili)');
