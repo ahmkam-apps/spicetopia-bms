@@ -6,7 +6,7 @@
 <title>Spicetopia — Business Management System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════════════
    Spicetopia ERP — IBM Carbon Design System (Option A re-skin)
@@ -17,63 +17,64 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* ── Carbon Design System — IBM Plex + Gray 10 theme ─────────── */
+  /* ── Editorial Luxury theme (matches /planning.html) ─────────── */
 
-  /* Primary interactive (Carbon Blue 60) */
-  --saffron:        #0f62fe;
-  --saffron-lt:     #4589ff;   /* Blue 50 */
-  --saffron-pale:   #d0e2ff;   /* Blue 20 — highlight */
-  --saffron-deep:   #0043ce;   /* Blue 70 — hover */
+  /* Primary interactive — Terracotta */
+  --saffron:        #9A4A24;
+  --saffron-lt:     #B5532A;
+  --saffron-pale:   #F1E4D8;   /* light terra tint — highlight */
+  --saffron-deep:   #7E3A1B;   /* hover */
 
-  /* Success (Carbon Green 50) */
-  --cardamom:       #24a148;
-  --cardamom-lt:    #42be65;   /* Green 40 */
-  --cardamom-pale:  #defbe6;   /* Green 10 */
+  /* Success — editorial green */
+  --cardamom:       #5E7245;
+  --cardamom-lt:    #6F8A52;
+  --cardamom-pale:  #EAEEDD;
 
-  /* Danger (Carbon Red 60) */
-  --chili:          #da1e28;
-  --chili-pale:     #fff1f1;   /* Red 10 */
+  /* Danger */
+  --chili:          #B23A2E;
+  --chili-pale:     #F6E7E2;
 
-  /* Warning (Carbon Yellow 30 / Orange 40) */
-  --cinnamon:       #f1c21b;   /* Yellow 30 */
-  --cinnamon-pale:  #fcf4d6;   /* Yellow 10 */
+  /* Warning — gold */
+  --cinnamon:       #A9863F;
+  --cinnamon-pale:  #F1E9D6;
 
-  /* Sidebar — Dark Slate */
-  --pepper:         #2d3748;
-  --pepper-mid:     #3a4a5c;
-  --cumin:          #7a8fa6;
-  --cream:          #F5EFE8;
-  --cream-warm:     #FAF5F0;
+  /* Sidebar — warm espresso (was dark slate) */
+  --pepper:         #2A211A;
+  --pepper-mid:     #3A2E22;
+  --cumin:          #B7A98F;
+  --cream:          #FAF6EF;
+  --cream-warm:     #F1E9DC;
 
-  /* ── Carbon Semantic Tokens (Gray 10 theme) ───────────────────── */
-  --bg:             #f4f4f4;   /* cds-background — Gray 10 */
-  --surface:        #ffffff;   /* cds-layer-01 */
-  --surface-2:      #f4f4f4;   /* cds-layer-02 */
-  --surface-3:      #e8e8e8;   /* cds-layer-03 */
-  --border:         #e0e0e0;   /* cds-border-subtle-01 — Gray 20 */
-  --border-strong:  #8d8d8d;   /* cds-border-strong-01 — Gray 50 */
-  --text-1:         #161616;   /* cds-text-primary — Gray 100 */
-  --text-2:         #525252;   /* cds-text-secondary — Gray 70 */
-  --text-3:         #a8a8a8;   /* cds-text-placeholder — Gray 40 */
-  --mac-blue:       #0f62fe;   /* Carbon Blue 60 */
+  /* ── Semantic surfaces — paper/ink ────────────────────────────── */
+  --bg:             #F4F0E7;   /* paper page background */
+  --surface:        #FCFAF5;   /* card */
+  --surface-2:      #F1EBE0;
+  --surface-3:      #ECE3D4;
+  --border:         #E4DACA;   /* hairline rule */
+  --border-strong:  #C9B79F;
+  --text-1:         #2A211A;   /* ink */
+  --text-2:         #7C6F5E;
+  --text-3:         #A89A85;
+  --mac-blue:       #9A4A24;   /* alias → terracotta */
 
   /* ── Layout ──────────────────────────────────────────────────── */
   --sidebar-w:      218px;
   --topbar-h:       72px;
 
-  /* ── Radii — Carbon uses 0–4px (we keep subtle rounding) ─────── */
-  --r-sm:           2px;
-  --r:              4px;
-  --r-lg:           4px;
-  --r-xl:           4px;
+  /* ── Radii — softer, editorial ───────────────────────────────── */
+  --r-sm:           4px;
+  --r:              6px;
+  --r-lg:           8px;
+  --r-xl:           10px;
 
-  /* ── Shadows — Carbon uses very subtle elevation ─────────────── */
-  --sh-sm:          0 1px 2px rgba(0,0,0,.1);
-  --sh-md:          0 2px 6px rgba(0,0,0,.12);
-  --sh-lg:          0 4px 16px rgba(0,0,0,.16);
+  /* ── Shadows — soft ──────────────────────────────────────────── */
+  --sh-sm:          0 1px 2px rgba(42,33,26,.05);
+  --sh-md:          0 2px 8px rgba(42,33,26,.06);
+  --sh-lg:          0 6px 20px rgba(42,33,26,.08);
 
-  /* ── Typography — IBM Plex ───────────────────────────────────── */
-  --font:           'IBM Plex Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  /* ── Typography — Fraunces (headings) + Inter (body) ──────────── */
+  --font:           'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  --font-serif:     'Fraunces', Georgia, 'Times New Roman', serif;
   --font-mono:      'IBM Plex Mono', 'SF Mono', 'Menlo', 'Courier New', monospace;
 }
 
@@ -86,6 +87,16 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ── Editorial Luxury — serif headings + serif numbers, softer tiles ── */
+#page-title, h1, h2, h3, .card-value {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+#page-title { font-size: 18px; }
+.card-value { font-weight: 500; }
+.card { border-radius: var(--r-lg); }
 
 /* ── Layout ─────────────────────────────────────────────────────── */
 #app { display: flex; flex-direction: column; height: 100vh; }
@@ -593,14 +604,14 @@ input[type="radio"]    { accent-color: var(--saffron); }
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 90" style="height:26px;display:block" aria-label="Spicetopia">
       <defs>
         <linearGradient id="chiliGrad" x1="0.5" y1="0" x2="0.5" y2="1">
-          <stop offset="0%"   stop-color="#FA7B1A"/>
-          <stop offset="55%"  stop-color="#D43510"/>
-          <stop offset="100%" stop-color="#A81408"/>
+          <stop offset="0%"   stop-color="#C46A3F"/>
+          <stop offset="55%"  stop-color="#9A4A24"/>
+          <stop offset="100%" stop-color="#7E3A1B"/>
         </linearGradient>
       </defs>
-      <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif" font-weight="700" font-size="54" fill="#161616" letter-spacing="1"><tspan x="36" y="68">SP</tspan></text>
+      <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif" font-weight="700" font-size="54" fill="#2A211A" letter-spacing="1"><tspan x="36" y="68">SP</tspan></text>
       <path d="M128,16 C138,26 140,46 135,58 Q128,67 121,58 C116,46 118,26 128,16 Z" fill="url(#chiliGrad)"/>
-      <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif" font-weight="700" font-size="54" fill="#161616" letter-spacing="1"><tspan x="144" y="68">CETOPIA</tspan></text>
+      <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif" font-weight="700" font-size="54" fill="#2A211A" letter-spacing="1"><tspan x="144" y="68">CETOPIA</tspan></text>
     </svg>
   </div>
 
@@ -913,12 +924,12 @@ function showWelcomeModal(user) {
     ">
       <img src="/img/spicetopia-logo-white.svg" alt="Spicetopia"
         style="width:180px;margin-bottom:32px;display:block;margin-left:auto;margin-right:auto;opacity:0.85">
-      <div style="font-size:11px;color:#4589ff;letter-spacing:2.5px;text-transform:uppercase;font-weight:600;margin-bottom:10px">${greeting}</div>
+      <div style="font-size:11px;color:#d8a24e;letter-spacing:2.5px;text-transform:uppercase;font-weight:600;margin-bottom:10px">${greeting}</div>
       <div style="font-size:28px;font-weight:700;letter-spacing:-.5px;margin-bottom:28px">${displayName}</div>
       <div style="font-size:42px;font-weight:300;letter-spacing:2px;margin-bottom:6px;color:#fff">${timeStr}</div>
       <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:36px;letter-spacing:.3px">${dateStr}</div>
       <button onclick="document.getElementById('welcome-modal-overlay').remove()"
-        style="background:#0f62fe;color:#fff;font-weight:400;font-size:14px;
+        style="background:var(--saffron);color:#fff;font-weight:400;font-size:14px;
                padding:12px 48px;border-radius:0;border:none;cursor:pointer;
                letter-spacing:0.16px;
                transition:opacity .15s;"

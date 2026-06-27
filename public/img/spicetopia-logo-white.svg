@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 115">
   <defs>
     <linearGradient id="chiliGradW" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0%"   stop-color="#FFB347"/>
-      <stop offset="55%"  stop-color="#FA6420"/>
-      <stop offset="100%" stop-color="#D42010"/>
+      <stop offset="0%"   stop-color="#E0A35A"/>
+      <stop offset="55%"  stop-color="#C46A3F"/>
+      <stop offset="100%" stop-color="#9A4A24"/>
     </linearGradient>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@700&amp;display=swap');

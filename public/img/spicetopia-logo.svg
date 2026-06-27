@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 115">
   <defs>
     <linearGradient id="chiliGrad" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0%"   stop-color="#FA7B1A"/>
-      <stop offset="55%"  stop-color="#D43510"/>
-      <stop offset="100%" stop-color="#A81408"/>
+      <stop offset="0%"   stop-color="#C46A3F"/>
+      <stop offset="55%"  stop-color="#9A4A24"/>
+      <stop offset="100%" stop-color="#7E3A1B"/>
     </linearGradient>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@700&amp;display=swap');
@@ -12,7 +12,7 @@
 
   <!-- SP -->
   <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif"
-        font-weight="700" font-size="54" fill="#161616" letter-spacing="1">
+        font-weight="700" font-size="54" fill="#2A211A" letter-spacing="1">
     <tspan x="36" y="68">SP</tspan>
   </text>
 
@@ -22,15 +22,15 @@
 
   <!-- CETOPIA -->
   <text font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif"
-        font-weight="700" font-size="54" fill="#161616" letter-spacing="1">
+        font-weight="700" font-size="54" fill="#2A211A" letter-spacing="1">
     <tspan x="144" y="68">CETOPIA</tspan>
   </text>
 
-  <!-- Separator line — Carbon border gray -->
-  <line x1="36" y1="80" x2="424" y2="80" stroke="#e0e0e0" stroke-width="1"/>
+  <!-- Separator line — editorial rule -->
+  <line x1="36" y1="80" x2="424" y2="80" stroke="#E4DACA" stroke-width="1"/>
 
   <!-- Tagline -->
   <text x="230" y="101" text-anchor="middle"
         font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif"
-        font-size="11.5" fill="#a8a8a8" letter-spacing="6" font-weight="400">FLAVORS REDEFINED</text>
+        font-size="11.5" fill="#A89A85" letter-spacing="6" font-weight="400">FLAVORS REDEFINED</text>
 </svg>
