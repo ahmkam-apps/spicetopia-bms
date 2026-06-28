@@ -64,15 +64,11 @@ def _table_exists(name):
 
 
 def list_active_variants():
-    """Active SKUs for planning UI dropdowns: {variant_id, sku_code, product_name, pack_size}."""
-    return qry("""
-        SELECT pv.id AS variant_id, pv.sku_code, p.name AS product_name, ps.label AS pack_size
-        FROM product_variants pv
-        JOIN products p    ON p.id  = pv.product_id
-        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
-        WHERE pv.active_flag = 1
-        ORDER BY p.name, ps.grams
-    """)
+    """Active SKUs for planning. Reuses the ERP products module's canonical source
+    (no bespoke planning query) — returns {variant_id, sku_code, product_name,
+    pack_size, product_code, pack_grams}."""
+    from modules.products import list_active_variants as _erp_variants
+    return _erp_variants()
 
 
 def _norm_month(val):

@@ -27,6 +27,24 @@ __all__ = [
 _refresh_ref = lambda: None
 
 
+def list_active_variants():
+    """Canonical active-SKU list (the ERP's single source of truth for variants).
+    Returns: variant_id, sku_code, product_name, pack_size, product_code, pack_grams.
+    Other modules (e.g. planning) reuse this instead of their own variant query.
+    Intentionally NOT in __all__ — imported explicitly where needed to avoid a
+    server-level name clash with planning's delegate."""
+    return qry("""
+        SELECT pv.id AS variant_id, pv.sku_code,
+               p.name AS product_name, p.code AS product_code,
+               ps.label AS pack_size, ps.grams AS pack_grams
+        FROM product_variants pv
+        JOIN products p    ON p.id  = pv.product_id
+        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+        WHERE pv.active_flag = 1
+        ORDER BY p.name, ps.grams
+    """)
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  STARTUP MIGRATIONS
 # ═══════════════════════════════════════════════════════════════════
