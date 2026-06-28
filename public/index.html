@@ -6988,10 +6988,10 @@ async function renderInventory() {
     + '<table>'
     + '<thead><tr>'
     + '<th>Code</th><th>Name</th>'
-    + '<th class="text-right">Physical</th>'
-    + '<th class="text-right" title="Reserved by WIPs">Reserved</th>'
-    + '<th class="text-right" title="Physical minus Reserved">Available</th>'
-    + '<th class="text-right">Reorder</th>'
+    + '<th class="text-right" title="Total quantity you actually have">In Stock</th>'
+    + '<th class="text-right" title="Committed to active work orders">Reserved</th>'
+    + '<th class="text-right" title="Free to use now = In Stock − Reserved">Available to use</th>'
+    + '<th class="text-right" title="Minimum before it flags LOW — set in Edit">Reorder Level</th>'
     + '<th colspan="2">Status</th>'
     + '<th class="text-right">Cost/kg</th>'
     + '<th class="text-right">Change</th>'
@@ -7010,7 +7010,7 @@ async function renderInventory() {
     + '<table>'
     + '<thead><tr>'
     + '<th>SKU</th><th>Pack Size</th>'
-    + '<th class="text-right">Stock</th>'
+    + '<th class="text-right" title="Units currently in stock">In Stock</th>'
     + '<th class="text-right">Est. Value</th>'
     + '<th style="min-width:160px">Status</th>'
     + '</tr></thead>'
@@ -7809,9 +7809,9 @@ async function checkWoFeasibility() {
               <thead><tr style="background:#f5f5f5;font-size:11px;text-transform:uppercase;letter-spacing:0.3px">
                 <th style="padding:5px 8px;text-align:left;color:#888">Ingredient</th>
                 <th style="padding:5px 8px;text-align:right;color:#888">Required</th>
-                <th style="padding:5px 8px;text-align:right;color:#888">Physical</th>
+                <th style="padding:5px 8px;text-align:right;color:#888">In Stock</th>
                 <th style="padding:5px 8px;text-align:right;color:var(--cinnamon)">Reserved</th>
-                <th style="padding:5px 8px;text-align:right;color:#888">Available</th>
+                <th style="padding:5px 8px;text-align:right;color:#888">Available to use</th>
                 <th style="padding:5px 8px;text-align:right;color:#888">Status</th>
                 <th style="padding:5px 8px;text-align:right;color:#888">Rate</th>
                 <th style="padding:5px 8px;text-align:right;color:#888">Cost</th>
@@ -10527,10 +10527,10 @@ function _rqStockBar(item) {
 
   return `
   <div style="font-size:11px;line-height:1.9">
-    <span style="color:var(--text-3)">Physical:</span> <strong>${fmt(physical,0)}</strong> &nbsp;
+    <span style="color:var(--text-3)">In Stock:</span> <strong>${fmt(physical,0)}</strong> &nbsp;
     <span style="color:var(--cinnamon)">Hard reserved:</span> ${fmt(hard,0)} &nbsp;
     <span style="color:#7c3aed">Soft hold:</span> ${fmt(soft,0)} &nbsp;
-    <span style="color:${stockCol};font-weight:600">Available: ${fmt(avail,0)}</span>
+    <span style="color:${stockCol};font-weight:600">Available to use: ${fmt(avail,0)}</span>
     ${ordered > avail ? `<span style="color:var(--chili);margin-left:8px">⚠ Short by ${fmt(ordered-avail,0)}</span>` : ''}
   </div>`;
 }
