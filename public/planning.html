@@ -50,6 +50,18 @@
   .release-card .rc-sub{font-size:13.5px; color:var(--ink-2); line-height:1.5; margin:0 0 14px; max-width:620px;}
   .release-card .rc-actions{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
   .release-card select{padding:9px; border:1px solid var(--rule-2); border-radius:4px; font-family:var(--sans); background:#fff;}
+  /* First-run guided walkthrough */
+  #tour{position:fixed; inset:0; background:rgba(42,33,26,.55); display:none; align-items:center; justify-content:center; z-index:300;}
+  .tour-box{background:var(--card); border:1px solid var(--rule); border-radius:10px; width:90%; max-width:520px; padding:30px 32px 24px; box-shadow:0 20px 50px rgba(0,0,0,.25);}
+  .tour-kick{font-size:10.5px; text-transform:uppercase; letter-spacing:.16em; color:var(--terra); font-weight:500; margin-bottom:8px;}
+  .tour-box h3{font-family:var(--serif); font-weight:500; font-size:23px; margin:0 0 12px; color:var(--ink); letter-spacing:-0.01em;}
+  .tour-box p{font-size:14.5px; line-height:1.6; color:var(--ink-2); margin:0 0 8px;}
+  .tour-box .tour-list{font-size:13px; color:var(--ink-2); margin:6px 0 0; padding-left:18px; line-height:1.7;}
+  .tour-foot{display:flex; align-items:center; justify-content:space-between; margin-top:24px;}
+  .tour-foot .right{display:flex; gap:12px; align-items:center;}
+  .tour-dots{display:flex; gap:6px;}
+  .tour-dot{width:7px; height:7px; border-radius:50%; background:var(--rule-2);}
+  .tour-dot.on{background:var(--terra);}
   .stepper{display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; padding-bottom:16px; border-bottom:1px solid var(--rule); margin-bottom:10px;}
   .wstep{display:flex; align-items:center; gap:8px; color:var(--ink-3); cursor:pointer;}
   .wstep .circ{width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:500; border:1.5px solid var(--rule-2); background:#fff; color:var(--ink-3);}
@@ -159,6 +171,7 @@
     <button class="txt-btn" onclick="goPlans()">All plans</button>
     <button class="txt-btn" onclick="showNewPlanModal()">New plan</button>
     <button class="txt-btn" onclick="openCompare()">Compare</button>
+    <button class="txt-btn" onclick="tourOpen()" title="How this works">? Guide</button>
     <span class="spacer"></span>
     <button class="txt-btn" onclick="location.href='/'">← ERP Home</button>
     <span id="who" class="who"></span>
@@ -290,6 +303,7 @@ async function boot() {
   try {
     VARIANTS = await api('GET','/api/planning/variants');
     await loadVersions();
+    if (!localStorage.getItem('spx_tour_done')) tourOpen();   // first-run walkthrough
   } catch(e) {
     if (String(e.message).match(/401|403|Unauthorized|Admin/)) { logout(); return; }
     status(e.message, false);
@@ -850,6 +864,58 @@ async function resumeLast(){
 }
 async function goPlans(){ MODE='plans'; await refresh(); }
 function goHome(){ MODE='home'; renderStepper(); renderView(); }
+
+// ── First-run guided walkthrough (re-openable via the "? Guide" button) ──
+const TOUR = [
+  { t:'Welcome to Spicetopia Planning',
+    b:'This is where you model a sales scenario and instantly see what it takes to deliver it — how much to produce, what ingredients to buy, and whether the cash works. When a plan looks right, you release it to the factory in one click. You can keep several plans side by side and compare them.' },
+  { t:'Start from the home screen',
+    b:'Two ways in: <b>Create a new plan</b> to start fresh, or <b>See current plans</b> to open an existing one. Every plan gets its own code (like PLAN-007) so it’s easy to find later.' },
+  { t:'Work through six steps, in order',
+    b:'The bar at the top shows your six steps. Do them left to right — your entries save as you go, and you can jump back to any step anytime.',
+    list:['Plan basics','Sales forecast','Pricing','Manufacturing','Financial','Review'] },
+  { t:'Steps 1–2 · Plan basics & forecast',
+    b:'Name the plan and pick a scenario type — <b>expected</b>, <b>conservative</b>, or <b>aggressive</b>. Then add your sales forecast: for each product, the month, the channel, and the number of packs. This is the engine — everything else flows from it.' },
+  { t:'Steps 3–4 · Pricing & capacity',
+    b:'Set the cost and selling prices you’re assuming for this plan — these are assumptions and never change your live price book. Then add your production line(s) and how much each can make per month, so the tool can check you can meet demand.' },
+  { t:'Step 5 · Financial',
+    b:'Enter your starting cash, monthly running costs, and freight per unit. The tool projects your cash flow month by month and flags any month you’d dip too low.' },
+  { t:'Step 6 · Review — it all comes together',
+    b:'One screen shows projected sales, capacity vs demand, how much to produce, your ingredient shopping list, the cash-flow projection, and a simple red/amber/green risk read. Anything missing links straight back to the step that needs it.' },
+  { t:'The finish line · Approve & Release',
+    b:'Happy with the plan? <b>Approve</b> it (this locks it from edits). Then, from the highlighted card at the top of Review, <b>Release</b> a month — that sends the production into the main ERP as Work Orders for the team to make. Need a change? <b>Unlock</b> to edit again.' },
+  { t:'That’s it — you’re ready',
+    b:'Every step has its own on-screen hints as you go. Switch plans anytime via <b>All plans</b>. And you can reopen this walkthrough whenever you like with the <b>? Guide</b> button up top. Happy planning!' }
+];
+let _tourI = 0;
+function tourOpen(){
+  _tourI = 0;
+  let ov = document.getElementById('tour');
+  if (!ov){ ov = document.createElement('div'); ov.id='tour'; ov.addEventListener('click', e=>{ if(e.target===ov) tourClose(); }); document.body.appendChild(ov); }
+  ov.style.display = 'flex';
+  tourRender();
+}
+function tourClose(){ const ov=document.getElementById('tour'); if(ov) ov.style.display='none'; localStorage.setItem('spx_tour_done','1'); }
+function tourGo(i){ _tourI = Math.max(0, Math.min(TOUR.length-1, i)); tourRender(); }
+function tourNext(){ if(_tourI >= TOUR.length-1){ tourClose(); return; } tourGo(_tourI+1); }
+function tourPrev(){ tourGo(_tourI-1); }
+function tourRender(){
+  const ov = document.getElementById('tour'); if(!ov) return;
+  const s = TOUR[_tourI];
+  const dots = TOUR.map((_,i)=>'<span class="tour-dot'+(i===_tourI?' on':'')+'"></span>').join('');
+  const list = s.list ? '<ul class="tour-list">'+s.list.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>' : '';
+  const last = _tourI === TOUR.length-1;
+  ov.innerHTML = '<div class="tour-box">'
+    + '<div class="tour-kick">Guide · '+(_tourI+1)+' of '+TOUR.length+'</div>'
+    + '<h3>'+esc(s.t)+'</h3><p>'+s.b+'</p>'+list
+    + '<div class="tour-foot"><div class="tour-dots">'+dots+'</div>'
+    + '<div class="right">'
+    + (_tourI>0 ? '<button class="txt-btn" onclick="tourPrev()">Back</button>' : '')
+    + '<button class="txt-btn" onclick="tourClose()">Skip</button>'
+    + '<button class="primary sm" onclick="tourNext()">'+(last?'Done':'Next →')+'</button>'
+    + '</div></div></div>';
+}
+document.addEventListener('keydown', e=>{ if(document.getElementById('tour') && document.getElementById('tour').style.display==='flex'){ if(e.key==='Escape') tourClose(); else if(e.key==='ArrowRight') tourNext(); else if(e.key==='ArrowLeft') tourPrev(); } });
 
 // ── Compare ──
 function openCompare(){ MODE='compare'; renderStepper(); renderView(); }
