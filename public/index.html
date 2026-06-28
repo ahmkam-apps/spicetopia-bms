@@ -1126,7 +1126,8 @@ async function render(page, arg) {
   if (_sb) {
     _sb.style.display = (page === 'home') ? 'none' : '';
     if (page !== 'home') {
-      const _col = localStorage.getItem('erp_sidebar_collapsed') === '1';
+      const _stored = localStorage.getItem('erp_sidebar_collapsed');
+      const _col = (_stored === null) ? true : (_stored === '1');  // default collapsed
       _sb.classList.toggle('collapsed', _col);
       const _chev = document.getElementById('collapse-chev');
       if (_chev) _chev.textContent = _col ? '»' : '«';
