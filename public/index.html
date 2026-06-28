@@ -6746,6 +6746,47 @@ function rmAdjHint(id) {
   el.textContent = (isNaN(v) || v === 0) ? '' : ('= ' + (v>0?'+':'') + Math.round(v*1000).toLocaleString() + ' g');
 }
 
+async function findIngredientDuplicates() {
+  const panel = document.getElementById('dup-panel'); if (!panel) return;
+  panel.innerHTML = '<div class="card" style="padding:14px;color:var(--text-3)">Scanning ingredients…</div>';
+  try {
+    const groups = await GET('/api/ingredients/duplicates');
+    if (!groups.length) {
+      panel.innerHTML = '<div class="card" style="padding:14px;border-left:3px solid var(--cardamom)">✓ No duplicate ingredient names found.</div>';
+      return;
+    }
+    let h = '<div class="card" style="padding:16px;border-left:3px solid var(--chili)">'
+      + '<div style="font-weight:700;margin-bottom:4px">⚠ ' + groups.length + ' duplicate ingredient' + (groups.length===1?'':'s') + ' found</div>'
+      + '<div style="font-size:12px;color:var(--text-3);margin-bottom:12px">Same ingredient under different codes. <strong>ING-NNNSP</strong> is the canonical format; <strong>in recipes</strong> marks the one driving cost. Review, then tell me the keeper for each and I\'ll merge after a backup.</div>';
+    groups.forEach(g => {
+      h += '<div style="margin-bottom:14px"><div style="font-weight:600;margin-bottom:4px">' + esc(g.name) + '</div>'
+        + '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="color:var(--text-3);text-align:left">'
+        + '<th style="padding:3px 6px">Code</th><th style="padding:3px 6px;text-align:right">Cost/kg</th>'
+        + '<th style="padding:3px 6px;text-align:right">Stock</th><th style="padding:3px 6px;text-align:right">Recipes</th>'
+        + '<th style="padding:3px 6px;text-align:right">Bills</th><th style="padding:3px 6px;text-align:right">Moves</th>'
+        + '<th style="padding:3px 6px">Flags</th></tr></thead><tbody>';
+      g.ingredients.forEach(r => {
+        const flags = (r.canonical ? '<span class="badge badge-ok" style="font-size:10px">canonical</span> ' : '<span class="badge" style="font-size:10px;background:#eee;color:#666">legacy code</span> ')
+          + (r.recipes > 0 ? '<span class="badge" style="font-size:10px;background:var(--saffron-pale);color:var(--saffron)">in recipes</span> ' : '')
+          + (r.active ? '' : '<span style="color:var(--text-3);font-size:10px">(inactive)</span>');
+        h += '<tr style="border-top:1px solid var(--border)">'
+          + '<td style="padding:4px 6px;font-family:monospace">' + esc(r.code) + '</td>'
+          + '<td style="padding:4px 6px;text-align:right">' + fmtPKR(r.cost_per_kg) + '</td>'
+          + '<td style="padding:4px 6px;text-align:right">' + fmt(r.stock_grams/1000,3) + ' kg</td>'
+          + '<td style="padding:4px 6px;text-align:right">' + r.recipes + '</td>'
+          + '<td style="padding:4px 6px;text-align:right">' + r.bills + '</td>'
+          + '<td style="padding:4px 6px;text-align:right">' + r.movements + '</td>'
+          + '<td style="padding:4px 6px">' + flags + '</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    });
+    h += '</div>';
+    panel.innerHTML = h;
+  } catch(e) {
+    panel.innerHTML = '<div class="card" style="padding:14px;color:var(--chili)">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
 async function renderInventory() {
   const ings    = await GET('/api/ingredients');
   const isAdmin = state.currentUser?.role === 'admin';
@@ -6972,8 +7013,12 @@ async function renderInventory() {
     + '</div>';
 
   return '<div class="section-header"><h2>Inventory</h2>'
-    + (isAdmin ? '<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById(\'ing-add-card\');if(c)c.style.display=c.style.display===\'none\'?\'\':\'none\';switchInvTab(\'rm\')">＋ Ingredient</button>' : '')
+    + (isAdmin ? '<div style="display:flex;gap:8px">'
+        + '<button class="btn btn-outline btn-sm" onclick="findIngredientDuplicates()" title="Find ingredients entered twice under different codes">🔍 Find duplicates</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById(\'ing-add-card\');if(c)c.style.display=c.style.display===\'none\'?\'\':\'none\';switchInvTab(\'rm\')">＋ Ingredient</button>'
+        + '</div>' : '')
     + '</div>'
+    + '<div id="dup-panel" style="margin-bottom:12px"></div>'
     + tabBar
 
     // ── Raw Materials pane ─────────────────────────────────────────

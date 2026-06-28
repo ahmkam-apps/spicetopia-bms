@@ -7974,6 +7974,13 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'code': peek_next_ingredient_code()})
                 return
 
+            # GET /api/ingredients/duplicates  — same-name ingredients under different codes (admin, read-only)
+            if path == '/api/ingredients/duplicates':
+                if not sess or sess['role'] != 'admin':
+                    send_error(self, 'Permission denied', 403); return
+                send_json(self, find_duplicate_ingredients())
+                return
+
             # GET /api/products/next-blend-code?prefix=GM  — peek next GM-BC-xxx code (admin)
             if path == '/api/products/next-blend-code':
                 if not sess or sess['role'] != 'admin':

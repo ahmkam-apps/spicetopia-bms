@@ -31,6 +31,8 @@ __all__ = [
     'bulk_update_ingredient_costs',
     'deactivate_ingredient',
     'reactivate_ingredient',
+    # Data quality
+    'find_duplicate_ingredients',
     # Bulk import
     'import_ingredients_master',
 ]
@@ -413,6 +415,73 @@ def reactivate_ingredient(code):
     save_db()
     _refresh_ref()
     return {'ok': True, 'reactivated': code}
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  DATA QUALITY — duplicate detection (read-only)
+# ═══════════════════════════════════════════════════════════════════
+
+def find_duplicate_ingredients():
+    """Find ingredients that are likely the SAME item under different codes
+    (e.g. ING-001SP vs SP-ING001). Groups by normalised name. For each record
+    returns its code, cost/kg, stock, active flag, and how many rows reference it
+    across every table that has an ingredient_id (recipes, movements, bills,
+    price history, PO lines, …) — so we can see which code the recipes actually
+    use and which holds the right cost before merging. READ-ONLY."""
+    import re as _re
+    rows = qry("SELECT id, code, name, COALESCE(cost_per_kg,0) AS cost_per_kg, "
+               "COALESCE(active,1) AS active FROM ingredients")
+
+    # Discover every table (besides ingredients) that has an ingredient_id column.
+    ref_tables = []
+    for t in [r['name'] for r in qry("SELECT name FROM sqlite_master WHERE type='table'")]:
+        try:
+            cols = {c['name'] for c in qry("PRAGMA table_info(%s)" % t)}
+        except Exception:
+            continue
+        if 'ingredient_id' in cols and t != 'ingredients':
+            ref_tables.append(t)
+
+    stock = get_stock_map()  # {ingredient_id: balance_grams}
+    LABELS = {'bom_items': 'recipes', 'inventory_ledger': 'movements',
+              'supplier_bill_items': 'bills', 'ingredient_price_history': 'price_history'}
+
+    def _norm(n):
+        return _re.sub(r'[^a-z0-9]', '', (n or '').lower())
+
+    groups = {}
+    for r in rows:
+        groups.setdefault(_norm(r['name']), []).append(r)
+
+    out = []
+    for key, items in groups.items():
+        if not key or len(items) < 2:
+            continue
+        detail = []
+        for r in items:
+            refs = {}
+            for t in ref_tables:
+                try:
+                    n = qry1("SELECT COUNT(*) AS n FROM %s WHERE ingredient_id=?" % t, (r['id'],))['n']
+                except Exception:
+                    n = 0
+                if n:
+                    refs[LABELS.get(t, t)] = n
+            detail.append({
+                'id': r['id'], 'code': r['code'], 'name': r['name'],
+                'cost_per_kg': r['cost_per_kg'], 'active': r['active'],
+                'stock_grams': round(stock.get(r['id'], 0), 2),
+                'recipes': refs.get('recipes', 0),
+                'movements': refs.get('movements', 0),
+                'bills': refs.get('bills', 0),
+                'price_history': refs.get('price_history', 0),
+                'refs': refs,                                   # full breakdown
+                'canonical': bool(r['code'] and r['code'].startswith('ING-') and r['code'].endswith('SP')),
+            })
+        detail.sort(key=lambda d: (not d['canonical'], -d['recipes']))
+        out.append({'name': items[0]['name'], 'count': len(items), 'ingredients': detail})
+    out.sort(key=lambda g: g['name'].lower())
+    return out
 
 
 # ═══════════════════════════════════════════════════════════════════
