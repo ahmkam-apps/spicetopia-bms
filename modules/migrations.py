@@ -44,6 +44,7 @@ __all__ = [
     'ensure_plan_m2_tables',
     'ensure_plan_code',
     'ensure_plan_release',
+    'ensure_scenario_type_cleanup',
 ]
 
 
@@ -1923,3 +1924,30 @@ def ensure_plan_release():
             c.close()
     except Exception as e:
         print(f"  ⚠ ensure_plan_release: {e}")
+
+
+def ensure_scenario_type_cleanup():
+    """Separate scenario TYPE from plan STATUS. Idempotent.
+
+    Earlier the scenario_type column mixed forecast shapes (expected/conservative/
+    aggressive) with lifecycle values (draft/approved/revised). Lifecycle is the
+    separate `status` column, so remap any non-type value to 'expected'. No data is
+    lost: those rows already carry their real state in `status`.
+    """
+    try:
+        c = _conn()
+        try:
+            cols = {r[1] for r in c.execute("PRAGMA table_info(plan_version)").fetchall()}
+            if 'scenario_type' not in cols:
+                return
+            n = c.execute(
+                "UPDATE plan_version SET scenario_type='expected' "
+                "WHERE LOWER(COALESCE(scenario_type,'')) NOT IN ('expected','conservative','aggressive')"
+            ).rowcount
+            c.commit()
+            if n:
+                print(f"  ✓ plan_version: remapped {n} scenario_type(s) to 'expected'")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_scenario_type_cleanup: {e}")

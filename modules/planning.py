@@ -44,7 +44,9 @@ __all__ = [
     'release_to_manufacturing', 'list_releases',
 ]
 
-SCENARIO_TYPES = ('draft', 'approved', 'conservative', 'expected', 'aggressive', 'revised')
+# Scenario type = the SHAPE of the forecast only. Plan lifecycle lives in the
+# separate `status` column (draft → approved, via approve/unapprove).
+SCENARIO_TYPES = ('expected', 'conservative', 'aggressive')
 PLAN_CHANNELS  = ('retail', 'distributor', 'ecommerce', 'other')
 
 
@@ -162,7 +164,7 @@ def create_plan_version(data, changed_by):
     """Create a plan version. Required: name, scenario_type. Optional: notes,
     horizon_start_month (YYYY-MM), horizon_months (default 12), parent_version_id."""
     name = (data.get('name') or '').strip()
-    scenario_type = (data.get('scenario_type') or 'draft').strip().lower()
+    scenario_type = (data.get('scenario_type') or 'expected').strip().lower()
     if not name:
         raise ValueError("Plan name is required")
     if scenario_type not in SCENARIO_TYPES:

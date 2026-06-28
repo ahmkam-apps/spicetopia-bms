@@ -165,10 +165,9 @@
       <p class="msub">A plan is one scenario you're modelling — a launch forecast, or a cautious "slow sales" case. Keep several side by side and compare them.</p>
       <div class="form-grid">
         <div class="field"><label class="lbl">Plan name</label><div class="hint">A clear label so you recognise it.</div><div class="ig"><input id="mvName" placeholder="Launch 2026 — Expected"></div></div>
-        <div class="field"><label class="lbl">Scenario</label><div class="hint" id="mvTypeHint">Your most likely base case.</div><div class="ig"><select id="mvType" onchange="onScenChange()">
-          <option value="draft">draft</option><option value="expected" selected>expected</option>
+        <div class="field"><label class="lbl">Scenario type</label><div class="hint" id="mvTypeHint">Your most likely base case.</div><div class="ig"><select id="mvType" onchange="onScenChange()">
+          <option value="expected" selected>expected</option>
           <option value="conservative">conservative</option><option value="aggressive">aggressive</option>
-          <option value="approved">approved</option><option value="revised">revised</option>
         </select></div></div>
         <div class="field"><label class="lbl">Start month</label><div class="hint">First month this plan covers.</div><div class="ig"><input id="mvStart" type="month"></div></div>
         <div class="field"><label class="lbl">Horizon (months)</label><div class="hint">How far ahead, 1–36.</div><div class="ig"><input id="mvMonths" type="number" min="1" value="12"></div></div>
@@ -194,14 +193,13 @@
 <script>
 const CHANNELS = ['retail','distributor','ecommerce','other'];
 const SCENARIO_HELP = {
-  draft:'Work in progress, not finalised.',
   expected:'Your most likely base case.',
   conservative:'A cautious case — lower sales.',
-  aggressive:'An optimistic case — higher sales.',
-  approved:'Locked and signed off — cannot be edited.',
-  revised:'An updated version of an earlier plan.'
+  aggressive:'An optimistic case — higher sales.'
 };
-const SCENARIOS = ['draft','expected','conservative','aggressive','approved','revised'];
+// Scenario TYPE = forecast shape only. Plan lifecycle is the separate `status`
+// field (draft → approved), driven by the Approve / Unlock buttons.
+const SCENARIO_TYPES = ['expected','conservative','aggressive'];
 const STEPS = [
   ['plan','Plan basics'], ['forecast','Sales forecast'], ['pricing','Pricing'],
   ['manufacturing','Manufacturing'], ['financial','Financial'], ['review','Review']
@@ -424,7 +422,7 @@ async function viewPlan(view) {
       + '<div class="section"><span class="label">Edit details'+(lock?' · approved (locked)':'')+'</span>'
       + '<div class="form-grid">'
       + fld({id:'evName',label:'Plan name',value:v.name})
-      + selField({id:'evType',label:'Scenario type',options:SCENARIOS.map(s=>'<option value="'+s+'" '+(s===v.scenario_type?'selected':'')+'>'+s+'</option>').join('')})
+      + selField({id:'evType',label:'Scenario type',options:SCENARIO_TYPES.map(s=>'<option value="'+s+'" '+(s===v.scenario_type?'selected':'')+'>'+s+'</option>').join('')})
       + fld({id:'evStart',label:'Start month',type:'month',value:v.horizon_start_month?String(v.horizon_start_month).slice(0,7):''})
       + fld({id:'evMonths',label:'Horizon (months)',type:'number',min:1,value:v.horizon_months||12})
       + fld({id:'evNotes',label:'Notes',help:'Optional — context, assumptions, anything to remember about this plan.',value:v.notes||''})

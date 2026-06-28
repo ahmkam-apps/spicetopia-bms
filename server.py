@@ -13027,6 +13027,7 @@ if __name__ == '__main__':
     ensure_plan_m2_tables()              # planning M2: manufacturer, manufacturing, financial, pricing
     ensure_plan_code()                   # planning: PLAN-### human code + backfill existing
     ensure_plan_release()                # planning: manufacturing-handoff release log
+    ensure_scenario_type_cleanup()       # planning: split scenario TYPE from plan STATUS
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
     import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh
