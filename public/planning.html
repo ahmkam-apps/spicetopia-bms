@@ -229,7 +229,7 @@ const ORDER = STEPS.map(s => s[0]);
 const STEP_WORD = ['One','Two','Three','Four','Five','Six'];
 const STEP_GUIDE = {
   forecast: { lead:'What do you expect to sell?', body:'Add each product with its month, channel, zone, and number of packs. Assigning a zone maps the demand to the area and the rep who covers it. These figures flow through to revenue, production, and your ingredient shopping list.', steps:['Pick a product','Month & channel','Pick the zone (or All zones)','Enter the units'] },
-  pricing: { lead:'Set the prices for this plan', body:'The cost and selling prices you are assuming. These are scenario assumptions — they do not change your live price book.', steps:['Pick a product','Enter unit cost','Set wholesale','Set retail'] },
+  pricing: { lead:'Prices come from your master data', body:'Each SKU already shows its cost (from the recipe/costing) and selling price (from the price book). You only override a SKU to model a what-if — overrides never change your live prices.', steps:['Review the master prices','Override a SKU (optional)','Leave blank to use master','Save the override'] },
   manufacturing: { lead:'How much can you produce?', body:'Add your production line(s) and how much each can make per month, so we can check whether you can meet demand.', steps:['Add a production line','Select it','Enter capacity','Save'] },
   financial: { lead:'Your cash and running costs', body:'Tell us your starting cash and monthly costs. We will project cash flow and flag any month you would dip below your comfort level.', steps:['Beginning cash & floor','Monthly fixed costs','Freight per unit','Save'] }
 };
@@ -576,19 +576,29 @@ async function viewPricing(view) {
   const rows = await api('GET',`/api/planning/versions/${CURVER}/pricing`);
   PR_ROWS = rows;
   const lock = isApproved();
-  const form = lock ? '' : '<div class="section"><span class="label">Set prices</span><div class="form-grid">'
+  const nOver = rows.filter(r=>r.is_override).length;
+  const form = lock ? '' : '<div class="section"><span class="label">Override a price (optional)</span>'
+    + '<p class="foot-note" style="font-style:normal;margin:0 0 10px">Prices below default from your master data. Override a SKU only to model a what-if — leave a field blank to keep the master value. Overrides never change your live prices.</p>'
+    + '<div class="form-grid">'
     + selField({id:'pVar',label:'Product',options:variantOptions()})
-    + fld({id:'pCost',label:'Unit cost',help:'Cost to make one pack.',type:'number',min:0,prefix:'₨',placeholder:'120',oninput:'checkPriceWarn()',warnId:'pWarn'})
-    + fld({id:'pWhole',label:'Wholesale',help:'Price to distributors.',type:'number',min:0,prefix:'₨',placeholder:'180',oninput:'checkPriceWarn()'})
-    + fld({id:'pRetail',label:'Retail',help:'Shelf / online price.',type:'number',min:0,prefix:'₨',placeholder:'250'})
-    + '<div class="field" style="align-self:end"><button class="primary sm" onclick="addPricing()">Save price</button></div>'
+    + fld({id:'pCost',label:'Unit cost',help:'Blank = master cost.',type:'number',min:0,prefix:'₨',placeholder:'master',oninput:'checkPriceWarn()',warnId:'pWarn'})
+    + fld({id:'pWhole',label:'Wholesale',help:'Blank = master price.',type:'number',min:0,prefix:'₨',placeholder:'master',oninput:'checkPriceWarn()'})
+    + fld({id:'pRetail',label:'Retail',help:'Blank = master price.',type:'number',min:0,prefix:'₨',placeholder:'master'})
+    + '<div class="field" style="align-self:end"><button class="primary sm" onclick="addPricing()">Save override</button></div>'
     + '</div></div>';
-  let table = '<div class="section"><span class="label">Prices entered — '+rows.length+'</span>';
+  let table = '<div class="section"><span class="label">Prices — '+rows.length+' SKU'+(rows.length===1?'':'s')+(nOver?' · '+nOver+' overridden':' · all from master data')+'</span>';
   if (rows.length) {
-    table += '<table><thead><tr><th>SKU</th><th class="r">Cost</th><th class="r">Wholesale</th><th class="r">Retail</th><th></th></tr></thead><tbody>'
-      + rows.map(r=>'<tr><td class="sku">'+esc(r.product_name)+' · '+esc(r.sku_code)+'</td><td class="r">'+money(r.product_cost)+'</td><td class="r">'+money(r.wholesale_price)+'</td><td class="r">'+money(r.retail_price)+'</td><td class="r">'+(lock?'':'<button class="x" onclick="editPricing('+r.id+')" title="Edit">✎</button> <button class="x" onclick="delRow(\'pricing\','+r.id+')" title="Remove">✕</button>')+'</td></tr>').join('')
+    table += '<table><thead><tr><th>SKU</th><th class="r">Cost</th><th class="r">Wholesale</th><th class="r">Retail</th><th>Source</th><th></th></tr></thead><tbody>'
+      + rows.map(r=>{
+          const src = r.is_override ? '<span class="badge ok">override</span>' : '<span class="badge muted">master data</span>';
+          const act = lock ? '' : '<button class="x" onclick="editPricing('+r.variant_id+')" title="Override for this plan">✎</button>'
+                 + (r.override_id ? ' <button class="x" onclick="delRow(\'pricing\','+r.override_id+')" title="Revert to master data">↺</button>' : '');
+          return '<tr><td class="sku">'+esc(r.product_name)+' · '+esc(r.sku_code)+'</td>'
+            + '<td class="r">'+money(r.product_cost)+'</td><td class="r">'+money(r.wholesale_price)+'</td><td class="r">'+money(r.retail_price)+'</td>'
+            + '<td>'+src+'</td><td class="r">'+act+'</td></tr>';
+        }).join('')
       + '</tbody></table>';
-  } else { table += '<p class="empty">No prices yet. These feed revenue and cash-flow projections.</p>'; }
+  } else { table += '<p class="empty">No active products found — add products in the ERP first.</p>'; }
   table += '</div>';
   view.innerHTML = stepHeader('pricing') + form + table + navBar('pricing');
 }
@@ -599,9 +609,9 @@ function checkPriceWarn() {
   else { el.classList.remove('show'); }
 }
 async function addPricing() {
-  if (g('pCost')==='' || g('pWhole')==='') { status('Enter at least unit cost and wholesale.', false); return; }
+  if (g('pCost')==='' && g('pWhole')==='' && g('pRetail')==='') { status('Enter at least one price to override (blank = use master data).', false); return; }
   const body = { variant_id: parseInt(g('pVar')), product_cost: g('pCost'), wholesale_price: g('pWhole'), retail_price: g('pRetail') };
-  try { await api('POST',`/api/planning/versions/${CURVER}/pricing`, body); status('Saved'+nextHint(),true); await refresh(); }
+  try { await api('POST',`/api/planning/versions/${CURVER}/pricing`, body); status('Override saved'+nextHint(),true); await refresh(); }
   catch(e){ status(e.message,false); }
 }
 
@@ -710,10 +720,10 @@ function editForecast(id){
   LAST_FMONTH=String(r.period_month).slice(0,7); LAST_FCH=r.channel; LAST_FZONE=r.zone_id||0;
   window.scrollTo({top:0,behavior:'smooth'}); status('Editing this row — change values and Save to overwrite.',true);
 }
-function editPricing(id){
-  const r=PR_ROWS.find(x=>x.id==id); if(!r) return;
+function editPricing(variantId){
+  const r=PR_ROWS.find(x=>x.variant_id==variantId); if(!r) return;
   _setv('pVar', r.variant_id); _setv('pCost', r.product_cost); _setv('pWhole', r.wholesale_price); _setv('pRetail', r.retail_price);
-  window.scrollTo({top:0,behavior:'smooth'}); status('Editing this price — change values and Save to overwrite.',true);
+  window.scrollTo({top:0,behavior:'smooth'}); status('Overriding this SKU — change values and Save (blank a field = use master data).',true);
 }
 function editCapacity(id){
   const r=CAP_ROWS.find(x=>x.id==id); if(!r) return;

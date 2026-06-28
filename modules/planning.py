@@ -513,14 +513,82 @@ def delete_sales_target(row_id, changed_by, reason=None):
 #  PROJECTED SALES  (calculation — never stored)
 # ═══════════════════════════════════════════════════════════════════
 
+def _effective_prices(version_id):
+    """Per-variant effective prices for a plan = ERP **master defaults** overlaid with
+    `plan_pricing` **overrides**.
+
+    - cost      ← compute_standard_cost().cost_to_make  (BOM × ingredient cost × config)
+    - wholesale ← live price book: distributor → ex_factory → retail_mrp → web (first set)
+    - retail    ← live price book: retail_mrp → web
+    A non-null `plan_pricing` field wins (an override). Returns
+    {variant_id: {product_cost, wholesale_price, retail_price, cost_src, whole_src, retail_src}}
+    where *_src is 'erp' | 'override' | None.
+    """
+    from modules.costing import compute_standard_cost, get_costing_config
+    meta = qry("""
+        SELECT pv.id AS variant_id, p.code AS product_code, ps.label AS pack_size
+        FROM product_variants pv
+        JOIN products p    ON p.id  = pv.product_id
+        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+        WHERE pv.active_flag = 1
+    """)
+    # price book: active prices keyed by variant → {price_type_code: price}
+    book = {}
+    for r in qry("""SELECT pp.product_variant_id AS vid, pt.code AS code, pp.price
+                    FROM product_prices pp JOIN price_types pt ON pt.id = pp.price_type_id
+                    WHERE pp.active_flag = 1"""):
+        book.setdefault(r['vid'], {})[r['code']] = r['price']
+
+    def _pick(d, codes):
+        for c_ in codes:
+            if d.get(c_) is not None:
+                return d[c_]
+        return None
+
+    try:
+        cfg = get_costing_config()
+    except Exception:
+        cfg = None
+
+    out = {}
+    for r in meta:
+        vid = r['variant_id']
+        cost, cost_src = None, None
+        try:
+            sc = compute_standard_cost(r['product_code'], r['pack_size'], cfg)
+            if sc and sc.get('cost_to_make'):
+                cost, cost_src = sc['cost_to_make'], 'erp'
+        except Exception:
+            pass
+        bk = book.get(vid, {})
+        whole = _pick(bk, ('distributor', 'ex_factory', 'retail_mrp', 'web'))
+        retail = _pick(bk, ('retail_mrp', 'web'))
+        out[vid] = {
+            'product_cost': cost, 'wholesale_price': whole, 'retail_price': retail,
+            'cost_src': cost_src,
+            'whole_src': 'erp' if whole is not None else None,
+            'retail_src': 'erp' if retail is not None else None,
+        }
+
+    if _table_exists('plan_pricing'):
+        for r in qry("""SELECT variant_id, product_cost, wholesale_price, retail_price
+                        FROM plan_pricing WHERE plan_version_id=?""", (version_id,)):
+            o = out.setdefault(r['variant_id'], {'product_cost': None, 'wholesale_price': None,
+                                                 'retail_price': None, 'cost_src': None,
+                                                 'whole_src': None, 'retail_src': None})
+            if r['product_cost'] is not None:
+                o['product_cost'] = r['product_cost']; o['cost_src'] = 'override'
+            if r['wholesale_price'] is not None:
+                o['wholesale_price'] = r['wholesale_price']; o['whole_src'] = 'override'
+            if r['retail_price'] is not None:
+                o['retail_price'] = r['retail_price']; o['retail_src'] = 'override'
+    return out
+
+
 def _scenario_prices(version_id):
-    """{variant_id: wholesale_price} from plan_pricing, if that table exists (M2+)."""
-    if not _table_exists('plan_pricing'):
-        return {}
-    rows = qry("SELECT variant_id, wholesale_price FROM plan_pricing WHERE plan_version_id=?",
-               (version_id,))
-    return {r['variant_id']: r['wholesale_price'] for r in rows
-            if r['wholesale_price'] is not None}
+    """{variant_id: effective wholesale price} — ERP price book (with plan overrides)."""
+    return {vid: p['wholesale_price'] for vid, p in _effective_prices(version_id).items()
+            if p.get('wholesale_price') is not None}
 
 
 def projected_sales(version_id, months=None):
@@ -784,15 +852,28 @@ def upsert_financial(version_id, data, changed_by):
 # ═══════════════════════════════════════════════════════════════════
 
 def list_pricing(version_id):
+    """Every active SKU with its EFFECTIVE price (master default, or plan override),
+    so the UI can show defaults and let the user override only what they want."""
     get_plan_version(version_id)
-    return qry("""
-        SELECT pp.*, pv.sku_code, p.name AS product_name
-        FROM plan_pricing pp
-        JOIN product_variants pv ON pv.id = pp.variant_id
-        JOIN products p          ON p.id  = pv.product_id
-        WHERE pp.plan_version_id=?
-        ORDER BY pv.sku_code
-    """, (version_id,))
+    eff = _effective_prices(version_id)
+    ov_ids = {}
+    if _table_exists('plan_pricing'):
+        ov_ids = {r['variant_id']: r['id'] for r in
+                  qry("SELECT id, variant_id FROM plan_pricing WHERE plan_version_id=?", (version_id,))}
+    out = []
+    for v in list_active_variants():
+        e = eff.get(v['variant_id'], {})
+        out.append({
+            'variant_id': v['variant_id'], 'sku_code': v['sku_code'],
+            'product_name': v['product_name'], 'pack_size': v['pack_size'],
+            'product_cost': e.get('product_cost'),
+            'wholesale_price': e.get('wholesale_price'),
+            'retail_price': e.get('retail_price'),
+            'cost_src': e.get('cost_src'), 'whole_src': e.get('whole_src'), 'retail_src': e.get('retail_src'),
+            'is_override': any(e.get(k) == 'override' for k in ('cost_src', 'whole_src', 'retail_src')),
+            'override_id': ov_ids.get(v['variant_id']),
+        })
+    return out
 
 
 def upsert_pricing(version_id, data, changed_by):
@@ -964,12 +1045,8 @@ def cash_flow(version_id):
     v = get_plan_version(version_id)
     _, window, rows = _window_forecast(v)
 
-    prices = {}
-    if _table_exists('plan_pricing'):
-        for r in qry("SELECT variant_id, product_cost, wholesale_price FROM plan_pricing WHERE plan_version_id=?",
-                     (version_id,)):
-            prices[r['variant_id']] = r
-    has_pricing = bool(prices)
+    prices = _effective_prices(version_id)   # ERP master defaults + plan overrides
+    has_pricing = any(p.get('wholesale_price') is not None for p in prices.values())
     fin = get_financial(version_id)
     has_financial = bool(qry1("SELECT 1 FROM plan_financial WHERE plan_version_id=?", (version_id,)))
 
