@@ -157,7 +157,8 @@
 </head>
 <body>
 
-<div id="login">
+<!-- Retired: planning runs on the shared ERP session. Kept hidden; no token → bounce to ERP login. -->
+<div id="login" class="hidden">
   <h2>Spicetopia Planning</h2>
   <div class="field"><label class="lbl">Username</label><div class="ig"><input id="lu" autocomplete="username"></div></div>
   <div class="field"><label class="lbl">Password</label><div class="ig"><input id="lp" type="password" autocomplete="current-password"></div></div>
@@ -233,7 +234,7 @@ const STEP_GUIDE = {
   financial: { lead:'Your cash and running costs', body:'Tell us your starting cash and monthly costs. We will project cash flow and flag any month you would dip below your comfort level.', steps:['Beginning cash & floor','Monthly fixed costs','Freight per unit','Save'] }
 };
 
-let TOKEN = localStorage.getItem('spx_plan_token') || localStorage.getItem('erp_token') || '';
+let TOKEN = localStorage.getItem('erp_token') || '';   // shared ERP session — planning has no separate login
 let VERSIONS = [], VARIANTS = [], ZONES = [], CURVER = null;
 let STEP = localStorage.getItem('spx_plan_step') || 'plan';
 let MODE = 'home';
@@ -295,7 +296,7 @@ async function doLogin() {
     await boot();
   } catch(e) { const el=document.getElementById('loginErr'); el.textContent=e.message; el.style.display='block'; }
 }
-function logout() { localStorage.removeItem('spx_plan_token'); TOKEN=''; location.reload(); }
+function logout() { localStorage.removeItem('erp_token'); localStorage.removeItem('spx_plan_token'); TOKEN=''; location.replace('/'); }
 
 async function boot() {
   document.getElementById('login').classList.add('hidden');
@@ -953,7 +954,7 @@ async function runCompare() {
 }
 
 // ── Start ──
-if (TOKEN) boot(); else document.getElementById('login').classList.remove('hidden');
+if (TOKEN) boot(); else location.replace('/');   // no ERP session → sign in on the ERP first
 </script>
 </body>
 </html>
