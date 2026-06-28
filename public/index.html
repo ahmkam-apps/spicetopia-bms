@@ -1151,7 +1151,11 @@ async function render(page, arg) {
       case 'dashboard':   c.innerHTML = await renderDashboard();   break;
       case 'customers':       c.innerHTML = await renderCustomers(); initCustomersTable(); break;
       case 'orders-invoices':
-      case 'customer-orders': c.innerHTML = await renderOrdersInvoices(); break;
+      case 'customer-orders':
+        if (arg === 'new') _oiTab = 'orders';
+        c.innerHTML = await renderOrdersInvoices();
+        if (arg === 'new' && typeof openNewOrderForm === 'function') openNewOrderForm();
+        break;
       case 'sales':           c.innerHTML = await renderOrdersInvoices(); break;
       case 'invoices':        c.innerHTML = await renderOrdersInvoices(); break;
       case 'receipts-aging':
@@ -1260,7 +1264,7 @@ async function renderHome() {
 
   h += '<div style="font-family:var(--font-serif);font-size:18px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px">Common tasks</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px">'
-    + task('🧾','Take an order','Create a customer order and reserve stock.',"nav('orders-invoices')")
+    + task('🧾','Take an order','Create a customer order and reserve stock.',"nav('orders-invoices','new')")
     + task('💵','Record a payment','Log a receipt against an invoice.',"nav('receipts-aging')")
     + task('🏭','Make a batch','Turn a work order into produced stock.',"nav('production')")
     + task('🛒','Raise a purchase order','Order ingredients from a supplier.',"nav('purchase-orders')")
