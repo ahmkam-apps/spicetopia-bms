@@ -43,6 +43,13 @@
   .context{display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; font-size:12px; color:var(--ink-2); margin-bottom:12px;}
   .context .code{font-family:var(--serif); color:var(--terra); letter-spacing:.03em;}
   .context .here{color:var(--ink); font-weight:500;}
+  .context .ctx-plans{cursor:pointer; color:var(--terra); border-bottom:1px solid var(--terra); padding-bottom:1px;}
+  .release-card{background:var(--gold-soft); border:1px solid var(--terra); border-left:4px solid var(--terra); border-radius:8px; padding:20px 22px; margin:0 0 24px;}
+  .release-card .label{color:var(--terra);}
+  .release-card .rc-top{display:flex; align-items:center; gap:12px; margin-bottom:8px;}
+  .release-card .rc-sub{font-size:13.5px; color:var(--ink-2); line-height:1.5; margin:0 0 14px; max-width:620px;}
+  .release-card .rc-actions{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
+  .release-card select{padding:9px; border:1px solid var(--rule-2); border-radius:4px; font-family:var(--sans); background:#fff;}
   .stepper{display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; padding-bottom:16px; border-bottom:1px solid var(--rule); margin-bottom:10px;}
   .wstep{display:flex; align-items:center; gap:8px; color:var(--ink-3); cursor:pointer;}
   .wstep .circ{width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:500; border:1.5px solid var(--rule-2); background:#fff; color:var(--ink-3);}
@@ -149,7 +156,7 @@
 <div id="app" class="hidden">
   <header class="topbar">
     <div class="brand home-link" onclick="goHome()" title="Home">Spicetopia<small>Planning</small></div>
-    <label class="sel-wrap">Plan <select id="verSel" onchange="onVersionChange()"></select></label>
+    <button class="txt-btn" onclick="goPlans()">All plans</button>
     <button class="txt-btn" onclick="showNewPlanModal()">New plan</button>
     <button class="txt-btn" onclick="openCompare()">Compare</button>
     <span class="spacer"></span>
@@ -292,11 +299,11 @@ async function boot() {
 async function loadVersions() {
   VERSIONS = await api('GET','/api/planning/versions');
   const sel = document.getElementById('verSel');
-  sel.innerHTML = VERSIONS.map(v => `<option value="${v.id}">${v.plan_code?esc(v.plan_code)+' · ':''}${esc(v.name)} · ${esc(v.scenario_type)}</option>`).join('');
+  if (sel) sel.innerHTML = VERSIONS.map(v => `<option value="${v.id}">${v.plan_code?esc(v.plan_code)+' · ':''}${esc(v.name)} · ${esc(v.scenario_type)}</option>`).join('');
   if (VERSIONS.length) {
     const saved = parseInt(localStorage.getItem('spx_plan_ver'));
     if (!CURVER || !VERSIONS.find(v=>v.id==CURVER)) CURVER = (saved && VERSIONS.find(v=>v.id==saved)) ? saved : VERSIONS[0].id;
-    sel.value = CURVER;
+    if (sel) sel.value = CURVER;
   } else { CURVER = null; }
   await refresh();
 }
@@ -339,7 +346,8 @@ function renderStepper() {
   const v = curVersion();
   const idx = ORDER.indexOf(STEP);
   if (ctx) ctx.innerHTML = v
-    ? '<span class="code">'+esc(v.plan_code||'')+'</span><span>·</span><span>'+esc(v.name)+'</span><span>·</span>'
+    ? '<span class="ctx-plans" onclick="goPlans()">← All plans</span><span>·</span>'
+      + '<span class="code">'+esc(v.plan_code||'')+'</span><span>·</span><span>'+esc(v.name)+'</span><span>·</span>'
       + '<span class="here">Step '+(idx+1)+' of '+STEPS.length+': '+esc(STEPS[idx][1])+'</span>'
     : '';
   const inputSteps = ['plan','forecast','pricing','manufacturing','financial'];
@@ -694,6 +702,7 @@ async function viewReview(view) {
   }).join('');
   view.innerHTML = '<div class="step-head"><div class="kicker lbl">'+esc(v?(v.plan_code||'Review'):'Review')+'</div>'
     + '<h1>'+esc(v?v.name:'Review')+'</h1><p>What you have entered and what it produces. Anything missing links back to the right step.</p></div>'
+    + '<div id="releaseCard" class="release-card"><div class="rc-top"><span class="label">Release to manufacturing</span></div><p class="empty">Loading…</p></div>'
     + '<div class="section"><span class="label">Setup checklist</span>'+checklist+'</div>'
     + '<div id="results"><p class="empty">Loading results…</p></div>';
   const results = document.getElementById('results');
@@ -714,27 +723,39 @@ async function viewReview(view) {
     h += resultSection('Ingredients to buy', ing, renderIngredients, !stepDone('forecast'), ['forecast'], 'Add a sales forecast (and set BOMs in the ERP).');
     h += resultSection('Cash flow', cash, renderCashflow, !(stepDone('financial')&&stepDone('pricing')), ['pricing','financial'], 'Cash flow needs both pricing and financial.');
     h += resultSection('Risk', risk, renderRisk, false, [], '');
-    h += releaseSection(v, prod, releases);
     results.innerHTML = h;
+    const rc = document.getElementById('releaseCard');
+    if (rc) rc.innerHTML = releaseCardHtml(v, prod, releases);
   } catch(e) { results.innerHTML = '<p class="banner miss">Error loading results: '+esc(e.message)+'</p>'; }
 }
-function releaseSection(v, prod, releases) {
-  let h = '<div class="section"><span class="label">Release to manufacturing</span>';
-  if (!v || v.status!=='approved')
-    return h + '<p class="empty">Approve this plan (set its status to approved) to release production into the ERP as Work Orders.</p></div>';
+// Pinned action card at the top of Review. Folds the Approve gate in with Release
+// so the "finish line" is one prominent place (not buried under the results).
+function releaseCardHtml(v, prod, releases) {
+  const approved = v && v.status==='approved';
+  let h = '<div class="rc-top"><span class="label">Release to manufacturing</span>'+statusBadge(v?v.status:'draft')+'</div>';
+  if (!approved) {
+    const fc = stepDone('forecast');
+    h += '<p class="rc-sub">The finish line: approve the plan, then release each month’s production into the ERP as Work Orders. Approving locks the plan from edits — you can Unlock anytime.</p>';
+    if (!fc) h += '<p class="empty">Add a sales forecast first — there’s nothing to produce yet.</p>';
+    h += '<button class="primary'+(fc?'':' ')+'" onclick="approvePlan()"'+(fc?'':' disabled')+'>Approve plan →</button>';
+    return h;
+  }
   const months = (prod && prod.months) ? prod.months.map(m=>m.period_month) : [];
-  if (!months.length)
-    return h + '<p class="empty">No production months to release — add a sales forecast first.</p></div>';
-  const opts = months.map(m=>'<option value="'+m+'">'+esc(String(m).slice(0,7))+'</option>').join('');
-  h += '<p class="foot-note" style="font-style:normal;margin:0 0 12px">Creates one Work Order per SKU for the chosen month (in-house). Your team converts each to a batch in the ERP. Already-released SKUs for that month are skipped.</p>';
-  h += '<div style="display:flex;gap:12px;align-items:center;margin-bottom:18px"><select id="relMonth" style="padding:9px;border:1px solid var(--rule-2);border-radius:4px;font-family:var(--sans)">'+opts+'</select>'
-    + '<button class="primary sm" onclick="releaseMonth()">Release to manufacturing</button></div>';
+  h += '<p class="rc-sub">Creates one Work Order per SKU for the chosen month (in-house). Your team converts each to a batch in the ERP. Already-released SKUs for that month are skipped.</p>';
+  if (!months.length) {
+    h += '<p class="empty">No production months to release — add a sales forecast.</p>';
+  } else {
+    const opts = months.map(m=>'<option value="'+m+'">'+esc(String(m).slice(0,7))+'</option>').join('');
+    h += '<div class="rc-actions"><select id="relMonth">'+opts+'</select>'
+      + '<button class="primary sm" onclick="releaseMonth()">Release to manufacturing</button>'
+      + '<button class="txt-btn" onclick="unapprovePlan()">Unlock (back to draft)</button></div>';
+  }
   if (releases && releases.length) {
     h += '<table><thead><tr><th>Month</th><th>SKU</th><th class="r">WO #</th><th>Status</th></tr></thead><tbody>'
       + releases.map(r=>'<tr><td>'+esc(String(r.period_month).slice(0,7))+'</td><td class="sku">'+esc(r.product_name)+' · '+esc(r.sku_code)+'</td><td class="r">'+esc(r.wo_number||('#'+r.work_order_id))+'</td><td>'+esc(r.wo_status||'—')+'</td></tr>').join('')
       + '</tbody></table>';
   } else { h += '<p class="empty">Nothing released yet.</p>'; }
-  return h + '</div>';
+  return h;
 }
 async function releaseMonth() {
   const m = g('relMonth'); if (!m) { status('Pick a month',false); return; }
