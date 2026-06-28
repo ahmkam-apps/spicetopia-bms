@@ -9326,6 +9326,11 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, 'Admin only', 403); return
                 send_json(self, list_active_variants())
                 return
+            if path == '/api/planning/zones':
+                if not require(get_session(self, qs), 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                send_json(self, list_zones())
+                return
             if path == '/api/planning/compare':
                 if not require(get_session(self, qs), 'admin'):
                     send_error(self, 'Admin only', 403); return
@@ -13028,6 +13033,7 @@ if __name__ == '__main__':
     ensure_plan_code()                   # planning: PLAN-### human code + backfill existing
     ensure_plan_release()                # planning: manufacturing-handoff release log
     ensure_scenario_type_cleanup()       # planning: split scenario TYPE from plan STATUS
+    ensure_plan_forecast_zone()          # planning: zone_id on forecast (rebuild, preserve rows)
     backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
     load_ref()
     import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh

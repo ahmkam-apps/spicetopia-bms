@@ -45,6 +45,7 @@ __all__ = [
     'ensure_plan_code',
     'ensure_plan_release',
     'ensure_scenario_type_cleanup',
+    'ensure_plan_forecast_zone',
 ]
 
 
@@ -1951,3 +1952,63 @@ def ensure_scenario_type_cleanup():
             c.close()
     except Exception as e:
         print(f"  ⚠ ensure_scenario_type_cleanup: {e}")
+
+
+def ensure_plan_forecast_zone():
+    """Add zone_id to plan_sales_forecast so a forecast line can be assigned to a delivery
+    zone (maps to ERP zones → reps). Idempotent.
+
+    Rebuilds the table because the grain's UNIQUE is an inline constraint SQLite can't ALTER.
+    zone_id=0 = 'All zones / unassigned' (a sentinel, NOT NULL — keeps the per-cell upsert
+    idempotent; a nullable zone would be DISTINCT in the UNIQUE and allow duplicates).
+    Existing rows are preserved and copied as zone 0. Nothing FK-references this table, so the
+    drop/rename is safe.
+    """
+    try:
+        c = _conn()
+        try:
+            cols = {r[1] for r in c.execute("PRAGMA table_info(plan_sales_forecast)").fetchall()}
+            if not cols:
+                return  # table not created yet (ensure_plan_sales_tables runs first)
+            if 'zone_id' in cols:
+                return  # already migrated
+            c.execute("PRAGMA foreign_keys=OFF")
+            c.execute("""
+                CREATE TABLE plan_sales_forecast_new (
+                    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_version_id        INTEGER NOT NULL REFERENCES plan_version(id) ON DELETE CASCADE,
+                    period_month           TEXT    NOT NULL,
+                    variant_id             INTEGER NOT NULL REFERENCES product_variants(id),
+                    channel                TEXT    NOT NULL
+                                             CHECK (channel IN ('retail','distributor','ecommerce','other')),
+                    zone_id                INTEGER NOT NULL DEFAULT 0,
+                    units_forecast         REAL    NOT NULL DEFAULT 0,
+                    store_count            INTEGER,
+                    sell_through_per_store REAL,
+                    created_by             TEXT,
+                    created_at             TEXT    DEFAULT (datetime('now')),
+                    updated_by             TEXT,
+                    updated_at             TEXT    DEFAULT (datetime('now')),
+                    UNIQUE (plan_version_id, period_month, variant_id, channel, zone_id)
+                )
+            """)
+            c.execute("""
+                INSERT INTO plan_sales_forecast_new
+                    (id, plan_version_id, period_month, variant_id, channel, zone_id,
+                     units_forecast, store_count, sell_through_per_store,
+                     created_by, created_at, updated_by, updated_at)
+                SELECT id, plan_version_id, period_month, variant_id, channel, 0,
+                     units_forecast, store_count, sell_through_per_store,
+                     created_by, created_at, updated_by, updated_at
+                FROM plan_sales_forecast
+            """)
+            c.execute("DROP TABLE plan_sales_forecast")
+            c.execute("ALTER TABLE plan_sales_forecast_new RENAME TO plan_sales_forecast")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_plan_forecast_version ON plan_sales_forecast (plan_version_id)")
+            c.execute("PRAGMA foreign_keys=ON")
+            c.commit()
+            print("  ✓ plan_sales_forecast: added zone_id (rebuilt, rows preserved as zone 0)")
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"  ⚠ ensure_plan_forecast_zone: {e}")

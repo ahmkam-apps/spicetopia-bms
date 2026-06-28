@@ -36,8 +36,8 @@ __all__ = [
     'capacity_vs_demand', 'production_required', 'cash_flow',
     # M3 — risk + scenario comparison
     'risk_assessment', 'compare_scenarios',
-    # UI helper
-    'list_active_variants',
+    # UI helpers
+    'list_active_variants', 'list_zones',
     # Ingredients to buy (reuses existing BOM engine)
     'ingredient_requirements',
     # Plan → manufacturing handoff (in-house WO release)
@@ -310,13 +310,31 @@ def list_sales_forecast(version_id):
     """Forecast rows for a version, joined to SKU/product names, ordered by month/sku."""
     get_plan_version(version_id)  # 404 if missing
     return qry("""
-        SELECT f.*, pv.sku_code, p.name AS product_name
+        SELECT f.*, pv.sku_code, p.name AS product_name, z.name AS zone_name
         FROM plan_sales_forecast f
         JOIN product_variants pv ON pv.id = f.variant_id
         JOIN products p          ON p.id  = pv.product_id
+        LEFT JOIN zones z        ON z.id  = f.zone_id
         WHERE f.plan_version_id = ?
-        ORDER BY f.period_month, pv.sku_code, f.channel
+        ORDER BY f.period_month, pv.sku_code, f.channel, f.zone_id
     """, (version_id,))
+
+
+def list_zones():
+    """Active delivery zones + the rep(s) covering each (sales_reps.primary_zone_id).
+    Used by planning's forecast step so a line can be mapped to a zone → its rep coverage.
+    Reuses ERP zones/reps — planning owns no zone data of its own."""
+    return qry("""
+        SELECT z.id, z.name, z.city,
+               (SELECT GROUP_CONCAT(sr.name, ', ')
+                  FROM sales_reps sr
+                 WHERE sr.primary_zone_id = z.id
+                   AND LOWER(COALESCE(sr.status,'active')) NOT IN ('inactive','terminated','disabled','left','resigned')
+               ) AS reps
+        FROM zones z
+        WHERE z.active = 1
+        ORDER BY z.city, z.name
+    """)
 
 
 def upsert_sales_forecast(version_id, data, changed_by):
@@ -334,6 +352,12 @@ def upsert_sales_forecast(version_id, data, changed_by):
     if channel not in PLAN_CHANNELS:
         raise ValueError(f"channel must be one of {', '.join(PLAN_CHANNELS)}")
 
+    # zone_id: 0 = All zones / unassigned; otherwise must be an active ERP zone
+    zone_id = data.get('zone_id')
+    zone_id = int(zone_id) if zone_id not in (None, '') else 0
+    if zone_id != 0 and not qry1("SELECT 1 FROM zones WHERE id=? AND active=1", (zone_id,)):
+        raise ValueError(f"Zone {zone_id} not found or inactive")
+
     units = float(data.get('units_forecast') or 0)
     if units < 0:
         raise ValueError("units_forecast cannot be negative")
@@ -347,8 +371,8 @@ def upsert_sales_forecast(version_id, data, changed_by):
     try:
         existing = c.execute(
             """SELECT id FROM plan_sales_forecast
-               WHERE plan_version_id=? AND period_month=? AND variant_id=? AND channel=?""",
-            (version_id, month, variant_id, channel)
+               WHERE plan_version_id=? AND period_month=? AND variant_id=? AND channel=? AND zone_id=?""",
+            (version_id, month, variant_id, channel, zone_id)
         ).fetchone()
         if existing:
             row_id = existing[0]
@@ -362,16 +386,16 @@ def upsert_sales_forecast(version_id, data, changed_by):
         else:
             c.execute("""
                 INSERT INTO plan_sales_forecast
-                    (plan_version_id, period_month, variant_id, channel,
+                    (plan_version_id, period_month, variant_id, channel, zone_id,
                      units_forecast, store_count, sell_through_per_store, created_by, updated_by)
-                VALUES (?,?,?,?,?,?,?,?,?)
-            """, (version_id, month, variant_id, channel, units, store_count, sell_through,
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+            """, (version_id, month, variant_id, channel, zone_id, units, store_count, sell_through,
                   changed_by, changed_by))
             row_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
             action = 'INSERT'
         _log_change(c, version_id, action,
                     {'forecast_id': row_id, 'month': month, 'variant_id': variant_id,
-                     'channel': channel, 'units': units}, changed_by, reason)
+                     'channel': channel, 'zone_id': zone_id, 'units': units}, changed_by, reason)
         c.commit()
     except Exception:
         c.rollback(); raise
@@ -379,7 +403,8 @@ def upsert_sales_forecast(version_id, data, changed_by):
         c.close()
     save_db()
     return {'id': row_id, 'action': action, 'period_month': month,
-            'variant_id': variant_id, 'channel': channel, 'units_forecast': units}
+            'variant_id': variant_id, 'channel': channel, 'zone_id': zone_id,
+            'units_forecast': units}
 
 
 def delete_sales_forecast(row_id, changed_by, reason=None):

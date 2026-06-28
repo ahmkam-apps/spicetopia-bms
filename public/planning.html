@@ -227,18 +227,18 @@ const STEPS = [
 const ORDER = STEPS.map(s => s[0]);
 const STEP_WORD = ['One','Two','Three','Four','Five','Six'];
 const STEP_GUIDE = {
-  forecast: { lead:'What do you expect to sell?', body:'Add each product with its month, channel, and number of packs. These figures flow through to revenue, production, and your ingredient shopping list.', steps:['Pick a product','Choose the month','Pick the channel','Enter the units'] },
+  forecast: { lead:'What do you expect to sell?', body:'Add each product with its month, channel, zone, and number of packs. Assigning a zone maps the demand to the area and the rep who covers it. These figures flow through to revenue, production, and your ingredient shopping list.', steps:['Pick a product','Month & channel','Pick the zone (or All zones)','Enter the units'] },
   pricing: { lead:'Set the prices for this plan', body:'The cost and selling prices you are assuming. These are scenario assumptions — they do not change your live price book.', steps:['Pick a product','Enter unit cost','Set wholesale','Set retail'] },
   manufacturing: { lead:'How much can you produce?', body:'Add your production line(s) and how much each can make per month, so we can check whether you can meet demand.', steps:['Add a production line','Select it','Enter capacity','Save'] },
   financial: { lead:'Your cash and running costs', body:'Tell us your starting cash and monthly costs. We will project cash flow and flag any month you would dip below your comfort level.', steps:['Beginning cash & floor','Monthly fixed costs','Freight per unit','Save'] }
 };
 
 let TOKEN = localStorage.getItem('spx_plan_token') || localStorage.getItem('erp_token') || '';
-let VERSIONS = [], VARIANTS = [], CURVER = null;
+let VERSIONS = [], VARIANTS = [], ZONES = [], CURVER = null;
 let STEP = localStorage.getItem('spx_plan_step') || 'plan';
 let MODE = 'home';
 let PROGRESS = { plan:false, forecast:false, pricing:false, manufacturing:false, financial:false };
-let LAST_FMONTH = '', LAST_FCH = 'retail';
+let LAST_FMONTH = '', LAST_FCH = 'retail', LAST_FZONE = 0;
 let FC_ROWS = [], PR_ROWS = [], CAP_ROWS = [];
 
 // ── helpers ──
@@ -302,6 +302,7 @@ async function boot() {
   document.getElementById('app').classList.remove('hidden');
   try {
     VARIANTS = await api('GET','/api/planning/variants');
+    ZONES = await api('GET','/api/planning/zones').catch(()=>[]);
     await loadVersions();
     if (!localStorage.getItem('spx_tour_done')) tourOpen();   // first-run walkthrough
   } catch(e) {
@@ -379,6 +380,18 @@ function nextHint(){ const i=ORDER.indexOf(STEP); return i<ORDER.length-1 ? ' ·
 
 function variantOptions(sel){ return VARIANTS.map(v => `<option value="${v.variant_id}" ${sel==v.variant_id?'selected':''}>${esc(v.product_name)} ${esc(v.pack_size)}</option>`).join(''); }
 function channelOptions(sel){ return CHANNELS.map(c=>`<option value="${c}" ${sel===c?'selected':''}>${c}</option>`).join(''); }
+function zoneOptions(sel){
+  let o = '<option value="0"'+((sel==null||sel==0||sel==='')?' selected':'')+'>All zones</option>';
+  return o + ZONES.map(z=>'<option value="'+z.id+'" '+(sel==z.id?'selected':'')+'>'+esc(z.name)+(z.city?' ('+esc(z.city)+')':'')+'</option>').join('');
+}
+function zoneLabel(r){
+  if(!r.zone_id || r.zone_id==0) return '<span style="color:var(--ink-3)">All zones</span>';
+  const z = ZONES.find(x=>x.id==r.zone_id);
+  const nm = esc(r.zone_name || (z?z.name:('Zone '+r.zone_id)));
+  const rep = (z && z.reps) ? '<span style="color:var(--ink-3);font-size:11px"> · '+esc(z.reps)+'</span>'
+                            : '<span style="color:var(--ink-3);font-size:11px"> · no rep</span>';
+  return nm + rep;
+}
 
 function navBar(stepKey) {
   const i = ORDER.indexOf(STEP);
@@ -517,13 +530,14 @@ async function viewForecast(view) {
     + selField({id:'fVar',label:'Product',help:'Product and pack size.',options:variantOptions()})
     + fld({id:'fMonth',label:'Month',help:'Kept after saving, so you can add more to the same month.',type:'month',value:LAST_FMONTH})
     + selField({id:'fCh',label:'Channel',help:'Retail = shops, distributor = bulk, ecommerce = online.',options:channelOptions(LAST_FCH)})
+    + selField({id:'fZone',label:'Zone',help:'Which area this is for — maps to the rep covering it. Leave as All zones if not area-specific.',options:zoneOptions(LAST_FZONE)})
     + fld({id:'fUnits',label:'Units (packs)',help:'How many packs you expect to sell.',type:'number',min:0,placeholder:'500'})
     + '<div class="field" style="align-self:end"><button class="primary sm" onclick="addForecast()">Save row</button></div>'
     + '</div></div>';
   let table = '<div class="section"><span class="label">Forecast entered — '+rows.length+' row'+(rows.length===1?'':'s')+'</span>';
   if (rows.length) {
-    table += '<table><thead><tr><th>Month</th><th>SKU</th><th>Channel</th><th class="r">Units</th><th></th></tr></thead><tbody>'
-      + rows.map(r=>'<tr><td>'+esc(r.period_month)+'</td><td class="sku">'+esc(r.product_name)+' · '+esc(r.sku_code)+'</td><td>'+esc(r.channel)+'</td><td class="r">'+num(r.units_forecast)+'</td><td class="r">'+(lock?'':'<button class="x" onclick="editForecast('+r.id+')" title="Edit">✎</button> <button class="x" onclick="delRow(\'forecast\','+r.id+')" title="Remove">✕</button>')+'</td></tr>').join('')
+    table += '<table><thead><tr><th>Month</th><th>SKU</th><th>Channel</th><th>Zone · rep</th><th class="r">Units</th><th></th></tr></thead><tbody>'
+      + rows.map(r=>'<tr><td>'+esc(r.period_month)+'</td><td class="sku">'+esc(r.product_name)+' · '+esc(r.sku_code)+'</td><td>'+esc(r.channel)+'</td><td>'+zoneLabel(r)+'</td><td class="r">'+num(r.units_forecast)+'</td><td class="r">'+(lock?'':'<button class="x" onclick="editForecast('+r.id+')" title="Edit">✎</button> <button class="x" onclick="delRow(\'forecast\','+r.id+')" title="Remove">✕</button>')+'</td></tr>').join('')
       + '</tbody></table>';
   } else { table += '<p class="empty">Nothing yet. Add at least one row so we can project sales, production and cash flow.</p>'; }
   table += '</div>';
@@ -550,8 +564,8 @@ async function addForecast() {
   const units = g('fUnits');
   if (units==='' || isNaN(parseFloat(units))) { status('Enter the number of units.', false); return; }
   if (!g('fMonth')) { status('Pick a month.', false); return; }
-  LAST_FMONTH = g('fMonth'); LAST_FCH = g('fCh');
-  const body = { variant_id: parseInt(g('fVar')), period_month: g('fMonth'), channel: g('fCh'), units_forecast: parseFloat(units)||0 };
+  LAST_FMONTH = g('fMonth'); LAST_FCH = g('fCh'); LAST_FZONE = parseInt(g('fZone'))||0;
+  const body = { variant_id: parseInt(g('fVar')), period_month: g('fMonth'), channel: g('fCh'), zone_id: parseInt(g('fZone'))||0, units_forecast: parseFloat(units)||0 };
   try { await api('POST',`/api/planning/versions/${CURVER}/forecast`, body); status('Saved — month kept, pick the next product.',true); await refresh(); }
   catch(e){ status(e.message,false); }
 }
@@ -691,8 +705,8 @@ async function delRow(kind, id) {
 function _setv(id,v){ const e=document.getElementById(id); if(e) e.value=(v==null?'':v); }
 function editForecast(id){
   const r=FC_ROWS.find(x=>x.id==id); if(!r) return;
-  _setv('fVar', r.variant_id); _setv('fMonth', String(r.period_month).slice(0,7)); _setv('fCh', r.channel); _setv('fUnits', r.units_forecast);
-  LAST_FMONTH=String(r.period_month).slice(0,7); LAST_FCH=r.channel;
+  _setv('fVar', r.variant_id); _setv('fMonth', String(r.period_month).slice(0,7)); _setv('fCh', r.channel); _setv('fZone', r.zone_id||0); _setv('fUnits', r.units_forecast);
+  LAST_FMONTH=String(r.period_month).slice(0,7); LAST_FCH=r.channel; LAST_FZONE=r.zone_id||0;
   window.scrollTo({top:0,behavior:'smooth'}); status('Editing this row — change values and Save to overwrite.',true);
 }
 function editPricing(id){
