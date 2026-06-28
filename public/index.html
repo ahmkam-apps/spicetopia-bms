@@ -213,6 +213,23 @@ html, body {
 .cmdp-item.active, .cmdp-item:hover { background: var(--saffron-pale); color: var(--saffron-deep); }
 .cmdp-empty { padding: 16px 18px; color: var(--text-3); font-size: 13px; }
 
+/* ── Module help / guided walkthrough ───────────────────────────── */
+#erp-help { position: fixed; inset: 0; background: rgba(42,33,26,.55); display: none; align-items: center; justify-content: center; z-index: 400; }
+.eh-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 92%; max-width: 560px; padding: 28px 30px 22px; box-shadow: var(--sh-lg); }
+.eh-kick { font-size: 10.5px; text-transform: uppercase; letter-spacing: .16em; color: var(--saffron); font-weight: 600; margin-bottom: 8px; }
+.eh-box h3 { font-family: var(--font-serif); font-weight: 500; font-size: 22px; margin: 0 0 12px; color: var(--text-1); }
+.eh-box p { font-size: 14px; line-height: 1.6; color: var(--text-2); margin: 0 0 10px; }
+.eh-list { font-size: 13px; color: var(--text-2); margin: 6px 0 0; padding-left: 18px; line-height: 1.7; }
+.eh-flow { display: flex; gap: 14px; margin-top: 8px; }
+.eh-flow .col { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.eh-flow .ch { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--saffron); font-weight: 600; margin-bottom: 5px; }
+.eh-flow ul { margin: 0; padding-left: 15px; font-size: 12px; color: var(--text-2); line-height: 1.55; }
+.eh-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; }
+.eh-foot .right { display: flex; gap: 10px; align-items: center; }
+.eh-dots { display: flex; gap: 6px; }
+.eh-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+.eh-dot.on { background: var(--saffron); }
+
 /* ── Topbar — Carbon Shell Header ────────────────────────────────── */
 #page-title { font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: 0.1px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
@@ -647,6 +664,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
   <!-- Right: controls -->
   <div class="topbar-right" style="justify-content:flex-end">
     <span id="topbar-status" style="display:none"></span>
+    <button class="btn btn-outline btn-sm" onclick="helpOpen(state.page)" title="How this screen works + where it fits">? Help</button>
     <button class="btn btn-outline btn-sm" onclick="refreshAll()">↻ Refresh</button>
     <div class="user-chip">
       <div class="avatar" id="topbar-avatar">A</div>
@@ -1108,6 +1126,7 @@ function _palCmds() {
     if (m && label) out.push({ label: label, page: m[1] });
   });
   out.push({ label: 'Planning / Forecast', url: '/planning.html' });
+  out.push({ label: 'Help — How it all connects', help: '_overview' });
   return out;
 }
 function _palOpen() {
@@ -1157,11 +1176,116 @@ function _palPick(i) {
   const c = _palFiltered[i];
   if (!c) return;
   _palClose();
-  if (c.url) location.href = c.url;
+  if (c.help) helpOpen(c.help);
+  else if (c.url) location.href = c.url;
   else nav(c.page, c.arg);
 }
 document.addEventListener('keydown', function (e) {
   if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); _palOpen(); }
+});
+
+// ── Module help / guided walkthroughs (? Help button, per screen) ────
+// Each slide: { t, b (HTML ok), list?[], flow?{inn:[], out:[]} }. Last slide of a
+// module is usually a "Where this fits" data-flow card.
+const HELP = {
+  _overview: [
+    { t:'How Spicetopia fits together', b:'Every screen is one link in a chain — buy materials, make the product, sell it, collect the money. This quick tour shows the big picture so you always know where you are.' },
+    { t:'Master data comes first', b:'Products, Customers, Suppliers, and recipes/costs (BOM) are the foundation every other screen draws on. Set them up once; everything else references them.' },
+    { t:'The core loop: Buy → Make → Sell', b:'Three pipelines do the real work:', list:['Procurement buys raw materials — Purchase Order → Supplier Bill → Payment','Production turns them into product — Work Order → Batch','Sales sells the product — Order → Invoice → Receipt'] },
+    { t:'Inventory is the shared ledger', b:'Stock never changes by typing a new number. It moves only through actions — a Batch adds finished goods, an Order draws them down, a received PO adds raw materials, a Batch consumes them. That discipline is what keeps every count trustworthy.' },
+    { t:'Planning looks ahead', b:'Planning forecasts demand and, once a plan is approved, releases Work Orders straight into Production — the bridge from “what we expect to sell” to “what we make”.' },
+    { t:'Money follows the goods', b:'Sales create Invoices; Receipts settle them; Receipts & AR shows who owes you. Purchases create Bills; AP Payments settle them; AP aging shows who you owe.' },
+    { t:'Finding your way', b:'On any screen, click <b>? Help</b> (top right) for a quick tour of just that module and where it sits in this chain. Press <b>⌘/Ctrl + K</b> anywhere to jump to any screen.' }
+  ],
+  dashboard: [
+    { t:'Dashboard — your daily pulse', b:'A live snapshot of the business: sales today, money owed to you (AR), low/out-of-stock alerts, and orders waiting to be reviewed.' },
+    { t:'Use it to triage', b:'Start your day here. Anything flagged — orders to review, low stock, overdue money — is your to-do list. Click through to the relevant screen to act.' },
+    { t:'Where it fits', b:'The Dashboard is a read-only mirror — you act in the underlying modules, and it reflects the result.', flow:{ inn:['Reads from Sales, Receipts & AR, Inventory, Review queue'], out:['Links you into each module to take action'] } }
+  ],
+  'orders-invoices': [
+    { t:'Orders & Invoices — the sales desk', b:'Take customer orders and turn them into invoices. The Orders tab is the pipeline; the Invoices tab is what has been billed.' },
+    { t:'Taking an order', b:'New Order → pick the customer, add products and quantities, save. Saving an order reserves finished-goods stock for it so it isn’t sold twice.' },
+    { t:'Order → Invoice → Paid', b:'Complete an order to raise its Invoice. Record payment against the invoice (here or in Receipts & AR). Status is always derived from payments — you never set “paid” by hand.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Customers & Products (master data)','Finished-goods stock (an order reserves it)','Web / B2B orders arrive via the Review queue'], out:['Invoice → Receipt → Receipts & AR','If stock is short, make it via Production'] } }
+  ],
+  'receipts-aging': [
+    { t:'Receipts & AR — money coming in', b:'Record customer payments, and see who owes you what and how overdue it is.' },
+    { t:'Recording a receipt', b:'Find the unpaid or partial invoice and record the payment. The invoice status updates automatically from what has been paid.' },
+    { t:'Reading the aging', b:'The aging buckets show overdue balances by age — your collections priority list, oldest first.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Invoices from Orders & Invoices'], out:['Settled invoices clear from AR aging'] } }
+  ],
+  inventory: [
+    { t:'Inventory — the single source of truth for stock', b:'What you have on hand: raw materials and finished goods.' },
+    { t:'Stock moves only through actions', b:'You never edit a stock number directly. It changes through movements — production adds finished goods and consumes raw materials; receiving a PO adds raw materials; an order/invoice draws finished goods down. This is exactly what keeps counts accurate.' },
+    { t:'Where it fits', b:'', flow:{ inn:['+ Finished goods from Production (Batch)','+ Raw materials from received Purchase Orders'], out:['− Finished goods consumed by Orders / Invoices','− Raw materials consumed by Production'] } }
+  ],
+  production: [
+    { t:'Production — making the goods', b:'Always two steps: a Work Order (the plan to make X) becomes a Batch (it was actually made).' },
+    { t:'Work Order → Batch', b:'Create or release a Work Order, then “Complete &amp; Record Batch” when it’s made. Converting deducts the raw materials and adds the finished goods to stock.' },
+    { t:'Where Work Orders come from', b:'You can create one here directly, or they arrive automatically when you Release a month from an approved Plan.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Work Orders — created here or released from a Plan','Raw materials from Inventory (consumed)'], out:['Finished goods → Inventory','…which then fulfil customer Orders'] } }
+  ],
+  'purchase-orders': [
+    { t:'Purchase Orders — buying raw materials', b:'Order ingredients and materials from a supplier.' },
+    { t:'PO → Bill → Payment', b:'Raise a PO to a supplier. When the goods/invoice arrive it becomes a Supplier Bill; pay it via AP. Receiving the goods adds them to raw-material stock.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Suppliers (master data)','Ingredient needs (e.g. a production shortfall or a plan)'], out:['Supplier Bill → AP Payment → AP aging','Received goods → raw-material Inventory'] } }
+  ],
+  bills: [
+    { t:'Supplier Bills — money going out', b:'What you owe suppliers, and paying it down.' },
+    { t:'Bill → Paid', b:'A bill usually comes from a Purchase Order. Record AP payments against it; status is derived from what’s paid, and AP aging shows what’s outstanding.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Purchase Orders'], out:['AP Payments settle bills','AP aging tracks what you owe'] } }
+  ]
+};
+let _helpKey = '_overview', _helpI = 0;
+function helpOpen(moduleId) {
+  _helpKey = (moduleId && HELP[moduleId]) ? moduleId : '_overview';
+  _helpI = 0;
+  let ov = document.getElementById('erp-help');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'erp-help';
+    ov.addEventListener('click', e => { if (e.target === ov) helpClose(); });
+    document.body.appendChild(ov);
+  }
+  ov.style.display = 'flex';
+  helpRender();
+}
+function helpClose() {
+  const ov = document.getElementById('erp-help'); if (ov) ov.style.display = 'none';
+  localStorage.setItem('erp_help_seen', '1');
+}
+function helpGo(i) { const n = HELP[_helpKey].length; _helpI = Math.max(0, Math.min(n - 1, i)); helpRender(); }
+function helpNext() { if (_helpI >= HELP[_helpKey].length - 1) { helpClose(); return; } helpGo(_helpI + 1); }
+function helpPrev() { helpGo(_helpI - 1); }
+function helpRender() {
+  const ov = document.getElementById('erp-help'); if (!ov) return;
+  const deck = HELP[_helpKey], s = deck[_helpI];
+  const dots = deck.map((_, i) => '<span class="eh-dot' + (i === _helpI ? ' on' : '') + '"></span>').join('');
+  const last = _helpI === deck.length - 1;
+  const list = s.list ? '<ul class="eh-list">' + s.list.map(x => '<li>' + x + '</li>').join('') + '</ul>' : '';
+  let flow = '';
+  if (s.flow) {
+    const colIn = '<div class="col"><div class="ch">Feeds in ←</div><ul>' + (s.flow.inn || []).map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
+    const colOut = '<div class="col"><div class="ch">Feeds out →</div><ul>' + (s.flow.out || []).map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
+    flow = '<div class="eh-flow">' + colIn + colOut + '</div>';
+  }
+  const HT = { dashboard:'Dashboard', 'orders-invoices':'Orders & Invoices', 'receipts-aging':'Receipts & AR', inventory:'Inventory', production:'Production', 'purchase-orders':'Purchase Orders', bills:'Supplier Bills' };
+  const label = _helpKey === '_overview' ? 'How it all connects' : (HT[_helpKey] || _helpKey);
+  ov.innerHTML = '<div class="eh-box">'
+    + '<div class="eh-kick">' + label + ' · ' + (_helpI + 1) + ' of ' + deck.length + '</div>'
+    + '<h3>' + s.t + '</h3>' + (s.b ? '<p>' + s.b + '</p>' : '') + list + flow
+    + '<div class="eh-foot"><div class="eh-dots">' + dots + '</div><div class="right">'
+    + (_helpI > 0 ? '<button class="btn btn-outline btn-sm" onclick="helpPrev()">Back</button>' : '')
+    + '<button class="btn btn-outline btn-sm" onclick="helpClose()">Close</button>'
+    + '<button class="btn btn-primary btn-sm" onclick="helpNext()">' + (last ? 'Done' : 'Next →') + '</button>'
+    + '</div></div></div>';
+}
+document.addEventListener('keydown', function (e) {
+  const ov = document.getElementById('erp-help');
+  if (ov && ov.style.display === 'flex') {
+    if (e.key === 'Escape') helpClose();
+    else if (e.key === 'ArrowRight') helpNext();
+    else if (e.key === 'ArrowLeft') helpPrev();
+  }
 });
 
 function nav(page, arg) {
@@ -1331,7 +1455,8 @@ async function renderHome() {
 
   let h = '<div style="max-width:920px;margin:0 auto;padding-top:12px">';
   h += '<div style="font-size:13px;color:var(--text-2)">'+greet+(name?', '+name:'')+'</div>';
-  h += '<h1 style="font-family:var(--font-serif);font-weight:500;font-size:32px;letter-spacing:-0.01em;margin:6px 0 24px">What would you like to do?</h1>';
+  h += '<h1 style="font-family:var(--font-serif);font-weight:500;font-size:32px;letter-spacing:-0.01em;margin:6px 0 6px">What would you like to do?</h1>';
+  h += '<div style="margin:0 0 22px"><a onclick="helpOpen(\'_overview\')" style="font-size:13px;color:var(--saffron);cursor:pointer;border-bottom:1px solid var(--saffron);padding-bottom:1px">How it all connects →</a></div>';
 
   h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px">'
     + stat(toReview, 'Orders to review', toReview > 0)
@@ -11049,6 +11174,7 @@ async function loadAndRender() {
     setStatus('');
     _updateRqBadge();
     nav('home');
+    if (!localStorage.getItem('erp_help_seen')) helpOpen('_overview');   // one-time orientation
   } catch(e) {
     if (e.message && e.message.includes('Session expired')) return; // showLoginScreen already called
     setStatus('Connection error — is the server running?', 'var(--chili)');
