@@ -184,6 +184,21 @@ html, body {
   margin: 8px 0;
 }
 
+/* ── Collapsible sidebar (icon rail) ─────────────────────────────── */
+.nav-collapse {
+  display: flex; align-items: center; justify-content: flex-end;
+  padding: 6px 16px; cursor: pointer; color: var(--cumin); font-size: 15px;
+}
+.nav-collapse:hover { color: var(--cream); }
+#sidebar { transition: width 0.12s ease; }
+#sidebar.collapsed { width: 56px; }
+#sidebar.collapsed .nav-item { font-size: 0; justify-content: center; padding: 0; gap: 0; }
+#sidebar.collapsed .nav-item .icon { font-size: 16px; }
+#sidebar.collapsed .nav-section,
+#sidebar.collapsed .sidebar-footer { display: none; }
+#sidebar.collapsed .nav-divider { margin: 8px 10px; }
+#sidebar.collapsed .nav-collapse { justify-content: center; padding: 8px 0; }
+
 /* ── Topbar — Carbon Shell Header ────────────────────────────────── */
 #page-title { font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: 0.1px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
@@ -634,6 +649,8 @@ input[type="radio"]    { accent-color: var(--saffron); }
   <div id="sidebar" style="display:none">
     <nav class="sidebar-nav" style="flex:1; padding: 8px 0;">
 
+      <div class="nav-collapse" onclick="toggleSidebar()" title="Collapse / expand sidebar"><span id="collapse-chev">«</span></div>
+
       <!-- Home — Start Here landing -->
       <div class="nav-item active" onclick="nav('home')" id="nav-home"><span class="icon" data-icon="home"></span> Home</div>
       <div class="nav-item" onclick="nav('dashboard')" id="nav-dashboard"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
@@ -1021,6 +1038,15 @@ function setStatus(msg, col='var(--text-3)') {
 // ═══════════════════════════════════════════════════════════════
 //  NAVIGATION
 // ═══════════════════════════════════════════════════════════════
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  if (!sb) return;
+  const collapsed = sb.classList.toggle('collapsed');
+  localStorage.setItem('erp_sidebar_collapsed', collapsed ? '1' : '0');
+  const chev = document.getElementById('collapse-chev');
+  if (chev) chev.textContent = collapsed ? '»' : '«';
+}
+
 function nav(page, arg) {
   state.page = page;
   state.navArg = arg || null;
@@ -1057,7 +1083,16 @@ async function render(page, arg) {
   const c = document.getElementById('content');
   // Full-screen Home — hide the sidebar on the landing, show it inside every module
   const _sb = document.getElementById('sidebar');
-  if (_sb) _sb.style.display = (page === 'home') ? 'none' : '';
+  if (_sb) {
+    _sb.style.display = (page === 'home') ? 'none' : '';
+    if (page !== 'home') {
+      const _col = localStorage.getItem('erp_sidebar_collapsed') === '1';
+      _sb.classList.toggle('collapsed', _col);
+      const _chev = document.getElementById('collapse-chev');
+      if (_chev) _chev.textContent = _col ? '»' : '«';
+      _sb.querySelectorAll('.nav-item').forEach(el => { if (!el.title) el.title = el.textContent.trim(); });
+    }
+  }
   // Access guard
   if (!canAccess(page)) {
     c.innerHTML = `
