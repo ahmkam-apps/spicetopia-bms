@@ -199,6 +199,11 @@ html, body {
 #sidebar.collapsed .nav-divider { margin: 8px 10px; }
 #sidebar.collapsed .nav-collapse { justify-content: center; padding: 8px 0; }
 
+/* ── Twisty (collapsible) nav sections ───────────────────────────── */
+.nav-section { cursor: pointer; user-select: none; }
+.nav-section .twisty { display: inline-block; width: 11px; font-size: 9px; color: var(--cumin); margin-right: 5px; line-height: 1; }
+.nav-item.sec-collapsed { display: none; }
+
 /* ── Topbar — Carbon Shell Header ────────────────────────────────── */
 #page-title { font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: 0.1px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
@@ -1045,6 +1050,41 @@ function toggleSidebar() {
   localStorage.setItem('erp_sidebar_collapsed', collapsed ? '1' : '0');
   const chev = document.getElementById('collapse-chev');
   if (chev) chev.textContent = collapsed ? '»' : '«';
+}
+
+function _applyNavSection(sec, collapsed) {
+  const tw = sec.querySelector('.twisty');
+  if (tw) tw.textContent = collapsed ? '▸' : '▾';
+  // toggle every item between this section header and the next section/divider
+  let el = sec.nextElementSibling;
+  while (el && !el.classList.contains('nav-section') && !el.classList.contains('nav-divider')) {
+    el.classList.toggle('sec-collapsed', collapsed);  // class, not inline — preserves role-based hiding
+    el = el.nextElementSibling;
+  }
+}
+function toggleNavSection(sec) {
+  const collapsed = !(sec.dataset.collapsed === '1');
+  sec.dataset.collapsed = collapsed ? '1' : '0';
+  _applyNavSection(sec, collapsed);
+  const saved = JSON.parse(localStorage.getItem('erp_nav_sections') || '{}');
+  saved[sec.dataset.section] = collapsed;
+  localStorage.setItem('erp_nav_sections', JSON.stringify(saved));
+}
+function initNavTwisties() {
+  const saved = JSON.parse(localStorage.getItem('erp_nav_sections') || '{}');
+  document.querySelectorAll('#sidebar .nav-section').forEach(sec => {
+    if (sec.dataset.twisty) return;
+    const label = sec.textContent.trim();
+    sec.dataset.twisty = '1';
+    sec.dataset.section = label;
+    const tw = document.createElement('span');
+    tw.className = 'twisty';
+    sec.insertBefore(tw, sec.firstChild);
+    sec.onclick = () => toggleNavSection(sec);
+    const collapsed = !!saved[label];
+    sec.dataset.collapsed = collapsed ? '1' : '0';
+    _applyNavSection(sec, collapsed);
+  });
 }
 
 function nav(page, arg) {
@@ -10935,6 +10975,7 @@ async function loadAndRender() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   initNavIcons();
+  initNavTwisties();
   let token = authToken();
   if (!token) { showLoginScreen(); return; }
   try {
