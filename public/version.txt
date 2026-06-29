@@ -1,2 +1,2 @@
-build: 2026-06-29 costing-overview
+build: 2026-06-29 cost-price-split
 has_gtin: true

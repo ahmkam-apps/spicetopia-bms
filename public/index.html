@@ -9775,7 +9775,7 @@ function canEditCosts() {
 
 function _pcSwitchTab(tab) {
   _pcTab = tab;
-  ['overview','standard','ingredients','config','history','alerts','variance'].forEach(t => {
+  ['overview','standard','ingredients','config','variance','history','markups','alerts'].forEach(t => {
     const btn  = document.getElementById('pc-tab-' + t);
     const pane = document.getElementById('pc-pane-' + t);
     if (!btn || !pane) return;
@@ -10016,14 +10016,17 @@ SP-ING003,950.00</pre>
     ovh_transport:    { label: 'Overhead — Transport',       unit: 'PKR', note: 'Transport, per pack', tag: 'per-unit' },
     ovh_salaries:     { label: 'Overhead — Salaries',        unit: 'PKR', note: 'Per-pack share of salaries', tag: 'per-unit' },
     ovh_admin:        { label: 'Overhead — Admin',           unit: 'PKR', note: 'Per-pack share of admin expenses', tag: 'per-unit' },
-    // ── Pricing multipliers ──
-    margin_mfr:              { label: 'Direct Sale Margin',        unit: '×',   note: 'Direct Sale = Cost to Make × this multiplier', tag: 'pricing' },
-    margin_dist:             { label: 'Distributor Margin',        unit: '×',   note: 'Distributor price = Direct Sale × this', tag: 'pricing' },
-    margin_mrp:              { label: 'MRP Margin',                unit: '×',   note: 'MRP = Distributor × this', tag: 'pricing' },
-    margin_floor_pct:        { label: 'Minimum Profit Margin',     unit: '%',   note: 'Profit Margin Alert fires if gross margin drops below this', tag: 'pricing' },
   };
 
-  const cfgRows = Object.entries(cfgLabels).map(([key, meta]) => {
+  // Markups live in the Pricing tab (not Cost Parameters) — cost and price kept separate.
+  const markupLabels = {
+    margin_mfr:       { label: 'Direct Sale Margin',    unit: '×', note: 'Direct Sale = Cost to Make × this multiplier', tag: 'pricing' },
+    margin_dist:      { label: 'Distributor Margin',    unit: '×', note: 'Distributor price = Direct Sale × this', tag: 'pricing' },
+    margin_mrp:       { label: 'MRP Margin',            unit: '×', note: 'MRP = Distributor × this', tag: 'pricing' },
+    margin_floor_pct: { label: 'Minimum Profit Margin', unit: '%', note: 'Profit Margin Alert fires if gross margin drops below this', tag: 'pricing' },
+  };
+
+  const _cfgRowsFor = (labels) => Object.entries(labels).map(([key, meta]) => {
     const row    = cfg[key] || {};
     const rawVal = parseFloat(row.value || 0);
     const dispVal = meta.scale ? (rawVal * meta.scale).toFixed(1) : rawVal;
@@ -10058,6 +10061,23 @@ SP-ING003,950.00</pre>
       </td>
     </tr>`;
   }).join('');
+
+  const cfgRows    = _cfgRowsFor(cfgLabels);
+  const markupRows = _cfgRowsFor(markupLabels);
+
+  const markupsTab = `
+  <div id="pc-pane-markups" style="display:none">
+    <div class="card">
+      <h3 style="margin:0 0 4px">Markups (Pricing)</h3>
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:16px">How selling prices are built up from cost — each markup adds margin at a trade level (Direct Sale → Distributor → MRP). For an easier percentage view, use the <b>Overview</b> tab. Changes are logged.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Setting</th><th class="text-right">Current Value</th><th>Action</th></tr></thead>
+          <tbody>${markupRows}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
 
   const configTab = `
   <div id="pc-pane-config" style="display:none">
@@ -10305,18 +10325,22 @@ SP-ING003,950.00</pre>
 
   <div style="border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;white-space:nowrap">
     <button id="pc-tab-overview"    onclick="_pcSwitchTab('overview')"    style="${activeStyle}">Overview</button>
+    <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);padding:0 6px 0 12px;text-transform:uppercase">Cost ·</span>
     <button id="pc-tab-standard"    onclick="_pcSwitchTab('standard')"    style="${inactiveStyle}">Standard Costs</button>
     <button id="pc-tab-ingredients" onclick="_pcSwitchTab('ingredients')" style="${inactiveStyle}">Ingredient Costs</button>
     <button id="pc-tab-config"      onclick="_pcSwitchTab('config')"      style="${inactiveStyle}">Cost Parameters</button>
-    <button id="pc-tab-history"     onclick="_pcSwitchTab('history')"     style="${inactiveStyle}">Cost History</button>
-    <button id="pc-tab-alerts"      onclick="_pcSwitchTab('alerts')"      style="${inactiveStyle}">Profit Margin Alerts${alertBadge}</button>
     <button id="pc-tab-variance"    onclick="_pcSwitchTab('variance')"    style="${inactiveStyle}">Batch Variance</button>
+    <button id="pc-tab-history"     onclick="_pcSwitchTab('history')"     style="${inactiveStyle}">Cost History</button>
+    <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);padding:0 6px 0 12px;text-transform:uppercase">Price ·</span>
+    <button id="pc-tab-markups"     onclick="_pcSwitchTab('markups')"     style="${inactiveStyle}">Markups</button>
+    <button id="pc-tab-alerts"      onclick="_pcSwitchTab('alerts')"      style="${inactiveStyle}">Profit Margin Alerts${alertBadge}</button>
   </div>
 
   ${overviewTab}
   ${standardTab}
   ${ingredientsTab}
   ${configTab}
+  ${markupsTab}
   ${historyTab}
   ${alertsTab}
   ${varianceTab}`;
