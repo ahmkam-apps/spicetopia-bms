@@ -891,6 +891,7 @@ function canAccess(pageId) {
   const u = state.currentUser;
   if (!u) return false;
   if (pageId === 'home') return true;            // home is the universal landing
+  if (pageId === 'section-hub') return true;     // hub itself is open; items inside are individually gated
   if (pageId === 'bom') return canRecipe();      // recipe is the secret: owner + granted only (even admins need the grant)
   if (pageId === 'prices-costs') return canCosts(); // admin or 'costs' permission
   if (u.role === 'admin' || u.role === 'super_user') return true;   // admin/owner have full access
@@ -1393,6 +1394,7 @@ async function render(page, arg) {
   try {
     switch(page) {
       case 'home':        c.innerHTML = await renderHome();        break;
+      case 'section-hub': c.innerHTML = renderSectionHub(state.hubKey); break;
       case 'dashboard':   c.innerHTML = await renderDashboard();   break;
       case 'customers':       c.innerHTML = await renderCustomers(); initCustomersTable(); break;
       case 'orders-invoices':
@@ -1466,6 +1468,77 @@ async function _updateRqBadge() {
 // ═══════════════════════════════════════════════════════════════
 //  DASHBOARD
 // ═══════════════════════════════════════════════════════════════
+// ── Section hubs: a landing page per area listing its (accessible) screens ──
+const SECTION_HUBS = {
+  sales: { title:'Sales & AR', items:[
+    {id:'orders-invoices', label:'Orders & Invoices', desc:'Create orders and raise invoices'},
+    {id:'field-orders',    label:'Field Orders',      desc:'Orders taken by reps in the field'},
+    {id:'review-queue',    label:'Review Queue',      desc:'Approve or reject pending orders'},
+    {id:'receipts-aging',  label:'Receipts & AR',     desc:'Record payments, track what is owed'},
+  ]},
+  procurement: { title:'Procurement & AP', items:[
+    {id:'purchase-orders', label:'Purchase Orders', desc:'Order ingredients from suppliers'},
+    {id:'bills',           label:'Supplier Bills',  desc:'Record and track supplier invoices'},
+    {id:'ap-payments',     label:'Payments',        desc:'Pay suppliers, allocate payments'},
+    {id:'ap-aging',        label:'AP Aging',        desc:'What you owe, by age'},
+  ]},
+  operations: { title:'Operations', items:[
+    {id:'inventory',  label:'Inventory',  desc:'Stock levels, adjustments, ledger'},
+    {id:'production', label:'Production',  desc:'Work orders and batches'},
+  ]},
+  reports: { title:'Reports', items:[
+    {id:'pl-report',       label:'P&L Report',      desc:'Profit and loss by period'},
+    {id:'margins',         label:'Margin Report',   desc:'Gross margin by product'},
+    {id:'rep-performance', label:'Rep Performance', desc:'Sales by rep'},
+  ]},
+  master: { title:'Master Data', items:[
+    {id:'customers',     label:'Customers',       desc:'Customer accounts'},
+    {id:'suppliers',     label:'Suppliers',       desc:'Supplier accounts'},
+    {id:'products',      label:'Products',        desc:'Products and SKUs'},
+    {id:'sales-reps',    label:'Sales Reps',      desc:'Field reps'},
+    {id:'zones-routes',  label:'Zones & Routes',  desc:'Territories and beats'},
+    {id:'recipes',       label:'Website Recipes', desc:'Cooking recipes for the website'},
+  ]},
+  admin: { title:'Admin & System', items:[
+    {id:'price-master',     label:'Price Master',      desc:'Manual price grid'},
+    {id:'prices-costs',     label:'Prices & Costs',    desc:'Standard costing and margins'},
+    {id:'ingredients-admin',label:'Ingredients',       desc:'Ingredient master and costs'},
+    {id:'bom',              label:'BOM (Formula)',     desc:'The secret recipe (gated)'},
+    {id:'users',            label:'User Management',   desc:'Users and permissions'},
+    {id:'payroll',          label:'Payroll',           desc:'Rep payroll runs'},
+    {id:'master-data',      label:'Master Data Import',desc:'Bulk CSV / XLSX import'},
+    {id:'audit',            label:'Audit Log',         desc:'Change history'},
+    {id:'system',           label:'System',            desc:'Settings and backup'},
+  ]},
+};
+function _hubAccessible(key) {
+  const cfg = SECTION_HUBS[key];
+  return cfg ? cfg.items.filter(it => canAccess(it.id)) : [];
+}
+function openHub(key) {
+  const items = _hubAccessible(key);
+  if (items.length === 1) { nav(items[0].id); return; }   // skip the hub if only one option
+  state.hubKey = key;
+  nav('section-hub');
+}
+function renderSectionHub(key) {
+  const cfg = SECTION_HUBS[key];
+  if (!cfg) return '<div class="card" style="padding:32px;text-align:center;color:var(--text-3)">Section not found.</div>';
+  const pt = document.getElementById('page-title'); if (pt) pt.textContent = cfg.title;
+  const items = _hubAccessible(key);
+  if (!items.length) return '<div class="card" style="padding:32px;text-align:center;color:var(--text-3)">You don\'t have access to anything in this area.</div>';
+  const cards = items.map(it =>
+    '<div class="card" style="padding:16px 18px;cursor:pointer;transition:box-shadow .15s" '
+    + 'onmouseenter="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,.12)\'" onmouseleave="this.style.boxShadow=\'\'" '
+    + 'onclick="nav(\'' + it.id + '\')">'
+    + '<div style="font-weight:700;margin-bottom:3px">' + it.label + ' <span style="color:var(--text-3)">→</span></div>'
+    + '<div style="font-size:12px;color:var(--text-3)">' + it.desc + '</div></div>'
+  ).join('');
+  return '<div class="section-header"><h2>' + cfg.title + '</h2>'
+    + '<button class="btn btn-outline btn-sm" onclick="nav(\'home\')">← Home</button></div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">' + cards + '</div>';
+}
+
 async function renderHome() {
   const u = state.currentUser || {};
   const isAdmin = u.role === 'admin' || u.role === 'super_user';
@@ -1524,14 +1597,13 @@ async function renderHome() {
   h += '<div style="font-family:var(--font-serif);font-size:18px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px">Browse by area</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'
     + mod('Dashboard','Overview · KPIs &amp; charts',"nav('dashboard')")
-    + mod('Sales','Orders · Invoices · Field',"nav('orders-invoices')")
-    + mod('Money','Receipts · AR aging',"nav('receipts-aging')")
-    + mod('Procurement','POs · Bills · AP',"nav('purchase-orders')")
-    + mod('Operations','Inventory · Production',"nav('inventory')")
-    + mod('Reports','P&amp;L · Margins · Reps',"nav('margins')")
+    + mod('Sales &amp; AR','Orders · Invoices · Field · Receipts',"openHub('sales')")
+    + mod('Procurement','POs · Bills · AP',"openHub('procurement')")
+    + mod('Operations','Inventory · Production',"openHub('operations')")
+    + mod('Reports','P&amp;L · Margins · Reps',"openHub('reports')")
     + (canPlan ? mod('Planning','Forecast · Scenarios',"location.href='/planning.html'") : '')
-    + (isAdmin ? mod('Admin','Products · Users · Backup',"nav('products')") : '')
-    + (isAdmin ? mod('Master data','Customers · Suppliers',"nav('customers')") : '')
+    + (isAdmin ? mod('Master Data','Customers · Suppliers · Products',"openHub('master')") : '')
+    + (isAdmin ? mod('Admin &amp; System','Pricing · Recipe · Users · System',"openHub('admin')") : '')
     + '</div></div>';
   return h;
 }
