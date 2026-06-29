@@ -1,2 +1,2 @@
-build: 2026-06-29 howto-guide
+build: 2026-06-29 cogs-computed-cost
 has_gtin: true

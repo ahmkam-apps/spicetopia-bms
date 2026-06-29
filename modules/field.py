@@ -993,6 +993,30 @@ def _wa_notify_out_of_route(order_id, rep_id):
 #  DIRECT SALES
 # ─────────────────────────────────────────────────────────────────
 
+def _unit_cost_to_make(product_code, pack_size, variant_id):
+    """Cost to make ONE pack, for COGS at sale time. Prefers the BOM-computed
+    standard cost (so the dashboard margin uses real cost); falls back to the
+    typed `mfg_cost` price-book entry, then 0."""
+    try:
+        from modules.costing import compute_standard_cost
+        sc = compute_standard_cost(product_code, pack_size)
+        if sc and (sc.get('cost_to_make') or 0) > 0:
+            return r2(sc['cost_to_make'])
+    except Exception:
+        pass
+    try:
+        mfg = qry1("SELECT id FROM price_types WHERE code='mfg_cost'")
+        if mfg:
+            cp = qry1("""SELECT price FROM product_prices
+                         WHERE product_variant_id=? AND price_type_id=? AND active_flag=1
+                         ORDER BY effective_from DESC LIMIT 1""", (variant_id, mfg['id']))
+            if cp:
+                return r2(cp['price'])
+    except Exception:
+        pass
+    return 0.0
+
+
 def create_sale(data):
     """
     Create a single-line sale + invoice.
@@ -1036,17 +1060,7 @@ def create_sale(data):
     except Exception:
         due_date = sale_date
 
-    mfg_type   = qry1("SELECT id FROM price_types WHERE code='mfg_cost'")
-    cogs_price = 0.0
-    if mfg_type:
-        cp = qry1("""
-            SELECT price FROM product_prices
-            WHERE product_variant_id=? AND price_type_id=? AND active_flag=1
-            ORDER BY effective_from DESC LIMIT 1
-        """, (var['id'], mfg_type['id']))
-        if cp:
-            cogs_price = r2(cp['price'] * qty)
-
+    cogs_price   = r2(_unit_cost_to_make(data.get('productCode', ''), data.get('packSize', ''), var['id']) * qty)
     gross_profit = r2(total - cogs_price)
 
     _sync_counter_to_max('sale',    'sales',    'sale_id',        'SP-SALE-')
@@ -1122,7 +1136,6 @@ def create_multi_sale(data):
     except Exception:
         due_date = sale_date
 
-    mfg_type = qry1("SELECT id FROM price_types WHERE code='mfg_cost'")
     fg_stock = get_finished_stock_map()
 
     resolved = []
@@ -1141,13 +1154,7 @@ def create_multi_sale(data):
             raise ValueError(
                 f"Line {i+1} ({var['product_name']} {var['pack_size']}): "
                 f"Insufficient stock — {avail:.0f} available, {qty} requested")
-        cogs_price = 0.0
-        if mfg_type:
-            cp = qry1("""SELECT price FROM product_prices
-                         WHERE product_variant_id=? AND price_type_id=? AND active_flag=1
-                         ORDER BY effective_from DESC LIMIT 1""", (var['id'], mfg_type['id']))
-            if cp:
-                cogs_price = r2(cp['price'] * qty)
+        cogs_price   = r2(_unit_cost_to_make(line.get('productCode', ''), line.get('packSize', ''), var['id']) * qty)
         line_total   = r2(qty * unit_price)
         gross_profit = r2(line_total - cogs_price)
         resolved.append({'var': var, 'qty': qty, 'unit_price': unit_price,

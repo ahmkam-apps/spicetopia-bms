@@ -1376,6 +1376,10 @@ const HOWTO = [
     steps:['Open Prices & Costs → Ingredient Costs tab.','Find the ingredient and click Edit.','Enter the new cost per kg and Save — all product costs that use it recalculate automatically.'] },
   { cat:'Costing & pricing', q:'Why does a product say "margin too low"?', nav:'prices-costs', kw:'below minimum margin low warning red fix',
     steps:['It means the profit margin is below your Minimum Profit Margin setting.','Fix it one of two ways: raise the price (increase a markup %), or lower the cost (cheaper packaging/ingredients).','The Overview\'s live example helps you see the effect before you save.'] },
+  { cat:'Costing & pricing', q:'How costs, prices and margins fit together (the full picture)', nav:'prices-costs', kw:'cost price margin formula how calculated cogs dashboard explain everything full picture',
+    steps:['COST: Cost to make a pack = Ingredients (from the recipe) + Packaging + Making cost + Overhead.','PRICE: selling prices are built up from cost by adding a markup at each level — Direct Sale (+%), then Distributor (+%), then MRP (+%).','MARGIN: you keep = selling price − cost to make; margin % = (price − cost) ÷ price.','Cost and price are set separately — margin is just the gap between them.','Set costs in Overview → "Set up your costs"; set selling prices in the price book.'] },
+  { cat:'Costing & pricing', q:'How is the dashboard\'s gross margin calculated?', nav:'dashboard', kw:'dashboard gross margin profit cogs revenue how calculated',
+    steps:['For each sale: Revenue = selling price × quantity; COGS = cost to make × quantity (the BOM-computed cost).','Gross profit = Revenue − COGS.','Dashboard gross margin % = total gross profit ÷ total revenue × 100, over the period.','So the margin is only as accurate as your recipe, ingredient prices, and the cost constants you set.'] },
 
   // Inventory
   { cat:'Inventory', q:'Check stock levels', nav:'inventory', kw:'stock inventory levels how much',
@@ -9900,6 +9904,17 @@ function _pcSwitchTab(tab) {
   });
 }
 
+// Show/hide the advanced cost & price tabs (kept collapsed by default to reduce clutter).
+function _pcToggleAdv() {
+  const box = document.getElementById('pc-adv-tabs');
+  const tog = document.getElementById('pc-adv-toggle');
+  if (!box) return;
+  const show = box.style.display === 'none';
+  box.style.display = show ? 'inline' : 'none';
+  if (tog) tog.textContent = show ? 'Advanced ▴' : 'Advanced ▾';
+  if (!show) _pcSwitchTab('overview');   // collapsing returns to the simple Overview
+}
+
 // Manager Overview — live preview of cost → price → profit as the inputs change.
 function _pcOvPreview() {
   const g = id => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || 0) : 0; };
@@ -10438,15 +10453,18 @@ SP-ING003,950.00</pre>
 
   <div style="border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;white-space:nowrap">
     <button id="pc-tab-overview"    onclick="_pcSwitchTab('overview')"    style="${activeStyle}">Overview</button>
-    <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);padding:0 6px 0 12px;text-transform:uppercase">Cost ·</span>
-    <button id="pc-tab-standard"    onclick="_pcSwitchTab('standard')"    style="${inactiveStyle}">Standard Costs</button>
-    <button id="pc-tab-ingredients" onclick="_pcSwitchTab('ingredients')" style="${inactiveStyle}">Ingredient Costs</button>
-    <button id="pc-tab-config"      onclick="_pcSwitchTab('config')"      style="${inactiveStyle}">Cost Parameters</button>
-    <button id="pc-tab-variance"    onclick="_pcSwitchTab('variance')"    style="${inactiveStyle}">Batch Variance</button>
-    <button id="pc-tab-history"     onclick="_pcSwitchTab('history')"     style="${inactiveStyle}">Cost History</button>
-    <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);padding:0 6px 0 12px;text-transform:uppercase">Price ·</span>
-    <button id="pc-tab-markups"     onclick="_pcSwitchTab('markups')"     style="${inactiveStyle}">Markups</button>
-    <button id="pc-tab-alerts"      onclick="_pcSwitchTab('alerts')"      style="${inactiveStyle}">Profit Margin Alerts${alertBadge}</button>
+    <button id="pc-adv-toggle" onclick="_pcToggleAdv()" style="padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text-3)">Advanced ▾</button>
+    <span id="pc-adv-tabs" style="display:none">
+      <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);padding:0 6px 0 4px;text-transform:uppercase">Cost ·</span>
+      <button id="pc-tab-standard"    onclick="_pcSwitchTab('standard')"    style="${inactiveStyle}">Standard Costs</button>
+      <button id="pc-tab-ingredients" onclick="_pcSwitchTab('ingredients')" style="${inactiveStyle}">Ingredient Costs</button>
+      <button id="pc-tab-config"      onclick="_pcSwitchTab('config')"      style="${inactiveStyle}">Cost Parameters</button>
+      <button id="pc-tab-variance"    onclick="_pcSwitchTab('variance')"    style="${inactiveStyle}">Batch Variance</button>
+      <button id="pc-tab-history"     onclick="_pcSwitchTab('history')"     style="${inactiveStyle}">Cost History</button>
+      <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);padding:0 6px 0 12px;text-transform:uppercase">Price ·</span>
+      <button id="pc-tab-markups"     onclick="_pcSwitchTab('markups')"     style="${inactiveStyle}">Markups</button>
+      <button id="pc-tab-alerts"      onclick="_pcSwitchTab('alerts')"      style="${inactiveStyle}">Profit Margin Alerts${alertBadge}</button>
+    </span>
   </div>
 
   ${overviewTab}
