@@ -862,6 +862,9 @@ function isAdminRole() {
   const r = state.currentUser && state.currentUser.role;
   return r === 'admin' || r === 'super_user';
 }
+function isSuperUser() {
+  return !!(state.currentUser && state.currentUser.role === 'super_user');
+}
 
 function canAccess(pageId) {
   const u = state.currentUser;
@@ -10900,6 +10903,7 @@ async function renderUsers() {
     return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
   }
   const ROLE_COLORS = {
+    super_user: {bg:'var(--saffron-pale)', fg:'var(--saffron-deep)'},
     admin:      {bg:'var(--orange-pale)',  fg:'var(--saffron)'},
     sales:      {bg:'var(--green-pale)',   fg:'var(--cardamom)'},
     warehouse:  {bg:'#e8f4ff',            fg:'#1a6bb3'},
@@ -10907,7 +10911,7 @@ async function renderUsers() {
     field_rep:  {bg:'#fff3e0',            fg:'#c06400'},
     user:       {bg:'var(--blue-pale)',    fg:'var(--mac-blue)'},
   };
-  const ROLE_LABELS = {admin:'Admin',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
+  const ROLE_LABELS = {super_user:'Owner',admin:'Admin',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
   const users = await GET('/api/users');
   let rows = users.map(u => {
     let perms = [];
@@ -11027,6 +11031,7 @@ function showNewUserForm() {
       <div class="form-group"><label>Password * (min 6 chars)</label><input id="nu-pw" type="password" placeholder="Password"></div>
       <div class="form-group"><label>Role</label>
         <select id="nu-role" onchange="_pmRoleChange('nu',this.value)">
+          ${isSuperUser() ? '<option value="super_user">Owner (Super User)</option>' : ''}
           <option value="user">Viewer (custom access)</option>
           <option value="sales">Sales</option>
           <option value="warehouse">Warehouse</option>
@@ -11086,6 +11091,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
       <div class="form-group"><label>Display Name</label><input id="eu-disp" value="${displayName}"></div>
       <div class="form-group"><label>Role</label>
         <select id="eu-role" onchange="_pmRoleChange('eu',this.value)">
+          ${(role==='super_user'||isSuperUser()) ? '<option value="super_user" '+(role==='super_user'?'selected':'')+'>Owner (Super User)</option>' : ''}
           <option value="user" ${role==='user'?'selected':''}>Viewer (custom access)</option>
           <option value="sales" ${role==='sales'?'selected':''}>Sales</option>
           <option value="warehouse" ${role==='warehouse'?'selected':''}>Warehouse</option>

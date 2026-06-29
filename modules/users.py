@@ -174,6 +174,9 @@ def update_user(user_id, data, requesting_role, requesting_user_id):
         raise ValueError("User not found")
     if requesting_role not in ('admin', 'super_user') and requesting_user_id != user_id:
         raise ValueError("Permission denied")
+    # Only the owner can modify the owner (super_user) account.
+    if user['role'] == 'super_user' and requesting_role != 'super_user' and requesting_user_id != user_id:
+        raise ValueError("Only the owner can modify the owner account")
     set_parts, vals = [], []
     new_pw = data.get('newPassword', '').strip()
     if new_pw:

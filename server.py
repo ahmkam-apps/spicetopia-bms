@@ -1427,15 +1427,27 @@ def _get_session_by_token(token: str) -> dict | None:
     # Slide expiry window on activity (keep-alive)
     new_expiry = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')
     run("UPDATE sessions SET last_seen_at=?, expires_at=? WHERE token=?", (now, new_expiry, token))
+    # Read LIVE role + permissions from the users table so role/permission changes take effect
+    # immediately (no re-login). Field reps aren't in users → fall back to the session snapshot.
+    live = qry1("SELECT role, permissions, COALESCE(active,1) AS active FROM users WHERE id=?", (row['user_id'],))
+    if live and not live.get('active', 1):
+        return None  # user deactivated → session no longer valid
+    role      = live['role'] if live else row['role']
+    perms_raw = (live['permissions'] if live else row['permissions']) or '[]'
+    try:
+        perms = json.loads(perms_raw)
+    except Exception:
+        perms = []
     sess = {
         'userId':      row['user_id'],
+        'user_id':     row['user_id'],
         'username':    row['username'],
         'displayName': row['display_name'],
-        'role':        row['role'],
-        'permissions': json.loads(row['permissions'] or '[]'),
+        'role':        role,
+        'permissions': perms,
     }
     # Field reps use userId as their repId (set separately for backwards compatibility)
-    if row['role'] == 'field_rep':
+    if role == 'field_rep':
         sess['repId'] = row['user_id']
     return sess
 
@@ -7863,7 +7875,10 @@ class Handler(BaseHTTPRequestHandler):
                 sess = get_session(self)
                 if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
-                send_json(self, list_users())
+                _users = list_users()
+                if sess.get('role') != 'super_user':
+                    _users = [u for u in _users if u.get('role') != 'super_user']  # only the owner sees the owner
+                send_json(self, _users)
                 return
 
             # ── ADMIN BACKUP STATUS ────────────────────────────────────────
