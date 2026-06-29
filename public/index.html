@@ -9844,12 +9844,30 @@ async function renderPricesCosts() {
     </tr>`;
   }).join('') : `<tr><td colspan="13" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>`;
 
+  const _mfr  = parseFloat((cfg.margin_mfr  || {}).value || 1.30);
+  const _dist = parseFloat((cfg.margin_dist || {}).value || 1.10);
+  const _mrpM = parseFloat((cfg.margin_mrp  || {}).value || 1.22);
+  const _combo = (_mfr * _dist * _mrpM).toFixed(2);
   const standardTab = `
   <div id="pc-pane-standard">
     ${kpiRow}
     <div class="card">
       <h3 style="margin-bottom:12px">Standard Cost Breakdown — All SKUs</h3>
       <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">Computed from active BOMs + current ingredient costs + costing parameters. Read-only — update costs in the Ingredient Costs tab.</p>
+      <details style="margin-bottom:14px;border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--surface)">
+        <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--saffron-deep)">How is MRP calculated?</summary>
+        <div style="font-size:13px;color:var(--text-2);line-height:1.7;margin-top:8px">
+          MRP is built up from the cost to make a pack, adding a markup at each trade level. The three multipliers are set in <b>Cost Parameters</b>.
+          <ol style="margin:8px 0 6px 18px;padding:0">
+            <li><b>Cost to Make</b> = raw materials (from the BOM) + packaging + conversion + overhead</li>
+            <li><b>Direct Sale</b> = Cost to Make × <b>${_mfr}</b> &nbsp;<span style="color:var(--text-3)">(Direct Sale Margin)</span></li>
+            <li><b>Distributor</b> = Direct Sale × <b>${_dist}</b> &nbsp;<span style="color:var(--text-3)">(Distributor Margin)</span></li>
+            <li><b>MRP</b> = Distributor × <b>${_mrpM}</b> &nbsp;<span style="color:var(--text-3)">(MRP Margin)</span></li>
+          </ol>
+          Net effect: <b>MRP ≈ Cost to Make × ${_combo}</b>. &nbsp; Gross Margin shown = (MRP − Cost to Make) ÷ MRP.
+          <br><span style="color:var(--text-3)">MRP here is pre-tax — GST is added at invoicing, not in this figure.</span>
+        </div>
+      </details>
       <div class="table-wrap">
         <table>
           <thead><tr>

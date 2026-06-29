@@ -1,2 +1,2 @@
-build: 2026-06-29 ask-assistant-diag
+build: 2026-06-29 mrp-guidance
 has_gtin: true
