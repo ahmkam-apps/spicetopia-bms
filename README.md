@@ -11,7 +11,7 @@
 ## Starting the Server
 
 ```bash
-cd spicetopia-erp-v2
+cd spicetopia-bms
 python3 server.py
 ```
 
@@ -32,7 +32,7 @@ Open that URL in any browser.
 ## Project Structure
 
 ```
-spicetopia-erp-v2/
+spicetopia-bms/
 ├── server.py            # HTTP server + all route handlers (~13,800 lines)
 ├── modules/             # Business logic package (16 modules)
 │   ├── utils.py         # Pure utilities: r2, today, validation, RBAC
@@ -123,7 +123,7 @@ the same function names but now get the module implementations. See
 
 ```bash
 # DEV (Railway — test before pushing to PROD)
-cd spicetopia-erp-v2
+cd spicetopia-bms
 railway up --detach
 
 # PROD (git push triggers Railway auto-deploy)

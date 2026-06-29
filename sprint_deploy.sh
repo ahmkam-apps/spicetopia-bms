@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # sprint_deploy.sh — Spicetopia BMS sprint deployment script
 # Usage: ./sprint_deploy.sh "Sprint N: description"
-# Must be run from inside spicetopia-erp-v2/
+# Must be run from inside spicetopia-bms/
 
 set -euo pipefail
 
 COMMIT_MSG="${1:-}"
 DEV_URL="https://dev-spicetopia-bms-production.up.railway.app"
-BMS_PASS="${BMS_PASS:-Gido2dad\$72!2026}"
+# BMS_PASS must come from the environment — never hardcode a credential here.
+# Set it before running, e.g.:  export BMS_PASS='...'
+BMS_PASS="${BMS_PASS:?BMS_PASS is not set — export it in your shell before running (never hardcode it)}"
 BOOT_WAIT=90   # seconds to wait for Railway DEV to boot
 LOG_FILE="../.sprint_output.log"   # written to spicetopia BMS/ — Claude reads this directly
 > "$LOG_FILE"  # truncate/create log at start

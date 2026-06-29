@@ -15,7 +15,7 @@ served over HTTP on port 3001. The frontend is a single-file vanilla JS SPA.
 ## File Structure
 
 ```
-spicetopia-erp-v2/
+spicetopia-bms/
 ├── server.py            # HTTP server + all route handlers (~13,800 lines)
 ├── modules/             # Business logic package (extracted from server.py)
 │   ├── __init__.py
@@ -290,7 +290,7 @@ verify zero regressions before pushing to PROD.
 
 ```bash
 # Deploy to DEV (Railway service: DEV-SPICETOPIA-BMS)
-cd spicetopia-erp-v2
+cd spicetopia-bms
 railway up --detach
 
 # Push to PROD (triggers Railway auto-deploy via git)

@@ -64,11 +64,11 @@ import sys as _sys
 BASE_DIR    = Path(getattr(_sys, '_MEIPASS', Path(__file__).parent))
 # CONFIG_FILE lives next to the .exe (or script), not inside the bundle
 EXE_DIR     = Path(_sys.executable).parent if getattr(_sys, 'frozen', False) else Path(__file__).parent
-CONFIG_FILE = EXE_DIR / 'config.json'
+CONFIG_FILE = Path('/tmp/test_config.json')
 MASTERS_DIR = BASE_DIR / 'masters'
 DB_TMP      = Path(tempfile.gettempdir()) / 'spicetopia_v3_live.db'
 PUBLIC_DIR  = BASE_DIR / 'public'
-PORT        = 3001           # overridden at startup from config.json / env var PORT
+PORT        = 8770           # overridden at startup from config.json / env var PORT
 SERVER_START_TIME = int(time.time())   # set once at import time — changes on every restart
 GST_RATE    = 0.18           # 18%
 USER_NAME   = "FK_Baba"      # Display name — change to match the logged-in user
@@ -96,6 +96,28 @@ DB_SRC: Path = None
 # ── Rate limiter — DB-persisted so lockouts survive server restarts ───────────
 RATE_MAX_ATTEMPTS = 5      # failed attempts before lockout
 RATE_LOCKOUT_SECS = 900    # 15 minutes (900 seconds)
+
+def ensure_rate_limit_table():
+    """
+    Create login_rate_limits table (idempotent).
+    Persisting rate limits to DB ensures lockouts survive server restarts —
+    critical for cloud deployments where the process may restart under load.
+    """
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS login_rate_limits (
+                ip            TEXT PRIMARY KEY,
+                attempts      INTEGER NOT NULL DEFAULT 0,
+                locked_until  REAL    NOT NULL DEFAULT 0,
+                last_attempt  REAL    NOT NULL DEFAULT 0
+            )
+        """)
+        c.commit()
+        print("  ✓ Rate limits: table ready (DB-persisted) — lockouts cleared")
+    finally:
+        c.close()
+
 
 def _get_client_ip(handler):
     """Return client IP, respecting X-Forwarded-For when behind a proxy."""
@@ -162,6 +184,20 @@ def _save_config(data: dict):
     except Exception as e:
         print(f"  ⚠ Could not save config: {e}")
 
+
+def ensure_system_settings_schema():
+    """Create system_settings key-value table if not present."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        c.commit()
+    finally:
+        c.close()
 
 def get_setting(key: str, default=None):
     """Read a value from system_settings. Returns default if not found."""
@@ -683,6 +719,509 @@ def bootstrap_db():
 MAX_BACKUPS = 5   # keep the last 5 snapshots
 
 
+def _migrate_invoice_items_line_total():
+    """
+    Migration: if invoice_items has a 'total' column (old schema) but no 'line_total',
+    recreate the table with 'line_total'. Fixes 'no such column: line_total' on Railway
+    instances created before the column was renamed. Idempotent — safe to run every startup.
+    """
+    c = _conn()
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(invoice_items)").fetchall()]
+        if 'line_total' not in cols and 'total' in cols:
+            print("  ⚙ Migrating invoice_items: renaming 'total' → 'line_total'")
+            c.execute("PRAGMA foreign_keys=OFF")
+            c.execute("""
+                CREATE TABLE invoice_items_new (
+                    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                    invoice_id         INTEGER NOT NULL REFERENCES invoices(id),
+                    product_variant_id INTEGER REFERENCES product_variants(id),
+                    product_code       TEXT NOT NULL,
+                    product_name       TEXT NOT NULL,
+                    pack_size          TEXT NOT NULL,
+                    quantity           INTEGER NOT NULL,
+                    unit_price         REAL NOT NULL,
+                    line_total         REAL NOT NULL,
+                    sale_id            TEXT
+                )
+            """)
+            c.execute("""
+                INSERT INTO invoice_items_new
+                    (id, invoice_id, product_variant_id, product_code, product_name,
+                     pack_size, quantity, unit_price, line_total, sale_id)
+                SELECT
+                    id, invoice_id, product_variant_id, product_code, product_name,
+                    pack_size, quantity, unit_price, total, sale_id
+                FROM invoice_items
+            """)
+            c.execute("DROP TABLE invoice_items")
+            c.execute("ALTER TABLE invoice_items_new RENAME TO invoice_items")
+            c.execute("PRAGMA foreign_keys=ON")
+            c.commit()
+            print("  ✓ invoice_items migrated — 'line_total' column now in place")
+        else:
+            print("  ✓ invoice_items schema OK — 'line_total' column present")
+    except Exception as e:
+        print(f"  ⚠ invoice_items migration skipped: {e}")
+        c.rollback()
+    finally:
+        c.close()
+
+
+def ensure_full_schema():
+    """
+    Create ALL core tables on a fresh database (idempotent — safe to run on existing DBs).
+    Must be called immediately after bootstrap_db(), before any other ensure_* functions.
+    """
+    c = _conn()
+    try:
+        stmts = [
+            # ── Core counters ────────────────────────────────────────
+            """CREATE TABLE IF NOT EXISTS id_counters (
+                entity    TEXT PRIMARY KEY,
+                last_num  INTEGER DEFAULT 0
+            )""",
+            # ── Reference / lookup tables ────────────────────────────
+            """CREATE TABLE IF NOT EXISTS pack_sizes (
+                id     INTEGER PRIMARY KEY AUTOINCREMENT,
+                label  TEXT NOT NULL UNIQUE,
+                grams  INTEGER NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS price_types (
+                id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                code  TEXT NOT NULL UNIQUE,
+                label TEXT NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS zones (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL,
+                city       TEXT NOT NULL DEFAULT 'Karachi',
+                active     INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now'))
+            )""",
+            # ── Core entities ────────────────────────────────────────
+            """CREATE TABLE IF NOT EXISTS products (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                code       TEXT NOT NULL UNIQUE,
+                name       TEXT NOT NULL,
+                name_urdu  TEXT DEFAULT '',
+                blend_code TEXT DEFAULT '',
+                active     INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT (date('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS product_variants (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                sku_code     TEXT NOT NULL UNIQUE,
+                product_id   INTEGER NOT NULL REFERENCES products(id),
+                pack_size_id INTEGER NOT NULL REFERENCES pack_sizes(id),
+                active_flag  INTEGER DEFAULT 1,
+                UNIQUE (product_id, pack_size_id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS product_prices (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_variant_id INTEGER NOT NULL REFERENCES product_variants(id),
+                price_type_id      INTEGER NOT NULL REFERENCES price_types(id),
+                price              REAL NOT NULL,
+                effective_from     TEXT NOT NULL,
+                active_flag        INTEGER DEFAULT 1
+            )""",
+            """CREATE TABLE IF NOT EXISTS customers (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                code               TEXT NOT NULL UNIQUE,
+                account_number     TEXT DEFAULT NULL,
+                name               TEXT NOT NULL,
+                customer_type      TEXT NOT NULL DEFAULT 'RETAIL'
+                                   CHECK(customer_type IN ('RETAIL','DIRECT')),
+                category           TEXT DEFAULT '',
+                city               TEXT DEFAULT '',
+                address            TEXT DEFAULT '',
+                phone              TEXT DEFAULT '',
+                email              TEXT DEFAULT '',
+                default_pack       TEXT DEFAULT '50g',
+                payment_terms_days INTEGER DEFAULT 30,
+                credit_limit       REAL DEFAULT 0,
+                active             INTEGER DEFAULT 1,
+                created_at         TEXT DEFAULT (date('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS suppliers (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                code        TEXT NOT NULL UNIQUE,
+                name        TEXT NOT NULL,
+                contact     TEXT DEFAULT '',
+                phone       TEXT DEFAULT '',
+                email       TEXT DEFAULT '',
+                city        TEXT DEFAULT '',
+                address     TEXT DEFAULT '',
+                active_flag INTEGER DEFAULT 1,
+                zone_id     INTEGER REFERENCES zones(id),
+                created_at  TEXT DEFAULT (date('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS ingredients (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                code          TEXT NOT NULL UNIQUE,
+                name          TEXT NOT NULL DEFAULT '',
+                opening_grams REAL DEFAULT 0,
+                reorder_level REAL DEFAULT 0,
+                cost_per_kg   REAL NOT NULL DEFAULT 0,
+                active        INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT DEFAULT (date('now'))
+            )""",
+            # ── BOM ──────────────────────────────────────────────────
+            """CREATE TABLE IF NOT EXISTS bom_versions (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id       INTEGER NOT NULL REFERENCES products(id),
+                version_no       INTEGER NOT NULL DEFAULT 1,
+                batch_size_grams REAL NOT NULL DEFAULT 1000,
+                effective_from   TEXT NOT NULL,
+                active_flag      INTEGER DEFAULT 1,
+                notes            TEXT DEFAULT '',
+                UNIQUE (product_id, version_no)
+            )""",
+            """CREATE TABLE IF NOT EXISTS bom_items (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                bom_version_id INTEGER NOT NULL REFERENCES bom_versions(id),
+                ingredient_id  INTEGER NOT NULL REFERENCES ingredients(id),
+                quantity_grams REAL NOT NULL,
+                UNIQUE (bom_version_id, ingredient_id)
+            )""",
+            # ── Inventory ────────────────────────────────────────────
+            """CREATE TABLE IF NOT EXISTS inventory_ledger (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),
+                movement_type TEXT NOT NULL
+                              CHECK(movement_type IN ('OPENING','PURCHASE_IN','PRODUCTION_USE','ADJUSTMENT')),
+                qty_grams     REAL NOT NULL,
+                reference_id  TEXT DEFAULT '',
+                notes         TEXT DEFAULT '',
+                created_at    TEXT DEFAULT (datetime('now'))
+            )""",
+            # ── Production ───────────────────────────────────────────
+            """CREATE TABLE IF NOT EXISTS production_batches (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                batch_id              TEXT NOT NULL UNIQUE,
+                batch_date            TEXT NOT NULL,
+                product_id            INTEGER NOT NULL REFERENCES products(id),
+                product_variant_id    INTEGER REFERENCES product_variants(id),
+                bom_version_id        INTEGER REFERENCES bom_versions(id),
+                qty_grams             REAL NOT NULL,
+                qty_units             INTEGER DEFAULT 0,
+                pack_size             TEXT DEFAULT '',
+                mfg_date              TEXT DEFAULT '',
+                best_before           TEXT DEFAULT '',
+                notes                 TEXT DEFAULT '',
+                unit_cost_at_posting  REAL DEFAULT 0,
+                created_at            TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS production_consumption (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                batch_id      INTEGER NOT NULL REFERENCES production_batches(id),
+                ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),
+                qty_grams     REAL NOT NULL
+            )""",
+            # ── Sales & AR ───────────────────────────────────────────
+            """CREATE TABLE IF NOT EXISTS invoices (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_number   TEXT NOT NULL UNIQUE,
+                customer_id      INTEGER NOT NULL REFERENCES customers(id),
+                invoice_date     TEXT NOT NULL,
+                due_date         TEXT NOT NULL,
+                status           TEXT DEFAULT 'UNPAID'
+                                 CHECK(status IN ('DRAFT','UNPAID','PARTIAL','PAID','VOID')),
+                notes            TEXT DEFAULT '',
+                customer_order_id INTEGER REFERENCES customer_orders(id),
+                created_at       TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS invoice_items (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_id         INTEGER NOT NULL REFERENCES invoices(id),
+                product_variant_id INTEGER REFERENCES product_variants(id),
+                product_code       TEXT NOT NULL,
+                product_name       TEXT NOT NULL,
+                pack_size          TEXT NOT NULL,
+                quantity           INTEGER NOT NULL,
+                unit_price         REAL NOT NULL,
+                line_total         REAL NOT NULL,
+                sale_id            TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS sales (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                sale_id            TEXT NOT NULL UNIQUE,
+                sale_date          TEXT NOT NULL,
+                customer_id        INTEGER REFERENCES customers(id),
+                cust_code          TEXT NOT NULL,
+                cust_name          TEXT NOT NULL,
+                customer_type      TEXT DEFAULT 'RETAIL',
+                product_variant_id INTEGER REFERENCES product_variants(id),
+                product_code       TEXT NOT NULL,
+                product_name       TEXT NOT NULL,
+                pack_size          TEXT NOT NULL,
+                qty                INTEGER NOT NULL,
+                unit_price         REAL NOT NULL,
+                total              REAL NOT NULL,
+                cogs               REAL DEFAULT 0,
+                gross_profit       REAL DEFAULT 0,
+                invoice_id         INTEGER REFERENCES invoices(id),
+                notes              TEXT DEFAULT '',
+                created_at         TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS customer_payments (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                payment_ref  TEXT NOT NULL UNIQUE,
+                customer_id  INTEGER NOT NULL REFERENCES customers(id),
+                payment_date TEXT NOT NULL,
+                amount       REAL NOT NULL,
+                payment_mode TEXT DEFAULT 'CASH'
+                             CHECK(payment_mode IN ('CASH','BANK_TRANSFER','CHEQUE','OTHER')),
+                notes        TEXT DEFAULT '',
+                created_at   TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS payment_allocations (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                payment_id       INTEGER NOT NULL REFERENCES customer_payments(id),
+                invoice_id       INTEGER NOT NULL REFERENCES invoices(id),
+                allocated_amount REAL NOT NULL,
+                UNIQUE (payment_id, invoice_id)
+            )""",
+            # ── Purchasing & AP ──────────────────────────────────────
+            """CREATE TABLE IF NOT EXISTS supplier_bills (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                bill_number  TEXT NOT NULL UNIQUE,
+                supplier_id  INTEGER NOT NULL REFERENCES suppliers(id),
+                bill_date    TEXT NOT NULL,
+                due_date     TEXT NOT NULL,
+                status       TEXT DEFAULT 'UNPAID'
+                             CHECK(status IN ('UNPAID','PARTIAL','PAID','VOID')),
+                notes        TEXT DEFAULT '',
+                total_amount REAL DEFAULT 0,
+                supplier_ref TEXT DEFAULT '',
+                created_at   TEXT DEFAULT (datetime('now')),
+                voided_at    TEXT DEFAULT NULL,
+                voided_by    TEXT DEFAULT NULL,
+                void_note    TEXT DEFAULT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS supplier_bill_items (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                bill_id       INTEGER NOT NULL REFERENCES supplier_bills(id),
+                ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),
+                quantity_kg   REAL NOT NULL,
+                unit_cost_kg  REAL NOT NULL,
+                line_total    REAL NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS supplier_payments (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                payment_ref  TEXT NOT NULL UNIQUE,
+                supplier_id  INTEGER NOT NULL REFERENCES suppliers(id),
+                payment_date TEXT NOT NULL,
+                amount       REAL NOT NULL,
+                payment_mode TEXT DEFAULT 'BANK_TRANSFER'
+                             CHECK(payment_mode IN ('CASH','BANK_TRANSFER','CHEQUE','OTHER')),
+                notes        TEXT DEFAULT '',
+                created_at   TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS supplier_payment_allocations (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                payment_id       INTEGER NOT NULL REFERENCES supplier_payments(id),
+                bill_id          INTEGER NOT NULL REFERENCES supplier_bills(id),
+                allocated_amount REAL NOT NULL,
+                UNIQUE (payment_id, bill_id)
+            )""",
+            # ── Sales reps & field ops ───────────────────────────────
+            """CREATE TABLE IF NOT EXISTS sales_reps (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                employee_id       TEXT UNIQUE NOT NULL,
+                name              TEXT NOT NULL,
+                phone             TEXT UNIQUE NOT NULL,
+                pin_hash          TEXT NOT NULL,
+                cnic              TEXT DEFAULT '',
+                address           TEXT DEFAULT '',
+                emergency_contact TEXT DEFAULT '',
+                designation       TEXT NOT NULL DEFAULT 'SR',
+                joining_date      TEXT DEFAULT '',
+                reporting_to      INTEGER,
+                primary_zone_id   INTEGER,
+                status            TEXT NOT NULL DEFAULT 'active',
+                pin_attempts      INTEGER NOT NULL DEFAULT 0,
+                pin_locked        INTEGER NOT NULL DEFAULT 0,
+                last_field_login  TEXT DEFAULT '',
+                email             TEXT DEFAULT '',
+                notes             TEXT DEFAULT '',
+                whatsapp_apikey   TEXT DEFAULT '',
+                created_at        TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS routes (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                zone_id    INTEGER NOT NULL,
+                name       TEXT NOT NULL,
+                visit_days TEXT DEFAULT '',
+                active     INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS rep_routes (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep_id        INTEGER NOT NULL,
+                route_id      INTEGER NOT NULL,
+                assigned_from TEXT NOT NULL,
+                assigned_to   TEXT DEFAULT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS route_customers (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                route_id      INTEGER NOT NULL,
+                customer_id   INTEGER NOT NULL,
+                stop_sequence INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(route_id, customer_id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS beat_visits (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep_id            INTEGER NOT NULL,
+                customer_id       INTEGER NOT NULL,
+                route_id          INTEGER NOT NULL,
+                visit_date        TEXT NOT NULL,
+                outcome           TEXT NOT NULL DEFAULT 'visited',
+                payment_collected REAL NOT NULL DEFAULT 0,
+                notes             TEXT DEFAULT '',
+                created_at        TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS field_orders (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_ref           TEXT UNIQUE NOT NULL,
+                rep_id              INTEGER NOT NULL,
+                customer_id         INTEGER NOT NULL,
+                visit_id            INTEGER,
+                order_date          TEXT NOT NULL,
+                status              TEXT NOT NULL DEFAULT 'pending',
+                notes               TEXT DEFAULT '',
+                invoice_id          INTEGER,
+                route_id            INTEGER,
+                cash_collected      REAL DEFAULT 0,
+                confirmed_invoice_id INTEGER,
+                created_at          TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS field_order_items (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id           INTEGER NOT NULL,
+                product_variant_id INTEGER NOT NULL,
+                quantity           INTEGER NOT NULL DEFAULT 0,
+                unit_price         REAL NOT NULL DEFAULT 0
+            )""",
+            """CREATE TABLE IF NOT EXISTS rep_salary_components (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep_id           INTEGER NOT NULL,
+                basic_salary     REAL NOT NULL DEFAULT 0,
+                fuel_allowance   REAL NOT NULL DEFAULT 0,
+                mobile_allowance REAL NOT NULL DEFAULT 0,
+                other_allowance  REAL NOT NULL DEFAULT 0,
+                effective_from   TEXT NOT NULL,
+                active           INTEGER NOT NULL DEFAULT 1
+            )""",
+            """CREATE TABLE IF NOT EXISTS rep_commission_rules (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep_id                INTEGER NOT NULL,
+                base_commission_pct   REAL NOT NULL DEFAULT 0,
+                accelerator_pct       REAL NOT NULL DEFAULT 0,
+                target_bonus          REAL NOT NULL DEFAULT 0,
+                effective_from        TEXT NOT NULL,
+                active                INTEGER NOT NULL DEFAULT 1
+            )""",
+            """CREATE TABLE IF NOT EXISTS rep_targets (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep_id         INTEGER NOT NULL,
+                month          TEXT NOT NULL,
+                visit_target   INTEGER NOT NULL DEFAULT 0,
+                revenue_target REAL NOT NULL DEFAULT 0,
+                UNIQUE(rep_id, month)
+            )""",
+            """CREATE TABLE IF NOT EXISTS rep_advances (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep_id           INTEGER NOT NULL,
+                advance_date     TEXT NOT NULL,
+                amount           REAL NOT NULL,
+                monthly_recovery REAL NOT NULL DEFAULT 0,
+                outstanding      REAL NOT NULL,
+                notes            TEXT DEFAULT '',
+                approved_by      TEXT DEFAULT '',
+                recovered        INTEGER DEFAULT 0,
+                created_at       TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS rep_attendance (
+                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep_id   INTEGER NOT NULL,
+                att_date TEXT NOT NULL,
+                status   TEXT NOT NULL DEFAULT 'present',
+                notes    TEXT DEFAULT '',
+                UNIQUE(rep_id, att_date)
+            )""",
+            """CREATE TABLE IF NOT EXISTS payroll_runs (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep_id                INTEGER NOT NULL,
+                month                 TEXT NOT NULL,
+                basic_salary          REAL NOT NULL DEFAULT 0,
+                fuel_allowance        REAL NOT NULL DEFAULT 0,
+                mobile_allowance      REAL NOT NULL DEFAULT 0,
+                other_allowance       REAL NOT NULL DEFAULT 0,
+                commission            REAL NOT NULL DEFAULT 0,
+                accelerator_commission REAL NOT NULL DEFAULT 0,
+                target_bonus          REAL NOT NULL DEFAULT 0,
+                gross_pay             REAL NOT NULL DEFAULT 0,
+                advance_recovery      REAL NOT NULL DEFAULT 0,
+                absent_deduction      REAL NOT NULL DEFAULT 0,
+                other_deductions      REAL NOT NULL DEFAULT 0,
+                net_pay               REAL NOT NULL DEFAULT 0,
+                sales_achieved        REAL NOT NULL DEFAULT 0,
+                visits_done           INTEGER NOT NULL DEFAULT 0,
+                status                TEXT NOT NULL DEFAULT 'draft',
+                notes                 TEXT DEFAULT '',
+                period                TEXT DEFAULT '',
+                base_salary           REAL DEFAULT 0,
+                actual_sales          REAL DEFAULT 0,
+                target_amount         REAL DEFAULT 0,
+                base_commission       REAL DEFAULT 0,
+                accelerator_bonus     REAL DEFAULT 0,
+                total_commission      REAL DEFAULT 0,
+                total_advances        REAL DEFAULT 0,
+                run_at                TEXT,
+                created_at            TEXT DEFAULT (datetime('now')),
+                UNIQUE(rep_id, month)
+            )""",
+            # ── Audit ────────────────────────────────────────────────
+            """CREATE TABLE IF NOT EXISTS change_log (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                table_name TEXT NOT NULL,
+                record_id  TEXT NOT NULL,
+                action     TEXT NOT NULL CHECK(action IN ('INSERT','UPDATE','DELETE','VOID')),
+                old_value  TEXT DEFAULT NULL,
+                new_value  TEXT DEFAULT NULL,
+                changed_by TEXT DEFAULT 'system',
+                timestamp  TEXT DEFAULT (datetime('now'))
+            )""",
+        ]
+
+        for sql in stmts:
+            c.execute(sql)
+        c.commit()
+
+        # Seed id_counters rows
+        for entity in ('work_order', 'customer_order', 'purchase_order', 'sku', 'ingredient'):
+            exists = c.execute("SELECT 1 FROM id_counters WHERE entity=?", (entity,)).fetchone()
+            if not exists:
+                c.execute("INSERT INTO id_counters (entity, last_num) VALUES (?,0)", (entity,))
+        c.commit()
+
+        # Seed price_types (required for pricing and production cost features)
+        for code, label in [
+            ('mfg_cost',    'Manufacturing Cost'),
+            ('ex_factory',  'Ex-Factory Price'),
+            ('distributor', 'Distributor Price'),
+            ('retail_mrp',  'Retail MRP'),
+        ]:
+            c.execute("INSERT OR IGNORE INTO price_types (code, label) VALUES (?,?)", (code, label))
+        c.commit()
+
+        print("  ✓ Full schema: all tables verified / created")
+    finally:
+        c.close()
+    save_db()
+
+
 def restore_db_interactive():
     """
     CLI restore mode — run with: python server.py --restore
@@ -824,28 +1363,6 @@ def run_backup() -> dict:
     size_kb = dest.stat().st_size // 1024
     _log('info', 'backup_created', path=str(dest), size_kb=size_kb)
     print(f"  ✓ Backup created: {dest.name} ({size_kb} KB)")
-
-    # Backup recipe images — zip the recipe-images folder alongside the DB backup
-    try:
-        import zipfile as _zf
-        img_dir = Path(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data')) / 'recipe-images'
-        if img_dir.is_dir() and any(img_dir.iterdir()):
-            img_zip = BACKUP_PATH / f"recipe_images_{ts}.zip"
-            with _zf.ZipFile(img_zip, 'w', _zf.ZIP_DEFLATED) as zf:
-                for img_file in img_dir.iterdir():
-                    if img_file.is_file():
-                        zf.write(img_file, img_file.name)
-            # Prune old image zips matching backup retention
-            for f in BACKUP_PATH.glob("recipe_images_*.zip"):
-                try:
-                    if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
-                        f.unlink()
-                except Exception:
-                    pass
-            print(f"  ✓ Recipe images backed up: {img_zip.name}")
-    except Exception as e:
-        print(f"  ⚠ Recipe image backup skipped: {e}")
-
     return {'path': str(dest), 'filename': dest.name, 'size_kb': size_kb, 'ts': ts}
 
 
@@ -893,6 +1410,7 @@ def acquire_db_lock():
     If no lock or lock is stale → write our own lock and continue.
     On Railway/cloud: lock is skipped entirely (single-instance, no OneDrive sharing).
     """
+    return  # test bypass
     # Cloud deployment — locking is meaningless and causes crash loops on redeploy
     if os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or (not sys.stdin.isatty() and OS == 'Linux'):
         print('  ✓ Cloud mode — DB lock skipped (single-instance deployment)')
@@ -958,6 +1476,7 @@ def acquire_db_lock():
 
 def release_db_lock():
     """Remove the lock file when the server shuts down."""
+    return  # test bypass
     if os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or (not sys.stdin.isatty() and OS == 'Linux'):
         return  # no lock was acquired in cloud mode
     lock = _lock_path()
@@ -1056,11 +1575,10 @@ def today():
 #  RBAC — ROLES AND PERMISSION HELPER
 # ═══════════════════════════════════════════════════════════════════
 
-VALID_ROLES = ('super_user', 'admin', 'sales', 'warehouse', 'accountant', 'field_rep', 'user')
+VALID_ROLES = ('admin', 'sales', 'warehouse', 'accountant', 'field_rep', 'user')
 
 # Role hierarchy for display / UI
 ROLE_LABELS = {
-    'super_user':  'Owner (Super User)',
     'admin':       'Administrator',
     'sales':       'Sales',
     'warehouse':   'Warehouse',
@@ -1071,55 +1589,11 @@ ROLE_LABELS = {
 
 def require(sess, *roles):
     """Return True iff the session's role is one of the given roles.
-    super_user (the owner) satisfies every role check. Always False if sess is None.
+    Always False if sess is None.  Usage:
         if not require(sess, 'admin', 'sales'):
             send_error(self, 'Permission denied', 403); return
     """
-    if sess and sess.get('role') == 'super_user':
-        return True
     return bool(sess and sess.get('role') in roles)
-
-
-def has_permission(sess, key):
-    """Granular permission check. super_user has everything; otherwise the named
-    permission key must be in the session's permissions list. The session carries
-    'permissions' as a parsed list (set at login; refreshed on the user's next login),
-    and uses the key 'userId' (camelCase). Used to gate delegated areas (planning,
-    costs.*, recipe.*, …) without touching role gates."""
-    if not sess:
-        return False
-    if sess.get('role') == 'super_user':
-        return True
-    perms = sess.get('permissions')
-    if isinstance(perms, list):
-        return key in perms
-    # Fallback for any session shape that didn't carry the parsed list.
-    try:
-        uid = sess.get('userId') or sess.get('user_id')
-        row = qry1("SELECT permissions FROM users WHERE id=?", (uid,))
-        plist = json.loads(row['permissions']) if row and row.get('permissions') else []
-        return key in plist
-    except Exception:
-        return False
-
-
-def _can_plan(sess):
-    """Planning access gate: admins/super_user always; other roles only if granted
-    the 'planning' permission. (require() already lets super_user pass everything.)"""
-    return require(sess, 'admin') or has_permission(sess, 'planning')
-
-
-def _can_costs(sess):
-    """Costing module gate (additive): admins/super_user, or anyone granted 'costs'.
-    Costs are not secret — this just lets you delegate costing (e.g. to an accountant)."""
-    return require(sess, 'admin') or has_permission(sess, 'costs')
-
-
-def _can_recipe(sess):
-    """Recipe / BOM gate — the SECRET (ingredient quantities). super_user OR a user
-    explicitly granted the 'recipe' permission ONLY. A plain admin does NOT qualify.
-    (has_permission already returns True for super_user.)"""
-    return has_permission(sess, 'recipe')
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1350,6 +1824,54 @@ def generate_account_number(city, customer_type='RETAIL'):
     return f"{city3}-{type_code}{num:03d}"
 
 
+def backfill_customer_account_numbers():
+    """
+    One-time startup task (idempotent):
+      1. Delete test customers (SP-CUST-0001 … SP-CUST-0010) if they have no FK deps.
+      2. Assign account_number to real customers that still have NULL.
+    """
+    c = _conn()
+    try:
+        # ── Delete test customers ─────────────────────────────────
+        test_codes = [f'SP-CUST-{n:04d}' for n in range(1, 11)]
+        for code in test_codes:
+            row = c.execute("SELECT id FROM customers WHERE code=?", (code,)).fetchone()
+            if not row:
+                continue
+            cid = row[0]
+            has_deps = (
+                c.execute("SELECT 1 FROM customer_orders   WHERE customer_id=? LIMIT 1", (cid,)).fetchone() or
+                c.execute("SELECT 1 FROM invoices          WHERE customer_id=? LIMIT 1", (cid,)).fetchone() or
+                c.execute("SELECT 1 FROM customer_payments WHERE customer_id=? LIMIT 1", (cid,)).fetchone() or
+                c.execute("SELECT 1 FROM sales             WHERE customer_id=? LIMIT 1", (cid,)).fetchone()
+            )
+            if not has_deps:
+                c.execute("DELETE FROM customers WHERE id=?", (cid,))
+                print(f"  ✓ Backfill: deleted test customer {code}")
+            else:
+                print(f"  ⚠ Backfill: {code} has data, skipped deletion")
+
+        # ── Assign account_number to real customers without one ───
+        unassigned = c.execute(
+            "SELECT id, name, city, customer_type FROM customers WHERE account_number IS NULL"
+        ).fetchall()
+        for (cid, name, city, ctype) in unassigned:
+            city3     = _city_to_code(city or '')
+            type_code = {'RETAIL': 'R', 'DIRECT': 'D', 'WHOLESALE': 'W'}.get((ctype or 'RETAIL').upper(), 'R')
+            entity    = f'acct_{city3}_{type_code}'
+            c.execute("INSERT OR IGNORE INTO id_counters (entity, last_num) VALUES (?,0)", (entity,))
+            c.execute("UPDATE id_counters SET last_num=last_num+1 WHERE entity=?", (entity,))
+            num = c.execute("SELECT last_num FROM id_counters WHERE entity=?", (entity,)).fetchone()[0]
+            acc_num = f"{city3}-{type_code}{num:03d}"
+            c.execute("UPDATE customers SET account_number=? WHERE id=?", (acc_num, cid))
+            print(f"  ✓ Backfill: assigned {acc_num} to '{name}' (id={cid})")
+
+        c.commit()
+    finally:
+        c.close()
+    save_db()
+
+
 def next_blend_code(prefix: str) -> str:
     """Generate next blend code for a given product-category prefix.
     Format: {PREFIX}-BC-{NNN}  e.g. GM-BC-001, CM-BC-001, RCP-BC-001
@@ -1408,6 +1930,232 @@ def audit_log(ops, table, record_id, action, old_val=None, new_val=None):
 #  USER MANAGEMENT + AUTH
 # ═══════════════════════════════════════════════════════════════════
 
+def ensure_users_table():
+    """Create users table if not exists. Seed default admin on first run."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                username      TEXT    UNIQUE NOT NULL COLLATE NOCASE,
+                display_name  TEXT    NOT NULL DEFAULT '',
+                password_hash TEXT    NOT NULL,
+                salt          TEXT    NOT NULL,
+                role          TEXT    NOT NULL DEFAULT 'user',
+                active        INTEGER NOT NULL DEFAULT 1,
+                permissions   TEXT    NOT NULL DEFAULT '[]',
+                created_at    TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+        # Safe migrations — all idempotent
+        for col_sql in [
+            "ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT '[]'",
+            "ALTER TABLE users ADD COLUMN auth_scheme TEXT NOT NULL DEFAULT 'sha256'",
+        ]:
+            try:
+                c.execute(col_sql)
+                c.commit()
+            except Exception:
+                pass  # column already exists
+
+        count = c.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        if count == 0:
+            # Seed default admin using Argon2id if available, SHA-256 otherwise
+            if _ARGON2_AVAILABLE:
+                pw_hash = _argon2.hash('admin123')
+                salt    = ''   # Argon2id embeds its own salt in the hash string
+                scheme  = 'argon2id'
+            else:
+                salt    = secrets.token_hex(16)
+                pw_hash = hashlib.sha256((salt + 'admin123').encode()).hexdigest()
+                scheme  = 'sha256'
+            c.execute("""
+                INSERT INTO users (username, display_name, password_hash, salt, role, permissions, auth_scheme)
+                VALUES ('admin', 'Administrator', ?, ?, 'admin', '[]', ?)
+            """, (pw_hash, salt, scheme))
+            c.commit()
+            print("  ✓ Users: default admin created  →  admin / admin123")
+        else:
+            print(f"  ✓ Users: {count} user(s) configured")
+
+        c.commit()
+    finally:
+        c.close()
+    save_db()
+
+
+def ensure_work_orders_table():
+    """Create work_orders table if not exists. Also seed id_counters row."""
+    c = _conn()
+    try:
+        # Ensure id_counters table exists (needed for fresh databases)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS id_counters (
+                entity    TEXT PRIMARY KEY,
+                last_num  INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        c.commit()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS work_orders (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                wo_number           TEXT    NOT NULL UNIQUE,
+                product_variant_id  INTEGER NOT NULL,
+                qty_units           INTEGER NOT NULL,
+                target_date         TEXT,
+                status              TEXT    NOT NULL DEFAULT 'planned',
+                notes               TEXT    DEFAULT '',
+                feasibility_ok      INTEGER DEFAULT 0,
+                batch_id            TEXT    DEFAULT NULL,
+                created_at          TEXT    DEFAULT (datetime('now')),
+                updated_at          TEXT    DEFAULT (datetime('now')),
+                FOREIGN KEY (product_variant_id) REFERENCES product_variants(id)
+            )
+        """)
+        # Ensure id_counters has a row for work_order
+        existing = c.execute("SELECT 1 FROM id_counters WHERE entity='work_order'").fetchone()
+        if not existing:
+            c.execute("INSERT INTO id_counters (entity, last_num) VALUES ('work_order', 0)")
+        c.commit()
+        print("  ✓ Work Orders: table ready")
+    finally:
+        c.close()
+    save_db()
+
+
+def ensure_customer_orders_schema():
+    """Create customer_orders + customer_order_items tables and add FK columns to work_orders/invoices."""
+    c = _conn()
+    try:
+        # ── New tables ────────────────────────────────────────────
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS customer_orders (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_number    TEXT    NOT NULL UNIQUE,
+                customer_id     INTEGER NOT NULL REFERENCES customers(id),
+                order_date      TEXT    NOT NULL,
+                required_date   TEXT,
+                status          TEXT    NOT NULL DEFAULT 'draft',
+                notes           TEXT    DEFAULT '',
+                created_at      TEXT    DEFAULT (datetime('now')),
+                updated_at      TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS customer_order_items (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id            INTEGER NOT NULL REFERENCES customer_orders(id),
+                product_variant_id  INTEGER NOT NULL REFERENCES product_variants(id),
+                qty_ordered         INTEGER NOT NULL,
+                unit_price          REAL    NOT NULL DEFAULT 0,
+                line_total          REAL    NOT NULL DEFAULT 0,
+                qty_in_production   INTEGER NOT NULL DEFAULT 0,
+                qty_invoiced        INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+
+        # ── Add FK columns to existing tables (idempotent) ───────
+        for sql in [
+            "ALTER TABLE work_orders    ADD COLUMN customer_order_id      INTEGER REFERENCES customer_orders(id)",
+            "ALTER TABLE work_orders    ADD COLUMN customer_order_item_id  INTEGER REFERENCES customer_order_items(id)",
+            "ALTER TABLE invoices       ADD COLUMN customer_order_id      INTEGER REFERENCES customer_orders(id)",
+            "ALTER TABLE invoice_items  ADD COLUMN sale_id TEXT",
+        ]:
+            try:
+                c.execute(sql)
+            except Exception:
+                pass   # column already exists
+
+        # ── Seed id_counters ──────────────────────────────────────
+        existing = c.execute("SELECT 1 FROM id_counters WHERE entity='customer_order'").fetchone()
+        if not existing:
+            c.execute("INSERT INTO id_counters (entity, last_num) VALUES ('customer_order', 0)")
+
+        c.commit()
+        print("  ✓ Customer Orders: schema ready")
+    finally:
+        c.close()
+    save_db()
+
+
+def ensure_review_queue_schema():
+    """
+    Phase 3 — Review Queue & Soft Hold schema (idempotent).
+    Adds order_source, approval columns to customer_orders;
+    qty_soft_hold to customer_order_items;
+    creates order_hold_expiry and order_approval_rules tables.
+    """
+    c = _conn()
+    try:
+        # ── New columns on customer_orders ────────────────────────
+        for sql in [
+            "ALTER TABLE customer_orders ADD COLUMN order_source        TEXT    DEFAULT 'internal'",
+            "ALTER TABLE customer_orders ADD COLUMN approval_method     TEXT    DEFAULT 'manual'",
+            "ALTER TABLE customer_orders ADD COLUMN approval_timestamp  TEXT    DEFAULT NULL",
+            "ALTER TABLE customer_orders ADD COLUMN approval_note       TEXT    DEFAULT ''",
+            "ALTER TABLE customer_orders ADD COLUMN rejection_reason    TEXT    DEFAULT ''",
+        ]:
+            try:
+                c.execute(sql); c.commit()
+            except Exception:
+                pass   # column already exists
+
+        # ── Soft hold quantity on order items ─────────────────────
+        try:
+            c.execute("ALTER TABLE customer_order_items ADD COLUMN qty_soft_hold INTEGER DEFAULT 0")
+            c.commit()
+        except Exception:
+            pass   # already exists
+
+        # ── Hold tracking table ───────────────────────────────────
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS order_hold_expiry (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id          INTEGER NOT NULL UNIQUE REFERENCES customer_orders(id),
+                hold_placed_at    TEXT    NOT NULL,
+                hold_expires_at   TEXT    NOT NULL,
+                is_expired        INTEGER NOT NULL DEFAULT 0,
+                notification_sent INTEGER NOT NULL DEFAULT 0,
+                expired_at        TEXT    DEFAULT NULL
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_hold_expiry ON order_hold_expiry(hold_expires_at, is_expired)")
+
+        # ── Auto-approval rules registry (infrastructure; all disabled by default) ──
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS order_approval_rules (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_name   TEXT    NOT NULL UNIQUE,
+                rule_code   TEXT    NOT NULL,
+                enabled     INTEGER NOT NULL DEFAULT 0,
+                created_at  TEXT    DEFAULT (datetime('now')),
+                notes       TEXT    DEFAULT ''
+            )
+        """)
+
+        # ── WhatsApp notification columns (Phase 4 — idempotent) ──────
+        for sql in [
+            "ALTER TABLE users        ADD COLUMN whatsapp_phone  TEXT DEFAULT ''",
+            "ALTER TABLE users        ADD COLUMN whatsapp_apikey TEXT DEFAULT ''",
+            "ALTER TABLE sales_reps   ADD COLUMN whatsapp_apikey TEXT DEFAULT ''",
+            "ALTER TABLE customer_orders ADD COLUMN created_by_rep_id INTEGER DEFAULT NULL",
+            "ALTER TABLE order_hold_expiry ADD COLUMN expiry_warning_sent INTEGER DEFAULT 0",
+            "ALTER TABLE ingredients ADD COLUMN unit TEXT DEFAULT 'kg'",
+            "ALTER TABLE ingredients ADD COLUMN updated_at TEXT DEFAULT NULL",
+            "ALTER TABLE supplier_bills ADD COLUMN po_id INTEGER DEFAULT NULL REFERENCES purchase_orders(id)",
+        ]:
+            try:
+                c.execute(sql); c.commit()
+            except Exception:
+                pass   # column already exists
+
+        c.commit()
+        print("  ✓ Review Queue: schema ready (soft hold, hold expiry, approval rules, WA columns)")
+    finally:
+        c.close()
+    save_db()
+
+
 def _hash_pw(password, salt):
     """SHA-256 hash — kept for verifying legacy passwords only."""
     return hashlib.sha256((salt + password).encode()).hexdigest()
@@ -1443,6 +2191,34 @@ def _verify_pw(password: str, stored_hash: str, salt: str, scheme: str) -> bool:
     )
 
 
+def ensure_sessions_table():
+    """
+    Create the `sessions` table for persistent, expiry-aware login sessions.
+    Replaces the in-memory sessions={} dict so logins survive server restarts.
+    """
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                token        TEXT PRIMARY KEY,
+                user_id      TEXT NOT NULL,
+                username     TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                role         TEXT NOT NULL,
+                permissions  TEXT NOT NULL DEFAULT '[]',
+                created_at   TEXT NOT NULL,
+                expires_at   TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL
+            )
+        """)
+        # Index for fast expiry queries during cleanup
+        c.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)")
+        c.commit()
+        print("  ✓ Sessions: table ready (DB-persisted)")
+    finally:
+        c.close()
+
+
 def _get_session_by_token(token: str) -> dict | None:
     """Look up a non-expired session in the DB. Updates last_seen_at."""
     now = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
@@ -1452,27 +2228,15 @@ def _get_session_by_token(token: str) -> dict | None:
     # Slide expiry window on activity (keep-alive)
     new_expiry = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')
     run("UPDATE sessions SET last_seen_at=?, expires_at=? WHERE token=?", (now, new_expiry, token))
-    # Read LIVE role + permissions from the users table so role/permission changes take effect
-    # immediately (no re-login). Field reps aren't in users → fall back to the session snapshot.
-    live = qry1("SELECT role, permissions, COALESCE(active,1) AS active FROM users WHERE id=?", (row['user_id'],))
-    if live and not live.get('active', 1):
-        return None  # user deactivated → session no longer valid
-    role      = live['role'] if live else row['role']
-    perms_raw = (live['permissions'] if live else row['permissions']) or '[]'
-    try:
-        perms = json.loads(perms_raw)
-    except Exception:
-        perms = []
     sess = {
         'userId':      row['user_id'],
-        'user_id':     row['user_id'],
         'username':    row['username'],
         'displayName': row['display_name'],
-        'role':        role,
-        'permissions': perms,
+        'role':        row['role'],
+        'permissions': json.loads(row['permissions'] or '[]'),
     }
     # Field reps use userId as their repId (set separately for backwards compatibility)
-    if role == 'field_rep':
+    if row['role'] == 'field_rep':
         sess['repId'] = row['user_id']
     return sess
 
@@ -1695,7 +2459,7 @@ def load_ref():
 
     variants = qry("""
         SELECT pv.id, pv.sku_code, pv.product_id, pv.pack_size_id, pv.active_flag,
-               pv.gtin, COALESCE(pv.show_online, 0) as show_online,
+               pv.gtin,
                p.code as product_code, p.name as product_name,
                ps.label as pack_size, ps.grams as pack_grams
         FROM product_variants pv
@@ -2084,248 +2848,6 @@ def _wa_notify_hold_expired(order_id):
         f"Stock hold released automatically.\n\n"
         f"Reopen from BMS → Review Queue if still needed."
     )
-
-
-# ═══════════════════════════════════════════════════════════════════
-#  WHATSAPP ORDER PARSER — Claude API powered
-# ═══════════════════════════════════════════════════════════════════
-
-def _normalise_phone(raw):
-    """Normalise Pakistani phone numbers to 03xxxxxxxxx format."""
-    if not raw:
-        return None
-    p = re.sub(r'[\s\-\(\)\+]', '', str(raw))
-    if p.startswith('923') and len(p) == 12:
-        p = '0' + p[2:]
-    if p.startswith('92') and len(p) == 12:
-        p = '0' + p[2:]
-    if p.startswith('3') and len(p) == 10:
-        p = '0' + p
-    return p if len(p) >= 10 else raw
-
-
-ERP_ASSISTANT_KB = """Spicetopia ERP — what each area is for (the flow is Buy → Make → Sell):
-
-SELL (Sales & AR):
-- orders-invoices: take a customer order (reserves stock), then raise/track its invoice. Start here to "take an order" or "make an invoice".
-- field-orders: orders taken by sales reps out in the field.
-- review-queue: approve or reject pending orders (from the website or reps) before they're confirmed.
-- receipts-aging: record a customer's payment against an invoice, and see who owes money (AR aging).
-
-BUY (Procurement & AP):
-- purchase-orders: order ingredients/materials from a supplier.
-- bills: record the supplier's bill/invoice for what you bought.
-- ap-payments: pay a supplier and allocate the payment to bills.
-- ap-aging: see what you owe suppliers, by age.
-
-MAKE (Operations):
-- inventory: check stock levels, make stock adjustments (in kg), view the movement ledger. Stock only moves via orders/production, never edited directly.
-- production: two-step manufacturing — create a Work Order, then complete it to record a Batch (which produces finished stock). Procurement of ingredients for a work order is calculated here from the BOM. To estimate the ingredient cost to make a specific quantity, create a Work Order and open its procurement list (shows ingredients needed + estimated cost from the BOM).
-
-REPORTS:
-- dashboard: KPIs and charts overview.
-- pl-report: profit & loss by period. margins: gross margin by product. rep-performance: sales by rep.
-- planning: forecasting and scenario planning (opens the Planning tool).
-
-MASTER DATA / ADMIN:
-- customers, suppliers, products, sales-reps, zones-routes: reference data.
-- price-master: manual price grid per SKU. prices-costs: STANDARD COSTING — the Standard Costs tab shows what each product costs to make (called "cost to make", "BOM cost", "standard cost", or "recipe cost"): raw-material cost computed from the BOM/recipe, plus packaging, conversion and overhead, plus the margins and selling prices. This is where you estimate or check a product's cost; the cost line items are set under Cost Parameters here.
-- bom: the secret recipe (Bill of Materials) — restricted.
-- users: user accounts & permissions. payroll: rep payroll. master-data: bulk CSV/XLSX import. ingredients-admin: ingredient master & costs. audit: change history. system: settings & backup.
-
-Common tasks: "record a payment" → receipts-aging. "take/create an order" → orders-invoices. "make a batch / produce stock" → production. "buy ingredients / raise a PO" → purchase-orders. "approve an order" → review-queue. "add a customer" → customers. "check stock" → inventory."""
-
-
-def erp_assistant_answer(question, allowed=None) -> dict:
-    """In-app help guide. Free-text question → JSON {answer, steps[], navTarget} grounded
-    in the ERP. Read-only guidance only — never performs actions."""
-    import os
-    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-    if not api_key:
-        return {'answer': 'The help assistant isn’t configured yet. Use the ? Help guide for now.',
-                'steps': [], 'navTarget': None, 'error': 'no_api_key'}
-    nav_lines, valid_ids = '', set()
-    if isinstance(allowed, list):
-        for a in allowed:
-            try:
-                _id = a.get('id'); _lbl = a.get('label', '')
-                if _id:
-                    valid_ids.add(_id); nav_lines += f"  - {_id}: {_lbl}\n"
-            except Exception:
-                pass
-    system_prompt = f"""You are the in-app help guide for the Spicetopia ERP. A manager (not a developer) asks how to do a task. Answer with short, concrete steps that match THIS app's screens.
-
-{ERP_ASSISTANT_KB}
-
-Screens THIS user can open (use ONLY these ids for navTarget):
-{nav_lines or '  (no list provided — set navTarget to null)'}
-
-Return ONLY valid JSON, no other text:
-{{"answer": "one short direct sentence", "steps": ["step 1", "step 2"], "navTarget": "<one screen id from the list above, or null>"}}
-
-Rules:
-- Steps must be specific to this ERP and use the real screen names above.
-- navTarget = the single best screen to START the task (an id from the list), or null if unclear / not in the list.
-- Always map the question to the closest relevant screen above and give your best step-by-step guidance. Only say the ERP can't do it (answer says so, steps=[], navTarget=null) when NOTHING above is even related.
-- You only GUIDE; never say you performed an action. Max ~6 steps."""
-    try:
-        import urllib.request, urllib.error
-        payload = json.dumps({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 700,
-            'system': system_prompt,
-            'messages': [{'role': 'user', 'content': str(question)[:1000]}],
-        }).encode('utf-8')
-        req = urllib.request.Request(
-            'https://api.anthropic.com/v1/messages', data=payload,
-            headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-            method='POST')
-        try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                body = json.loads(resp.read().decode('utf-8'))
-        except urllib.error.HTTPError as he:
-            detail = ''
-            try: detail = he.read().decode('utf-8')[:400]
-            except Exception: pass
-            print(f"  ⚠ assistant_failed HTTP {he.code}: {detail}")
-            _log('error', 'assistant_failed', error=f'HTTP {he.code} {detail}')
-            return {'answer': "Sorry — the assistant hit an error reaching the AI service. Tell your admin.",
-                    'steps': [], 'navTarget': None, 'error': f'HTTP {he.code}'}
-        raw = body['content'][0]['text'].strip()
-        if '{' in raw:
-            raw = raw[raw.find('{'):raw.rfind('}') + 1]
-        out = json.loads(raw)
-    except Exception as e:
-        print(f"  ⚠ assistant_failed: {type(e).__name__}: {e}")
-        _log('error', 'assistant_failed', error=str(e))
-        return {'answer': "Sorry — I couldn’t answer that just now. Try the ? Help guide.",
-                'steps': [], 'navTarget': None, 'error': str(e)}
-    nt = out.get('navTarget')
-    if nt and valid_ids and nt not in valid_ids:
-        nt = None
-    return {'answer': out.get('answer', ''), 'steps': out.get('steps') or [], 'navTarget': nt}
-
-
-def parse_whatsapp_order(message: str) -> dict:
-    """
-    Use Claude API (Haiku) to extract order details from a WhatsApp message.
-    Returns pre-fill payload for the ERP order form.
-    """
-    import os
-    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-    if not api_key:
-        return {'error': 'ANTHROPIC_API_KEY not configured', 'parsed': False}
-
-    # ── Load all active SKUs from DB for the prompt ──────────────
-    variants = qry("""
-        SELECT pv.id as variant_id, pv.sku_code,
-               p.name as product_name, ps.label as pack_size,
-               pv.active_flag
-        FROM product_variants pv
-        JOIN products p    ON p.id  = pv.product_id
-        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
-        WHERE pv.active_flag = 1
-        ORDER BY p.name, ps.grams
-    """)
-    sku_list = '\n'.join(
-        f"  - {v['product_name']} {v['pack_size']} → sku_code: {v['sku_code']}, variant_id: {v['variant_id']}"
-        for v in variants
-    )
-
-    system_prompt = f"""You are an order parser for Chacha's Masala, a Pakistani spice brand.
-Extract order details from a WhatsApp message and return ONLY valid JSON.
-
-Available products:
-{sku_list}
-
-Return this exact JSON structure (use null for missing fields, 0 for missing quantities):
-{{
-  "name": "customer name or null",
-  "phone": "phone number or null",
-  "address": "delivery address or null",
-  "items": [
-    {{"variant_id": 1, "sku_code": "SPCM-50", "product_name": "Chaat Masala", "pack_size": "50g", "qty": 2}}
-  ]
-}}
-
-Rules:
-- Only include items with qty > 0
-- Match product names tolerantly (e.g. "chaat" → Chaat Masala, "garam" → Garam Masala, "fish" → Fish Masala)
-- If no items found return empty items array
-- Return ONLY the JSON object, no other text"""
-
-    try:
-        import urllib.request, urllib.error
-        payload = json.dumps({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 512,
-            'system': system_prompt,
-            'messages': [{'role': 'user', 'content': message}]
-        }).encode('utf-8')
-        req = urllib.request.Request(
-            'https://api.anthropic.com/v1/messages',
-            data=payload,
-            headers={
-                'x-api-key': api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-            },
-            method='POST'
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            body = json.loads(resp.read().decode('utf-8'))
-        raw_text = body['content'][0]['text'].strip()
-        parsed = json.loads(raw_text)
-    except Exception as e:
-        _log('error', 'wa_parse_failed', error=str(e))
-        return {'error': f'Parse failed: {str(e)}', 'parsed': False}
-
-    # ── Normalise phone ───────────────────────────────────────────
-    if parsed.get('phone'):
-        parsed['phone'] = _normalise_phone(parsed['phone'])
-
-    # ── Look up existing customer by phone ────────────────────────
-    existing_customer = None
-    if parsed.get('phone'):
-        existing_customer = qry1(
-            "SELECT id, code, name, address FROM customers WHERE phone=? LIMIT 1",
-            (parsed['phone'],)
-        )
-
-    # ── Enrich items with prices ──────────────────────────────────
-    items = parsed.get('items', [])
-    for item in items:
-        vid = item.get('variant_id')
-        if vid:
-            price_row = qry1("""
-                SELECT p.price FROM prices p
-                JOIN price_types pt ON pt.id = p.price_type_id
-                WHERE p.variant_id=? AND pt.code='web' AND p.active_flag=1
-                LIMIT 1
-            """, (vid,))
-            if not price_row:
-                price_row = qry1("""
-                    SELECT p.price FROM prices p
-                    JOIN price_types pt ON pt.id = p.price_type_id
-                    WHERE p.variant_id=? AND pt.code='standard' AND p.active_flag=1
-                    LIMIT 1
-                """, (vid,))
-            item['unit_price'] = float(price_row['price']) if price_row else 0.0
-        else:
-            item['unit_price'] = 0.0
-        item['line_total'] = item['unit_price'] * int(item.get('qty', 0))
-
-    raw_total = sum(i['line_total'] for i in items)
-
-    return {
-        'parsed': True,
-        'name':     parsed.get('name'),
-        'phone':    parsed.get('phone'),
-        'address':  parsed.get('address'),
-        'items':    items,
-        'raw_total': raw_total,
-        'existing_customer': existing_customer,
-    }
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -3171,24 +3693,6 @@ def update_customer(cust_id, data):
 #  BUSINESS LOGIC — PRODUCTS
 # ═══════════════════════════════════════════════════════════════════
 
-def _save_recipe_sub(c, rid, data):
-    """Replace steps and ingredients for a recipe (call inside open transaction)."""
-    steps = data.get('steps') or []
-    ingredients = data.get('ingredients') or []
-    c.execute("DELETE FROM recipe_steps WHERE recipe_id=?", (rid,))
-    for i, s in enumerate(steps):
-        instr = (s.get('instruction') or '').strip()
-        if instr:
-            c.execute("INSERT INTO recipe_steps (recipe_id, step_number, instruction) VALUES (?,?,?)",
-                      (rid, i + 1, instr))
-    c.execute("DELETE FROM recipe_ingredients WHERE recipe_id=?", (rid,))
-    for i, ing in enumerate(ingredients):
-        item = (ing.get('item') or '').strip()
-        if item:
-            c.execute("INSERT INTO recipe_ingredients (recipe_id, sort_order, item) VALUES (?,?,?)",
-                      (rid, i, item))
-
-
 def create_product(data):
     """
     Each pack size is treated as a separate product.
@@ -3352,6 +3856,206 @@ def deactivate_variant(variant_id):
 # ═══════════════════════════════════════════════════════════════════
 #  BUSINESS LOGIC — SUPPLIERS
 # ═══════════════════════════════════════════════════════════════════
+
+def _migrate_supplier_bills_void():
+    """Migration: add voided_at/voided_by/void_note columns and VOID status to supplier_bills.
+    SQLite doesn't allow ALTER TABLE to change a CHECK constraint, so we recreate the table."""
+    c = _conn()
+    try:
+        c.execute("PRAGMA foreign_keys=OFF")
+        # Check if VOID is already in the constraint
+        tbl = c.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='supplier_bills'"
+        ).fetchone()
+        if not tbl:
+            return  # table doesn't exist yet — schema creation handles it
+        tbl_sql = tbl[0] or ''
+        cols = [row[1] for row in c.execute("PRAGMA table_info(supplier_bills)")]
+
+        needs_rebuild = "'VOID'" not in tbl_sql and '"VOID"' not in tbl_sql
+        needs_voided_cols = 'voided_at' not in cols
+
+        if needs_rebuild:
+            # Recreate table with VOID in CHECK constraint + voided columns
+            c.execute("""CREATE TABLE IF NOT EXISTS supplier_bills_new (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                bill_number  TEXT NOT NULL UNIQUE,
+                supplier_id  INTEGER NOT NULL REFERENCES suppliers(id),
+                bill_date    TEXT NOT NULL,
+                due_date     TEXT NOT NULL,
+                status       TEXT DEFAULT 'UNPAID'
+                             CHECK(status IN ('UNPAID','PARTIAL','PAID','VOID')),
+                notes        TEXT DEFAULT '',
+                total_amount REAL DEFAULT 0,
+                supplier_ref TEXT DEFAULT '',
+                created_at   TEXT DEFAULT (datetime('now')),
+                voided_at    TEXT DEFAULT NULL,
+                voided_by    TEXT DEFAULT NULL,
+                void_note    TEXT DEFAULT NULL
+            )""")
+            existing_cols = [row[1] for row in c.execute("PRAGMA table_info(supplier_bills)")]
+            void_cols = 'voided_at' if 'voided_at' in existing_cols else 'NULL'
+            c.execute(f"""INSERT INTO supplier_bills_new
+                SELECT id, bill_number, supplier_id, bill_date, due_date, status,
+                       notes, total_amount, COALESCE(supplier_ref,''), created_at,
+                       {'voided_at' if 'voided_at' in existing_cols else 'NULL'},
+                       {'voided_by' if 'voided_by' in existing_cols else 'NULL'},
+                       {'void_note' if 'void_note' in existing_cols else 'NULL'}
+                FROM supplier_bills""")
+            c.execute("DROP TABLE supplier_bills")
+            c.execute("ALTER TABLE supplier_bills_new RENAME TO supplier_bills")
+            print("  ✓ supplier_bills: migrated — added VOID status + voided columns")
+        elif needs_voided_cols:
+            # Table has VOID but missing the voided columns — just add them
+            for col in ['voided_at', 'voided_by', 'void_note']:
+                if col not in cols:
+                    try:
+                        c.execute(f"ALTER TABLE supplier_bills ADD COLUMN {col} TEXT DEFAULT NULL")
+                    except Exception:
+                        pass
+            print("  ✓ supplier_bills: added voided_at/voided_by/void_note columns")
+        c.commit()
+    except Exception as e:
+        print(f"  ⚠ supplier_bills migration error: {e}")
+        try: c.rollback()
+        except: pass
+    finally:
+        try: c.execute("PRAGMA foreign_keys=ON")
+        except: pass
+        c.close()
+
+
+def _migrate_change_log_void_action():
+    """Migration: widen change_log CHECK constraint to include 'VOID'.
+    SQLite doesn't allow ALTER TABLE to change a CHECK constraint, so we recreate the table."""
+    c = _conn()
+    try:
+        c.execute("PRAGMA foreign_keys=OFF")
+        tbl = c.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='change_log'"
+        ).fetchone()
+        if not tbl:
+            return  # table doesn't exist yet — schema creation handles it
+        tbl_sql = tbl[0] or ''
+        if "'VOID'" in tbl_sql or '"VOID"' in tbl_sql:
+            return  # already has VOID — nothing to do
+        # Recreate with the wider constraint
+        c.execute("""CREATE TABLE IF NOT EXISTS change_log_new (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_name TEXT NOT NULL,
+            record_id  TEXT NOT NULL,
+            action     TEXT NOT NULL CHECK(action IN ('INSERT','UPDATE','DELETE','VOID')),
+            old_value  TEXT DEFAULT NULL,
+            new_value  TEXT DEFAULT NULL,
+            changed_by TEXT DEFAULT 'system',
+            timestamp  TEXT DEFAULT (datetime('now'))
+        )""")
+        c.execute("""INSERT INTO change_log_new
+            SELECT id, table_name, record_id, action, old_value, new_value, changed_by, timestamp
+            FROM change_log""")
+        c.execute("DROP TABLE change_log")
+        c.execute("ALTER TABLE change_log_new RENAME TO change_log")
+        c.commit()
+        print("  ✓ change_log: widened CHECK constraint to include VOID action")
+    except Exception as e:
+        print(f"  ⚠ change_log migration error: {e}")
+        try: c.rollback()
+        except: pass
+    finally:
+        try: c.execute("PRAGMA foreign_keys=ON")
+        except: pass
+        c.close()
+
+
+def _migrate_customer_type_wholesale():
+    """Migration: add WHOLESALE to customer_type CHECK constraint (idempotent).
+    SQLite doesn't allow ALTER COLUMN — recreates the customers table with updated CHECK."""
+    c = _conn()
+    try:
+        schema = c.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='customers'"
+        ).fetchone()
+        if schema and 'WHOLESALE' in schema[0]:
+            return  # already done
+        c.execute("PRAGMA foreign_keys=OFF")
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS customers_new (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                code               TEXT NOT NULL UNIQUE,
+                account_number     TEXT DEFAULT NULL,
+                name               TEXT NOT NULL,
+                customer_type      TEXT NOT NULL DEFAULT 'RETAIL'
+                                   CHECK(customer_type IN ('RETAIL','DIRECT','WHOLESALE')),
+                category           TEXT DEFAULT '',
+                city               TEXT DEFAULT '',
+                address            TEXT DEFAULT '',
+                phone              TEXT DEFAULT '',
+                email              TEXT DEFAULT '',
+                default_pack       TEXT DEFAULT '50g',
+                payment_terms_days INTEGER DEFAULT 30,
+                credit_limit       REAL DEFAULT 0,
+                active             INTEGER DEFAULT 1,
+                created_at         TEXT DEFAULT (date('now'))
+            )
+        """)
+        c.execute("""
+            INSERT INTO customers_new
+            SELECT id, code, account_number, name,
+                   CASE WHEN customer_type IN ('RETAIL','DIRECT','WHOLESALE')
+                        THEN customer_type ELSE 'RETAIL' END,
+                   category, city, address, phone, email, default_pack,
+                   payment_terms_days, credit_limit, active, created_at
+            FROM customers
+        """)
+        c.execute("DROP TABLE customers")
+        c.execute("ALTER TABLE customers_new RENAME TO customers")
+        c.commit()
+        print("  ✓ Migration: customer_type CHECK updated — WHOLESALE added")
+    except Exception as e:
+        print(f"  ⚠ _migrate_customer_type_wholesale error: {e}")
+        try: c.rollback()
+        except: pass
+    finally:
+        try: c.execute("PRAGMA foreign_keys=ON")
+        except: pass
+        c.close()
+    save_db()
+
+
+def _ensure_b2b_order_columns():
+    """Idempotent: add out_of_route + idempotency_key columns to customer_orders for B2B portal."""
+    c = _conn()
+    try:
+        for sql in [
+            "ALTER TABLE customer_orders ADD COLUMN out_of_route    INTEGER DEFAULT 0",
+            "ALTER TABLE customer_orders ADD COLUMN idempotency_key TEXT    DEFAULT NULL",
+        ]:
+            try:
+                c.execute(sql)
+            except Exception:
+                pass  # column already exists
+        c.commit()
+        print("  ✓ B2B columns: out_of_route + idempotency_key ready")
+    finally:
+        c.close()
+    save_db()
+
+
+def _ensure_supplier_zone_col():
+    """Safe migration: add zone_id column to suppliers if not present.
+    Also syncs the supplier id_counter to the actual max existing supplier number."""
+    c = _conn()
+    try:
+        c.execute("ALTER TABLE suppliers ADD COLUMN zone_id INTEGER REFERENCES zones(id)")
+        c.commit()
+        print("  ✓ Suppliers: added zone_id column")
+    except Exception:
+        pass  # column already exists
+    finally:
+        c.close()
+    # Sync counter so it's never behind existing data (prevents UNIQUE constraint failures)
+    _sync_counter_to_max('supplier', 'suppliers', 'code', 'SUP-')
+
 
 def _suppliers_with_zones():
     _ensure_supplier_zone_col()
@@ -3772,7 +4476,7 @@ def list_customer_orders(status_filter=None):
     """Return all orders with summary counts, newest first."""
     sql = """
         SELECT co.id, co.order_number, co.order_date, co.required_date,
-               co.status, co.notes, co.created_at, co.order_source,
+               co.status, co.notes, co.created_at,
                c.name as customer_name, c.code as customer_code,
                COUNT(DISTINCT coi.id)  as item_count,
                COALESCE(SUM(coi.qty_ordered), 0)  as total_qty,
@@ -4570,6 +5274,108 @@ def remove_invoice_item(item_id):
 # ═══════════════════════════════════════════════════════════════════
 #  BUSINESS LOGIC — PURCHASE ORDERS
 # ═══════════════════════════════════════════════════════════════════
+
+def ensure_supplier_bills_schema():
+    """Add total_amount and supplier_ref columns to supplier_bills (idempotent migration)."""
+    c = _conn()
+    try:
+        # Add stored total_amount column — used as authoritative total when items have zero costs
+        try:
+            c.execute("ALTER TABLE supplier_bills ADD COLUMN total_amount REAL DEFAULT 0")
+            c.commit()
+            print("  ✓ Supplier Bills: added total_amount column")
+        except Exception:
+            pass  # column already exists
+
+        # Add supplier_ref column — supplier's own invoice/reference number (prevents duplicates)
+        try:
+            c.execute("ALTER TABLE supplier_bills ADD COLUMN supplier_ref TEXT DEFAULT ''")
+            c.commit()
+            print("  ✓ Supplier Bills: added supplier_ref column")
+        except Exception:
+            pass  # column already exists
+
+        # Back-fill total_amount from existing bill items for any bills where it's still NULL/0
+        bills_to_fix = c.execute("""
+            SELECT sb.id, COALESCE(SUM(sbi.line_total),0) as items_sum
+            FROM supplier_bills sb
+            LEFT JOIN supplier_bill_items sbi ON sbi.bill_id = sb.id
+            WHERE sb.total_amount IS NULL OR sb.total_amount = 0
+            GROUP BY sb.id
+        """).fetchall()
+        fixed = 0
+        for row in bills_to_fix:
+            if row[1] > 0:
+                c.execute("UPDATE supplier_bills SET total_amount=? WHERE id=?", (row[1], row[0]))
+                fixed += 1
+        if fixed:
+            c.commit()
+            print(f"  ✓ Supplier Bills: back-filled total_amount for {fixed} bill(s)")
+        else:
+            c.commit()
+    finally:
+        c.close()
+    save_db()
+
+
+def ensure_purchase_orders_schema():
+    """Create purchase_orders and po_items tables if not exists."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS purchase_orders (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                po_number      TEXT    NOT NULL UNIQUE,
+                supplier_id    INTEGER NOT NULL REFERENCES suppliers(id),
+                po_date        TEXT    NOT NULL,
+                expected_date  TEXT,
+                status         TEXT    NOT NULL DEFAULT 'draft',
+                notes          TEXT    DEFAULT '',
+                payment_terms  TEXT    NOT NULL DEFAULT 'CREDIT',
+                bill_id        INTEGER REFERENCES supplier_bills(id),
+                created_at     TEXT    DEFAULT (datetime('now')),
+                updated_at     TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS po_items (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                po_id          INTEGER NOT NULL REFERENCES purchase_orders(id),
+                ingredient_id  INTEGER NOT NULL REFERENCES ingredients(id),
+                quantity_kg    REAL    NOT NULL,
+                received_kg    REAL    NOT NULL DEFAULT 0,
+                unit_cost_kg   REAL    NOT NULL DEFAULT 0,
+                notes          TEXT    DEFAULT ''
+            )
+        """)
+        # id_counters row for purchase_order
+        existing = c.execute("SELECT 1 FROM id_counters WHERE entity='purchase_order'").fetchone()
+        if not existing:
+            c.execute("INSERT INTO id_counters (entity, last_num) VALUES ('purchase_order', 0)")
+        c.commit()
+        print("  ✓ Purchase Orders: tables ready")
+    finally:
+        c.close()
+    save_db()
+
+
+def ensure_batch_cost_column():
+    """
+    Add unit_cost_at_posting to production_batches (idempotent migration).
+    This column freezes the ingredient cost at the moment a batch is posted —
+    so historical COGS are never affected by future price changes.
+    """
+    c = _conn()
+    try:
+        try:
+            c.execute("ALTER TABLE production_batches ADD COLUMN unit_cost_at_posting REAL DEFAULT 0")
+            c.commit()
+            print("  ✓ Production Batches: added unit_cost_at_posting column")
+        except Exception:
+            pass  # column already exists
+    finally:
+        c.close()
+
 
 def list_purchase_orders(status_filter=None):
     sql = """
@@ -6614,11 +7420,8 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
         SELECT inv.*, c.name as customer_name, c.customer_type, c.code as cust_code,
                c.account_number as cust_acct, c.email as customer_email,
                c.phone as customer_phone, c.city as customer_city,
-               c.address as customer_address, c.credit_limit,
-               co.order_source
-        FROM invoices inv
-        JOIN customers c ON c.id=inv.customer_id
-        LEFT JOIN customer_orders co ON co.id=inv.customer_order_id
+               c.address as customer_address, c.credit_limit
+        FROM invoices inv JOIN customers c ON c.id=inv.customer_id
         WHERE inv.id=?
     """, (inv_id,))
     if not inv:
@@ -6662,24 +7465,12 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
 
     story = []
 
-    # ── Payment terms (based on order source) ───────────────────────
-    order_source = inv.get('order_source') or ''
-    if order_source == 'consumer_website':
-        payment_terms_text = 'Due on Delivery'
-    else:
-        terms_days = int(inv.get('payment_terms_days') or 30)
-        payment_terms_text = 'Net ' + str(terms_days) + ' Days'
-
     # ── Header band ─────────────────────────────────────────────────
     from reportlab.platypus import FrameBreak
-    header_contact = [
-        Paragraph('<b>Chacha Masala™</b>', s_title),
-        Paragraph('chachamasala.com  |  wa.me/923359997283  |  hello@chachamasala.com', s_sub),
-    ]
     header_data = [[
-        header_contact,
+        Paragraph('<b>SPICETOPIA</b>', s_title),
         Paragraph(
-            f'<b>INVOICE</b><br/>'
+            f'<b>TAX INVOICE</b><br/>'
             f'<font size="10">{inv["invoice_number"]}</font>',
             ParagraphStyle('invnum', fontName='Helvetica-Bold', fontSize=14,
                            leading=18, textColor=clr['white'], alignment=TA_RIGHT)
@@ -6710,7 +7501,7 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
     ]
     if inv.get('customer_address'):
         bill_to_lines.append(Paragraph(inv['customer_address'], s_small))
-    if inv.get('customer_city') and inv.get('customer_city') != inv.get('customer_address'):
+    if inv.get('customer_city'):
         bill_to_lines.append(Paragraph(inv['customer_city'], s_small))
     if inv.get('customer_phone'):
         bill_to_lines.append(Paragraph(f'Tel: {inv["customer_phone"]}', s_small))
@@ -6725,9 +7516,6 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
             Spacer(1, 6),
             Paragraph('DUE DATE', s_label),
             Paragraph(due_date_fmt, s_value),
-            Spacer(1, 6),
-            Paragraph('PAYMENT TERMS', s_label),
-            Paragraph(payment_terms_text, s_value),
             Spacer(1, 6),
             Paragraph('STATUS', s_label),
             Paragraph(f'<font color="{status_color}"><b>{status}</b></font>', s_value),
@@ -6865,11 +7653,11 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
     story.append(Spacer(1, 6))
     story.append(Paragraph(
         'Thank you for your business. Please quote the invoice number on all payments. '
-        'For queries: chachamasala.com  |  hello@chachamasala.com  |  WhatsApp +92 335 999 7283',
+        'For queries contact accounts@spicetopia.com',
         s_footer))
     story.append(Spacer(1, 4))
     story.append(Paragraph(
-        f'Chacha Masala™ — {date.today().isoformat()}',
+        f'Generated by Spicetopia BMS — {date.today().isoformat()}',
         s_footer))
 
     doc = SimpleDocTemplate(buf, pagesize=A4,
@@ -7804,7 +8592,7 @@ class Handler(BaseHTTPRequestHandler):
             # /db-upload — one-time database upload page (admin only)
             if path == '/db-upload':
                 sess = get_session(self)
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     self.send_response(302)
                     self.send_header('Location', '/')
                     self.end_headers()
@@ -7902,17 +8690,14 @@ class Handler(BaseHTTPRequestHandler):
                     SELECT
                         p.code          AS product_code,
                         p.name          AS product_name,
-                        pv.id           AS variant_id,
                         pv.sku_code,
                         ps.label        AS pack_size,
                         ps.grams,
                         pp.price,
-                        pp.effective_from,
-                        COALESCE(pv.show_online, 0) AS show_online
+                        pp.effective_from
                     FROM product_prices pp
                     JOIN price_types pt      ON pt.id = pp.price_type_id AND pt.code = 'web'
                     JOIN product_variants pv ON pv.id = pp.product_variant_id AND pv.active_flag = 1
-                                            AND COALESCE(pv.show_online, 0) = 1
                     JOIN products p          ON p.id  = pv.product_id AND p.active = 1
                     JOIN pack_sizes ps       ON ps.id = pv.pack_size_id
                     WHERE pp.active_flag = 1
@@ -7923,57 +8708,6 @@ class Handler(BaseHTTPRequestHandler):
                     'prices':     rows,
                     'updated_at': today(),
                 })
-                return
-
-            # ── GET /api/public/recipes — no auth, recipe listing ──
-            if path == '/api/public/recipes':
-                rows = qry("""
-                    SELECT r.id, r.title, r.slug, r.masala_code, r.description,
-                           r.prep_mins, r.cook_mins, r.serves, r.image_path, r.sort_order
-                    FROM recipes r WHERE r.active=1 ORDER BY r.sort_order ASC, r.id ASC
-                """)
-                for row in rows:
-                    if row.get('image_path'):
-                        row['image_url'] = '/api/public/recipe-images/' + row['image_path']
-                    else:
-                        row['image_url'] = None
-                send_json(self, rows)
-                return
-
-            # ── GET /api/public/recipes/:slug — no auth, single recipe ──
-            if path.startswith('/api/public/recipes/') and len(path.split('/')) == 5:
-                slug = path.split('/')[-1]
-                recipe = qry1("SELECT * FROM recipes WHERE slug=? AND active=1", (slug,))
-                if not recipe:
-                    send_error(self, 'Recipe not found', 404); return
-                recipe['steps']       = qry("SELECT * FROM recipe_steps WHERE recipe_id=? ORDER BY step_number", (recipe['id'],))
-                recipe['ingredients'] = qry("SELECT * FROM recipe_ingredients WHERE recipe_id=? ORDER BY sort_order", (recipe['id'],))
-                if recipe.get('image_path'):
-                    recipe['image_url'] = '/api/public/recipe-images/' + recipe['image_path']
-                else:
-                    recipe['image_url'] = None
-                send_json(self, recipe)
-                return
-
-            # ── GET /api/public/recipe-images/:filename — serve uploaded image ──
-            if path.startswith('/api/public/recipe-images/'):
-                import mimetypes
-                filename = path.split('/')[-1]
-                # Sanitise — no path traversal
-                filename = os.path.basename(filename)
-                img_dir  = os.path.join(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data'), 'recipe-images')
-                img_path = os.path.join(img_dir, filename)
-                if not os.path.isfile(img_path):
-                    send_error(self, 'Image not found', 404); return
-                mime = mimetypes.guess_type(img_path)[0] or 'application/octet-stream'
-                with open(img_path, 'rb') as f:
-                    data = f.read()
-                self.send_response(200)
-                self.send_header('Content-Type', mime)
-                self.send_header('Content-Length', str(len(data)))
-                self.send_header('Cache-Control', 'public, max-age=86400')
-                self.end_headers()
-                self.wfile.write(data)
                 return
 
             # ── Auth gate (all /api/ except auth endpoints) ──────
@@ -8000,18 +8734,15 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/users  (admin only)
             if path == '/api/users':
                 sess = get_session(self)
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
-                _users = list_users()
-                if sess.get('role') != 'super_user':
-                    _users = [u for u in _users if u.get('role') != 'super_user']  # only the owner sees the owner
-                send_json(self, _users)
+                send_json(self, list_users())
                 return
 
             # ── ADMIN BACKUP STATUS ────────────────────────────────────────
             # GET /api/admin/backup  — list backups + next run time (admin only)
             if path == '/api/admin/backup':
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 backups = []
                 if BACKUP_PATH and BACKUP_PATH.exists():
@@ -8031,38 +8762,9 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
-            # GET /api/admin/backup/download  — stream a fresh consistent DB snapshot (admin only)
-            # Auth via query token so a plain browser link works.
-            if path == '/api/admin/backup/download':
-                dsess = get_session(self, qs)
-                if not require(dsess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
-                import tempfile as _tf
-                _ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-                _tmp = Path(_tf.gettempdir()) / f"spicetopia_dl_{_ts}.db"
-                try:
-                    _src = sqlite3.connect(str(DB_TMP)); _dst = sqlite3.connect(str(_tmp))
-                    try:
-                        _src.backup(_dst)          # online backup — consistent, no write lock
-                    finally:
-                        _dst.close(); _src.close()
-                    _data = _tmp.read_bytes()
-                finally:
-                    try: _tmp.unlink()
-                    except Exception: pass
-                _fname = f"spicetopia_backup_{_ts}.db"
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/octet-stream')
-                self.send_header('Content-Disposition', f'attachment; filename="{_fname}"')
-                self.send_header('Content-Length', str(len(_data)))
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(_data)
-                return
-
             # GET /api/admin/settings  — return runtime + DB settings (admin only)
             if path == '/api/admin/settings':
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 send_json(self, {
                     'whatsapp_enabled':       WA_ENABLED,
@@ -8076,7 +8778,7 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/admin/price-master  — full price matrix (admin only)
             if path == '/api/admin/price-master':
                 sess = get_session(self)
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 rows = qry("""
                     SELECT  p.code  AS product_code,
@@ -8108,7 +8810,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/admin/ingredients  — ALL ingredients incl. inactive (admin only)
             if path == '/api/admin/ingredients':
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 stock_map = get_stock_map()
                 rows = qry("SELECT * FROM ingredients ORDER BY code")
@@ -8131,39 +8833,14 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/ingredients/next-code  — peek next ING-xxxSP code (admin)
             if path == '/api/ingredients/next-code':
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 send_json(self, {'code': peek_next_ingredient_code()})
                 return
 
-            # GET /api/ingredients/duplicates  — same-name ingredients under different codes (admin, read-only)
-            if path == '/api/ingredients/duplicates':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
-                import threading as _th, time as _t
-                print("  [duplicates] request received", flush=True)
-                _box = {}
-                def _work():
-                    try:
-                        _box['data'] = find_duplicate_ingredients()
-                    except Exception as _e:
-                        import traceback; traceback.print_exc()
-                        _box['err'] = str(_e)
-                _t0 = _t.time()
-                _wt = _th.Thread(target=_work, daemon=True); _wt.start(); _wt.join(15)
-                if _wt.is_alive():
-                    print(f"  [duplicates] TIMED OUT after {_t.time()-_t0:.1f}s", flush=True)
-                    send_error(self, 'Duplicate scan timed out (>15s) — likely a DB lock or data-volume issue', 504)
-                elif 'err' in _box:
-                    send_error(self, 'Duplicate scan failed: ' + _box['err'], 500)
-                else:
-                    print(f"  [duplicates] returned {len(_box.get('data', []))} group(s) in {_t.time()-_t0:.2f}s", flush=True)
-                    send_json(self, _box.get('data', []))
-                return
-
             # GET /api/products/next-blend-code?prefix=GM  — peek next GM-BC-xxx code (admin)
             if path == '/api/products/next-blend-code':
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 prefix = qs.get('prefix', [''])[0].strip().upper()
                 if not prefix:
@@ -8175,7 +8852,7 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/admin/masters/template/{type}  — download CSV template
             if path.startswith('/api/admin/masters/template/'):
                 sess = get_session(self, qs)
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 master_type = path.split('/')[-1]
                 csv_bytes = _master_template_csv(master_type)
@@ -8193,7 +8870,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if path == '/api/admin/price-master/export':
                 sess = get_session(self, qs)
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 rows = qry("""
                     SELECT  p.code   AS product_code,
@@ -8267,35 +8944,6 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/dashboard
             if path == '/api/dashboard':
                 send_json(self, get_dashboard())
-                return
-
-            # GET /api/recipes  (admin)
-            if path == '/api/recipes':
-                if not require(sess, 'admin', 'sales', 'warehouse', 'accountant'):
-                    send_error(self, 'Permission denied', 403); return
-                rows = qry("""
-                    SELECT r.id, r.title, r.slug, r.masala_code, r.description,
-                           r.prep_mins, r.cook_mins, r.serves, r.image_path,
-                           r.active, r.sort_order, r.created_at
-                    FROM recipes r ORDER BY r.sort_order ASC, r.id ASC
-                """)
-                for row in rows:
-                    row['image_url'] = ('/api/public/recipe-images/' + row['image_path']) if row.get('image_path') else None
-                send_json(self, rows)
-                return
-
-            # GET /api/recipes/:id  (admin — full detail with steps + ingredients)
-            if path.startswith('/api/recipes/') and len(path.split('/')) == 4 and path.split('/')[3].isdigit():
-                if not require(sess, 'admin', 'sales', 'warehouse', 'accountant'):
-                    send_error(self, 'Permission denied', 403); return
-                rid = int(path.split('/')[3])
-                recipe = qry1("SELECT * FROM recipes WHERE id=?", (rid,))
-                if not recipe:
-                    send_error(self, 'Recipe not found', 404); return
-                recipe['steps']       = qry("SELECT * FROM recipe_steps WHERE recipe_id=? ORDER BY step_number", (rid,))
-                recipe['ingredients'] = qry("SELECT * FROM recipe_ingredients WHERE recipe_id=? ORDER BY sort_order", (rid,))
-                recipe['image_url']   = ('/api/public/recipe-images/' + recipe['image_path']) if recipe.get('image_path') else None
-                send_json(self, recipe)
                 return
 
             # GET /api/products
@@ -8625,7 +9273,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/admin/suppliers  (all suppliers incl. inactive — admin CRUD view)
             if path == '/api/admin/suppliers':
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 _ensure_supplier_zone_col()
                 rows = qry("""
@@ -8707,7 +9355,7 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/ingredients/export  — CSV download of all ingredients (admin only)
             if path == '/api/ingredients/export':
                 sess = get_session(self, qs)
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 stock_map    = get_stock_map()
                 reserved_map = get_wo_reserved_stock_map()
@@ -9180,24 +9828,24 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_ap_aging())
                 return
 
-            # GET /api/costing/config  (admin or 'costs' permission)
+            # GET /api/costing/config  (admin only)
             if path == '/api/costing/config':
-                if not _can_costs(sess):
-                    send_error(self, 'Costing access required', 403); return
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
                 send_json(self, get_costing_config())
                 return
 
-            # GET /api/costing/standard-costs  (admin or 'costs' permission)
+            # GET /api/costing/standard-costs  (admin only)
             if path == '/api/costing/standard-costs':
-                if not _can_costs(sess):
-                    send_error(self, 'Costing access required', 403); return
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
                 send_json(self, get_all_standard_costs())
                 return
 
-            # GET /api/costing/standard-costs/:productCode/:packSize  (admin or 'costs' permission)
+            # GET /api/costing/standard-costs/:productCode/:packSize  (admin only)
             if path.startswith('/api/costing/standard-costs/') and len(path.split('/')) == 6:
-                if not _can_costs(sess):
-                    send_error(self, 'Costing access required', 403); return
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
                 parts = path.split('/')
                 result = compute_standard_cost(parts[4], parts[5])
                 if not result:
@@ -9205,18 +9853,18 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # GET /api/costing/batch-variances  (admin or 'costs' permission)
+            # GET /api/costing/batch-variances  (admin only)
             if path == '/api/costing/batch-variances':
-                if not _can_costs(sess):
-                    send_error(self, 'Costing access required', 403); return
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
                 days = int(qs.get('days', ['90'])[0])
                 send_json(self, get_batch_variances(days))
                 return
 
-            # GET /api/costing/price-history  (admin or 'costs' permission)
+            # GET /api/costing/price-history  (admin only)
             if path == '/api/costing/price-history':
-                if not _can_costs(sess):
-                    send_error(self, 'Costing access required', 403); return
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
                 limit = int(qs.get('limit', ['100'])[0])
                 change_type = qs.get('type', [None])[0]
                 days = qs.get('days', [None])[0]
@@ -9224,10 +9872,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_price_history(limit=limit, change_type=change_type, days=days))
                 return
 
-            # GET /api/costing/margin-alerts  (admin or 'costs' permission)
+            # GET /api/costing/margin-alerts  (admin only)
             if path == '/api/costing/margin-alerts':
-                if not _can_costs(sess):
-                    send_error(self, 'Costing access required', 403); return
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
                 include_dismissed = qs.get('dismissed', ['false'])[0].lower() == 'true'
                 alerts = get_margin_alerts(include_dismissed=include_dismissed)
                 # Optionally trigger email for new unsent alerts
@@ -9258,10 +9906,8 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_rep_performance_report(period))
                 return
 
-            # GET /api/bom/:productCode  (recipe owner / 'recipe' permission only — the secret)
+            # GET /api/bom/:productCode
             if path.startswith('/api/bom/'):
-                if not _can_recipe(sess):
-                    send_error(self, 'Recipe access required', 403); return
                 code = path.split('/')[3]
                 prod = qry1("SELECT id FROM products WHERE code=?", (code,))
                 if not prod:
@@ -9499,67 +10145,6 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'unit_cost_kg': row['unit_cost_kg'] if row else 0})
                 return
 
-            # ── Planning Input System (admin only) ──────────────────
-            if path == '/api/planning/versions':
-                if not _can_plan(get_session(self, qs)):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, list_plan_versions())
-                return
-            if path == '/api/planning/manufacturers':
-                if not _can_plan(get_session(self, qs)):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, list_manufacturers())
-                return
-            if path == '/api/planning/variants':
-                if not _can_plan(get_session(self, qs)):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, list_active_variants())
-                return
-            if path == '/api/planning/zones':
-                if not _can_plan(get_session(self, qs)):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, list_zones())
-                return
-            if path == '/api/planning/compare':
-                if not _can_plan(get_session(self, qs)):
-                    send_error(self, 'Planning access required', 403); return
-                _raw  = qs.get('versions', [''])[0]
-                _vids = [int(x) for x in _raw.split(',') if x.strip().isdigit()]
-                send_json(self, compare_scenarios(_vids))
-                return
-            if path.startswith('/api/planning/versions/') and path.split('/')[4].isdigit():
-                if not _can_plan(get_session(self, qs)):
-                    send_error(self, 'Planning access required', 403); return
-                parts = path.split('/')
-                vid   = int(parts[4])
-                if len(parts) == 5:
-                    send_json(self, get_plan_version(vid)); return
-                if len(parts) == 6 and parts[5] == 'forecast':
-                    send_json(self, list_sales_forecast(vid)); return
-                if len(parts) == 6 and parts[5] == 'targets':
-                    send_json(self, list_sales_targets(vid)); return
-                if len(parts) == 6 and parts[5] == 'manufacturing':
-                    send_json(self, list_manufacturing(vid)); return
-                if len(parts) == 6 and parts[5] == 'financial':
-                    send_json(self, get_financial(vid)); return
-                if len(parts) == 6 and parts[5] == 'pricing':
-                    send_json(self, list_pricing(vid)); return
-                if len(parts) == 6 and parts[5] == 'projected-sales':
-                    _m = qs.get('months', [None])[0]
-                    send_json(self, projected_sales(vid, int(_m) if _m else None)); return
-                if len(parts) == 6 and parts[5] == 'capacity-vs-demand':
-                    send_json(self, capacity_vs_demand(vid)); return
-                if len(parts) == 6 and parts[5] == 'production-required':
-                    send_json(self, production_required(vid)); return
-                if len(parts) == 6 and parts[5] == 'cash-flow':
-                    send_json(self, cash_flow(vid)); return
-                if len(parts) == 6 and parts[5] == 'risk':
-                    send_json(self, risk_assessment(vid)); return
-                if len(parts) == 6 and parts[5] == 'ingredients':
-                    send_json(self, ingredient_requirements(vid)); return
-                if len(parts) == 6 and parts[5] == 'releases':
-                    send_json(self, list_releases(vid)); return
-
             send_error(self, "Not found", 404)
 
         except Exception as e:
@@ -9578,7 +10163,7 @@ class Handler(BaseHTTPRequestHandler):
                 if os.environ.get('DEV_TOOLS', '').lower() not in ('1', 'true', 'yes'):
                     send_error(self, 'Not available in this environment', 403); return
                 sess = get_session(self)
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_json(self, {'error': 'Admin only'}, 403); return
                 result = dev_reset_all()
                 send_json(self, result)
@@ -9589,7 +10174,7 @@ class Handler(BaseHTTPRequestHandler):
                 if os.environ.get('DEV_TOOLS', '').lower() not in ('1', 'true', 'yes'):
                     send_error(self, 'Not available in this environment', 403); return
                 sess = get_session(self)
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_json(self, {'error': 'Admin only'}, 403); return
                 _pc   = data.get('productCode', '')
                 _ps   = data.get('packSize', '')
@@ -9715,89 +10300,6 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, str(e), 400)
                 return
 
-            # POST /api/public/orders  — no-auth consumer order intake from chacha.html
-            if path == '/api/public/orders':
-                # Validate required fields
-                name   = (data.get('name') or '').strip()
-                phone  = _normalise_phone(data.get('phone') or '')
-                area   = (data.get('area') or '').strip()
-                email  = (data.get('email') or '').strip() or None
-                items  = data.get('items', [])
-                if not name:
-                    send_error(self, 'name is required', 400); return
-                if not phone or len(phone) < 10:
-                    send_error(self, 'valid phone number required', 400); return
-                if not items:
-                    send_error(self, 'at least one item required', 400); return
-                # Validate items: each must have variant_id (int) and qty > 0
-                clean_items = []
-                for it in items:
-                    try:
-                        vid = int(it.get('variant_id') or it.get('variantId') or 0)
-                        qty = float(it.get('qty', 0))
-                    except (TypeError, ValueError):
-                        send_error(self, 'invalid item format', 400); return
-                    if vid <= 0 or qty <= 0:
-                        send_error(self, 'invalid item: variant_id and qty required', 400); return
-                    # Confirm variant exists and is show_online=1
-                    var_row = qry1("""
-                        SELECT pv.id, p.code as productCode, ps.label as packSize, pp.price
-                        FROM product_variants pv
-                        JOIN products p    ON p.id  = pv.product_id AND p.active=1
-                        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
-                        LEFT JOIN (
-                            SELECT pp2.product_variant_id, pp2.price
-                            FROM product_prices pp2
-                            JOIN price_types pt2 ON pt2.id = pp2.price_type_id AND pt2.code='web'
-                            WHERE pp2.active_flag=1
-                            ORDER BY pp2.effective_from DESC
-                        ) pp ON pp.product_variant_id = pv.id
-                        WHERE pv.id=? AND pv.active_flag=1 AND COALESCE(pv.show_online,0)=1
-                    """, (vid,))
-                    if not var_row:
-                        send_error(self, f'Product {vid} not available for online orders', 400); return
-                    clean_items.append({
-                        'variantId': vid,
-                        'qty': qty,
-                        'unitPrice': var_row['price'] or 0,
-                    })
-                # Find or create consumer customer by phone
-                cust_row = qry1("SELECT code FROM customers WHERE phone=?", (phone,))
-                if not cust_row:
-                    # Create a DIRECT customer (consumer)
-                    new_cust = create_customer({
-                        'name':         name,
-                        'city':         area or 'Karachi',
-                        'phone':        phone,
-                        'email':        email or '',
-                        'customerType': 'DIRECT',
-                        'address':      area or '',
-                    })
-                    cust_code = new_cust['code']
-                else:
-                    cust_code = cust_row['code']
-                # Submit order via standard external intake
-                order_data = {
-                    'custCode':     cust_code,
-                    'order_source': 'consumer_website',
-                    'notes':        ('Online order. Area: ' + area) if area else 'Online order',
-                    'items':        clean_items,
-                }
-                try:
-                    result = create_customer_order_external(order_data)
-                except ValueError as ve:
-                    send_error(self, str(ve), 400); return
-                except Exception as ex:
-                    _log('error', 'public_order_failed', error=str(ex))
-                    send_error(self, 'Could not place order. Please try again.', 500); return
-                send_json(self, {
-                    'ok':      True,
-                    'orderId': result.get('orderId'),
-                    'ref':     result.get('orderCode') or result.get('orderId'),
-                    'message': 'Order received! We will contact you to confirm delivery.',
-                }, 201)
-                return
-
             # Auth gate for all other POST endpoints
             sess = get_session(self)
             if not sess:
@@ -9813,7 +10315,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/reconcile-statuses (admin only — fix any status drift)
             if path == '/api/admin/reconcile-statuses':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 invoice_ids = [r['id'] for r in qry("SELECT id FROM invoices")]
                 fixed = []
@@ -9828,7 +10330,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/ingredients/truncate  (admin only — wipe all ingredients + reset counter)
             if path == '/api/admin/ingredients/truncate':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 try:
                     c = _conn()
@@ -9849,7 +10351,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/suppliers/truncate  (admin only — wipe all suppliers + reset counter)
             if path == '/api/admin/suppliers/truncate':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 try:
                     c = _conn()
@@ -9871,7 +10373,7 @@ class Handler(BaseHTTPRequestHandler):
             # POST /api/admin/customers/truncate  (admin only — wipe all customers + reset counter)
             # Use before reimporting clean master data. Safe only when no real orders exist.
             if path == '/api/admin/customers/truncate':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 try:
                     c = _conn()
@@ -9892,7 +10394,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/backup  (admin only — manual backup trigger)
             if path == '/api/admin/backup':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 try:
                     result = run_backup()
@@ -9903,7 +10405,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/db-upload  (admin only — replace database from uploaded file)
             if path == '/api/admin/db-upload':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_json(self, {'ok': False, 'error': 'Permission denied'}, 403); return
                 try:
                     import cgi as _cgi
@@ -9941,7 +10443,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/test-whatsapp  (admin only — send a test message)
             if path == '/api/admin/test-whatsapp':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 if not WA_ENABLED:
                     send_json(self, {'ok': False, 'error': 'WhatsApp notifications are disabled. Enable them in Admin → Settings → WhatsApp.'}); return
@@ -9963,7 +10465,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/ingredients  (admin only — no name stored)
             if path == '/api/ingredients':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 result = create_ingredient(data)
                 send_json(self, result, 201)
@@ -9971,7 +10473,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/ingredients/:code/reactivate  (admin only)
             if path.startswith('/api/ingredients/') and path.endswith('/reactivate'):
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 code = path.split('/')[3]
                 result = reactivate_ingredient(code)
@@ -9989,10 +10491,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # POST /api/costing/margin-alerts/:id/dismiss  (admin or 'costs' permission)
+            # POST /api/costing/margin-alerts/:id/dismiss  (admin only)
             if path.startswith('/api/costing/margin-alerts/') and path.endswith('/dismiss'):
-                if not _can_costs(sess):
-                    send_error(self, 'Costing access required', 403); return
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
                 try:
                     alert_id = int(path.split('/')[-2])
                     result = dismiss_margin_alert(alert_id, sess.get('username', 'admin'))
@@ -10003,7 +10505,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/customers/:id/reactivate  (admin only)
             if path.startswith('/api/customers/') and path.endswith('/reactivate'):
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 cust_id = int(path.split('/')[3])
                 result  = update_customer(cust_id, {'active': 1})
@@ -10020,7 +10522,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/suppliers/:id/reactivate  (admin only)
             if path.startswith('/api/suppliers/') and path.endswith('/reactivate'):
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 sup_id = int(path.split('/')[3])
                 result = update_supplier(sup_id, {'active_flag': 1})
@@ -10078,26 +10580,6 @@ class Handler(BaseHTTPRequestHandler):
 
             # ── Phase 3: Review Queue endpoints ──────────────────────────
 
-            # POST /api/orders/parse  — parse WhatsApp message via Claude API
-            if path == '/api/orders/parse':
-                if not require(sess, 'admin', 'sales'):
-                    send_error(self, 'Permission denied', 403); return
-                msg = data.get('message', '').strip()
-                if not msg:
-                    send_error(self, 'message is required', 400); return
-                send_json(self, parse_whatsapp_order(msg), 200)
-                return
-
-            # POST /api/assistant/ask  — in-app help guide (any logged-in user)
-            if path == '/api/assistant/ask':
-                if not sess:
-                    send_json(self, {'error': 'Unauthorized'}, 401); return
-                q = (data.get('question') or '').strip()
-                if not q:
-                    send_error(self, 'question is required', 400); return
-                send_json(self, erp_assistant_answer(q, data.get('allowed')), 200)
-                return
-
             # POST /api/orders/external  — external order intake (consumer/retailer/field rep)
             if path == '/api/orders/external':
                 # If caller is a field rep session, tag the order with their rep id
@@ -10137,7 +10619,7 @@ class Handler(BaseHTTPRequestHandler):
             # POST /api/admin/orders/check-holds  — manual hold expiry trigger
             if path == '/api/admin/orders/check-holds':
                 sess = get_session(self)
-                if not require(sess, 'admin'):
+                if not sess or sess.get('role') != 'admin':
                     send_json(self, {'error': 'Admin only'}, 403)
                     return
                 count = check_and_expire_holds()
@@ -10308,10 +10790,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # POST /api/bom  (recipe owner / 'recipe' permission only — the secret)
+            # POST /api/bom  (admin only — create / replace active BOM for a product)
             if path == '/api/bom':
-                if not _can_recipe(sess):
-                    send_error(self, 'Recipe access required', 403); return
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
                 result = create_or_update_bom(data)
                 send_json(self, result, 201)
                 return
@@ -10342,7 +10824,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/masters/upload/{type}  — upload CSV or XLSX master file
             if path.startswith('/api/admin/masters/upload/'):
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_json(self, {'ok': False, 'error': 'Permission denied'}, 403); return
                 master_type = path.split('/')[-1]
                 if master_type not in ('customers', 'suppliers', 'products', 'prices', 'ingredients', 'bom'):
@@ -10384,7 +10866,7 @@ class Handler(BaseHTTPRequestHandler):
             # POST /api/admin/price-master/import  — bulk CSV import (admin only)
             if path == '/api/admin/price-master/import':
                 sess = get_session(self)
-                if not require(sess, 'admin'):
+                if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 rows = data.get('rows', [])   # [{product_code, pack_size, price_type, price, effective_from}]
                 if not rows:
@@ -10435,7 +10917,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/products/generate-blend-code  — atomically assign next code for prefix
             if path == '/api/products/generate-blend-code':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 prefix = data.get('prefix', '').strip().upper()
                 if not prefix:
@@ -10444,84 +10926,11 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'code': code})
                 return
 
-            # ── RECIPES ───────────────────────────────────────────────────
-
-            # POST /api/recipes  (admin only — create recipe)
-            if path == '/api/recipes':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
-                title       = (data.get('title') or '').strip()
-                masala_code = (data.get('masala_code') or '').strip()
-                if not title:
-                    send_error(self, 'Title is required', 400); return
-                if masala_code not in ('SPCM', 'SPGM', 'SPFM'):
-                    send_error(self, 'masala_code must be SPCM, SPGM or SPFM', 400); return
-                import re as _re
-                slug = _re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
-                description = (data.get('description') or '').strip()
-                prep_mins   = int(data.get('prep_mins') or 0)
-                cook_mins   = int(data.get('cook_mins') or 0)
-                serves      = int(data.get('serves') or 4)
-                sort_order  = int(data.get('sort_order') or 0)
-                image_path  = None
-                # Handle base64 image upload
-                if data.get('image_b64') and data.get('image_ext'):
-                    import base64, uuid as _uuid
-                    img_dir = os.path.join(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data'), 'recipe-images')
-                    os.makedirs(img_dir, exist_ok=True)
-                    ext = data['image_ext'].lower().lstrip('.')
-                    filename = _uuid.uuid4().hex + '.' + ext
-                    with open(os.path.join(img_dir, filename), 'wb') as f:
-                        f.write(base64.b64decode(data['image_b64']))
-                    image_path = filename
-                c = _conn()
-                try:
-                    c.execute("""
-                        INSERT INTO recipes (title, slug, masala_code, description,
-                            prep_mins, cook_mins, serves, image_path, sort_order)
-                        VALUES (?,?,?,?,?,?,?,?,?)
-                    """, (title, slug, masala_code, description, prep_mins, cook_mins, serves, image_path, sort_order))
-                    rid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
-                    _save_recipe_sub(c, rid, data)
-                    c.commit()
-                finally:
-                    c.close()
-                send_json(self, {'ok': True, 'id': rid, 'slug': slug}, 201)
-                return
-
-            # POST /api/recipes/:id/image  (admin only — replace image)
-            if path.startswith('/api/recipes/') and path.endswith('/image'):
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
-                rid = int(path.split('/')[3])
-                if not data.get('image_b64') or not data.get('image_ext'):
-                    send_error(self, 'image_b64 and image_ext required', 400); return
-                import base64, uuid as _uuid
-                img_dir = os.path.join(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data'), 'recipe-images')
-                os.makedirs(img_dir, exist_ok=True)
-                ext = data['image_ext'].lower().lstrip('.')
-                filename = _uuid.uuid4().hex + '.' + ext
-                with open(os.path.join(img_dir, filename), 'wb') as f:
-                    f.write(base64.b64decode(data['image_b64']))
-                run("UPDATE recipes SET image_path=? WHERE id=?", (filename, rid))
-                send_json(self, {'ok': True, 'image_path': filename,
-                                 'image_url': '/api/public/recipe-images/' + filename})
-                return
-
             # POST /api/products  (admin only)
             if path == '/api/products':
                 if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 result = create_product(data)
-                send_json(self, result, 201)
-                return
-
-            # POST /api/products/:code/variants  — add pack size to existing product (admin only)
-            if path.startswith('/api/products/') and path.endswith('/variants') and len(path.split('/')) == 5:
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
-                prod_code = path.split('/')[3]
-                result = create_product_variant(prod_code, data)
                 send_json(self, result, 201)
                 return
 
@@ -10678,39 +11087,6 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # ── Planning Input System (admin only) ──────────────────
-            if path == '/api/planning/versions':
-                if not _can_plan(sess):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, create_plan_version(data, sess['username']), 201)
-                return
-            if path == '/api/planning/manufacturers':
-                if not _can_plan(sess):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, create_manufacturer(data, sess['username']), 201)
-                return
-            if path.startswith('/api/planning/versions/') and path.split('/')[4].isdigit():
-                if not _can_plan(sess):
-                    send_error(self, 'Planning access required', 403); return
-                parts = path.split('/')
-                vid   = int(parts[4])
-                if len(parts) == 6 and parts[5] == 'forecast':
-                    send_json(self, upsert_sales_forecast(vid, data, sess['username']), 201); return
-                if len(parts) == 6 and parts[5] == 'targets':
-                    send_json(self, upsert_sales_target(vid, data, sess['username']), 201); return
-                if len(parts) == 6 and parts[5] == 'manufacturing':
-                    send_json(self, upsert_manufacturing(vid, data, sess['username']), 201); return
-                if len(parts) == 6 and parts[5] == 'financial':
-                    send_json(self, upsert_financial(vid, data, sess['username']), 201); return
-                if len(parts) == 6 and parts[5] == 'pricing':
-                    send_json(self, upsert_pricing(vid, data, sess['username']), 201); return
-                if len(parts) == 6 and parts[5] == 'release':
-                    send_json(self, release_to_manufacturing(vid, data.get('period_month'), sess['username']), 201); return
-                if len(parts) == 6 and parts[5] == 'approve':
-                    send_json(self, approve_plan_version(vid, sess['username'])); return
-                if len(parts) == 6 and parts[5] == 'unapprove':
-                    send_json(self, unapprove_plan_version(vid, sess['username'])); return
-
             send_error(self, "Not found", 404)
 
         except ValidationError as e:
@@ -10740,7 +11116,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # PUT /api/admin/settings  (admin only — save WA config to DB + hot-reload)
             if path == '/api/admin/settings':
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
                 if 'whatsapp_enabled' in data:
                     set_setting('whatsapp_enabled', '1' if data['whatsapp_enabled'] else '0')
@@ -10758,49 +11134,6 @@ class Handler(BaseHTTPRequestHandler):
                     'whatsapp_enabled':     WA_ENABLED,
                     'whatsapp_admin_phone': WA_ADMIN_PHONE,
                 })
-                return
-
-            # PUT /api/recipes/:id  (admin only — update metadata + steps + ingredients)
-            if path.startswith('/api/recipes/') and len(path.split('/')) == 4 and path.split('/')[3].isdigit():
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
-                rid = int(path.split('/')[3])
-                import re as _re
-                title       = (data.get('title') or '').strip()
-                masala_code = (data.get('masala_code') or '').strip()
-                if not title:
-                    send_error(self, 'Title is required', 400); return
-                if masala_code not in ('SPCM', 'SPGM', 'SPFM'):
-                    send_error(self, 'masala_code must be SPCM, SPGM or SPFM', 400); return
-                slug        = _re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
-                description = (data.get('description') or '').strip()
-                prep_mins   = int(data.get('prep_mins') or 0)
-                cook_mins   = int(data.get('cook_mins') or 0)
-                serves      = int(data.get('serves') or 4)
-                sort_order  = int(data.get('sort_order') or 0)
-                active      = 1 if data.get('active', True) else 0
-                c = _conn()
-                try:
-                    c.execute("""UPDATE recipes SET title=?, slug=?, masala_code=?, description=?,
-                                 prep_mins=?, cook_mins=?, serves=?, sort_order=?, active=?
-                                 WHERE id=?""",
-                              (title, slug, masala_code, description, prep_mins, cook_mins,
-                               serves, sort_order, active, rid))
-                    _save_recipe_sub(c, rid, data)
-                    c.commit()
-                finally:
-                    c.close()
-                send_json(self, {'ok': True, 'id': rid, 'slug': slug})
-                return
-
-            # PUT /api/recipes/:id/active  (admin only — toggle publish)
-            if path.startswith('/api/recipes/') and path.endswith('/active'):
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
-                rid    = int(path.split('/')[3])
-                active = 1 if data.get('active') else 0
-                run("UPDATE recipes SET active=? WHERE id=?", (active, rid))
-                send_json(self, {'ok': True, 'id': rid, 'active': active})
                 return
 
             # PUT /api/products/variants/:id/wastage  (admin only)
@@ -10853,30 +11186,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'ok': True, 'variant_id': variant_id, 'gtin': gtin_val})
                 return
 
-            # PUT /api/products/variants/:id/show-online  (admin only)
-            if (path.startswith('/api/products/variants/') and
-                    len(parts) == 6 and parts[5] == 'show-online'):
+            # PUT /api/costing/config  (admin only)
+            if path == '/api/costing/config':
                 if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
-                variant_id  = int(parts[4])
-                show_online = 1 if data.get('show_online') else 0
-                c = _conn()
-                try:
-                    c.execute(
-                        "UPDATE product_variants SET show_online=? WHERE id=?",
-                        (show_online, variant_id)
-                    )
-                    c.commit()
-                finally:
-                    c.close()
-                load_ref()
-                send_json(self, {'ok': True, 'variant_id': variant_id, 'show_online': show_online})
-                return
-
-            # PUT /api/costing/config  (admin or 'costs' permission)
-            if path == '/api/costing/config':
-                if not _can_costs(sess):
-                    send_error(self, 'Costing access required', 403); return
                 key   = data.get('key')
                 value = data.get('value')
                 if not key or value is None:
@@ -10941,7 +11254,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # PUT /api/products/:code  (edit name / urdu name / blend_code — admin only)
             if path.startswith('/api/products/') and len(path.split('/')) == 4:
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 code   = path.split('/')[3]
                 result = update_product(code, data)
@@ -10950,7 +11263,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # PUT /api/ingredients/:code  (edit cost / unit / reorder — admin only)
             if path.startswith('/api/ingredients/') and len(path.split('/')) == 4:
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 code   = path.split('/')[3]
                 result = update_ingredient(code, data)
@@ -11042,15 +11355,6 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # ── Planning Input System (admin only) ──────────────────
-            if (path.startswith('/api/planning/versions/') and len(path.split('/')) == 5
-                    and path.split('/')[4].isdigit()):
-                if not _can_plan(sess):
-                    send_error(self, 'Planning access required', 403); return
-                vid = int(path.split('/')[4])
-                send_json(self, update_plan_version(vid, data, sess['username']))
-                return
-
             send_error(self, "Not found", 404)
 
         except ValidationError as e:
@@ -11071,18 +11375,9 @@ class Handler(BaseHTTPRequestHandler):
             if not sess:
                 send_json(self, {'error': 'Unauthorized'}, 401); return
 
-            # DELETE /api/recipes/:id  → soft deactivate (admin only)
-            if path.startswith('/api/recipes/') and len(path.split('/')) == 4:
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
-                rid = int(path.split('/')[3])
-                run("UPDATE recipes SET active=0 WHERE id=?", (rid,))
-                send_json(self, {'ok': True, 'id': rid})
-                return
-
             # DELETE /api/customers/:id  → soft deactivate (admin only)
             if path.startswith('/api/customers/') and len(path.split('/')) == 4:
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 cust_id = int(path.split('/')[3])
                 result  = update_customer(cust_id, {'active': 0})
@@ -11091,7 +11386,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # DELETE /api/suppliers/:id  → soft deactivate (admin only)
             if path.startswith('/api/suppliers/') and len(path.split('/')) == 4:
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 sup_id = int(path.split('/')[3])
                 result = update_supplier(sup_id, {'active_flag': 0})
@@ -11100,7 +11395,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # DELETE /api/users/:id  → deactivate (admin only)
             if path.startswith('/api/users/') and len(path.split('/')) == 4:
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 uid    = int(path.split('/')[3])
                 if uid == sess['userId']:
@@ -11111,7 +11406,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # DELETE /api/ingredients/:code  → soft deactivate (admin only)
             if path.startswith('/api/ingredients/') and len(path.split('/')) == 4:
-                if not require(sess, 'admin'):
+                if sess['role'] != 'admin':
                     send_error(self, 'Admin only', 403); return
                 code   = path.split('/')[3]
                 result = deactivate_ingredient(code)
@@ -11163,32 +11458,6 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # ── Planning Input System (admin only) ──────────────────
-            if (path.startswith('/api/planning/forecast/') and len(path.split('/')) == 5
-                    and path.split('/')[4].isdigit()):
-                if not _can_plan(sess):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, delete_sales_forecast(int(path.split('/')[4]), sess['username']))
-                return
-            if (path.startswith('/api/planning/targets/') and len(path.split('/')) == 5
-                    and path.split('/')[4].isdigit()):
-                if not _can_plan(sess):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, delete_sales_target(int(path.split('/')[4]), sess['username']))
-                return
-            if (path.startswith('/api/planning/manufacturing/') and len(path.split('/')) == 5
-                    and path.split('/')[4].isdigit()):
-                if not _can_plan(sess):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, delete_manufacturing(int(path.split('/')[4]), sess['username']))
-                return
-            if (path.startswith('/api/planning/pricing/') and len(path.split('/')) == 5
-                    and path.split('/')[4].isdigit()):
-                if not _can_plan(sess):
-                    send_error(self, 'Planning access required', 403); return
-                send_json(self, delete_pricing(int(path.split('/')[4]), sess['username']))
-                return
-
             send_error(self, "Not found", 404)
 
         except ValidationError as e:
@@ -11226,6 +11495,142 @@ class Handler(BaseHTTPRequestHandler):
 MASTER_INGREDIENT_PRICING = MASTERS_DIR / 'ingredient_pricing.csv'
 MASTER_SUPPLIERS          = MASTERS_DIR / 'suppliers.csv'
 MASTER_CUSTOMERS          = MASTERS_DIR / 'customers.csv'
+
+
+def ensure_master_schema():
+    """Add cost_per_kg, active to ingredients; credit_limit to customers; create price_history table."""
+    c = _conn()
+    try:
+        # ingredients.cost_per_kg (original)
+        try:
+            c.execute("ALTER TABLE ingredients ADD COLUMN cost_per_kg REAL NOT NULL DEFAULT 0")
+            c.commit()
+            print("  ✓ Masters: added cost_per_kg column to ingredients")
+        except Exception:
+            pass  # column already exists
+        # ingredients.active (new)
+        try:
+            c.execute("ALTER TABLE ingredients ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
+            c.commit()
+            print("  ✓ Masters: added active column to ingredients")
+        except Exception:
+            pass
+        # customers.credit_limit (new)
+        try:
+            c.execute("ALTER TABLE customers ADD COLUMN credit_limit REAL DEFAULT 0")
+            c.commit()
+            print("  ✓ Masters: added credit_limit column to customers")
+        except Exception:
+            pass
+        # customers.account_number (new)
+        try:
+            c.execute("ALTER TABLE customers ADD COLUMN account_number TEXT DEFAULT NULL")
+            c.commit()
+            print("  ✓ Masters: added account_number column to customers")
+        except Exception:
+            pass
+        # customers.address (new)
+        try:
+            c.execute("ALTER TABLE customers ADD COLUMN address TEXT DEFAULT ''")
+            c.commit()
+            print("  ✓ Masters: added address column to customers")
+        except Exception:
+            pass
+
+        # customers.zone_id — territory zone for sales rep out-of-zone detection
+        try:
+            c.execute("ALTER TABLE customers ADD COLUMN zone_id INTEGER DEFAULT NULL")
+            c.commit()
+            print("  ✓ Masters: added zone_id column to customers")
+        except Exception:
+            pass  # column already exists
+
+        # ── P2.5 void/cancel migrations ─────────────────────────────────
+        # invoices: add voided_at / voided_by / void_note columns
+        for col, dflt in [('voided_at', 'NULL'), ('voided_by', "''"), ('void_note', "''")]:
+            try:
+                c.execute(f"ALTER TABLE invoices ADD COLUMN {col} TEXT DEFAULT {dflt}")
+                c.commit()
+                print(f"  ✓ Masters: added invoices.{col}")
+            except Exception:
+                pass
+
+        # sales: add voided flag so voided invoices restore finished-goods stock
+        try:
+            c.execute("ALTER TABLE sales ADD COLUMN voided INTEGER DEFAULT 0")
+            c.commit()
+            print("  ✓ Masters: added sales.voided column")
+        except Exception:
+            pass
+
+        # supplier_bills: add VOID to the status CHECK constraint via writable_schema,
+        # then add voided_at / voided_by / void_note columns
+        try:
+            sb_schema = c.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='supplier_bills'"
+            ).fetchone()
+            if sb_schema and 'VOID' not in (sb_schema[0] or ''):
+                new_sql = (sb_schema[0] or '').replace(
+                    "CHECK(status IN ('UNPAID','PARTIAL','PAID'))",
+                    "CHECK(status IN ('UNPAID','PARTIAL','PAID','VOID'))"
+                )
+                c.execute("PRAGMA writable_schema = ON")
+                c.execute(
+                    "UPDATE sqlite_master SET sql=? WHERE type='table' AND name='supplier_bills'",
+                    (new_sql,)
+                )
+                c.execute("PRAGMA writable_schema = OFF")
+                c.commit()
+                print("  ✓ Masters: added VOID to supplier_bills.status CHECK constraint")
+        except Exception as e:
+            print(f"  ⚠ supplier_bills VOID constraint migration: {e}")
+        for col, dflt in [('voided_at', 'NULL'), ('voided_by', "''"), ('void_note', "''")]:
+            try:
+                c.execute(f"ALTER TABLE supplier_bills ADD COLUMN {col} TEXT DEFAULT {dflt}")
+                c.commit()
+                print(f"  ✓ Masters: added supplier_bills.{col}")
+            except Exception:
+                pass
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS ingredient_price_history (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                ingredient_id  INTEGER NOT NULL,
+                old_cost_per_kg REAL,
+                new_cost_per_kg REAL NOT NULL,
+                pct_change     REAL,
+                changed_at     TEXT DEFAULT (datetime('now')),
+                source         TEXT DEFAULT 'master_sync',
+                FOREIGN KEY (ingredient_id) REFERENCES ingredients(id)
+            )
+        """)
+        c.commit()
+
+        # ── P1 Sprint: add ADJUSTMENT to payment_mode CHECK constraints ──────
+        for tbl in ('customer_payments', 'supplier_payments'):
+            try:
+                tbl_schema = c.execute(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (tbl,)
+                ).fetchone()
+                if tbl_schema and 'ADJUSTMENT' not in (tbl_schema[0] or ''):
+                    old_check = "CHECK(payment_mode IN ('CASH','BANK_TRANSFER','CHEQUE','OTHER'))"
+                    new_check = "CHECK(payment_mode IN ('CASH','BANK_TRANSFER','CHEQUE','OTHER','ADJUSTMENT'))"
+                    new_sql   = (tbl_schema[0] or '').replace(old_check, new_check)
+                    if new_sql != tbl_schema[0]:
+                        c.execute("PRAGMA writable_schema = ON")
+                        c.execute(
+                            "UPDATE sqlite_master SET sql=? WHERE type='table' AND name=?",
+                            (new_sql, tbl)
+                        )
+                        c.execute("PRAGMA writable_schema = OFF")
+                        c.commit()
+                        print(f"  ✓ Migration: added ADJUSTMENT to {tbl}.payment_mode CHECK constraint")
+            except Exception as e:
+                print(f"  ⚠ {tbl} ADJUSTMENT constraint migration: {e}")
+
+    finally:
+        c.close()
+    save_db()
 
 
 def generate_master_templates():
@@ -11574,6 +11979,167 @@ def get_ingredient_price_history(ingredient_id=None, limit=50):
 #  COSTING CONFIG — table, seed, get, update
 # ═══════════════════════════════════════════════════════════════════
 
+def ensure_costing_config():
+    """Create costing_config + costing_config_history tables and seed defaults. Idempotent."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS costing_config (
+                key        TEXT PRIMARY KEY,
+                value      TEXT NOT NULL,
+                label      TEXT,
+                updated_at TEXT,
+                updated_by TEXT
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS costing_config_history (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                config_key TEXT NOT NULL,
+                old_value  TEXT,
+                new_value  TEXT NOT NULL,
+                pct_change REAL,
+                changed_by TEXT,
+                changed_at TEXT DEFAULT (datetime('now')),
+                note       TEXT
+            )
+        """)
+        defaults = [
+            ('packaging_cost_per_unit', '15.00', 'Packaging Cost per Unit (Rs)'),
+            ('overhead_pct',            '0.10',  'Overhead % of RM Cost'),
+            ('margin_mfr',              '1.30',  'Direct Sale Margin Multiplier'),
+            ('margin_dist',             '1.10',  'Distributor Margin Multiplier'),
+            ('margin_mrp',              '1.22',  'MRP Margin Multiplier'),
+            ('margin_floor_pct',        '30.00', 'Minimum Profit Margin % (alert threshold)'),
+            ('labour_cost_per_unit',    '5.00',  'Labour Cost per Unit (Rs)'),
+        ]
+        for key, value, label in defaults:
+            c.execute(
+                "INSERT OR IGNORE INTO costing_config (key, value, label) VALUES (?,?,?)",
+                (key, value, label)
+            )
+        # Update overhead if still at old placeholder 0.29
+        c.execute("UPDATE costing_config SET value='0.10' WHERE key='overhead_pct' AND value='0.29'")
+        # Update stale labels
+        c.execute("UPDATE costing_config SET label='Direct Sale Margin Multiplier' WHERE key='margin_mfr'")
+        c.execute("UPDATE costing_config SET label='Minimum Profit Margin % (alert threshold)' WHERE key='margin_floor_pct'")
+        c.commit()
+        print("  \u2713 Costing config table ready")
+    finally:
+        c.close()
+
+
+def ensure_variant_wastage_pct():
+    """Add wastage_pct column to product_variants. Idempotent."""
+    c = _conn()
+    try:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(product_variants)").fetchall()}
+        if 'wastage_pct' not in existing:
+            c.execute("ALTER TABLE product_variants ADD COLUMN wastage_pct REAL DEFAULT 0")
+            print("  \u2713 product_variants: added wastage_pct")
+        c.commit()
+    finally:
+        c.close()
+
+
+def ensure_variant_gtin():
+    """Add gtin column to product_variants and seed known GTINs. Idempotent."""
+    c = _conn()
+    try:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(product_variants)").fetchall()}
+        if 'gtin' not in existing:
+            c.execute("ALTER TABLE product_variants ADD COLUMN gtin TEXT DEFAULT NULL")
+            print("  ✓ product_variants: added gtin")
+
+        # Seed GTINs — match by product name + pack size grams (robust across any sku_code format)
+        # Only seeds if gtin is currently NULL (never overwrites manually-entered values)
+        seeds = [
+            ('Chaat Masala', 50,   '8966000086913'),
+            ('Garam Masala', 50,   '8966000086920'),
+        ]
+        for prod_name, grams, gtin_val in seeds:
+            cur = c.execute("""
+                UPDATE product_variants
+                SET gtin = ?
+                WHERE gtin IS NULL
+                  AND product_id IN (SELECT id FROM products WHERE name = ?)
+                  AND pack_size_id IN (SELECT id FROM pack_sizes WHERE grams = ?)
+            """, (gtin_val, prod_name, grams))
+            if cur.rowcount:
+                print(f"  ✓ gtin seeded: {prod_name} {grams}g -> {gtin_val}")
+        c.commit()
+    finally:
+        c.close()
+
+
+def ensure_clean_customer_codes():
+    """One-time migration: fix SP-SP-CUST-XXXX double-prefix → SP-CUST-XXXX.
+    Updates customers table + denormalized cust_code in sales + customer_orders.
+    Idempotent — safe to run on every startup."""
+    c = _conn()
+    try:
+        bad = c.execute(
+            "SELECT id, code FROM customers WHERE code LIKE 'SP-SP-CUST-%'"
+        ).fetchall()
+        if not bad:
+            c.close()
+            return
+        # Check which tables have a cust_code column before touching them
+        sales_cols = {r['name'] for r in c.execute("PRAGMA table_info(sales)")}
+        co_cols    = {r['name'] for r in c.execute("PRAGMA table_info(customer_orders)")}
+        for row in bad:
+            old_code = row['code']
+            new_code = old_code.replace('SP-SP-CUST-', 'SP-CUST-', 1)
+            c.execute("UPDATE customers SET code=? WHERE id=?", (new_code, row['id']))
+            if 'cust_code' in sales_cols:
+                c.execute("UPDATE sales SET cust_code=? WHERE cust_code=?", (new_code, old_code))
+            if 'cust_code' in co_cols:
+                c.execute("UPDATE customer_orders SET cust_code=? WHERE cust_code=?", (new_code, old_code))
+            print(f"  ✓ customer code fixed: {old_code} → {new_code}")
+        c.commit()
+        print(f"  ✓ Fixed {len(bad)} customer code(s) — double-prefix removed")
+    finally:
+        c.close()
+
+
+def ensure_clean_supplier_codes():
+    """Assign clean SUP-NNN codes to any SP-SUP-* suppliers.
+    Finds the current max SUP-NNN and assigns next sequential codes.
+    Idempotent — safe to run on every startup. Never crashes server."""
+    c = _conn()
+    try:
+        bad = c.execute(
+            "SELECT id, code FROM suppliers WHERE code LIKE 'SP-SUP-%' ORDER BY code"
+        ).fetchall()
+        if not bad:
+            c.close()
+            return
+        # Find current max SUP-NNN number
+        max_row = c.execute(
+            "SELECT code FROM suppliers WHERE code LIKE 'SUP-%' ORDER BY code DESC LIMIT 1"
+        ).fetchone()
+        try:
+            next_num = int(max_row['code'].split('-')[1]) + 1 if max_row else 1
+        except Exception:
+            next_num = 100
+        fixed = 0
+        for row in bad:
+            old_code = row['code']
+            new_code = f"SUP-{next_num:03d}"
+            next_num += 1
+            c.execute("UPDATE suppliers SET code=? WHERE id=?", (new_code, row['id']))
+            print(f"  ✓ supplier code: {old_code} → {new_code}")
+            fixed += 1
+        c.commit()
+        print(f"  ✓ Normalized {fixed} supplier code(s) to SUP-NNN format")
+    except Exception as e:
+        print(f"  ⚠ ensure_clean_supplier_codes error (non-fatal): {e}")
+        try: c.rollback()
+        except: pass
+    finally:
+        c.close()
+
+
 def _reset_admin_pw_if_requested():
     """If RESET_ADMIN_PW env var is set, reset admin password (SHA-256) and clear all rate limits."""
     new_pw = os.environ.get('RESET_ADMIN_PW', '').strip()
@@ -11592,6 +12158,45 @@ def _reset_admin_pw_if_requested():
         c.execute("DELETE FROM login_rate_limits")
         c.commit()
         print(f"  ✓ Admin password reset (SHA-256) via RESET_ADMIN_PW. Rate limits cleared. REMOVE the env var now!")
+    finally:
+        c.close()
+
+
+def ensure_price_types_sprint6():
+    """Update price_type labels for Sprint 6 terminology + add bulk. Idempotent."""
+    c = _conn()
+    try:
+        updates = [
+            ('mfg_cost',    'Cost to Make'),
+            ('ex_factory',  'Direct Sale'),
+            ('retail_mrp',  'MRP'),
+            ('distributor', 'Distributor'),
+        ]
+        for code, label in updates:
+            c.execute("UPDATE price_types SET label=? WHERE code=?", (label, code))
+        c.execute("INSERT OR IGNORE INTO price_types (code, label) VALUES ('bulk', 'Bulk')")
+        c.commit()
+        print("  \u2713 price_types: Sprint 6 labels updated + bulk added")
+    finally:
+        c.close()
+
+
+def ensure_price_history_extended():
+    """Add change_type, config_key, changed_by, note columns to ingredient_price_history. Idempotent."""
+    c = _conn()
+    try:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(ingredient_price_history)").fetchall()}
+        additions = [
+            ('change_type', "TEXT DEFAULT 'ingredient'"),
+            ('config_key',  'TEXT'),
+            ('changed_by',  "TEXT DEFAULT 'system'"),
+            ('note',        'TEXT'),
+        ]
+        for col, typedef in additions:
+            if col not in existing:
+                c.execute("ALTER TABLE ingredient_price_history ADD COLUMN {} {}".format(col, typedef))
+                print("  \u2713 price_history: added {}".format(col))
+        c.commit()
     finally:
         c.close()
 
@@ -11813,6 +12418,29 @@ def update_costing_config(key, value, username):
         c.close()
     save_db()
     return get_costing_config()
+
+
+def ensure_margin_alerts_table():
+    """Create margin_alerts table if not present (idempotent)."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS margin_alerts (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_code TEXT NOT NULL,
+                pack_size    TEXT NOT NULL,
+                sku_code     TEXT,
+                margin_pct   REAL NOT NULL,
+                floor_pct    REAL NOT NULL,
+                detected_at  TEXT DEFAULT (datetime('now')),
+                dismissed_at TEXT,
+                dismissed_by TEXT,
+                email_sent   INTEGER DEFAULT 0
+            )
+        """)
+        c.commit()
+    finally:
+        c.close()
 
 
 def get_price_history(limit=100, change_type=None, days=None):
@@ -13149,7 +13777,7 @@ from modules.auth   import *   # _hash_pw, _hash_pw_new, _verify_pw, login_user,
 from modules.users      import *   # ensure_users_table, list_users, create_user, update_user, _reset_admin_pw_if_requested
 from modules.customers  import *   # create_customer, update_customer, import_customers_master, ensure_clean_customer_codes, assign_customer_route, list_route_customers, field_lookup_customers, field_create_customer
 from modules.suppliers  import *   # create_supplier, update_supplier, import_suppliers_master, _ensure_supplier_zone_col, ensure_clean_supplier_codes, _suppliers_with_zones
-from modules.products   import *   # create_product, create_product_variant, update_product, deactivate_product, deactivate_variant, import_products_master, ensure_variant_wastage_pct, ensure_variant_gtin
+from modules.products   import *   # create_product, update_product, deactivate_product, deactivate_variant, import_products_master, ensure_variant_wastage_pct, ensure_variant_gtin
 from modules.inventory   import *   # get_stock_map, get_wo_reserved_stock_map, get_finished_stock_map, get_soft_hold_qty, get_hard_reserved_qty, get_available_for_soft_hold, get_stock_situation, create_adjustment, create_ingredient, update_ingredient, bulk_update_ingredient_costs, deactivate_ingredient, reactivate_ingredient, import_ingredients_master
 from modules.migrations  import *   # ensure_full_schema, ensure_system_settings_schema, _migrate_invoice_items_line_total, ensure_work_orders_table, ensure_customer_orders_schema, ensure_review_queue_schema, _migrate_supplier_bills_void, _migrate_change_log_void_action, _migrate_customer_type_wholesale, _ensure_b2b_order_columns, ensure_supplier_bills_schema, ensure_purchase_orders_schema, ensure_batch_cost_column, ensure_master_schema, ensure_costing_config, ensure_price_types_sprint6, ensure_price_history_extended, ensure_margin_alerts_table, ensure_web_price_type, ensure_25g_pack_and_spgm25, ensure_web_prices
 from modules.orders      import *   # _enforce_credit_limit, _wa_send, _wa_admin, _wa_rep, _wa_notify_order_approved, _wa_notify_order_rejected, _wa_notify_order_received, _wa_notify_hold_expiring, _wa_notify_out_of_route, place_soft_hold, release_soft_hold, convert_soft_hold_to_hard_reservation, check_and_expire_holds, create_customer_order_external, get_review_queue, approve_order_with_edit, update_order_item_qty, reject_order, reopen_rejected_order, _order_status, _order_detail, list_customer_orders, _check_order_stock_warnings, create_customer_order, update_customer_order, add_customer_order_item, confirm_customer_order, cancel_customer_order, create_wo_from_order_item, generate_invoice_from_order
@@ -13158,7 +13786,6 @@ from modules.purchasing  import *   # compute_bill_balance, _compute_bill_status
 from modules.production  import *   # check_wo_feasibility, get_procurement_list, list_work_orders, create_work_order, convert_wo_to_batch, update_work_order, update_work_order_status, create_production_batch, create_or_update_bom, import_bom_master
 from modules.costing     import *   # get_costing_config, compute_standard_cost, get_all_standard_costs, get_batch_variances, update_costing_config, set_product_price, import_prices_master, get_price_history, get_ingredient_price_history, seed_price_history, get_margin_alerts, dismiss_margin_alert, send_margin_alert_email
 from modules.reports     import *   # get_dashboard, get_pl_report, get_rep_performance_report, get_margin_report
-from modules.planning    import *   # plan_version + sales forecast/target CRUD, projected_sales (Planning Input Module)
 from modules.field       import *   # list_zones, create_zone, update_zone, list_routes, create_route, update_route, list_reps, get_rep, create_rep, update_rep, assign_rep_route, unassign_rep_route, set_rep_target, record_advance, record_beat_visit, create_field_order, get_field_order, list_field_orders, confirm_field_order, calculate_payroll, run_payroll, finalize_payroll, list_payroll_runs, get_rep_today_route, field_get_products, _is_out_of_route, _wa_notify_out_of_route, create_sale, create_multi_sale
 
 
@@ -13189,36 +13816,41 @@ if __name__ == '__main__':
 
     # ── Step 2: Bootstrap DB to /tmp ─────────────────────────────
     bootstrap_db()
-    # Run all startup migrations/seeds with PER-STEP GUARDS so a single failure on a
-    # given environment's data can never crash the boot — the server must always reach
-    # serve_forever (Railway treats a startup exit as a crash and rolls back).
-    for _step in (
-        ensure_full_schema, _migrate_invoice_items_line_total, ensure_users_table,
-        ensure_sessions_table, ensure_rate_limit_table, ensure_work_orders_table,
-        ensure_customer_orders_schema, ensure_supplier_bills_schema, ensure_purchase_orders_schema,
-        ensure_batch_cost_column, ensure_costing_config, ensure_variant_wastage_pct,
-        ensure_variant_gtin, ensure_variant_show_online, ensure_clean_product_codes,
-        ensure_clean_customer_codes, ensure_clean_supplier_codes, _reset_admin_pw_if_requested,
-        _migrate_supplier_bills_void, _migrate_change_log_void_action, _migrate_customer_type_wholesale,
-        _ensure_b2b_order_columns, ensure_system_settings_schema, _reload_wa_from_db,
-        ensure_review_queue_schema, ensure_master_schema, ensure_price_types_sprint6,
-        ensure_price_history_extended, ensure_margin_alerts_table, ensure_field_otp_table,
-        ensure_ingredient_price_volatile, ensure_web_price_type, ensure_25g_pack_and_spgm25,
-        ensure_web_prices, ensure_recipe_tables, ensure_change_log_reason,
-        ensure_planning_foundations, ensure_plan_version_horizon, ensure_plan_sales_tables,
-        ensure_plan_m2_tables, ensure_plan_code, ensure_plan_release,
-        ensure_scenario_type_cleanup, ensure_plan_forecast_zone, backfill_customer_account_numbers,
-    ):
-        try:
-            _step()
-        except Exception as _se:
-            import traceback; traceback.print_exc()
-            print(f"  ⚠ startup step {getattr(_step, '__name__', _step)} FAILED (continuing): {_se}")
-    try:
-        load_ref()
-    except Exception as _se:
-        import traceback; traceback.print_exc()
-        print(f"  ⚠ load_ref FAILED (continuing): {_se}")
+    ensure_full_schema()   # creates ALL tables on fresh DB (idempotent)
+    _migrate_invoice_items_line_total()  # rename old 'total' col → 'line_total' if needed
+    ensure_users_table()
+    ensure_sessions_table()
+    ensure_rate_limit_table()
+    ensure_work_orders_table()
+    ensure_customer_orders_schema()
+    ensure_supplier_bills_schema()
+    ensure_purchase_orders_schema()
+    ensure_batch_cost_column()
+    ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
+    ensure_variant_wastage_pct()         # wastage_pct column on product_variants
+    ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
+    ensure_clean_product_codes()          # normalize product codes → SPGM/SPCM, rebuild SKU codes
+    ensure_clean_customer_codes()        # fix SP-SP-CUST-* double-prefix → SP-CUST-*
+    ensure_clean_supplier_codes()        # normalize SUP-001/SP-SUP-0001 → SP-SUP-XXXX
+    _reset_admin_pw_if_requested()       # one-shot reset via RESET_ADMIN_PW env var
+    _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
+    _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
+    _migrate_customer_type_wholesale()   # adds WHOLESALE to customer_type CHECK
+    _ensure_b2b_order_columns()          # adds out_of_route + idempotency_key to customer_orders
+    ensure_system_settings_schema()  # must be early — _reload_wa_from_db reads it
+    _reload_wa_from_db()             # overlay DB-saved WA config on top of config.json
+    ensure_review_queue_schema()
+    ensure_master_schema()  # must run before load_ref() — adds active, credit_limit cols
+    ensure_price_types_sprint6()         # update price_type labels + add bulk
+    ensure_price_history_extended()      # adds change_type, config_key, changed_by, note to price_history
+    ensure_margin_alerts_table()         # margin_alerts table for floor breach tracking
+    ensure_field_otp_table()             # field_otp table for WhatsApp OTP login
+    ensure_ingredient_price_volatile()   # price_volatile flag on ingredients
+    ensure_web_price_type()              # 'web' price type for consumer website
+    ensure_25g_pack_and_spgm25()         # 25g pack size + SPGM-25 variant for website
+    ensure_web_prices()                  # seed initial web prices (only if not already set)
+    backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
+    load_ref()
     import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh
     import modules.suppliers  as _sup_mod;  _sup_mod._refresh_ref = load_ref   # wire ref refresh
     import modules.products   as _prod_mod; _prod_mod._refresh_ref = load_ref  # wire ref refresh
@@ -13230,12 +13862,10 @@ if __name__ == '__main__':
     _ord_mod2._check_wo_feasibility_fn   = check_wo_feasibility
     import modules.invoices   as _inv_mod3                                      # wire invoices callbacks
     _inv_mod3._order_status_fn           = _order_status
-    for _step in (generate_master_templates, sync_master_files, seed_price_history, seed_zones_routes):
-        try:
-            _step()
-        except Exception as _se:
-            import traceback; traceback.print_exc()
-            print(f"  ⚠ startup step {getattr(_step, '__name__', _step)} FAILED (continuing): {_se}")
+    generate_master_templates()
+    sync_master_files()
+    seed_price_history()
+    seed_zones_routes()              # seeds KHI (6 zones) + HYD (5 zones) + all area routes
 
     # ── Step 2d: Auto-seed staging environment ────────────────────
     if os.environ.get('AUTO_SEED', '').lower() in ('1', 'true', 'yes'):
