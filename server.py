@@ -13050,52 +13050,36 @@ if __name__ == '__main__':
 
     # ── Step 2: Bootstrap DB to /tmp ─────────────────────────────
     bootstrap_db()
-    ensure_full_schema()   # creates ALL tables on fresh DB (idempotent)
-    _migrate_invoice_items_line_total()  # rename old 'total' col → 'line_total' if needed
-    ensure_users_table()
-    ensure_sessions_table()
-    ensure_rate_limit_table()
-    ensure_work_orders_table()
-    ensure_customer_orders_schema()
-    ensure_supplier_bills_schema()
-    ensure_purchase_orders_schema()
-    ensure_batch_cost_column()
-    ensure_costing_config()              # costing_config table + seeds (overhead 10%, labour 5)
-    ensure_variant_wastage_pct()         # wastage_pct column on product_variants
-    ensure_variant_gtin()                # gtin column on product_variants + seed known GTINs
-    ensure_variant_show_online()         # show_online flag for consumer website
-    ensure_clean_product_codes()          # normalize product codes → SPGM/SPCM, rebuild SKU codes
-    ensure_clean_customer_codes()        # fix SP-SP-CUST-* double-prefix → SP-CUST-*
-    ensure_clean_supplier_codes()        # normalize SUP-001/SP-SUP-0001 → SP-SUP-XXXX
-    _reset_admin_pw_if_requested()       # one-shot reset via RESET_ADMIN_PW env var
-    _migrate_supplier_bills_void()       # adds VOID status + voided columns to supplier_bills
-    _migrate_change_log_void_action()    # widens change_log CHECK to include 'VOID'
-    _migrate_customer_type_wholesale()   # adds WHOLESALE to customer_type CHECK
-    _ensure_b2b_order_columns()          # adds out_of_route + idempotency_key to customer_orders
-    ensure_system_settings_schema()  # must be early — _reload_wa_from_db reads it
-    _reload_wa_from_db()             # overlay DB-saved WA config on top of config.json
-    ensure_review_queue_schema()
-    ensure_master_schema()  # must run before load_ref() — adds active, credit_limit cols
-    ensure_price_types_sprint6()         # update price_type labels + add bulk
-    ensure_price_history_extended()      # adds change_type, config_key, changed_by, note to price_history
-    ensure_margin_alerts_table()         # margin_alerts table for floor breach tracking
-    ensure_field_otp_table()             # field_otp table for WhatsApp OTP login
-    ensure_ingredient_price_volatile()   # price_volatile flag on ingredients
-    ensure_web_price_type()              # 'web' price type for consumer website
-    ensure_25g_pack_and_spgm25()         # 25g pack size + SPGM-25 variant for website
-    ensure_web_prices()                  # seed initial web prices (only if not already set)
-    ensure_recipe_tables()               # recipes, recipe_steps, recipe_ingredients
-    ensure_change_log_reason()           # planning: nullable 'reason' col on shared change_log (the "why")
-    ensure_planning_foundations()        # planning M0: plan_version spine (scenarios/versions)
-    ensure_plan_version_horizon()        # planning M1: per-version horizon columns
-    ensure_plan_sales_tables()           # planning M1: plan_sales_forecast + plan_sales_target
-    ensure_plan_m2_tables()              # planning M2: manufacturer, manufacturing, financial, pricing
-    ensure_plan_code()                   # planning: PLAN-### human code + backfill existing
-    ensure_plan_release()                # planning: manufacturing-handoff release log
-    ensure_scenario_type_cleanup()       # planning: split scenario TYPE from plan STATUS
-    ensure_plan_forecast_zone()          # planning: zone_id on forecast (rebuild, preserve rows)
-    backfill_customer_account_numbers()   # assigns account_number to existing customers, deletes test rows
-    load_ref()
+    # Run all startup migrations/seeds with PER-STEP GUARDS so a single failure on a
+    # given environment's data can never crash the boot — the server must always reach
+    # serve_forever (Railway treats a startup exit as a crash and rolls back).
+    for _step in (
+        ensure_full_schema, _migrate_invoice_items_line_total, ensure_users_table,
+        ensure_sessions_table, ensure_rate_limit_table, ensure_work_orders_table,
+        ensure_customer_orders_schema, ensure_supplier_bills_schema, ensure_purchase_orders_schema,
+        ensure_batch_cost_column, ensure_costing_config, ensure_variant_wastage_pct,
+        ensure_variant_gtin, ensure_variant_show_online, ensure_clean_product_codes,
+        ensure_clean_customer_codes, ensure_clean_supplier_codes, _reset_admin_pw_if_requested,
+        _migrate_supplier_bills_void, _migrate_change_log_void_action, _migrate_customer_type_wholesale,
+        _ensure_b2b_order_columns, ensure_system_settings_schema, _reload_wa_from_db,
+        ensure_review_queue_schema, ensure_master_schema, ensure_price_types_sprint6,
+        ensure_price_history_extended, ensure_margin_alerts_table, ensure_field_otp_table,
+        ensure_ingredient_price_volatile, ensure_web_price_type, ensure_25g_pack_and_spgm25,
+        ensure_web_prices, ensure_recipe_tables, ensure_change_log_reason,
+        ensure_planning_foundations, ensure_plan_version_horizon, ensure_plan_sales_tables,
+        ensure_plan_m2_tables, ensure_plan_code, ensure_plan_release,
+        ensure_scenario_type_cleanup, ensure_plan_forecast_zone, backfill_customer_account_numbers,
+    ):
+        try:
+            _step()
+        except Exception as _se:
+            import traceback; traceback.print_exc()
+            print(f"  ⚠ startup step {getattr(_step, '__name__', _step)} FAILED (continuing): {_se}")
+    try:
+        load_ref()
+    except Exception as _se:
+        import traceback; traceback.print_exc()
+        print(f"  ⚠ load_ref FAILED (continuing): {_se}")
     import modules.customers  as _cust_mod; _cust_mod._refresh_ref = load_ref   # wire ref refresh
     import modules.suppliers  as _sup_mod;  _sup_mod._refresh_ref = load_ref   # wire ref refresh
     import modules.products   as _prod_mod; _prod_mod._refresh_ref = load_ref  # wire ref refresh
@@ -13107,10 +13091,12 @@ if __name__ == '__main__':
     _ord_mod2._check_wo_feasibility_fn   = check_wo_feasibility
     import modules.invoices   as _inv_mod3                                      # wire invoices callbacks
     _inv_mod3._order_status_fn           = _order_status
-    generate_master_templates()
-    sync_master_files()
-    seed_price_history()
-    seed_zones_routes()              # seeds KHI (6 zones) + HYD (5 zones) + all area routes
+    for _step in (generate_master_templates, sync_master_files, seed_price_history, seed_zones_routes):
+        try:
+            _step()
+        except Exception as _se:
+            import traceback; traceback.print_exc()
+            print(f"  ⚠ startup step {getattr(_step, '__name__', _step)} FAILED (continuing): {_se}")
 
     # ── Step 2d: Auto-seed staging environment ────────────────────
     if os.environ.get('AUTO_SEED', '').lower() in ('1', 'true', 'yes'):
