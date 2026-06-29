@@ -688,12 +688,10 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('dashboard')" id="nav-dashboard"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
 
       <!-- ── DAILY USE ──────────────────────────────────────────── -->
-      <div class="nav-section">Sales</div>
+      <div class="nav-section">Sales &amp; AR</div>
       <div class="nav-item" onclick="nav('orders-invoices')" id="nav-orders-invoices"><span class="icon" data-icon="file-text"></span> Orders &amp; Invoices</div>
       <div class="nav-item" onclick="nav('field-orders')" id="nav-field-orders"><span class="icon" data-icon="pencil-line"></span> Field Orders</div>
       <div class="nav-item" onclick="nav('review-queue')" id="nav-review-queue"><span class="icon" data-icon="search"></span> Review Queue <span id="rq-badge" style="display:none;background:var(--chili);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:2px"></span></div>
-
-      <div class="nav-section">Money In</div>
       <div class="nav-item" onclick="nav('receipts-aging')" id="nav-receipts-aging"><span class="icon" data-icon="banknote"></span> Receipts &amp; AR</div>
 
       <div class="nav-section">Procurement &amp; AP</div>
@@ -715,24 +713,27 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('margins')" id="nav-margins"><span class="icon" data-icon="bar-chart-2"></span> Margins</div>
       <div class="nav-item" onclick="nav('rep-performance')" id="nav-rep-performance"><span class="icon" data-icon="award"></span> Rep Performance</div>
 
-      <!-- Admin / Owner — admin only ──────────────────────────── -->
-      <div class="nav-section" id="nav-section-admin" style="display:none">Admin / Owner</div>
-      <!-- Master data (setup & reference) -->
+      <!-- Admin / Owner — grouped, gated ──────────────────────── -->
+      <div class="nav-section" id="nav-section-master" style="display:none">Master Data</div>
       <div class="nav-item" onclick="nav('customers')" id="nav-customers" style="display:none"><span class="icon" data-icon="users"></span> Customers</div>
       <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers" style="display:none"><span class="icon" data-icon="factory"></span> Suppliers</div>
       <div class="nav-item" onclick="nav('products')" id="nav-products" style="display:none"><span class="icon" data-icon="package"></span> Products</div>
-      <div class="nav-item" onclick="nav('recipes')" id="nav-recipes" style="display:none"><span class="icon" data-icon="book-open"></span> Recipes</div>
       <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon" data-icon="briefcase"></span> Sales Reps</div>
       <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes" style="display:none"><span class="icon" data-icon="map"></span> Zones &amp; Routes</div>
-      <!-- Pricing -->
+      <div class="nav-item" onclick="nav('recipes')" id="nav-recipes" style="display:none"><span class="icon" data-icon="book-open"></span> Website Recipes</div>
+
+      <div class="nav-section" id="nav-section-pricing" style="display:none">Pricing &amp; Costing</div>
       <div class="nav-item" onclick="nav('price-master')" id="nav-price-master" style="display:none"><span class="icon" data-icon="tags"></span> Price Master</div>
       <div class="nav-item" onclick="nav('prices-costs')" id="nav-prices-costs" style="display:none"><span class="icon" data-icon="dollar-sign"></span> Prices &amp; Costs</div>
-      <!-- System / config -->
+
+      <div class="nav-section" id="nav-section-recipe" style="display:none">Recipe / IP</div>
+      <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon" data-icon="lock"></span> Ingredients</div>
+      <div class="nav-item" onclick="nav('bom')" id="nav-bom" style="display:none"><span class="icon" data-icon="lock"></span> BOM (Formula)</div>
+
+      <div class="nav-section" id="nav-section-system" style="display:none">System</div>
       <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><span class="icon" data-icon="shield"></span> User Management</div>
       <div class="nav-item" onclick="nav('payroll')" id="nav-payroll" style="display:none"><span class="icon" data-icon="wallet"></span> Payroll</div>
       <div class="nav-item" onclick="nav('master-data')" id="nav-master-data" style="display:none"><span class="icon" data-icon="database"></span> Master Data Import</div>
-      <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon" data-icon="lock"></span> Ingredients</div>
-      <div class="nav-item" onclick="nav('bom')" id="nav-bom" style="display:none"><span class="icon" data-icon="lock"></span> BOM / Recipe</div>
       <div class="nav-item" onclick="nav('audit')" id="nav-audit" style="display:none"><span class="icon" data-icon="clipboard-list"></span> Audit Log</div>
       <div class="nav-item" onclick="nav('system')" id="nav-system" style="display:none"><span class="icon" data-icon="monitor"></span> System</div>
 
@@ -824,8 +825,8 @@ const ALL_MODULES = [
   { id:'margins',          label:'Margin Report',      section:'Reports' },
   { id:'planning',         label:'Planning & Forecast',section:'Reports' },
   { id:'costs',            label:'Prices & Costs',     section:'Admin / Owner' },
-  { id:'recipe',           label:'BOM / Recipe (secret)', section:'Admin / Owner' },
-  { id:'recipes',          label:'Recipes',            section:'Admin / Owner' },
+  { id:'recipe',           label:'BOM (Formula) — secret', section:'Recipe / IP' },
+  { id:'recipes',          label:'Website Recipes',    section:'Master Data' },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -918,7 +919,7 @@ function applyRoleUI(role) {
 
   // Admin-only nav items (master data + pricing + system all under Admin/Owner section)
   const adminOnlyIds = [
-    'nav-section-admin',
+    'nav-section-master','nav-section-pricing','nav-section-recipe','nav-section-system',
     'nav-customers','nav-suppliers','nav-products','nav-recipes','nav-sales-reps','nav-zones-routes',
     'nav-price-master','nav-prices-costs',
     'nav-users','nav-payroll','nav-master-data','nav-ingredients-admin','nav-audit','nav-system'
@@ -934,10 +935,10 @@ function applyRoleUI(role) {
   // Prices & Costs — admin or 'costs' permission (overrides the admin-only default above).
   const navPc = document.getElementById('nav-prices-costs');
   if (navPc) navPc.style.display = canCosts() ? '' : 'none';
-  // If a non-admin holds recipe/costs, reveal the Admin/Owner section header so the item isn't orphaned.
-  if (!isAdmin && (canRecipe() || canCosts())) {
-    const sec = document.getElementById('nav-section-admin');
-    if (sec) sec.style.display = '';
+  // If a non-admin holds recipe/costs, reveal the relevant sub-section header so the item isn't orphaned.
+  if (!isAdmin) {
+    if (canRecipe()) { const s = document.getElementById('nav-section-recipe');  if (s) s.style.display = ''; }
+    if (canCosts())  { const s = document.getElementById('nav-section-pricing'); if (s) s.style.display = ''; }
   }
 
   // For admin: everything above is already handled — skip permission loop entirely
@@ -7286,7 +7287,7 @@ async function renderBomSetup() {
   ).join('');
 
   return `
-  <div class="section-header"><h2>BOM / Recipe</h2></div>
+  <div class="section-header"><h2>BOM (Formula)</h2></div>
   <!-- ── BOM SETUP CARD ─────────────────────────────────── -->
   <div class="card mb-16" id="bom-setup-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -7545,7 +7546,7 @@ async function renderProduction() {
   <!-- ── PRODUCTION WORKFLOW GUIDE ───────────────────────── -->
   <div style="background:#f8f9ff;border:1px solid #dde3f5;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span style="font-size:12px;font-weight:600;color:var(--text-2);margin-right:4px">How to complete a production run:</span>
-    <span style="font-size:12px;background:#f5f0ff;color:#7c3aed;border:1px solid #d4c2f7;border-radius:4px;padding:2px 8px;white-space:nowrap;cursor:pointer" onclick="nav('bom')">0. Setup BOM (Admin → BOM / Recipe)</span>
+    <span style="font-size:12px;background:#f5f0ff;color:#7c3aed;border:1px solid #d4c2f7;border-radius:4px;padding:2px 8px;white-space:nowrap;cursor:pointer" onclick="nav('bom')">0. Setup BOM (Admin → BOM (Formula))</span>
     <span style="font-size:12px;color:var(--text-3)">→</span>
     <span style="font-size:12px;background:#f0f4ff;color:#3563e9;border:1px solid #c7d4f7;border-radius:4px;padding:2px 8px;white-space:nowrap">1. Create Work Order</span>
     <span style="font-size:12px;color:var(--text-3)">→</span>
@@ -9164,7 +9165,7 @@ async function renderRecipes() {
 
   return '<div class="card mb-16">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
-      '<div><h3 style="margin:0">Recipes</h3>' +
+      '<div><h3 style="margin:0">Website Recipes</h3>' +
       '<p style="color:var(--text-3);font-size:13px;margin:4px 0 0">Published recipes appear on chachamasala.com/recipes</p></div>' +
       '<button class="btn btn-primary" onclick="openNewRecipe()">＋ New Recipe</button>' +
     '</div>' +

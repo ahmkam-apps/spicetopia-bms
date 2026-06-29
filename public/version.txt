@@ -1,2 +1,2 @@
-build: 2026-06-29 bom-relocated-recipe-costs
+build: 2026-06-29 nav-reorg-bom-recipe-costs
 has_gtin: true
