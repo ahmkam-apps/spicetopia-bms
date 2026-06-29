@@ -1,2 +1,2 @@
-build: 2026-05-09T04:50:00Z
+build: 2026-06-29 auth-superuser-d924103
 has_gtin: true
