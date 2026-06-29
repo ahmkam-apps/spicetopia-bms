@@ -161,7 +161,7 @@ def update_user(user_id, data, requesting_role, requesting_user_id):
     user = qry1("SELECT * FROM users WHERE id=?", (user_id,))
     if not user:
         raise ValueError("User not found")
-    if requesting_role != 'admin' and requesting_user_id != user_id:
+    if requesting_role not in ('admin', 'super_user') and requesting_user_id != user_id:
         raise ValueError("Permission denied")
     set_parts, vals = [], []
     new_pw = data.get('newPassword', '').strip()
@@ -169,13 +169,15 @@ def update_user(user_id, data, requesting_role, requesting_user_id):
         if len(new_pw) < 6:
             raise ValueError("Password must be at least 6 characters")
         pw_hash, salt, scheme = _hash_pw_new(new_pw)
-        set_parts += ["password_hash=?", "salt=?", "auth_scheme=?"]
-        vals      += [pw_hash, salt, scheme]
-    if requesting_role == 'admin':
+        set_parts += ["password_hash=?", "salt=?", "auth_scheme=?", "must_change_password=?"]
+        vals      += [pw_hash, salt, scheme, 0]
+    if requesting_role in ('admin', 'super_user'):
         if 'displayName' in data:
             dn = data['displayName'].strip()
             set_parts.append("display_name=?"); vals.append(dn)
         if 'role' in data and data['role'] in VALID_ROLES:
+            if data['role'] == 'super_user' and requesting_role != 'super_user':
+                raise ValueError("Only the owner (super user) can assign super user")
             set_parts.append("role=?");         vals.append(data['role'])
         if 'active' in data:
             set_parts.append("active=?");       vals.append(1 if data['active'] else 0)

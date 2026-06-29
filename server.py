@@ -7665,7 +7665,7 @@ class Handler(BaseHTTPRequestHandler):
             # /db-upload — one-time database upload page (admin only)
             if path == '/db-upload':
                 sess = get_session(self)
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     self.send_response(302)
                     self.send_header('Location', '/')
                     self.end_headers()
@@ -7861,7 +7861,7 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/users  (admin only)
             if path == '/api/users':
                 sess = get_session(self)
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 send_json(self, list_users())
                 return
@@ -7869,7 +7869,7 @@ class Handler(BaseHTTPRequestHandler):
             # ── ADMIN BACKUP STATUS ────────────────────────────────────────
             # GET /api/admin/backup  — list backups + next run time (admin only)
             if path == '/api/admin/backup':
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 backups = []
                 if BACKUP_PATH and BACKUP_PATH.exists():
@@ -7893,7 +7893,7 @@ class Handler(BaseHTTPRequestHandler):
             # Auth via query token so a plain browser link works.
             if path == '/api/admin/backup/download':
                 dsess = get_session(self, qs)
-                if not dsess or dsess['role'] != 'admin':
+                if not require(dsess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 import tempfile as _tf
                 _ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -7920,7 +7920,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/admin/settings  — return runtime + DB settings (admin only)
             if path == '/api/admin/settings':
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 send_json(self, {
                     'whatsapp_enabled':       WA_ENABLED,
@@ -7934,7 +7934,7 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/admin/price-master  — full price matrix (admin only)
             if path == '/api/admin/price-master':
                 sess = get_session(self)
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 rows = qry("""
                     SELECT  p.code  AS product_code,
@@ -7966,7 +7966,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/admin/ingredients  — ALL ingredients incl. inactive (admin only)
             if path == '/api/admin/ingredients':
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 stock_map = get_stock_map()
                 rows = qry("SELECT * FROM ingredients ORDER BY code")
@@ -7989,14 +7989,14 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/ingredients/next-code  — peek next ING-xxxSP code (admin)
             if path == '/api/ingredients/next-code':
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 send_json(self, {'code': peek_next_ingredient_code()})
                 return
 
             # GET /api/ingredients/duplicates  — same-name ingredients under different codes (admin, read-only)
             if path == '/api/ingredients/duplicates':
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 import threading as _th, time as _t
                 print("  [duplicates] request received", flush=True)
@@ -8021,7 +8021,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/products/next-blend-code?prefix=GM  — peek next GM-BC-xxx code (admin)
             if path == '/api/products/next-blend-code':
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 prefix = qs.get('prefix', [''])[0].strip().upper()
                 if not prefix:
@@ -8033,7 +8033,7 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/admin/masters/template/{type}  — download CSV template
             if path.startswith('/api/admin/masters/template/'):
                 sess = get_session(self, qs)
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 master_type = path.split('/')[-1]
                 csv_bytes = _master_template_csv(master_type)
@@ -8051,7 +8051,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if path == '/api/admin/price-master/export':
                 sess = get_session(self, qs)
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 rows = qry("""
                     SELECT  p.code   AS product_code,
@@ -8483,7 +8483,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/admin/suppliers  (all suppliers incl. inactive — admin CRUD view)
             if path == '/api/admin/suppliers':
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 _ensure_supplier_zone_col()
                 rows = qry("""
@@ -8565,7 +8565,7 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/ingredients/export  — CSV download of all ingredients (admin only)
             if path == '/api/ingredients/export':
                 sess = get_session(self, qs)
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 stock_map    = get_stock_map()
                 reserved_map = get_wo_reserved_stock_map()
@@ -9434,7 +9434,7 @@ class Handler(BaseHTTPRequestHandler):
                 if os.environ.get('DEV_TOOLS', '').lower() not in ('1', 'true', 'yes'):
                     send_error(self, 'Not available in this environment', 403); return
                 sess = get_session(self)
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_json(self, {'error': 'Admin only'}, 403); return
                 result = dev_reset_all()
                 send_json(self, result)
@@ -9445,7 +9445,7 @@ class Handler(BaseHTTPRequestHandler):
                 if os.environ.get('DEV_TOOLS', '').lower() not in ('1', 'true', 'yes'):
                     send_error(self, 'Not available in this environment', 403); return
                 sess = get_session(self)
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_json(self, {'error': 'Admin only'}, 403); return
                 _pc   = data.get('productCode', '')
                 _ps   = data.get('packSize', '')
@@ -9669,7 +9669,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/reconcile-statuses (admin only — fix any status drift)
             if path == '/api/admin/reconcile-statuses':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 invoice_ids = [r['id'] for r in qry("SELECT id FROM invoices")]
                 fixed = []
@@ -9684,7 +9684,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/ingredients/truncate  (admin only — wipe all ingredients + reset counter)
             if path == '/api/admin/ingredients/truncate':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 try:
                     c = _conn()
@@ -9705,7 +9705,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/suppliers/truncate  (admin only — wipe all suppliers + reset counter)
             if path == '/api/admin/suppliers/truncate':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 try:
                     c = _conn()
@@ -9727,7 +9727,7 @@ class Handler(BaseHTTPRequestHandler):
             # POST /api/admin/customers/truncate  (admin only — wipe all customers + reset counter)
             # Use before reimporting clean master data. Safe only when no real orders exist.
             if path == '/api/admin/customers/truncate':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 try:
                     c = _conn()
@@ -9748,7 +9748,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/backup  (admin only — manual backup trigger)
             if path == '/api/admin/backup':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 try:
                     result = run_backup()
@@ -9759,7 +9759,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/db-upload  (admin only — replace database from uploaded file)
             if path == '/api/admin/db-upload':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_json(self, {'ok': False, 'error': 'Permission denied'}, 403); return
                 try:
                     import cgi as _cgi
@@ -9797,7 +9797,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/test-whatsapp  (admin only — send a test message)
             if path == '/api/admin/test-whatsapp':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 if not WA_ENABLED:
                     send_json(self, {'ok': False, 'error': 'WhatsApp notifications are disabled. Enable them in Admin → Settings → WhatsApp.'}); return
@@ -9819,7 +9819,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/ingredients  (admin only — no name stored)
             if path == '/api/ingredients':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 result = create_ingredient(data)
                 send_json(self, result, 201)
@@ -9827,7 +9827,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/ingredients/:code/reactivate  (admin only)
             if path.startswith('/api/ingredients/') and path.endswith('/reactivate'):
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 code = path.split('/')[3]
                 result = reactivate_ingredient(code)
@@ -9859,7 +9859,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/customers/:id/reactivate  (admin only)
             if path.startswith('/api/customers/') and path.endswith('/reactivate'):
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 cust_id = int(path.split('/')[3])
                 result  = update_customer(cust_id, {'active': 1})
@@ -9876,7 +9876,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/suppliers/:id/reactivate  (admin only)
             if path.startswith('/api/suppliers/') and path.endswith('/reactivate'):
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 sup_id = int(path.split('/')[3])
                 result = update_supplier(sup_id, {'active_flag': 1})
@@ -9983,7 +9983,7 @@ class Handler(BaseHTTPRequestHandler):
             # POST /api/admin/orders/check-holds  — manual hold expiry trigger
             if path == '/api/admin/orders/check-holds':
                 sess = get_session(self)
-                if not sess or sess.get('role') != 'admin':
+                if not require(sess, 'admin'):
                     send_json(self, {'error': 'Admin only'}, 403)
                     return
                 count = check_and_expire_holds()
@@ -10188,7 +10188,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/admin/masters/upload/{type}  — upload CSV or XLSX master file
             if path.startswith('/api/admin/masters/upload/'):
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_json(self, {'ok': False, 'error': 'Permission denied'}, 403); return
                 master_type = path.split('/')[-1]
                 if master_type not in ('customers', 'suppliers', 'products', 'prices', 'ingredients', 'bom'):
@@ -10230,7 +10230,7 @@ class Handler(BaseHTTPRequestHandler):
             # POST /api/admin/price-master/import  — bulk CSV import (admin only)
             if path == '/api/admin/price-master/import':
                 sess = get_session(self)
-                if not sess or sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 rows = data.get('rows', [])   # [{product_code, pack_size, price_type, price, effective_from}]
                 if not rows:
@@ -10281,7 +10281,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/products/generate-blend-code  — atomically assign next code for prefix
             if path == '/api/products/generate-blend-code':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 prefix = data.get('prefix', '').strip().upper()
                 if not prefix:
@@ -10586,7 +10586,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # PUT /api/admin/settings  (admin only — save WA config to DB + hot-reload)
             if path == '/api/admin/settings':
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 if 'whatsapp_enabled' in data:
                     set_setting('whatsapp_enabled', '1' if data['whatsapp_enabled'] else '0')
@@ -10787,7 +10787,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # PUT /api/products/:code  (edit name / urdu name / blend_code — admin only)
             if path.startswith('/api/products/') and len(path.split('/')) == 4:
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 code   = path.split('/')[3]
                 result = update_product(code, data)
@@ -10796,7 +10796,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # PUT /api/ingredients/:code  (edit cost / unit / reorder — admin only)
             if path.startswith('/api/ingredients/') and len(path.split('/')) == 4:
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 code   = path.split('/')[3]
                 result = update_ingredient(code, data)
@@ -10919,7 +10919,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # DELETE /api/recipes/:id  → soft deactivate (admin only)
             if path.startswith('/api/recipes/') and len(path.split('/')) == 4:
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 rid = int(path.split('/')[3])
                 run("UPDATE recipes SET active=0 WHERE id=?", (rid,))
@@ -10928,7 +10928,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # DELETE /api/customers/:id  → soft deactivate (admin only)
             if path.startswith('/api/customers/') and len(path.split('/')) == 4:
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 cust_id = int(path.split('/')[3])
                 result  = update_customer(cust_id, {'active': 0})
@@ -10937,7 +10937,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # DELETE /api/suppliers/:id  → soft deactivate (admin only)
             if path.startswith('/api/suppliers/') and len(path.split('/')) == 4:
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 sup_id = int(path.split('/')[3])
                 result = update_supplier(sup_id, {'active_flag': 0})
@@ -10946,7 +10946,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # DELETE /api/users/:id  → deactivate (admin only)
             if path.startswith('/api/users/') and len(path.split('/')) == 4:
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 uid    = int(path.split('/')[3])
                 if uid == sess['userId']:
@@ -10957,7 +10957,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # DELETE /api/ingredients/:code  → soft deactivate (admin only)
             if path.startswith('/api/ingredients/') and len(path.split('/')) == 4:
-                if sess['role'] != 'admin':
+                if not require(sess, 'admin'):
                     send_error(self, 'Admin only', 403); return
                 code   = path.split('/')[3]
                 result = deactivate_ingredient(code)
