@@ -70,10 +70,12 @@ ROLE_LABELS = {
 
 def require(sess, *roles):
     """Return True iff the session's role is one of the given roles.
-    Always False if sess is None.  Usage:
+    super_user (the owner) satisfies EVERY role check. Always False if sess is None.  Usage:
         if not require(sess, 'admin', 'sales'):
             send_error(self, 'Permission denied', 403); return
     """
+    if sess and sess.get('role') == 'super_user':
+        return True
     return bool(sess and sess.get('role') in roles)
 
 
