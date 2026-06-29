@@ -76,20 +76,31 @@ def ensure_users_table():
         else:
             print(f"  ✓ Users: {count} user(s) configured")
 
-        # Seed the owner (super_user) account if none exists — forced password change on first login.
-        su_count = c.execute("SELECT COUNT(*) FROM users WHERE role='super_user'").fetchone()[0]
-        if su_count == 0:
-            if _ARGON2_AVAILABLE:
-                su_hash = _argon2.hash('changeme'); su_salt = ''; su_scheme = 'argon2id'
+        # Ensure the owner (super_user) account exists AND is super_user — self-healing.
+        # (If an 'owner' row already exists at a lower role, promote it. Never crashes.)
+        try:
+            owner_row = c.execute("SELECT id, role FROM users WHERE username='owner'").fetchone()
+            if owner_row is not None:
+                if owner_row[1] != 'super_user':
+                    c.execute("UPDATE users SET role='super_user' WHERE username='owner'")
+                    c.commit()
+                    print(f"  ✓ Users: existing 'owner' promoted {owner_row[1]} → super_user")
             else:
-                su_salt = secrets.token_hex(16)
-                su_hash = hashlib.sha256((su_salt + 'changeme').encode()).hexdigest(); su_scheme = 'sha256'
-            c.execute("""
-                INSERT INTO users (username, display_name, password_hash, salt, role, permissions, auth_scheme, must_change_password)
-                VALUES ('owner', 'Owner', ?, ?, 'super_user', '[]', ?, 1)
-            """, (su_hash, su_salt, su_scheme))
-            c.commit()
-            print("  ✓ Users: owner (super_user) seeded  →  owner / changeme  (must change password on first login)")
+                su_count = c.execute("SELECT COUNT(*) FROM users WHERE role='super_user'").fetchone()[0]
+                if su_count == 0:
+                    if _ARGON2_AVAILABLE:
+                        su_hash = _argon2.hash('changeme'); su_salt = ''; su_scheme = 'argon2id'
+                    else:
+                        su_salt = secrets.token_hex(16)
+                        su_hash = hashlib.sha256((su_salt + 'changeme').encode()).hexdigest(); su_scheme = 'sha256'
+                    c.execute("""
+                        INSERT INTO users (username, display_name, password_hash, salt, role, permissions, auth_scheme, must_change_password)
+                        VALUES ('owner', 'Owner', ?, ?, 'super_user', '[]', ?, 1)
+                    """, (su_hash, su_salt, su_scheme))
+                    c.commit()
+                    print("  ✓ Users: owner (super_user) seeded  →  owner / changeme  (must change password on first login)")
+        except Exception as _e:
+            print(f"  ⚠ owner seed/heal skipped: {_e}")
 
         c.commit()
     finally:
