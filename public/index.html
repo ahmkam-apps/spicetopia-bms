@@ -1328,6 +1328,7 @@ async function askSubmit() {
     if (r.steps && r.steps.length) h += '<ol style="margin:0 0 12px 18px;padding:0;font-size:14px;line-height:1.65">'+r.steps.map(s=>'<li>'+_askEsc(s)+'</li>').join('')+'</ol>';
     if (r.navTarget) h += '<button class="btn btn-primary btn-sm" onclick="askClose();nav(\''+r.navTarget+'\')">Take me there →</button>';
     if (!r.answer && !(r.steps && r.steps.length)) h='<div style="color:var(--text-3,#888)">No answer — try rephrasing, or use ? Help.</div>';
+    if (r.error) h += '<div style="margin-top:10px;font-size:11px;color:var(--text-3,#888);border-top:1px dashed var(--border,#ddd);padding-top:6px">Diagnostic (for admin): ' + _askEsc(r.error) + '</div>';
     out.innerHTML=h;
   } catch(e) { out.innerHTML='<div style="color:var(--chili,#c00)">Sorry — couldn\'t get an answer just now. Try again.</div>'; }
 }

@@ -2189,8 +2189,13 @@ Rules:
             except Exception: pass
             print(f"  ⚠ assistant_failed HTTP {he.code}: {detail}")
             _log('error', 'assistant_failed', error=f'HTTP {he.code} {detail}')
-            return {'answer': "Sorry — the assistant hit an error reaching the AI service. Tell your admin.",
-                    'steps': [], 'navTarget': None, 'error': f'HTTP {he.code}'}
+            reason = detail
+            try:
+                reason = (json.loads(detail).get('error', {}) or {}).get('message', detail)
+            except Exception:
+                pass
+            return {'answer': "Sorry — the assistant hit an error reaching the AI service.",
+                    'steps': [], 'navTarget': None, 'error': f'HTTP {he.code}: {str(reason)[:200]}'}
         raw = body['content'][0]['text'].strip()
         if '{' in raw:
             raw = raw[raw.find('{'):raw.rfind('}') + 1]

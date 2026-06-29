@@ -1,2 +1,2 @@
-build: 2026-06-29 cost-price-split
+build: 2026-06-29 assistant-inline-diag
 has_gtin: true
