@@ -1,2 +1,2 @@
-build: 2026-06-29 assistant-inline-diag
+build: 2026-06-29 howto-guide
 has_gtin: true

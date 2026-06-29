@@ -664,7 +664,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
   <!-- Right: controls -->
   <div class="topbar-right" style="justify-content:flex-end">
     <span id="topbar-status" style="display:none"></span>
-    <button class="btn btn-primary btn-sm" onclick="askOpen()" title="Ask how to do something — get step-by-step guidance">💬 Ask</button>
+    <button class="btn btn-primary btn-sm" onclick="howToOpen()" title="Step-by-step guidance for common tasks">💬 How do I…?</button>
     <button class="btn btn-outline btn-sm" onclick="helpOpen(state.page)" title="How this screen works + where it fits">? Help</button>
     <button class="btn btn-outline btn-sm" onclick="refreshAll()">↻ Refresh</button>
     <div class="user-chip">
@@ -1331,6 +1331,118 @@ async function askSubmit() {
     if (r.error) h += '<div style="margin-top:10px;font-size:11px;color:var(--text-3,#888);border-top:1px dashed var(--border,#ddd);padding-top:6px">Diagnostic (for admin): ' + _askEsc(r.error) + '</div>';
     out.innerHTML=h;
   } catch(e) { out.innerHTML='<div style="color:var(--chili,#c00)">Sorry — couldn\'t get an answer just now. Try again.</div>'; }
+}
+
+// ── "How do I…?" guide — curated, searchable, deep-linked, no AI needed ──
+const HOWTO = [
+  // Sales & money
+  { cat:'Sales & money', q:'Take a customer order', nav:'orders-invoices', kw:'order sell sale new customer',
+    steps:['Open Orders & Invoices.','Click "New order".','Pick the customer (or add them), then add each product and quantity.','Save — this reserves the stock and creates the order.'] },
+  { cat:'Sales & money', q:'Turn an order into an invoice', nav:'orders-invoices', kw:'invoice bill order',
+    steps:['Open Orders & Invoices and find the order.','Open it and choose "Convert to invoice".','The invoice keeps the same items and price; send it to the customer.'] },
+  { cat:'Sales & money', q:'Record a payment from a customer', nav:'receipts-aging', kw:'payment receipt money received paid cash',
+    steps:['Open Receipts & AR.','Find the customer or the unpaid invoice.','Enter the amount received and the payment method, then Save.','The invoice updates to Paid / Partial automatically.'] },
+  { cat:'Sales & money', q:'See who owes me money', nav:'receipts-aging', kw:'owes outstanding aging debt receivable',
+    steps:['Open Receipts & AR.','The aging view lists unpaid invoices grouped by how overdue they are.'] },
+  { cat:'Sales & money', q:'Approve a website or rep order', nav:'review-queue', kw:'approve reject pending review queue website',
+    steps:['Open Review Queue.','Check the order details.','Click Approve to confirm it (or Reject) — approving moves it into the normal order flow.'] },
+
+  // Buying
+  { cat:'Buying (suppliers)', q:'Buy ingredients from a supplier', nav:'purchase-orders', kw:'purchase order PO buy ingredients supplier procure',
+    steps:['Open Purchase Orders.','Create a new PO and choose the supplier.','Add the ingredients and quantities (in kg) and the agreed cost.','Save and send to the supplier.'] },
+  { cat:'Buying (suppliers)', q:'Record a supplier bill', nav:'bills', kw:'supplier bill invoice payable',
+    steps:['Open Supplier Bills.','Create a bill for the supplier with the amount and items.','Save — it now shows under what you owe (AP).'] },
+  { cat:'Buying (suppliers)', q:'Pay a supplier', nav:'ap-payments', kw:'pay supplier payment payable',
+    steps:['Open Payments (Procurement).','Pick the supplier and enter the amount.','Allocate it to their open bills, then Save.'] },
+
+  // Making
+  { cat:'Making (production)', q:'Make a batch / produce stock', nav:'production', kw:'produce batch work order manufacture make',
+    steps:['Make sure the recipe (BOM) is set up first (Admin → BOM).','Open Production and create a Work Order (product + quantity).','Click Start when production begins.','Click "Complete & Record Batch" when done — this adds the finished stock to inventory.'] },
+  { cat:'Making (production)', q:'See what ingredients I need to buy to produce an amount', nav:'production', kw:'procurement ingredients needed shortfall buy to make',
+    steps:['Open Production and create (or open) a Work Order for the quantity you want to make.','Open its procurement list.','It shows, per ingredient: how much is NEEDED, how much you HAVE, and how much to BUY.','How it\'s worked out: needed = recipe amount × your quantity; to-buy = needed − what\'s already in stock.'] },
+
+  // Costing & pricing (calculation-heavy — detailed)
+  { cat:'Costing & pricing', q:'Check if I\'m making money on a product', nav:'prices-costs', kw:'profit margin making money cost price verdict overview',
+    steps:['Open Prices & Costs — you land on the Overview.','Each product shows a 🟢 "Making money" or 🔴 "Margin too low" badge.','Read the line: it costs ₨X to make, sells for ₨Y, and you keep ₨Z (the % is your margin).','🔴 means the margin is below your minimum — either raise the price (markups) or lower the cost.'] },
+  { cat:'Costing & pricing', q:'Understand what "cost to make" includes', nav:'prices-costs', kw:'cost to make standard cost breakdown ingredients packaging overhead',
+    steps:['Cost to make a pack = Ingredients + Packaging + Making cost + Overhead.','Ingredients come from the recipe (BOM) × today\'s ingredient prices — this is usually ~80% of the cost.','Packaging, Making cost and Overhead are the ₨-per-pack amounts you enter in "Set up your costs".'] },
+  { cat:'Costing & pricing', q:'Understand how the selling price (MRP) is calculated', nav:'prices-costs', kw:'mrp price calculation markup margin distributor direct sale how computed',
+    steps:['The price is built up from cost in three steps, each adding a markup %:','1) Direct Sale = Cost to make + your direct-sale %.','2) Distributor price = Direct Sale + your distributor %.','3) MRP = Distributor + your MRP %.','You keep = MRP − Cost to make. Margin % = (MRP − Cost) ÷ MRP.','Note: MRP here is before tax (GST is added on the invoice).'] },
+  { cat:'Costing & pricing', q:'Set my packaging, labour and overhead costs', nav:'prices-costs', kw:'set cost parameters packaging labour overhead per pack setup',
+    steps:['Open Prices & Costs → Overview → "Set up your costs".','Enter each cost as ₨ per pack: Packaging (pouch/label/carton), Making cost (labour/electricity/gas/rent), Overhead (transport/salaries/admin).','The example at the bottom updates live as you type.','Click Save. Tip: if you\'re not sure of a number, leave it and refine later — ingredients are the biggest part of cost anyway.'] },
+  { cat:'Costing & pricing', q:'Change my markups / margins', nav:'prices-costs', kw:'markup margin percentage change price increase distributor mrp',
+    steps:['Open Prices & Costs → Overview → "Set up your costs" → Markup section.','Enter each markup as a plain percentage (e.g. add 30%).','Watch the live example: it shows the resulting selling price and what you keep.','Click Save. (The detailed Markups tab shows the same as multipliers, for reference.)'] },
+  { cat:'Costing & pricing', q:'Update an ingredient\'s cost', nav:'prices-costs', kw:'ingredient cost price update raw material',
+    steps:['Open Prices & Costs → Ingredient Costs tab.','Find the ingredient and click Edit.','Enter the new cost per kg and Save — all product costs that use it recalculate automatically.'] },
+  { cat:'Costing & pricing', q:'Why does a product say "margin too low"?', nav:'prices-costs', kw:'below minimum margin low warning red fix',
+    steps:['It means the profit margin is below your Minimum Profit Margin setting.','Fix it one of two ways: raise the price (increase a markup %), or lower the cost (cheaper packaging/ingredients).','The Overview\'s live example helps you see the effect before you save.'] },
+
+  // Inventory
+  { cat:'Inventory', q:'Check stock levels', nav:'inventory', kw:'stock inventory levels how much',
+    steps:['Open Inventory to see current stock for each ingredient and product.'] },
+  { cat:'Inventory', q:'Adjust stock (add or remove)', nav:'inventory', kw:'adjust stock add remove correction damage opening',
+    steps:['Open Inventory and choose the item to adjust.','Enter the amount in kg and a reason, then Save.','Stock only changes through these movements — it\'s never edited directly, so there\'s always a record.'] },
+
+  // Admin
+  { cat:'Setup & admin', q:'Add a new customer', nav:'customers', kw:'add customer new account',
+    steps:['Open Customers → New customer.','Fill in name, phone, city and type, then Save.'] },
+  { cat:'Setup & admin', q:'Give someone access / add a user', nav:'users', kw:'user permission access add login partner grant',
+    steps:['Open User Management → New user (or edit an existing one).','Set their role, or tick exactly which areas they can use (e.g. Costing).','Save. Note: access changes take effect the next time they log in.'] },
+  { cat:'Setup & admin', q:'Set up or edit the recipe (BOM)', nav:'bom', kw:'recipe bom formula ingredients quantities setup',
+    steps:['Open Admin → BOM (Formula).','Pick the product, set the batch size, and enter each ingredient and grams per batch.','Save — costing and the ingredient-procurement calculations use this.'] },
+  { cat:'Planning', q:'Forecast next month / plan production', nav:'planning', kw:'plan forecast scenario future demand',
+    steps:['Open Planning.','Create a plan, enter your sales forecast by product, and review the projected production, cost and cash.','Approve it to release work orders to manufacturing.'] },
+];
+
+function howToOpen() {
+  let ov = document.getElementById('erp-howto');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'erp-howto';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-start;justify-content:center;z-index:3000;padding:48px 16px';
+    ov.addEventListener('click', e => { if (e.target === ov) howToClose(); });
+    document.body.appendChild(ov);
+  }
+  ov.style.display = 'flex';
+  ov.innerHTML = '<div style="background:var(--surface,#fff);max-width:640px;width:100%;max-height:84vh;display:flex;flex-direction:column;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">'
+    + '<div style="padding:16px 20px;border-bottom:1px solid var(--border,#eee);display:flex;justify-content:space-between;align-items:center">'
+    + '<strong style="font-size:16px">How do I…?</strong>'
+    + '<button class="btn btn-outline btn-xs" onclick="howToClose()">✕</button></div>'
+    + '<div style="padding:14px 20px 0"><input id="howto-search" class="form-input" style="width:100%" placeholder="Search… e.g. payment, MRP, batch, markup" oninput="_howToFilter()"></div>'
+    + '<div id="howto-list" style="padding:12px 20px 20px;overflow:auto">' + _howToListHtml() + '</div>'
+    + '</div>';
+  setTimeout(() => { const i = document.getElementById('howto-search'); if (i) i.focus(); }, 50);
+}
+function howToClose() { const ov = document.getElementById('erp-howto'); if (ov) ov.style.display = 'none'; }
+function _howToEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _howToListHtml() {
+  const cats = [...new Set(HOWTO.map(h => h.cat))];
+  let html = '';
+  cats.forEach(cat => {
+    const items = HOWTO.filter(h => h.cat === cat && (!h.nav || canAccess(h.nav)));
+    if (!items.length) return;
+    html += '<div class="howto-group"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);text-transform:uppercase;margin:10px 0 4px">' + _howToEsc(cat) + '</div>';
+    items.forEach(h => {
+      const dataText = _howToEsc((h.q + ' ' + (h.kw || '') + ' ' + h.cat).toLowerCase());
+      const steps = '<ol style="margin:8px 0 6px 18px;padding:0;font-size:13px;line-height:1.7">' + h.steps.map(s => '<li>' + _howToEsc(s) + '</li>').join('') + '</ol>';
+      const goBtn = h.nav ? '<button class="btn btn-primary btn-xs" onclick="howToClose();nav(\'' + h.nav + '\')">Take me there →</button>' : '';
+      html += '<details class="howto-item" data-text="' + dataText + '" style="border:1px solid var(--border,#eee);border-radius:8px;padding:8px 12px;margin-bottom:6px">'
+        + '<summary style="cursor:pointer;font-weight:600;font-size:14px">' + _howToEsc(h.q) + '</summary>'
+        + steps + goBtn + '</details>';
+    });
+    html += '</div>';
+  });
+  return html;
+}
+function _howToFilter() {
+  const term = (document.getElementById('howto-search').value || '').trim().toLowerCase();
+  document.querySelectorAll('#erp-howto .howto-item').forEach(el => {
+    el.style.display = (!term || (el.getAttribute('data-text') || '').includes(term)) ? '' : 'none';
+  });
+  // hide group headers with no visible items
+  document.querySelectorAll('#erp-howto .howto-group').forEach(g => {
+    const any = [...g.querySelectorAll('.howto-item')].some(el => el.style.display !== 'none');
+    g.style.display = any ? '' : 'none';
+  });
 }
 
 let _helpKey = '_overview', _helpI = 0;
