@@ -1,2 +1,2 @@
-build: 2026-06-29 superuser-require-fix
+build: 2026-06-29 planning-permission-gate
 has_gtin: true

@@ -307,9 +307,25 @@ async function boot() {
     await loadVersions();
     if (!localStorage.getItem('spx_tour_done')) tourOpen();   // first-run walkthrough
   } catch(e) {
-    if (String(e.message).match(/401|403|Unauthorized|Admin/)) { logout(); return; }
+    const m = String(e.message);
+    // No planning permission → friendly notice, KEEP the ERP session (do not log out).
+    if (m.match(/Planning access required|403/)) { showNoAccess(); return; }
+    // Not authenticated → back to the ERP login.
+    if (m.match(/401|Unauthorized/)) { location.replace('/'); return; }
     status(e.message, false);
   }
+}
+
+function showNoAccess() {
+  document.getElementById('login').classList.add('hidden');
+  const app = document.getElementById('app');
+  app.classList.remove('hidden');
+  app.innerHTML = '<div style="max-width:520px;margin:80px auto;text-align:center;font-family:Fraunces,Georgia,serif">'
+    + '<div style="font-size:44px;margin-bottom:12px">🔒</div>'
+    + '<h1 style="font-size:24px;margin:0 0 10px;font-weight:600">Planning isn\'t enabled for your account</h1>'
+    + '<p style="color:#6b6b6b;font-size:15px;line-height:1.6;margin:0 0 22px;font-family:Inter,system-ui,sans-serif">Ask an administrator to grant you the &ldquo;Planning &amp; Forecast&rdquo; permission in User Management.</p>'
+    + '<a href="/" style="display:inline-block;background:#b5532a;color:#fff;text-decoration:none;padding:10px 22px;border-radius:8px;font-size:14px;font-family:Inter,system-ui,sans-serif">&larr; Back to ERP</a>'
+    + '</div>';
 }
 
 async function loadVersions() {

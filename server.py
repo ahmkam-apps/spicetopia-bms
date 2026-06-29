@@ -1082,19 +1082,31 @@ def require(sess, *roles):
 
 def has_permission(sess, key):
     """Granular permission check. super_user has everything; otherwise the named
-    permission key must be in the user's permissions list (users.permissions JSON,
-    read fresh from the DB). Used to gate delegated areas (costs.*, recipe.*,
-    planning.access, …) without touching role gates."""
+    permission key must be in the session's permissions list. The session carries
+    'permissions' as a parsed list (set at login; refreshed on the user's next login),
+    and uses the key 'userId' (camelCase). Used to gate delegated areas (planning,
+    costs.*, recipe.*, …) without touching role gates."""
     if not sess:
         return False
     if sess.get('role') == 'super_user':
         return True
-    try:
-        row = qry1("SELECT permissions FROM users WHERE id=?", (sess.get('user_id'),))
-        perms = json.loads(row['permissions']) if row and row.get('permissions') else []
+    perms = sess.get('permissions')
+    if isinstance(perms, list):
         return key in perms
+    # Fallback for any session shape that didn't carry the parsed list.
+    try:
+        uid = sess.get('userId') or sess.get('user_id')
+        row = qry1("SELECT permissions FROM users WHERE id=?", (uid,))
+        plist = json.loads(row['permissions']) if row and row.get('permissions') else []
+        return key in plist
     except Exception:
         return False
+
+
+def _can_plan(sess):
+    """Planning access gate: admins/super_user always; other roles only if granted
+    the 'planning' permission. (require() already lets super_user pass everything.)"""
+    return require(sess, 'admin') or has_permission(sess, 'planning')
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -9372,35 +9384,35 @@ class Handler(BaseHTTPRequestHandler):
 
             # ── Planning Input System (admin only) ──────────────────
             if path == '/api/planning/versions':
-                if not require(get_session(self, qs), 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_plan(get_session(self, qs)):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, list_plan_versions())
                 return
             if path == '/api/planning/manufacturers':
-                if not require(get_session(self, qs), 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_plan(get_session(self, qs)):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, list_manufacturers())
                 return
             if path == '/api/planning/variants':
-                if not require(get_session(self, qs), 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_plan(get_session(self, qs)):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, list_active_variants())
                 return
             if path == '/api/planning/zones':
-                if not require(get_session(self, qs), 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_plan(get_session(self, qs)):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, list_zones())
                 return
             if path == '/api/planning/compare':
-                if not require(get_session(self, qs), 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_plan(get_session(self, qs)):
+                    send_error(self, 'Planning access required', 403); return
                 _raw  = qs.get('versions', [''])[0]
                 _vids = [int(x) for x in _raw.split(',') if x.strip().isdigit()]
                 send_json(self, compare_scenarios(_vids))
                 return
             if path.startswith('/api/planning/versions/') and path.split('/')[4].isdigit():
-                if not require(get_session(self, qs), 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_plan(get_session(self, qs)):
+                    send_error(self, 'Planning access required', 403); return
                 parts = path.split('/')
                 vid   = int(parts[4])
                 if len(parts) == 5:
@@ -10541,18 +10553,18 @@ class Handler(BaseHTTPRequestHandler):
 
             # ── Planning Input System (admin only) ──────────────────
             if path == '/api/planning/versions':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_plan(sess):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, create_plan_version(data, sess['username']), 201)
                 return
             if path == '/api/planning/manufacturers':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_plan(sess):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, create_manufacturer(data, sess['username']), 201)
                 return
             if path.startswith('/api/planning/versions/') and path.split('/')[4].isdigit():
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_plan(sess):
+                    send_error(self, 'Planning access required', 403); return
                 parts = path.split('/')
                 vid   = int(parts[4])
                 if len(parts) == 6 and parts[5] == 'forecast':
@@ -10906,8 +10918,8 @@ class Handler(BaseHTTPRequestHandler):
             # ── Planning Input System (admin only) ──────────────────
             if (path.startswith('/api/planning/versions/') and len(path.split('/')) == 5
                     and path.split('/')[4].isdigit()):
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
+                if not _can_plan(sess):
+                    send_error(self, 'Planning access required', 403); return
                 vid = int(path.split('/')[4])
                 send_json(self, update_plan_version(vid, data, sess['username']))
                 return
@@ -11027,26 +11039,26 @@ class Handler(BaseHTTPRequestHandler):
             # ── Planning Input System (admin only) ──────────────────
             if (path.startswith('/api/planning/forecast/') and len(path.split('/')) == 5
                     and path.split('/')[4].isdigit()):
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
+                if not _can_plan(sess):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, delete_sales_forecast(int(path.split('/')[4]), sess['username']))
                 return
             if (path.startswith('/api/planning/targets/') and len(path.split('/')) == 5
                     and path.split('/')[4].isdigit()):
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
+                if not _can_plan(sess):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, delete_sales_target(int(path.split('/')[4]), sess['username']))
                 return
             if (path.startswith('/api/planning/manufacturing/') and len(path.split('/')) == 5
                     and path.split('/')[4].isdigit()):
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
+                if not _can_plan(sess):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, delete_manufacturing(int(path.split('/')[4]), sess['username']))
                 return
             if (path.startswith('/api/planning/pricing/') and len(path.split('/')) == 5
                     and path.split('/')[4].isdigit()):
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
+                if not _can_plan(sess):
+                    send_error(self, 'Planning access required', 403); return
                 send_json(self, delete_pricing(int(path.split('/')[4]), sess['username']))
                 return
 

@@ -821,6 +821,7 @@ const ALL_MODULES = [
   { id:'production',       label:'Production',         section:'Operations' },
   { id:'pl-report',        label:'P&L Report',         section:'Reports' },
   { id:'margins',          label:'Margin Report',      section:'Reports' },
+  { id:'planning',         label:'Planning & Forecast',section:'Reports' },
   { id:'recipes',          label:'Recipes',            section:'Admin / Owner' },
 ];
 
@@ -1433,6 +1434,7 @@ async function _updateRqBadge() {
 async function renderHome() {
   const u = state.currentUser || {};
   const isAdmin = u.role === 'admin' || u.role === 'super_user';
+  const canPlan = isAdmin || ((u.permissions || []).includes('planning'));
   const hr = new Date().getHours();
   const greet = hr < 12 ? 'Good morning' : (hr < 17 ? 'Good afternoon' : 'Good evening');
   const name = u.username || u.name || '';
@@ -1481,7 +1483,7 @@ async function renderHome() {
     + task('🏭','Make a batch','Turn a work order into produced stock.',"nav('production')")
     + task('🛒','Raise a purchase order','Order ingredients from a supplier.',"nav('purchase-orders')")
     + task('✅','Review pending orders','Approve or reject the review queue.',"nav('review-queue')")
-    + task('📈','Plan ahead','Forecast, cost, and release production.',"location.href='/planning.html'")
+    + (canPlan ? task('📈','Plan ahead','Forecast, cost, and release production.',"location.href='/planning.html'") : '')
     + '</div>';
 
   h += '<div style="font-family:var(--font-serif);font-size:18px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px">Browse by area</div>';
@@ -1492,7 +1494,7 @@ async function renderHome() {
     + mod('Procurement','POs · Bills · AP',"nav('purchase-orders')")
     + mod('Operations','Inventory · Production',"nav('inventory')")
     + mod('Reports','P&amp;L · Margins · Reps',"nav('margins')")
-    + mod('Planning','Forecast · Scenarios',"location.href='/planning.html'")
+    + (canPlan ? mod('Planning','Forecast · Scenarios',"location.href='/planning.html'") : '')
     + (isAdmin ? mod('Admin','Products · Users · Backup',"nav('products')") : '')
     + (isAdmin ? mod('Master data','Customers · Suppliers',"nav('customers')") : '')
     + '</div></div>';
