@@ -1109,6 +1109,19 @@ def _can_plan(sess):
     return require(sess, 'admin') or has_permission(sess, 'planning')
 
 
+def _can_costs(sess):
+    """Costing module gate (additive): admins/super_user, or anyone granted 'costs'.
+    Costs are not secret — this just lets you delegate costing (e.g. to an accountant)."""
+    return require(sess, 'admin') or has_permission(sess, 'costs')
+
+
+def _can_recipe(sess):
+    """Recipe / BOM gate — the SECRET (ingredient quantities). super_user OR a user
+    explicitly granted the 'recipe' permission ONLY. A plain admin does NOT qualify.
+    (has_permission already returns True for super_user.)"""
+    return has_permission(sess, 'recipe')
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  INPUT VALIDATION
 # ═══════════════════════════════════════════════════════════════════
@@ -9065,24 +9078,24 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_ap_aging())
                 return
 
-            # GET /api/costing/config  (admin only)
+            # GET /api/costing/config  (admin or 'costs' permission)
             if path == '/api/costing/config':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
                 send_json(self, get_costing_config())
                 return
 
-            # GET /api/costing/standard-costs  (admin only)
+            # GET /api/costing/standard-costs  (admin or 'costs' permission)
             if path == '/api/costing/standard-costs':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
                 send_json(self, get_all_standard_costs())
                 return
 
-            # GET /api/costing/standard-costs/:productCode/:packSize  (admin only)
+            # GET /api/costing/standard-costs/:productCode/:packSize  (admin or 'costs' permission)
             if path.startswith('/api/costing/standard-costs/') and len(path.split('/')) == 6:
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
                 parts = path.split('/')
                 result = compute_standard_cost(parts[4], parts[5])
                 if not result:
@@ -9090,18 +9103,18 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # GET /api/costing/batch-variances  (admin only)
+            # GET /api/costing/batch-variances  (admin or 'costs' permission)
             if path == '/api/costing/batch-variances':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
                 days = int(qs.get('days', ['90'])[0])
                 send_json(self, get_batch_variances(days))
                 return
 
-            # GET /api/costing/price-history  (admin only)
+            # GET /api/costing/price-history  (admin or 'costs' permission)
             if path == '/api/costing/price-history':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
                 limit = int(qs.get('limit', ['100'])[0])
                 change_type = qs.get('type', [None])[0]
                 days = qs.get('days', [None])[0]
@@ -9109,10 +9122,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_price_history(limit=limit, change_type=change_type, days=days))
                 return
 
-            # GET /api/costing/margin-alerts  (admin only)
+            # GET /api/costing/margin-alerts  (admin or 'costs' permission)
             if path == '/api/costing/margin-alerts':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
                 include_dismissed = qs.get('dismissed', ['false'])[0].lower() == 'true'
                 alerts = get_margin_alerts(include_dismissed=include_dismissed)
                 # Optionally trigger email for new unsent alerts
@@ -9143,8 +9156,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_rep_performance_report(period))
                 return
 
-            # GET /api/bom/:productCode
+            # GET /api/bom/:productCode  (recipe owner / 'recipe' permission only — the secret)
             if path.startswith('/api/bom/'):
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
                 code = path.split('/')[3]
                 prod = qry1("SELECT id FROM products WHERE code=?", (code,))
                 if not prod:
@@ -9872,10 +9887,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # POST /api/costing/margin-alerts/:id/dismiss  (admin only)
+            # POST /api/costing/margin-alerts/:id/dismiss  (admin or 'costs' permission)
             if path.startswith('/api/costing/margin-alerts/') and path.endswith('/dismiss'):
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
                 try:
                     alert_id = int(path.split('/')[-2])
                     result = dismiss_margin_alert(alert_id, sess.get('username', 'admin'))
@@ -10181,10 +10196,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # POST /api/bom  (admin only — create / replace active BOM for a product)
+            # POST /api/bom  (recipe owner / 'recipe' permission only — the secret)
             if path == '/api/bom':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
                 result = create_or_update_bom(data)
                 send_json(self, result, 201)
                 return
@@ -10746,10 +10761,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'ok': True, 'variant_id': variant_id, 'show_online': show_online})
                 return
 
-            # PUT /api/costing/config  (admin only)
+            # PUT /api/costing/config  (admin or 'costs' permission)
             if path == '/api/costing/config':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Admin only', 403); return
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
                 key   = data.get('key')
                 value = data.get('value')
                 if not key or value is None:

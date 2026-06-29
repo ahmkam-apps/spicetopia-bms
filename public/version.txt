@@ -1,2 +1,2 @@
-build: 2026-06-29 itemized-cost-params
+build: 2026-06-29 bom-relocated-recipe-costs
 has_gtin: true

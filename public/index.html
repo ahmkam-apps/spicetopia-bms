@@ -732,6 +732,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('payroll')" id="nav-payroll" style="display:none"><span class="icon" data-icon="wallet"></span> Payroll</div>
       <div class="nav-item" onclick="nav('master-data')" id="nav-master-data" style="display:none"><span class="icon" data-icon="database"></span> Master Data Import</div>
       <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon" data-icon="lock"></span> Ingredients</div>
+      <div class="nav-item" onclick="nav('bom')" id="nav-bom" style="display:none"><span class="icon" data-icon="lock"></span> BOM / Recipe</div>
       <div class="nav-item" onclick="nav('audit')" id="nav-audit" style="display:none"><span class="icon" data-icon="clipboard-list"></span> Audit Log</div>
       <div class="nav-item" onclick="nav('system')" id="nav-system" style="display:none"><span class="icon" data-icon="monitor"></span> System</div>
 
@@ -822,6 +823,8 @@ const ALL_MODULES = [
   { id:'pl-report',        label:'P&L Report',         section:'Reports' },
   { id:'margins',          label:'Margin Report',      section:'Reports' },
   { id:'planning',         label:'Planning & Forecast',section:'Reports' },
+  { id:'costs',            label:'Prices & Costs',     section:'Admin / Owner' },
+  { id:'recipe',           label:'BOM / Recipe (secret)', section:'Admin / Owner' },
   { id:'recipes',          label:'Recipes',            section:'Admin / Owner' },
 ];
 
@@ -866,11 +869,29 @@ function isAdminRole() {
 function isSuperUser() {
   return !!(state.currentUser && state.currentUser.role === 'super_user');
 }
+// Recipe/BOM = the secret: super_user OR explicitly granted 'recipe' (NOT plain admin).
+function canRecipe() {
+  const u = state.currentUser || {};
+  return u.role === 'super_user' || ((u.permissions || []).includes('recipe'));
+}
+// Costing module: admins/super_user OR granted 'costs' (additive).
+function canCosts() {
+  return isAdminRole() || ((state.currentUser?.permissions || []).includes('costs'));
+}
+// Hide the BOM (recipe) card on the Production page from anyone without recipe access.
+// The BOM API is recipe-gated server-side; this stops non-recipe users seeing a broken card.
+function _gateBomCard() {
+  if (canRecipe()) return;
+  const card = document.getElementById('bom-setup-card');
+  if (card) card.outerHTML = '<div class="card mb-16" style="text-align:center;color:var(--text-3);padding:18px">🔒 The recipe (Bill of Materials) is managed by the recipe owner.</div>';
+}
 
 function canAccess(pageId) {
   const u = state.currentUser;
   if (!u) return false;
   if (pageId === 'home') return true;            // home is the universal landing
+  if (pageId === 'bom') return canRecipe();      // recipe is the secret: owner + granted only (even admins need the grant)
+  if (pageId === 'prices-costs') return canCosts(); // admin or 'costs' permission
   if (u.role === 'admin' || u.role === 'super_user') return true;   // admin/owner have full access
   // Admin/Owner-only pages
   const adminPages = new Set([
@@ -906,6 +927,18 @@ function applyRoleUI(role) {
     const el = document.getElementById(id);
     if (el) el.style.display = isAdmin ? '' : 'none';
   });
+
+  // Recipe (BOM) — strict: visible only to super_user or 'recipe' holders (even admins need the grant).
+  const navBom = document.getElementById('nav-bom');
+  if (navBom) navBom.style.display = canRecipe() ? '' : 'none';
+  // Prices & Costs — admin or 'costs' permission (overrides the admin-only default above).
+  const navPc = document.getElementById('nav-prices-costs');
+  if (navPc) navPc.style.display = canCosts() ? '' : 'none';
+  // If a non-admin holds recipe/costs, reveal the Admin/Owner section header so the item isn't orphaned.
+  if (!isAdmin && (canRecipe() || canCosts())) {
+    const sec = document.getElementById('nav-section-admin');
+    if (sec) sec.style.display = '';
+  }
 
   // For admin: everything above is already handled — skip permission loop entirely
   if (isAdmin) return;
@@ -1379,6 +1412,7 @@ async function render(page, arg) {
       case 'ap-aging':    c.innerHTML = await renderAPAging();      break;
       case 'inventory':   c.innerHTML = await renderInventory();   break;
       case 'production':  c.innerHTML = await renderProduction();  break;
+      case 'bom':         c.innerHTML = await renderBomSetup();    break;
       case 'products':      c.innerHTML = await renderProducts();      break;
       case 'recipes':       c.innerHTML = await renderRecipes();       break;
       case 'prices-costs':  c.innerHTML = await renderPricesCosts();  break;
@@ -7219,6 +7253,121 @@ async function saveNewIngredient() {
 // ═══════════════════════════════════════════════════════════════
 //  PRODUCTION
 // ═══════════════════════════════════════════════════════════════
+async function renderBomSetup() {
+  if (!canRecipe()) {
+    return '<div class="card" style="text-align:center;color:var(--text-3);padding:32px">\u{1F512} The recipe (Bill of Materials) is restricted to the recipe owner.</div>';
+  }
+  // Pre-load BOMs for all products (for BOM setup panel)
+  const products = state.ref.products || [];
+  const bomMap = {};  // productCode → bom (or null)
+  await Promise.all(products.map(async p => {
+    try { bomMap[p.code] = await GET(`/api/bom/${p.code}`); }
+    catch(e) { bomMap[p.code] = null; }
+  }));
+
+  // BOM status chips — one per product, green if BOM exists, red if not
+  const bomChips = products.map(p => {
+    const bom = bomMap[p.code];
+    const hasActive = !!(bom && bom.id);
+    const bg    = hasActive ? '#eafaf1' : '#fff5f5';
+    const color = hasActive ? '#1aaa55' : '#e03131';
+    const border= hasActive ? '#b2e8c8' : '#f5c0c0';
+    const label = (hasActive ? '\u2713 ' : '+ ') + p.code;
+    const title = hasActive ? ('BOM v' + bom.version_no + ' active — click to edit') : 'No BOM — click to create';
+    return '<span style="font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;cursor:pointer;'
+      + 'background:' + bg + ';color:' + color + ';border:1px solid ' + border + '"'
+      + ' onclick="openBomForProduct(\'' + p.code + '\')"'
+      + ' title="' + title + '">' + label + '</span>';
+  }).join(' ');
+
+  // BOM product selector options
+  const bomProdOptions = products.map(p =>
+    '<option value="' + p.code + '">' + p.name + ' (' + p.code + ')</option>'
+  ).join('');
+
+  return `
+  <div class="section-header"><h2>BOM / Recipe</h2></div>
+  <!-- ── BOM SETUP CARD ─────────────────────────────────── -->
+  <div class="card mb-16" id="bom-setup-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div>
+        <h3 style="margin:0">Bill of Materials (BOM)</h3>
+        <p style="font-size:12px;color:var(--text-3);margin:3px 0 0">Define ingredient recipes per product. Required before recording production batches.</p>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-xs btn-outline" onclick="downloadBomTemplate()">↓ Template</button>
+        <label class="btn btn-xs btn-primary" style="cursor:pointer;margin:0">
+          ↑ Upload CSV
+          <input type="file" accept=".csv,.xlsx" style="display:none" onchange="uploadBomCsv(this)">
+        </label>
+        <button class="btn btn-xs btn-outline" onclick="toggleBomPanel()">⚙ Manage BOMs</button>
+      </div>
+    </div>
+
+    <!-- BOM upload result message -->
+    <div id="bom-upload-msg"></div>
+
+    <!-- BOM Status Summary (always visible) -->
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+      ${bomChips}
+    </div>
+
+    <!-- BOM Editor Panel (hidden until toggled) -->
+    <div id="bom-editor-panel" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:14px">
+      <div id="bom-editor-msg"></div>
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="form-group">
+          <label>Product *</label>
+          <select id="bom-prod-sel" onchange="loadBomForEditor()">
+            ${bomProdOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Batch Reference Size (grams) *</label>
+          <input id="bom-batch-size" type="number" min="1" value="1000" style="width:110px" title="The total grams your ingredient list below makes — e.g. 1000g if your recipe makes 1kg">
+        </div>
+        <div class="form-group">
+          <label>Effective From</label>
+          <input id="bom-eff-from" type="date" value="${today()}">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <input id="bom-notes" placeholder="Optional">
+        </div>
+      </div>
+
+      <!-- Current BOM version info -->
+      <div id="bom-current-info" style="margin-bottom:10px;font-size:12px;color:var(--text-3)"></div>
+
+      <!-- Ingredient rows table -->
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:12px;font-weight:600">Ingredients</span>
+          <button class="btn btn-xs btn-outline" onclick="addBomIngRow()">+ Add Row</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--surface);border-bottom:1px solid var(--border)">
+              <th style="padding:6px 8px;text-align:left;font-weight:600;font-size:11px">Ingredient Code</th>
+              <th style="padding:6px 8px;text-align:right;font-weight:600;font-size:11px">Grams in batch</th>
+              <th style="padding:6px 8px;width:32px"></th>
+            </tr>
+          </thead>
+          <tbody id="bom-ing-rows"></tbody>
+        </table>
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px" id="bom-total-g"></div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="saveBom()">Save BOM</button>
+        <button class="btn btn-outline" onclick="toggleBomPanel()">Cancel</button>
+      </div>
+    </div>
+  </div>
+`;
+}
+
+
 async function renderProduction() {
   const [batches, workOrders] = await Promise.all([
     GET('/api/production'),
@@ -7358,83 +7507,7 @@ async function renderProduction() {
     </div>
   </div>
 
-  <!-- ── BOM SETUP CARD ─────────────────────────────────── -->
-  <div class="card mb-16" id="bom-setup-card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div>
-        <h3 style="margin:0">Bill of Materials (BOM)</h3>
-        <p style="font-size:12px;color:var(--text-3);margin:3px 0 0">Define ingredient recipes per product. Required before recording production batches.</p>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button class="btn btn-xs btn-outline" onclick="downloadBomTemplate()">↓ Template</button>
-        <label class="btn btn-xs btn-primary" style="cursor:pointer;margin:0">
-          ↑ Upload CSV
-          <input type="file" accept=".csv,.xlsx" style="display:none" onchange="uploadBomCsv(this)">
-        </label>
-        <button class="btn btn-xs btn-outline" onclick="toggleBomPanel()">⚙ Manage BOMs</button>
-      </div>
-    </div>
-
-    <!-- BOM upload result message -->
-    <div id="bom-upload-msg"></div>
-
-    <!-- BOM Status Summary (always visible) -->
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">
-      ${bomChips}
-    </div>
-
-    <!-- BOM Editor Panel (hidden until toggled) -->
-    <div id="bom-editor-panel" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:14px">
-      <div id="bom-editor-msg"></div>
-      <div class="form-row" style="margin-bottom:10px">
-        <div class="form-group">
-          <label>Product *</label>
-          <select id="bom-prod-sel" onchange="loadBomForEditor()">
-            ${bomProdOptions}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Batch Reference Size (grams) *</label>
-          <input id="bom-batch-size" type="number" min="1" value="1000" style="width:110px" title="The total grams your ingredient list below makes — e.g. 1000g if your recipe makes 1kg">
-        </div>
-        <div class="form-group">
-          <label>Effective From</label>
-          <input id="bom-eff-from" type="date" value="${today()}">
-        </div>
-        <div class="form-group">
-          <label>Notes</label>
-          <input id="bom-notes" placeholder="Optional">
-        </div>
-      </div>
-
-      <!-- Current BOM version info -->
-      <div id="bom-current-info" style="margin-bottom:10px;font-size:12px;color:var(--text-3)"></div>
-
-      <!-- Ingredient rows table -->
-      <div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:12px;font-weight:600">Ingredients</span>
-          <button class="btn btn-xs btn-outline" onclick="addBomIngRow()">+ Add Row</button>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead>
-            <tr style="background:var(--surface);border-bottom:1px solid var(--border)">
-              <th style="padding:6px 8px;text-align:left;font-weight:600;font-size:11px">Ingredient Code</th>
-              <th style="padding:6px 8px;text-align:right;font-weight:600;font-size:11px">Grams in batch</th>
-              <th style="padding:6px 8px;width:32px"></th>
-            </tr>
-          </thead>
-          <tbody id="bom-ing-rows"></tbody>
-        </table>
-        <div style="font-size:11px;color:var(--text-3);margin-top:4px" id="bom-total-g"></div>
-      </div>
-
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="saveBom()">Save BOM</button>
-        <button class="btn btn-outline" onclick="toggleBomPanel()">Cancel</button>
-      </div>
-    </div>
-  </div>
+  <!-- BOM (recipe) relocated to Admin/Owner → renderBomSetup() -->
 
   <!-- ── NEW WORK ORDER FORM (collapsible) ───────────────── -->
   <div id="wo-form-panel" style="display:none" class="card mb-16" style="border-left:4px solid var(--mac-blue)">
@@ -7472,7 +7545,7 @@ async function renderProduction() {
   <!-- ── PRODUCTION WORKFLOW GUIDE ───────────────────────── -->
   <div style="background:#f8f9ff;border:1px solid #dde3f5;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span style="font-size:12px;font-weight:600;color:var(--text-2);margin-right:4px">How to complete a production run:</span>
-    <span style="font-size:12px;background:#f5f0ff;color:#7c3aed;border:1px solid #d4c2f7;border-radius:4px;padding:2px 8px;white-space:nowrap;cursor:pointer" onclick="openBomForProduct((state.ref.products||[{code:''}])[0].code)">0. Setup BOM ↑</span>
+    <span style="font-size:12px;background:#f5f0ff;color:#7c3aed;border:1px solid #d4c2f7;border-radius:4px;padding:2px 8px;white-space:nowrap;cursor:pointer" onclick="nav('bom')">0. Setup BOM (Admin → BOM / Recipe)</span>
     <span style="font-size:12px;color:var(--text-3)">→</span>
     <span style="font-size:12px;background:#f0f4ff;color:#3563e9;border:1px solid #c7d4f7;border-radius:4px;padding:2px 8px;white-space:nowrap">1. Create Work Order</span>
     <span style="font-size:12px;color:var(--text-3)">→</span>
