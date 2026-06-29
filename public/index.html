@@ -857,11 +857,17 @@ function setTopbarUser(u) {
   if (avatar) avatar.textContent = (u.displayName || u.username || 'U')[0].toUpperCase();
 }
 
+// Owner (super_user) and admin both count as "admin" in the UI.
+function isAdminRole() {
+  const r = state.currentUser && state.currentUser.role;
+  return r === 'admin' || r === 'super_user';
+}
+
 function canAccess(pageId) {
   const u = state.currentUser;
   if (!u) return false;
   if (pageId === 'home') return true;            // home is the universal landing
-  if (u.role === 'admin') return true;           // admin always has full access
+  if (u.role === 'admin' || u.role === 'super_user') return true;   // admin/owner have full access
   // Admin/Owner-only pages
   const adminPages = new Set([
     'users','price-master','master-data','payroll','audit',
@@ -883,7 +889,7 @@ function canAccess(pageId) {
 function applyRoleUI(role) {
   const u = state.currentUser;
   const perms = (u && u.permissions) || [];
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'admin' || role === 'super_user';
 
   // Admin-only nav items (master data + pricing + system all under Admin/Owner section)
   const adminOnlyIds = [
@@ -1423,7 +1429,7 @@ async function _updateRqBadge() {
 // ═══════════════════════════════════════════════════════════════
 async function renderHome() {
   const u = state.currentUser || {};
-  const isAdmin = u.role === 'admin';
+  const isAdmin = u.role === 'admin' || u.role === 'super_user';
   const hr = new Date().getHours();
   const greet = hr < 12 ? 'Good morning' : (hr < 17 ? 'Good afternoon' : 'Good evening');
   const name = u.username || u.name || '';
@@ -1762,7 +1768,7 @@ function _buildCustomerRows(custs) {
         <button class="btn btn-outline btn-xs" style="margin-left:3px" onclick="viewCustomerStatement(${c.id},'${c.name.replace(/'/g,"\\'")}')">📄 Statement</button>
         <button class="btn btn-outline btn-xs" style="margin-left:3px" onclick="editCustomer(${c.id})">Edit</button>
         ${bal > 0 && c.active ? `<button class="btn btn-primary btn-xs" style="margin-left:3px" onclick="quickPay(${c.id},'${c.name.replace(/'/g,'&#39;')}',${bal})">💰 Pay</button>` : ''}
-        ${state.currentUser?.role === 'admin' ? (c.active
+        ${isAdminRole() ? (c.active
           ? `<button class="btn btn-xs" style="margin-left:3px;background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili)" onclick="toggleCustomerActive(${c.id},'${c.name.replace(/'/g,"\\'")}',false)">Deactivate</button>`
           : `<button class="btn btn-xs" style="margin-left:3px;background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="toggleCustomerActive(${c.id},'${c.name.replace(/'/g,"\\'")}',true)">Activate</button>`) : ''}
       </td>
@@ -2544,7 +2550,7 @@ async function renderOrdersInvoices() {
     return '<span class="filter-chip ' + active + '" onclick="_setInvFilter(\'' + f + '\')">' + invStatusLabels[f] + ' <span style="opacity:.7;font-size:11px">' + count + '</span></span>';
   }).join('');
 
-  const _isAdminOrAccOI = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
+  const _isAdminOrAccOI = state.currentUser && (isAdminRole() || state.currentUser.role === 'accountant');
   const invTableRows = filteredInvs.map(inv => {
     const isVoid    = inv.status === 'VOID';
     const isOverdue = !isVoid && inv.status !== 'PAID' && inv.due_date && inv.due_date < todayStr2;
@@ -2998,7 +3004,7 @@ function _renderOrderDetail(o) {
   }).join('');
 
   // Work orders table — with inline status controls
-  const isAdmin = state.currentUser?.role === 'admin';
+  const isAdmin = isAdminRole();
   const woRows = o.workOrders.length ? o.workOrders.map(w => {
     const canStart   = w.status === 'planned';
     const canReset   = w.status === 'in_progress' && isAdmin;
@@ -3024,7 +3030,7 @@ function _renderOrderDetail(o) {
   }).join('') : '<tr><td colspan="6" style="color:var(--text-3);padding:12px">No work orders yet</td></tr>';
 
   // Invoices table — full detail with inline pay
-  const _isAdminOrAcc = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
+  const _isAdminOrAcc = state.currentUser && (isAdminRole() || state.currentUser.role === 'accountant');
   const invRows = o.invoices.length ? o.invoices.map(inv => {
     const canPay  = (inv.status === 'UNPAID' || inv.status === 'PARTIAL') && (inv.balance || 0) > 0;
     const canVoid = _isAdminOrAcc && (inv.status === 'UNPAID' || inv.status === 'PARTIAL');
@@ -3360,7 +3366,7 @@ function guardEditOrder(orderId, productionInProgress) {
         <div style="display:flex;gap:10px;justify-content:center">
           <button class="btn btn-outline" onclick="document.getElementById('prod-guard-modal').remove()"
             style="min-width:110px">Cancel</button>
-          ${(state.currentUser && state.currentUser.role === 'admin') ? `
+          ${(state.currentUser && isAdminRole()) ? `
           <button class="btn" style="background:#b45309;color:#fff;min-width:160px"
             onclick="
               document.getElementById('prod-guard-modal').remove();
@@ -3870,7 +3876,7 @@ async function saveSale() {
 //  INVOICES
 // ═══════════════════════════════════════════════════════════════
 function _renderInvoiceRows(invs) {
-  const _isAdminAcct = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
+  const _isAdminAcct = state.currentUser && (isAdminRole() || state.currentUser.role === 'accountant');
   if (!invs || !invs.length) return '<tr><td colspan="12" style="text-align:center;color:var(--text-3);padding:20px">No invoices match the current filters</td></tr>';
   return invs.map(inv => {
     const canVoid = _isAdminAcct && (inv.status === 'UNPAID' || inv.status === 'PARTIAL');
@@ -3994,7 +4000,7 @@ async function showInvoiceDetail(invId) {
 function _renderInvoiceDetail(inv) {
   const invId     = inv.id;
   const canEdit   = inv.status === 'UNPAID' || inv.status === 'PARTIAL';
-  const _canAdjustInv = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
+  const _canAdjustInv = state.currentUser && (isAdminRole() || state.currentUser.role === 'accountant');
   const prodOptions = (state.ref.products||[]).flatMap(p =>
     (p.variants||[]).map(v => `<option value="${p.code}|${v.pack_size}">${p.name} — ${v.pack_size}</option>`)
   ).join('');
@@ -4671,7 +4677,7 @@ async function renderARAging() {
 //  SUPPLIERS
 // ═══════════════════════════════════════════════════════════════
 async function renderSuppliers() {
-  const isAdmin = state.currentUser?.role === 'admin';
+  const isAdmin = isAdminRole();
   const [sups, zones] = await Promise.all([
     isAdmin ? GET('/api/admin/suppliers') : GET('/api/suppliers'),
     GET('/api/zones')
@@ -4706,7 +4712,7 @@ async function renderSuppliers() {
       <td>${s.address||'—'}</td>
       <td style="text-align:center;white-space:nowrap">
         <button class="btn btn-sm btn-outline" onclick="editSupplier(${s.id})">Edit</button>
-        ${state.currentUser?.role === 'admin' ? (s.active_flag
+        ${isAdminRole() ? (s.active_flag
           ? `<button class="btn btn-sm" style="margin-left:4px;background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili)" onclick="toggleSupplierActive(${s.id},'${(s.name||'').replace(/'/g,"\\'")}',false)">Deactivate</button>`
           : `<button class="btn btn-sm" style="margin-left:4px;background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="toggleSupplierActive(${s.id},'${(s.name||'').replace(/'/g,"\\'")}',true)">Activate</button>`) : ''}
       </td>
@@ -5806,7 +5812,7 @@ async function copyPOText(poId) {
 }
 
 function _renderBillRows(bills) {
-  const _isAdminAcctB = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
+  const _isAdminAcctB = state.currentUser && (isAdminRole() || state.currentUser.role === 'accountant');
   if (!bills || !bills.length) return '<tr><td colspan="10" style="text-align:center;color:var(--text-3);padding:20px">No bills match the current filters</td></tr>';
   return bills.map(b => {
     const canVoidBill = _isAdminAcctB && (b.status === 'UNPAID' || b.status === 'PARTIAL');
@@ -6103,7 +6109,7 @@ async function showBillDetail(billId) {
 function _renderBillDetail(bill) {
   _lastBillData = bill;
   const billId = bill.id;
-  const _canAdjustBill = state.currentUser && (state.currentUser.role === 'admin' || state.currentUser.role === 'accountant');
+  const _canAdjustBill = state.currentUser && (isAdminRole() || state.currentUser.role === 'accountant');
   const itemRows = (bill.items||[]).map(i => `
     <tr style="border-top:1px solid var(--border)">
       <td style="padding:7px 10px;font-family:monospace;font-size:12px">${i.ing_code}</td>
@@ -6789,7 +6795,7 @@ async function findIngredientDuplicates() {
 
 async function renderInventory() {
   const ings    = await GET('/api/ingredients');
-  const isAdmin = state.currentUser?.role === 'admin';
+  const isAdmin = isAdminRole();
 
   // ── RM KPIs ──────────────────────────────────────────────────────
   const rmTotal   = ings.length;
@@ -7078,7 +7084,7 @@ function _invKpi(label, value, sub, color) {
 
 function switchInvTab(tab) {
   const role = state.currentUser?.role || '';
-  if (tab === 'rm' && role !== 'admin') tab = 'fg';
+  if (tab === 'rm' && role !== 'admin' && role !== 'super_user') tab = 'fg';
   _invTab = tab;
   const rmPane = document.getElementById('inv-pane-rm');
   const fgPane = document.getElementById('inv-pane-fg');
@@ -7289,7 +7295,7 @@ async function renderProduction() {
         <button class="btn btn-xs btn-outline" onclick="event.stopPropagation();showProcurementList(${wo.id},'${wo.wo_number}')" title="Ingredient &amp; Procurement List">📋 Cost &amp; Procure</button>
         ${canConvert ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="event.stopPropagation();convertWoToBatch(${wo.id},'${wo.wo_number}')" title="Mark production complete and record the batch">✓ Complete &amp; Record Batch</button>` : ''}
         ${canStart   ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron)" onclick="event.stopPropagation();setWoStatus(${wo.id},'in_progress')" title="Mark this work order as In Progress — production has started">▶ Start Production</button>` : ''}
-        ${canReset && state.currentUser?.role === 'admin' ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--saffron-deep)" onclick="event.stopPropagation();resetWoToPlanned(${wo.id},'${wo.wo_number}')" title="Reset back to Planned — production has not started yet">↩ Reset to Planned</button>` : ''}
+        ${canReset && isAdminRole() ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--saffron-deep)" onclick="event.stopPropagation();resetWoToPlanned(${wo.id},'${wo.wo_number}')" title="Reset back to Planned — production has not started yet">↩ Reset to Planned</button>` : ''}
         ${canConvert ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="event.stopPropagation();editWorkOrder(${wo.id},'${wo.wo_number}',${wo.qty_units},'${wo.target_date||''}','${(wo.notes||'').replace(/'/g,"\\'")}')">Edit</button>` : ''}
         ${canCancel  ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="event.stopPropagation();setWoStatus(${wo.id},'cancelled')">✕</button>` : ''}
       </td>
@@ -8690,7 +8696,7 @@ async function renderProducts() {
   });
 
   // Build one card per product
-  const isAdmin = state.currentUser?.role === 'admin';
+  const isAdmin = isAdminRole();
   let panels = '';
   Object.entries(groups).forEach(([name, grp]) => {
     grp.items.sort((a, b) => {
@@ -9301,7 +9307,7 @@ function closeRecipeForm() {
 //  PRICES
 // ═══════════════════════════════════════════════════════════════
 async function renderPrices() {
-  const isAdmin = state.currentUser?.role === 'admin';
+  const isAdmin = isAdminRole();
   const prods = state.ref.products || [];
 
   // Fetch all prices in parallel
@@ -9562,7 +9568,7 @@ function editPrice(variantId, priceMap) {
 let _pcTab = 'standard'; // 'standard' | 'ingredients' | 'config' | 'history' | 'alerts' | 'variance'
 
 function canEditCosts() {
-  return state.currentUser?.role === 'admin';
+  return isAdminRole();
 }
 
 function _pcSwitchTab(tab) {
@@ -10873,7 +10879,7 @@ const _ROLE_DEFAULTS = {
 function _pmRoleChange(prefix, role) {
   const section = document.getElementById(prefix + '-perm-section');
   if (!section) return;
-  if (role === 'admin') { section.style.display = 'none'; return; }
+  if (role === 'admin' || role === 'super_user') { section.style.display = 'none'; return; }
   section.style.display = '';
   // Pre-check role defaults only if no boxes are currently checked
   const anyChecked = ALL_MODULES.some(function(m) {
@@ -10890,7 +10896,7 @@ function _pmRoleChange(prefix, role) {
 }
 
 async function renderUsers() {
-  if (!state.currentUser || state.currentUser.role !== 'admin') {
+  if (!state.currentUser || !isAdminRole()) {
     return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
   }
   const ROLE_COLORS = {
@@ -10908,7 +10914,7 @@ async function renderUsers() {
     try { perms = JSON.parse(u.permissions || '[]'); } catch(e) {}
     const rc = ROLE_COLORS[u.role] || ROLE_COLORS.user;
     const rl = ROLE_LABELS[u.role] || u.role;
-    const permSummary = (u.role === 'admin')
+    const permSummary = (u.role === 'admin' || u.role === 'super_user')
       ? '<span style="color:var(--cardamom);font-size:12px">Full access</span>'
       : (u.role === 'user')
         ? (perms.length === 0
@@ -12237,7 +12243,7 @@ async function finalizePayslip(repId, period) {
 // ═══════════════════════════════════════════════════════════════════
 
 async function renderIngredientsAdmin() {
-  if (!state.currentUser || state.currentUser.role !== 'admin') {
+  if (!state.currentUser || !isAdminRole()) {
     return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
   }
   const ings = await GET('/api/admin/ingredients');
@@ -12545,7 +12551,7 @@ async function uploadMaster(type) {
 // ═══════════════════════════════════════════════════════════════════
 
 async function renderSystem() {
-  if (!state.currentUser || state.currentUser.role !== 'admin') {
+  if (!state.currentUser || !isAdminRole()) {
     return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
   }
 
