@@ -1,2 +1,2 @@
-build: 2026-06-29 model-b-actual-margin
+build: 2026-06-29 model-b-inline-price
 has_gtin: true

@@ -10339,8 +10339,8 @@ class Handler(BaseHTTPRequestHandler):
 
             # POST /api/prices  (admin only)
             if path == '/api/prices':
-                if not require(sess, 'admin'):
-                    send_error(self, 'Permission denied', 403); return
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
                 result = set_product_price(data)
                 send_json(self, result)
                 return
