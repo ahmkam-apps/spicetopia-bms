@@ -1,2 +1,2 @@
-build: 2026-06-29 mrp-guidance
+build: 2026-06-29 costing-overview
 has_gtin: true
