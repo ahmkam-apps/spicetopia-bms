@@ -1056,10 +1056,11 @@ def today():
 #  RBAC — ROLES AND PERMISSION HELPER
 # ═══════════════════════════════════════════════════════════════════
 
-VALID_ROLES = ('admin', 'sales', 'warehouse', 'accountant', 'field_rep', 'user')
+VALID_ROLES = ('super_user', 'admin', 'sales', 'warehouse', 'accountant', 'field_rep', 'user')
 
 # Role hierarchy for display / UI
 ROLE_LABELS = {
+    'super_user':  'Owner (Super User)',
     'admin':       'Administrator',
     'sales':       'Sales',
     'warehouse':   'Warehouse',
@@ -1070,11 +1071,30 @@ ROLE_LABELS = {
 
 def require(sess, *roles):
     """Return True iff the session's role is one of the given roles.
-    Always False if sess is None.  Usage:
+    super_user (the owner) satisfies every role check. Always False if sess is None.
         if not require(sess, 'admin', 'sales'):
             send_error(self, 'Permission denied', 403); return
     """
+    if sess and sess.get('role') == 'super_user':
+        return True
     return bool(sess and sess.get('role') in roles)
+
+
+def has_permission(sess, key):
+    """Granular permission check. super_user has everything; otherwise the named
+    permission key must be in the user's permissions list (users.permissions JSON,
+    read fresh from the DB). Used to gate delegated areas (costs.*, recipe.*,
+    planning.access, …) without touching role gates."""
+    if not sess:
+        return False
+    if sess.get('role') == 'super_user':
+        return True
+    try:
+        row = qry1("SELECT permissions FROM users WHERE id=?", (sess.get('user_id'),))
+        perms = json.loads(row['permissions']) if row and row.get('permissions') else []
+        return key in perms
+    except Exception:
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════

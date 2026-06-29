@@ -55,9 +55,10 @@ def today():
 
 # ── RBAC ──────────────────────────────────────────────────────────────────────
 
-VALID_ROLES = ('admin', 'sales', 'warehouse', 'accountant', 'field_rep', 'user')
+VALID_ROLES = ('super_user', 'admin', 'sales', 'warehouse', 'accountant', 'field_rep', 'user')
 
 ROLE_LABELS = {
+    'super_user':  'Owner (Super User)',
     'admin':       'Administrator',
     'sales':       'Sales',
     'warehouse':   'Warehouse',

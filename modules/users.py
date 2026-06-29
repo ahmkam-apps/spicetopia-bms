@@ -48,6 +48,7 @@ def ensure_users_table():
         for col_sql in [
             "ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE users ADD COLUMN auth_scheme TEXT NOT NULL DEFAULT 'sha256'",
+            "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0",
         ]:
             try:
                 c.execute(col_sql)
@@ -75,6 +76,21 @@ def ensure_users_table():
         else:
             print(f"  ✓ Users: {count} user(s) configured")
 
+        # Seed the owner (super_user) account if none exists — forced password change on first login.
+        su_count = c.execute("SELECT COUNT(*) FROM users WHERE role='super_user'").fetchone()[0]
+        if su_count == 0:
+            if _ARGON2_AVAILABLE:
+                su_hash = _argon2.hash('changeme'); su_salt = ''; su_scheme = 'argon2id'
+            else:
+                su_salt = secrets.token_hex(16)
+                su_hash = hashlib.sha256((su_salt + 'changeme').encode()).hexdigest(); su_scheme = 'sha256'
+            c.execute("""
+                INSERT INTO users (username, display_name, password_hash, salt, role, permissions, auth_scheme, must_change_password)
+                VALUES ('owner', 'Owner', ?, ?, 'super_user', '[]', ?, 1)
+            """, (su_hash, su_salt, su_scheme))
+            c.commit()
+            print("  ✓ Users: owner (super_user) seeded  →  owner / changeme  (must change password on first login)")
+
         c.commit()
     finally:
         c.close()
@@ -97,7 +113,7 @@ def create_user(data, requesting_role):
     Optional: displayName, role (default 'user'), permissions (list of extra permission strings).
     Valid roles: admin, sales, warehouse, accountant, field_rep, user.
     """
-    if requesting_role != 'admin':
+    if requesting_role not in ('admin', 'super_user'):
         raise ValueError("Only admins can create users")
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
@@ -111,6 +127,8 @@ def create_user(data, requesting_role):
     role = data.get('role', 'user')
     if role not in VALID_ROLES:
         role = 'user'
+    if role == 'super_user' and requesting_role != 'super_user':
+        raise ValueError("Only the owner (super user) can create another super user")
     disp       = data.get('displayName', username).strip() or username
     perms      = data.get('permissions', [])
     if not isinstance(perms, list):
