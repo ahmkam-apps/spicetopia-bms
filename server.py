@@ -7978,7 +7978,15 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/ingredients/duplicates':
                 if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
-                send_json(self, find_duplicate_ingredients())
+                try:
+                    import time as _t
+                    _t0 = _t.time()
+                    _dups = find_duplicate_ingredients()
+                    print(f"  [duplicates] found {len(_dups)} group(s) in {_t.time()-_t0:.2f}s")
+                    send_json(self, _dups)
+                except Exception as _e:
+                    import traceback; traceback.print_exc()
+                    send_error(self, 'Duplicate scan failed: ' + str(_e), 500)
                 return
 
             # GET /api/products/next-blend-code?prefix=GM  — peek next GM-BC-xxx code (admin)

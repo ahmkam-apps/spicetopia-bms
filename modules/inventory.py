@@ -456,14 +456,14 @@ def find_duplicate_ingredients():
     except Exception:
         stock = {}
 
-    # Discover referencing tables in ONE query (pragma_table_info table-valued fn);
-    # fall back to the known set if that SQLite build doesn't support it.
+    # The known tables that carry an ingredient_id, filtered to those that exist.
+    # (Plain queries only — no pragma_table_info table-valued joins.)
     try:
-        ref_tables = [r['tbl'] for r in qry(
-            "SELECT DISTINCT m.name AS tbl FROM sqlite_master m, pragma_table_info(m.name) p "
-            "WHERE m.type='table' AND p.name='ingredient_id' AND m.name<>'ingredients'")]
+        existing = {r['name'] for r in qry("SELECT name FROM sqlite_master WHERE type='table'")}
     except Exception:
-        ref_tables = ['bom_items', 'inventory_ledger', 'supplier_bill_items', 'ingredient_price_history']
+        existing = set()
+    ref_tables = [t for t in ('bom_items', 'inventory_ledger', 'supplier_bill_items',
+                              'ingredient_price_history') if t in existing]
 
     LABELS = {'bom_items': 'recipes', 'inventory_ledger': 'movements',
               'supplier_bill_items': 'bills', 'ingredient_price_history': 'price_history'}
