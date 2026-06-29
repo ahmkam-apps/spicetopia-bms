@@ -429,11 +429,14 @@ def find_duplicate_ingredients():
     use and which holds the right cost before merging. READ-ONLY and defensive:
     a few aggregate queries only (never per-row), never raises."""
     import re as _re
+    print("  [dup] enter", flush=True)
     try:
         rows = qry("SELECT id, code, name, COALESCE(cost_per_kg,0) AS cost_per_kg, "
                    "COALESCE(active,1) AS active FROM ingredients")
-    except Exception:
+    except Exception as _e:
+        print("  [dup] ingredients query failed:", _e, flush=True)
         return []
+    print(f"  [dup] {len(rows)} ingredients loaded", flush=True)
 
     def _norm(n):
         return _re.sub(r'[^a-z0-9]', '', (n or '').lower())
@@ -444,6 +447,7 @@ def find_duplicate_ingredients():
         if k:
             groups.setdefault(k, []).append(r)
     dup_groups = {k: v for k, v in groups.items() if len(v) >= 2}
+    print(f"  [dup] {len(dup_groups)} duplicate group(s)", flush=True)
     if not dup_groups:
         return []
 
@@ -453,8 +457,10 @@ def find_duplicate_ingredients():
     # Stock (one query, balance per ingredient).
     try:
         stock = get_stock_map()
-    except Exception:
+    except Exception as _e:
+        print("  [dup] get_stock_map failed:", _e, flush=True)
         stock = {}
+    print("  [dup] stock loaded; discovering ref tables", flush=True)
 
     # The known tables that carry an ingredient_id, filtered to those that exist.
     # (Plain queries only — no pragma_table_info table-valued joins.)
@@ -464,6 +470,7 @@ def find_duplicate_ingredients():
         existing = set()
     ref_tables = [t for t in ('bom_items', 'inventory_ledger', 'supplier_bill_items',
                               'ingredient_price_history') if t in existing]
+    print(f"  [dup] ref tables: {ref_tables}", flush=True)
 
     LABELS = {'bom_items': 'recipes', 'inventory_ledger': 'movements',
               'supplier_bill_items': 'bills', 'ingredient_price_history': 'price_history'}
@@ -476,7 +483,9 @@ def find_duplicate_ingredients():
             for r in qry('SELECT ingredient_id AS iid, COUNT(*) AS n FROM "%s" '
                          'WHERE ingredient_id IN (%s) GROUP BY ingredient_id' % (t, idlist)):
                 counts.setdefault(r['iid'], {})[label] = r['n']
-        except Exception:
+            print(f"  [dup] counted {t}", flush=True)
+        except Exception as _e:
+            print(f"  [dup] count {t} failed: {_e}", flush=True)
             continue
 
     out = []

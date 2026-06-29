@@ -7978,15 +7978,25 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/ingredients/duplicates':
                 if not sess or sess['role'] != 'admin':
                     send_error(self, 'Permission denied', 403); return
-                try:
-                    import time as _t
-                    _t0 = _t.time()
-                    _dups = find_duplicate_ingredients()
-                    print(f"  [duplicates] found {len(_dups)} group(s) in {_t.time()-_t0:.2f}s")
-                    send_json(self, _dups)
-                except Exception as _e:
-                    import traceback; traceback.print_exc()
-                    send_error(self, 'Duplicate scan failed: ' + str(_e), 500)
+                import threading as _th, time as _t
+                print("  [duplicates] request received", flush=True)
+                _box = {}
+                def _work():
+                    try:
+                        _box['data'] = find_duplicate_ingredients()
+                    except Exception as _e:
+                        import traceback; traceback.print_exc()
+                        _box['err'] = str(_e)
+                _t0 = _t.time()
+                _wt = _th.Thread(target=_work, daemon=True); _wt.start(); _wt.join(15)
+                if _wt.is_alive():
+                    print(f"  [duplicates] TIMED OUT after {_t.time()-_t0:.1f}s", flush=True)
+                    send_error(self, 'Duplicate scan timed out (>15s) — likely a DB lock or data-volume issue', 504)
+                elif 'err' in _box:
+                    send_error(self, 'Duplicate scan failed: ' + _box['err'], 500)
+                else:
+                    print(f"  [duplicates] returned {len(_box.get('data', []))} group(s) in {_t.time()-_t0:.2f}s", flush=True)
+                    send_json(self, _box.get('data', []))
                 return
 
             # GET /api/products/next-blend-code?prefix=GM  — peek next GM-BC-xxx code (admin)
