@@ -9637,6 +9637,7 @@ async function renderPricesCosts() {
       <td>${bomBadge}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.rm_cost) : '—'}</td>
       <td class="text-right">${c.has_bom && c.wastage_adj > 0 ? fmtPKR(c.wastage_adj) : '—'}</td>
+      <td class="text-right">${c.has_bom ? fmtPKR(c.overhead||0) + ' <span style="color:var(--text-3);font-size:11px">(' + (c.overhead_pct_of_cost||0) + '% of cost)</span>' : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.cost_to_make) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.direct_sale) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.distributor) : '—'}</td>
@@ -9644,7 +9645,7 @@ async function renderPricesCosts() {
       <td class="text-right" style="${flagStyle}">${c.has_bom ? (c.gross_margin_pct||0).toFixed(1)+'%' : '—'}</td>
       <td>${c.has_bom && c.below_floor ? '<span style="color:var(--chili);font-size:13px">⚠ Below min profit margin</span>' : ''}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="11" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>`;
+  }).join('') : `<tr><td colspan="13" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>`;
 
   const standardTab = `
   <div id="pc-pane-standard">
@@ -9658,6 +9659,7 @@ async function renderPricesCosts() {
             <th>Code</th><th>Product</th><th>Pack Size</th><th>BOM</th>
             <th class="text-right">RM Cost</th>
             <th class="text-right">Wastage Adj</th>
+            <th class="text-right">Overhead</th>
             <th class="text-right">Cost to Make</th>
             <th class="text-right">Direct Sale</th>
             <th class="text-right">Distributor</th>
@@ -9749,9 +9751,20 @@ SP-ING003,950.00</pre>
   };
 
   const cfgLabels = {
-    packaging_cost_per_unit: { label: 'Packaging Cost per Unit',   unit: 'PKR', note: 'Applied to every unit regardless of pack size', tag: 'per-unit' },
-    labour_cost_per_unit:    { label: 'Labour Cost per Unit',      unit: 'PKR', note: 'Enter ₨/batch ÷ units produced. Update when batch sizes change.', tag: 'per-unit' },
-    overhead_pct:            { label: 'Overhead % of RM Cost',     unit: '%',   note: 'Covers utilities e.g. gas, electricity', scale: 100, tag: 'pct' },
+    // ── Packaging (₨/pack) ──
+    pkg_pouch:        { label: 'Packaging — Pouch',          unit: 'PKR', note: 'Cost of the pouch, per pack', tag: 'per-unit' },
+    pkg_label:        { label: 'Packaging — Adhesive Label', unit: 'PKR', note: 'Label cost, per pack', tag: 'per-unit' },
+    pkg_carton:       { label: 'Packaging — Master Carton',  unit: 'PKR', note: 'Per-pack share of the master carton', tag: 'per-unit' },
+    // ── Conversion (₨/pack) ──
+    conv_labour:      { label: 'Conversion — Labour',        unit: 'PKR', note: 'Labour to fill/seal one pack', tag: 'per-unit' },
+    conv_electricity: { label: 'Conversion — Electricity',   unit: 'PKR', note: 'Electricity, per pack', tag: 'per-unit' },
+    conv_gas:         { label: 'Conversion — Gas',           unit: 'PKR', note: 'Gas (cylinder), per pack', tag: 'per-unit' },
+    conv_rent:        { label: 'Conversion — Rent',          unit: 'PKR', note: 'Per-pack share of factory rent', tag: 'per-unit' },
+    // ── Overhead (₨/pack) — % of cost shown per SKU on Standard Costs ──
+    ovh_transport:    { label: 'Overhead — Transport',       unit: 'PKR', note: 'Transport, per pack', tag: 'per-unit' },
+    ovh_salaries:     { label: 'Overhead — Salaries',        unit: 'PKR', note: 'Per-pack share of salaries', tag: 'per-unit' },
+    ovh_admin:        { label: 'Overhead — Admin',           unit: 'PKR', note: 'Per-pack share of admin expenses', tag: 'per-unit' },
+    // ── Pricing multipliers ──
     margin_mfr:              { label: 'Direct Sale Margin',        unit: '×',   note: 'Direct Sale = Cost to Make × this multiplier', tag: 'pricing' },
     margin_dist:             { label: 'Distributor Margin',        unit: '×',   note: 'Distributor price = Direct Sale × this', tag: 'pricing' },
     margin_mrp:              { label: 'MRP Margin',                unit: '×',   note: 'MRP = Distributor × this', tag: 'pricing' },

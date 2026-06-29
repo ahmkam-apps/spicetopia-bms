@@ -1239,6 +1239,19 @@ def ensure_costing_config():
             ('margin_mrp',              '1.22',  'MRP Margin Multiplier'),
             ('margin_floor_pct',        '30.00', 'Minimum Profit Margin % (alert threshold)'),
             ('labour_cost_per_unit',    '5.00',  'Labour Cost per Unit (Rs)'),
+            # ── Itemized cost lines (₨/pack). Category totals feed compute_standard_cost.
+            #    Seeds carry the legacy lumped values: packaging 15 → pouch; labour 5 → labour.
+            #    Overhead seeded fixed-₨ at 0 (set Transport/Salaries/Admin in Cost Parameters).
+            ('pkg_pouch',        '15.00', 'Packaging — Pouch (Rs/pack)'),
+            ('pkg_label',        '0.00',  'Packaging — Adhesive Label (Rs/pack)'),
+            ('pkg_carton',       '0.00',  'Packaging — Master Carton share (Rs/pack)'),
+            ('conv_labour',      '5.00',  'Conversion — Labour (Rs/pack)'),
+            ('conv_electricity', '0.00',  'Conversion — Electricity (Rs/pack)'),
+            ('conv_gas',         '0.00',  'Conversion — Gas (Rs/pack)'),
+            ('conv_rent',        '0.00',  'Conversion — Rent share (Rs/pack)'),
+            ('ovh_transport',    '0.00',  'Overhead — Transport (Rs/pack)'),
+            ('ovh_salaries',     '0.00',  'Overhead — Salaries share (Rs/pack)'),
+            ('ovh_admin',        '0.00',  'Overhead — Admin share (Rs/pack)'),
         ]
         for key, value, label in defaults:
             c.execute(

@@ -75,13 +75,28 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
     if cfg is None:
         cfg = get_costing_config()
 
-    packaging    = _get_config_val(cfg, 'packaging_cost_per_unit', 15.0)
-    overhead_pct = _get_config_val(cfg, 'overhead_pct', 0.10)
     margin_mfr   = _get_config_val(cfg, 'margin_mfr', 1.30)
     margin_dist  = _get_config_val(cfg, 'margin_dist', 1.10)
     margin_mrp   = _get_config_val(cfg, 'margin_mrp', 1.22)
     floor_pct    = _get_config_val(cfg, 'margin_floor_pct', 30.0)
-    labour       = _get_config_val(cfg, 'labour_cost_per_unit', 5.0)
+
+    # Itemized cost lines (₨/pack) → category totals. If the itemized keys are
+    # present (post-migration) we use their sum even when 0 (deliberate zero);
+    # only fall back to the legacy lumped key when the itemized keys are absent.
+    def _sum_cfg(keys, fallback_key=None, fallback_default=0.0):
+        present = [k for k in keys if k in cfg]
+        if present:
+            return round(sum(_get_config_val(cfg, k, 0.0) for k in keys), 2)
+        return _get_config_val(cfg, fallback_key, fallback_default) if fallback_key else 0.0
+
+    packaging  = _sum_cfg(['pkg_pouch', 'pkg_label', 'pkg_carton'],
+                          'packaging_cost_per_unit', 15.0)
+    conversion = _sum_cfg(['conv_labour', 'conv_electricity', 'conv_gas', 'conv_rent'],
+                          'labour_cost_per_unit', 5.0)
+    _ovh_present   = any(k in cfg for k in ('ovh_transport', 'ovh_salaries', 'ovh_admin'))
+    overhead_lines = _sum_cfg(['ovh_transport', 'ovh_salaries', 'ovh_admin'])
+    overhead_pct   = _get_config_val(cfg, 'overhead_pct', 0.10)  # legacy fallback only
+    labour         = conversion  # 'labour' return slot now carries the full conversion total
 
     variant = qry1("""
         SELECT pv.id, pv.sku_code, p.code as product_code, p.name as product_name,
@@ -112,10 +127,10 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
             'ingredients':  [],
             'rm_cost':      0,
             'wastage_adj':  0,
-            'overhead':     0,
+            'overhead':     overhead_lines,
             'packaging':    packaging,
-            'labour':       labour,
-            'cost_to_make': round(packaging + labour, 2),
+            'labour':       conversion,
+            'cost_to_make': round(packaging + conversion + overhead_lines, 2),
             'direct_sale':  0,
             'distributor':  0,
             'mrp':          0,
@@ -159,8 +174,11 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
         rm_cost_adjusted = rm_cost_raw
     wastage_adj  = round(rm_cost_adjusted - rm_cost_raw, 2)
 
-    overhead     = round(rm_cost_adjusted * overhead_pct, 2)
-    cost_to_make = round(rm_cost_adjusted + overhead + packaging + labour, 2)
+    # Overhead: fixed ₨/pack from the itemized lines (post-migration); only fall
+    # back to the legacy %-of-RM when the itemized overhead keys are absent.
+    overhead     = overhead_lines if _ovh_present else round(rm_cost_adjusted * overhead_pct, 2)
+    cost_to_make = round(rm_cost_adjusted + overhead + packaging + conversion, 2)
+    overhead_pct_of_cost = round(overhead / cost_to_make * 100, 1) if cost_to_make > 0 else 0
     direct_sale  = round(cost_to_make * margin_mfr, 2)
     distributor  = round(direct_sale * margin_dist, 2)
     mrp          = round(distributor * margin_mrp, 2)
@@ -178,6 +196,7 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
         'wastage_adj':      wastage_adj,
         'wastage_pct':      wastage_pct,
         'overhead':         overhead,
+        'overhead_pct_of_cost': overhead_pct_of_cost,
         'packaging':        packaging,
         'labour':           labour,
         'cost_to_make':     cost_to_make,
