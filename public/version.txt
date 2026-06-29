@@ -1,2 +1,2 @@
-build: 2026-06-29 section-hubs-nav-reorg
+build: 2026-06-29 ask-assistant
 has_gtin: true

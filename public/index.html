@@ -664,6 +664,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
   <!-- Right: controls -->
   <div class="topbar-right" style="justify-content:flex-end">
     <span id="topbar-status" style="display:none"></span>
+    <button class="btn btn-primary btn-sm" onclick="askOpen()" title="Ask how to do something — get step-by-step guidance">💬 Ask</button>
     <button class="btn btn-outline btn-sm" onclick="helpOpen(state.page)" title="How this screen works + where it fits">? Help</button>
     <button class="btn btn-outline btn-sm" onclick="refreshAll()">↻ Refresh</button>
     <div class="user-chip">
@@ -1281,6 +1282,56 @@ const HELP = {
     { t:'Where it fits', b:'', flow:{ inn:['Purchase Orders'], out:['AP Payments settle bills','AP aging tracks what you owe'] } }
   ]
 };
+// ── Ask assistant (AI help guide) ──────────────────────────────
+function _askEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _askAllowed() {
+  // Screens this user can actually open — so the assistant only points where they can go.
+  const out = [], seen = {};
+  const add = (id,label) => { if (!seen[id] && canAccess(id)) { seen[id]=true; out.push({id,label}); } };
+  add('dashboard','Dashboard');
+  Object.keys(SECTION_HUBS).forEach(k => SECTION_HUBS[k].items.forEach(it => add(it.id, it.label)));
+  add('planning','Planning & Forecast');
+  return out;
+}
+function askOpen() {
+  let ov = document.getElementById('erp-ask');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id='erp-ask';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-start;justify-content:center;z-index:3000;padding:60px 16px';
+    ov.addEventListener('click', e => { if (e.target===ov) askClose(); });
+    document.body.appendChild(ov);
+  }
+  ov.style.display='flex';
+  ov.innerHTML = '<div style="background:var(--surface,#fff);max-width:560px;width:100%;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">'
+    + '<div style="padding:16px 20px;border-bottom:1px solid var(--border,#eee);display:flex;justify-content:space-between;align-items:center">'
+    + '<strong style="font-size:16px">💬 Ask Spicetopia</strong>'
+    + '<button class="btn btn-outline btn-xs" onclick="askClose()">✕</button></div>'
+    + '<div style="padding:18px 20px">'
+    + '<p style="font-size:13px;color:var(--text-3,#888);margin:0 0 10px">Ask how to do something — e.g. <em>"how do I record a customer payment?"</em></p>'
+    + '<div style="display:flex;gap:8px">'
+    + '<input id="ask-q" class="form-input" style="flex:1" placeholder="Type your question…" onkeydown="if(event.key===\'Enter\')askSubmit()">'
+    + '<button class="btn btn-primary" onclick="askSubmit()">Ask</button></div>'
+    + '<div id="ask-out" style="margin-top:14px"></div>'
+    + '</div></div>';
+  setTimeout(() => { const i=document.getElementById('ask-q'); if (i) i.focus(); }, 50);
+}
+function askClose(){ const ov=document.getElementById('erp-ask'); if (ov) ov.style.display='none'; }
+async function askSubmit() {
+  const i=document.getElementById('ask-q'), out=document.getElementById('ask-out');
+  if (!i || !out) return;
+  const q=i.value.trim(); if (!q) return;
+  out.innerHTML='<div style="color:var(--text-3,#888);font-size:13px">Thinking…</div>';
+  try {
+    const r = await POST('/api/assistant/ask', { question:q, allowed:_askAllowed() });
+    let h='';
+    if (r.answer) h += '<div style="font-weight:600;margin-bottom:8px">'+_askEsc(r.answer)+'</div>';
+    if (r.steps && r.steps.length) h += '<ol style="margin:0 0 12px 18px;padding:0;font-size:14px;line-height:1.65">'+r.steps.map(s=>'<li>'+_askEsc(s)+'</li>').join('')+'</ol>';
+    if (r.navTarget) h += '<button class="btn btn-primary btn-sm" onclick="askClose();nav(\''+r.navTarget+'\')">Take me there →</button>';
+    if (!r.answer && !(r.steps && r.steps.length)) h='<div style="color:var(--text-3,#888)">No answer — try rephrasing, or use ? Help.</div>';
+    out.innerHTML=h;
+  } catch(e) { out.innerHTML='<div style="color:var(--chili,#c00)">Sorry — couldn\'t get an answer just now. Try again.</div>'; }
+}
+
 let _helpKey = '_overview', _helpI = 0;
 function helpOpen(moduleId) {
   _helpKey = (moduleId && HELP[moduleId]) ? moduleId : '_overview';

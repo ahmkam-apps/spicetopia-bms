@@ -2104,6 +2104,98 @@ def _normalise_phone(raw):
     return p if len(p) >= 10 else raw
 
 
+ERP_ASSISTANT_KB = """Spicetopia ERP — what each area is for (the flow is Buy → Make → Sell):
+
+SELL (Sales & AR):
+- orders-invoices: take a customer order (reserves stock), then raise/track its invoice. Start here to "take an order" or "make an invoice".
+- field-orders: orders taken by sales reps out in the field.
+- review-queue: approve or reject pending orders (from the website or reps) before they're confirmed.
+- receipts-aging: record a customer's payment against an invoice, and see who owes money (AR aging).
+
+BUY (Procurement & AP):
+- purchase-orders: order ingredients/materials from a supplier.
+- bills: record the supplier's bill/invoice for what you bought.
+- ap-payments: pay a supplier and allocate the payment to bills.
+- ap-aging: see what you owe suppliers, by age.
+
+MAKE (Operations):
+- inventory: check stock levels, make stock adjustments (in kg), view the movement ledger. Stock only moves via orders/production, never edited directly.
+- production: two-step manufacturing — create a Work Order, then complete it to record a Batch (which produces finished stock). Procurement of ingredients for a work order is calculated here from the BOM.
+
+REPORTS:
+- dashboard: KPIs and charts overview.
+- pl-report: profit & loss by period. margins: gross margin by product. rep-performance: sales by rep.
+- planning: forecasting and scenario planning (opens the Planning tool).
+
+MASTER DATA / ADMIN:
+- customers, suppliers, products, sales-reps, zones-routes: reference data.
+- price-master / prices-costs: pricing and standard costing (cost parameters, margins).
+- bom: the secret recipe (Bill of Materials) — restricted.
+- users: user accounts & permissions. payroll: rep payroll. master-data: bulk CSV/XLSX import. ingredients-admin: ingredient master & costs. audit: change history. system: settings & backup.
+
+Common tasks: "record a payment" → receipts-aging. "take/create an order" → orders-invoices. "make a batch / produce stock" → production. "buy ingredients / raise a PO" → purchase-orders. "approve an order" → review-queue. "add a customer" → customers. "check stock" → inventory."""
+
+
+def erp_assistant_answer(question, allowed=None) -> dict:
+    """In-app help guide. Free-text question → JSON {answer, steps[], navTarget} grounded
+    in the ERP. Read-only guidance only — never performs actions."""
+    import os
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        return {'answer': 'The help assistant isn’t configured yet. Use the ? Help guide for now.',
+                'steps': [], 'navTarget': None, 'error': 'no_api_key'}
+    nav_lines, valid_ids = '', set()
+    if isinstance(allowed, list):
+        for a in allowed:
+            try:
+                _id = a.get('id'); _lbl = a.get('label', '')
+                if _id:
+                    valid_ids.add(_id); nav_lines += f"  - {_id}: {_lbl}\n"
+            except Exception:
+                pass
+    system_prompt = f"""You are the in-app help guide for the Spicetopia ERP. A manager (not a developer) asks how to do a task. Answer with short, concrete steps that match THIS app's screens.
+
+{ERP_ASSISTANT_KB}
+
+Screens THIS user can open (use ONLY these ids for navTarget):
+{nav_lines or '  (no list provided — set navTarget to null)'}
+
+Return ONLY valid JSON, no other text:
+{{"answer": "one short direct sentence", "steps": ["step 1", "step 2"], "navTarget": "<one screen id from the list above, or null>"}}
+
+Rules:
+- Steps must be specific to this ERP and use the real screen names above.
+- navTarget = the single best screen to START the task (an id from the list), or null if unclear / not in the list.
+- If the ERP can't do what they asked, say so honestly in answer, steps=[], navTarget=null.
+- You only GUIDE; never say you performed an action. Max ~6 steps."""
+    try:
+        import urllib.request
+        payload = json.dumps({
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': 700,
+            'system': system_prompt,
+            'messages': [{'role': 'user', 'content': str(question)[:1000]}],
+        }).encode('utf-8')
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages', data=payload,
+            headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+            method='POST')
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = json.loads(resp.read().decode('utf-8'))
+        raw = body['content'][0]['text'].strip()
+        if '{' in raw:
+            raw = raw[raw.find('{'):raw.rfind('}') + 1]
+        out = json.loads(raw)
+    except Exception as e:
+        _log('error', 'assistant_failed', error=str(e))
+        return {'answer': "Sorry — I couldn’t answer that just now. Try the ? Help guide.",
+                'steps': [], 'navTarget': None, 'error': str(e)}
+    nt = out.get('navTarget')
+    if nt and valid_ids and nt not in valid_ids:
+        nt = None
+    return {'answer': out.get('answer', ''), 'steps': out.get('steps') or [], 'navTarget': nt}
+
+
 def parse_whatsapp_order(message: str) -> dict:
     """
     Use Claude API (Haiku) to extract order details from a WhatsApp message.
@@ -9984,6 +10076,16 @@ class Handler(BaseHTTPRequestHandler):
                 if not msg:
                     send_error(self, 'message is required', 400); return
                 send_json(self, parse_whatsapp_order(msg), 200)
+                return
+
+            # POST /api/assistant/ask  — in-app help guide (any logged-in user)
+            if path == '/api/assistant/ask':
+                if not sess:
+                    send_json(self, {'error': 'Unauthorized'}, 401); return
+                q = (data.get('question') or '').strip()
+                if not q:
+                    send_error(self, 'question is required', 400); return
+                send_json(self, erp_assistant_answer(q, data.get('allowed')), 200)
                 return
 
             # POST /api/orders/external  — external order intake (consumer/retailer/field rep)
