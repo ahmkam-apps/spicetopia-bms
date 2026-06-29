@@ -1,2 +1,2 @@
-build: 2026-06-29 cogs-computed-cost
+build: 2026-06-29 model-b-actual-margin
 has_gtin: true

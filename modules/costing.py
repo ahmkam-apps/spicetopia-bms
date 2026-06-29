@@ -62,6 +62,30 @@ def _get_config_val(cfg, key, default):
         return default
 
 
+def _selling_price_for_variant(variant_id):
+    """The ACTUAL selling price from the price book (Model B — price set by market,
+    not by cost). Primary = distributor; falls back to ex_factory → retail_mrp → web.
+    Returns (price, channel_code) or (0.0, None) if no selling price is set."""
+    try:
+        row = qry1("""
+            SELECT pp.price, pt.code
+            FROM product_prices pp
+            JOIN price_types pt ON pt.id = pp.price_type_id
+            WHERE pp.product_variant_id=? AND pp.active_flag=1
+              AND pt.code IN ('distributor','ex_factory','retail_mrp','web')
+            ORDER BY CASE pt.code
+                       WHEN 'distributor' THEN 1 WHEN 'ex_factory' THEN 2
+                       WHEN 'retail_mrp'  THEN 3 WHEN 'web'        THEN 4 ELSE 5 END,
+                     pp.effective_from DESC
+            LIMIT 1
+        """, (variant_id,))
+        if row and (row['price'] or 0) > 0:
+            return (round(float(row['price']), 2), row['code'])
+    except Exception:
+        pass
+    return (0.0, None)
+
+
 # ─────────────────────────────────────────────────────────────────
 #  STANDARD COST COMPUTATION
 # ─────────────────────────────────────────────────────────────────
@@ -137,6 +161,11 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
             'gross_margin_pct': 0,
             'below_floor':  True,
             'wastage_pct':  wastage_pct,
+            'selling_price':    _selling_price_for_variant(variant['id'])[0],
+            'selling_channel':  _selling_price_for_variant(variant['id'])[1],
+            'actual_margin_pct': None,    # no BOM → cost is incomplete, don't claim a margin
+            'actual_below_floor': False,
+            'floor_pct':        _get_config_val(cfg, 'margin_floor_pct', 30.0),
         }
 
     # Scale BOM to 1 unit of this pack size
@@ -184,6 +213,12 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
     mrp          = round(distributor * margin_mrp, 2)
     margin_pct   = round((mrp - cost_to_make) / mrp * 100, 1) if mrp > 0 else 0
 
+    # Model B — measure the REAL margin against the actual selling price (price book),
+    # not the theoretical cost×markup MRP. The computed mrp above is the "suggested" price.
+    sell_price, sell_chan = _selling_price_for_variant(variant['id'])
+    actual_margin_pct  = round((sell_price - cost_to_make) / sell_price * 100, 1) if sell_price > 0 else None
+    actual_below_floor = (actual_margin_pct is not None and actual_margin_pct < floor_pct)
+
     return {
         'productCode':      product_code,
         'productName':      variant['product_name'],
@@ -202,9 +237,14 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
         'cost_to_make':     cost_to_make,
         'direct_sale':      direct_sale,
         'distributor':      distributor,
-        'mrp':              mrp,
-        'gross_margin_pct': margin_pct,
+        'mrp':              mrp,                       # suggested price (cost × markups)
+        'gross_margin_pct': margin_pct,               # margin vs suggested price
         'below_floor':      margin_pct < floor_pct,
+        'selling_price':    sell_price,               # ACTUAL price from the book (0 if none set)
+        'selling_channel':  sell_chan,
+        'actual_margin_pct': actual_margin_pct,       # REAL margin vs actual price (None if no price)
+        'actual_below_floor': actual_below_floor,
+        'floor_pct':        floor_pct,
     }
 
 
