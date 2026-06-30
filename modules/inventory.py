@@ -33,7 +33,6 @@ __all__ = [
     'reactivate_ingredient',
     # Data quality
     'find_duplicate_ingredients',
-    'find_archive_candidates',
     # Bulk import
     'import_ingredients_master',
 ]
@@ -510,83 +509,6 @@ def find_duplicate_ingredients():
         out.append({'name': items[0]['name'], 'count': len(items), 'ingredients': detail})
     out.sort(key=lambda g: (g['name'] or '').lower())
     return out
-
-
-def find_archive_candidates():
-    """READ-ONLY report: active ingredients that are SAFE to archive (deactivate)
-    because they hold zero stock AND are referenced by no recipe (bom_items), no
-    stock movement (inventory_ledger), and no supplier bill (supplier_bill_items).
-    Price-history rows do NOT block archiving (historical cost log only).
-    Returns {candidates:[...], keep:[...], counts:{...}} — never changes data, never raises.
-    Each row carries code, name, cost_per_kg, stock_grams, ref counts, scheme, and a
-    `safe` flag so AK can eyeball exactly what a future archive action would touch."""
-    print("  [arch] enter", flush=True)
-    try:
-        rows = qry("SELECT id, code, name, COALESCE(cost_per_kg,0) AS cost_per_kg, "
-                   "COALESCE(active,1) AS active FROM ingredients WHERE COALESCE(active,1)=1")
-    except Exception as e:
-        print("  [arch] ingredients query failed:", e, flush=True)
-        return {'candidates': [], 'keep': [], 'counts': {}}
-    print(f"  [arch] {len(rows)} active ingredients", flush=True)
-
-    ids = [int(r['id']) for r in rows]
-    idlist = ','.join(str(i) for i in ids) or '0'
-
-    # Stock for ONLY these ingredients (targeted aggregate — avoids a full-ledger GROUP BY).
-    stock = {}
-    try:
-        for r in qry('SELECT ingredient_id AS iid, COALESCE(SUM(qty_grams),0) AS bal '
-                     'FROM inventory_ledger WHERE ingredient_id IN (%s) GROUP BY ingredient_id' % idlist):
-            stock[r['iid']] = r['bal']
-        print("  [arch] stock loaded", flush=True)
-    except Exception as e:
-        print(f"  [arch] stock query failed: {e}", flush=True)
-        stock = {}
-
-    try:
-        existing = {r['name'] for r in qry("SELECT name FROM sqlite_master WHERE type='table'")}
-    except Exception:
-        existing = set()
-    ref_tables = [t for t in ('bom_items', 'inventory_ledger', 'supplier_bill_items') if t in existing]
-    LABELS = {'bom_items': 'recipes', 'inventory_ledger': 'movements', 'supplier_bill_items': 'bills'}
-
-    counts = {}  # {ingredient_id: {label: n}}
-    for t in ref_tables:
-        label = LABELS.get(t, t)
-        try:
-            for r in qry('SELECT ingredient_id AS iid, COUNT(*) AS n FROM "%s" '
-                         'WHERE ingredient_id IN (%s) GROUP BY ingredient_id' % (t, idlist)):
-                counts.setdefault(r['iid'], {})[label] = r['n']
-            print(f"  [arch] counted {t}", flush=True)
-        except Exception as e:
-            print(f"  [arch] count {t} failed: {e}", flush=True)
-            continue
-
-    candidates, keep = [], []
-    for r in rows:
-        rc   = counts.get(r['id'], {})
-        code = r['code'] or ''
-        recs = rc.get('recipes', 0)
-        movs = rc.get('movements', 0)
-        bils = rc.get('bills', 0)
-        stk  = round(stock.get(r['id'], 0), 2)
-        safe = (stk == 0 and recs == 0 and movs == 0 and bils == 0)
-        row = {
-            'id': r['id'], 'code': code, 'name': r['name'] or '',
-            'cost_per_kg': r['cost_per_kg'], 'stock_grams': stk,
-            'recipes': recs, 'movements': movs, 'bills': bils,
-            'scheme': 'ING-…SP' if (code.startswith('ING-') and code.endswith('SP'))
-                      else ('SP-ING…' if code.upper().startswith('SP-ING') else 'other'),
-            'safe': safe,
-        }
-        (candidates if safe else keep).append(row)
-    candidates.sort(key=lambda d: d['code'])
-    keep.sort(key=lambda d: d['code'])
-    return {
-        'candidates': candidates,
-        'keep': keep,
-        'counts': {'active': len(rows), 'safe_to_archive': len(candidates), 'in_use': len(keep)},
-    }
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -7200,39 +7200,49 @@ async function findArchiveCandidates() {
   const panel = document.getElementById('dup-panel'); if (!panel) return;
   panel.innerHTML = '<div class="card" style="padding:14px;color:var(--text-3)">Scanning ingredients…</div>';
   try {
-    const data = await GET('/api/ingredients/archive-candidates');
-    const cands = data.candidates || [];
-    const counts = data.counts || {};
+    // Computed entirely from endpoints the app already loads reliably (no heavy server scan).
+    const ings = await GET('/api/ingredients');                 // active ingredients + stock
+    const recipeCodes = new Set();
+    try {
+      const costs = await GET('/api/costing/standard-costs');   // which codes are used in a BOM
+      (costs || []).forEach(c => (c.ingredients || []).forEach(g => recipeCodes.add((g.code || '').toUpperCase())));
+    } catch(e) { /* best-effort — if costing unavailable, fall back to stock-only */ }
+
+    const scheme = code =>
+      (code.startsWith('ING-') && code.endsWith('SP')) ? 'ING-…SP'
+      : (code.toUpperCase().startsWith('SP-ING') ? 'SP-ING…' : 'other');
+
+    const active = (ings || []).filter(i => i.active !== 0);
+    const cands  = active.filter(i => (i.balanceGrams || 0) === 0 && !recipeCodes.has((i.code || '').toUpperCase()));
+
     const intro = '<div style="font-size:12px;color:var(--text-3);margin-bottom:12px">'
-      + 'Read-only report — nothing is changed. ' + (counts.active||0) + ' active · '
-      + '<strong>' + (counts.safe_to_archive||0) + ' safe to archive</strong> · '
-      + (counts.in_use||0) + ' in use. "Safe" = zero stock AND no recipe, movement, or bill reference.</div>';
+      + 'Read-only — nothing is changed. ' + active.length + ' active · '
+      + '<strong>' + cands.length + ' look unused</strong> (zero stock AND not in any recipe)'
+      + (recipeCodes.size ? '' : ' · ⚠ recipe data unavailable, showing zero-stock only') + '.</div>';
+
     if (!cands.length) {
       panel.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--cardamom)">'
         + '<div style="font-weight:700;margin-bottom:4px">✓ Nothing safe to archive</div>' + intro + '</div>';
       return;
     }
     let h = '<div class="card" style="padding:16px;border-left:3px solid var(--saffron)">'
-      + '<div style="font-weight:700;margin-bottom:4px">🗂 ' + cands.length + ' ingredient' + (cands.length===1?'':'s') + ' safe to archive</div>'
+      + '<div style="font-weight:700;margin-bottom:4px">🗂 ' + cands.length + ' ingredient' + (cands.length===1?'':'s') + ' look unused</div>'
       + intro
       + '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="color:var(--text-3);text-align:left">'
       + '<th style="padding:3px 6px">Code</th><th style="padding:3px 6px">Name</th><th style="padding:3px 6px">Scheme</th>'
       + '<th style="padding:3px 6px;text-align:right">Cost/kg</th><th style="padding:3px 6px;text-align:right">Stock</th>'
-      + '<th style="padding:3px 6px;text-align:right">Recipes</th><th style="padding:3px 6px;text-align:right">Moves</th>'
-      + '<th style="padding:3px 6px;text-align:right">Bills</th></tr></thead><tbody>';
-    cands.forEach(r => {
+      + '<th style="padding:3px 6px">In recipe?</th></tr></thead><tbody>';
+    cands.sort((a,b) => (a.code||'').localeCompare(b.code||'')).forEach(r => {
       h += '<tr style="border-top:1px solid var(--border)">'
         + '<td style="padding:4px 6px;font-family:monospace">' + esc(r.code) + '</td>'
         + '<td style="padding:4px 6px">' + esc(r.name || '—') + '</td>'
-        + '<td style="padding:4px 6px;color:var(--text-3)">' + esc(r.scheme) + '</td>'
+        + '<td style="padding:4px 6px;color:var(--text-3)">' + esc(scheme(r.code || '')) + '</td>'
         + '<td style="padding:4px 6px;text-align:right">' + fmtPKR(r.cost_per_kg) + '</td>'
-        + '<td style="padding:4px 6px;text-align:right">' + fmt(r.stock_grams/1000,3) + ' kg</td>'
-        + '<td style="padding:4px 6px;text-align:right">' + r.recipes + '</td>'
-        + '<td style="padding:4px 6px;text-align:right">' + r.movements + '</td>'
-        + '<td style="padding:4px 6px;text-align:right">' + r.bills + '</td></tr>';
+        + '<td style="padding:4px 6px;text-align:right">0 kg</td>'
+        + '<td style="padding:4px 6px;color:var(--cardamom)">no</td></tr>';
     });
     h += '</tbody></table>'
-      + '<div style="font-size:11px;color:var(--text-3);margin-top:10px">This is a report only. To deactivate these, say the word and I\'ll add a one-click archive action (reversible, after a backup).</div></div>';
+      + '<div style="font-size:11px;color:var(--text-3);margin-top:10px">Report only. To deactivate these, say the word and I\'ll add a one-click archive (reversible, after a backup).</div></div>';
     panel.innerHTML = h;
   } catch(e) {
     panel.innerHTML = '<div class="card" style="padding:14px;color:var(--chili)">Error: ' + esc(e.message) + '</div>';

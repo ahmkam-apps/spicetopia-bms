@@ -1,2 +1,2 @@
-build: 2026-06-29 archive-report-watchdog-fix
+build: 2026-06-29 archive-report-clientside
 has_gtin: true
