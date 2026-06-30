@@ -9892,16 +9892,18 @@ function canEditCosts() {
 
 function _pcSwitchTab(tab) {
   _pcTab = tab;
-  ['overview','standard','ingredients','config','opcosts','variance','history','markups','alerts'].forEach(t => {
-    const btn  = document.getElementById('pc-tab-' + t);
+  // Two top-level views: Overview and Advanced (a hub). All detail panes are reached
+  // from the Advanced hub's cards; the top "Advanced" button returns to the hub.
+  ['overview','advhub','standard','ingredients','config','opcosts','variance','history','markups','alerts'].forEach(t => {
     const pane = document.getElementById('pc-pane-' + t);
-    if (!btn || !pane) return;
-    const active = t === tab;
-    btn.style.cssText  = active
-      ? 'padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--saffron);color:var(--saffron);margin-bottom:-2px'
-      : 'padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-3);margin-bottom:-2px';
-    pane.style.display = active ? 'block' : 'none';
+    if (pane) pane.style.display = (t === tab) ? 'block' : 'none';
   });
+  const A = 'padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--saffron);color:var(--saffron);margin-bottom:-2px';
+  const I = 'padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-3);margin-bottom:-2px';
+  const ov = document.getElementById('pc-tab-overview');
+  const ad = document.getElementById('pc-tab-advanced');
+  if (ov) ov.style.cssText = (tab === 'overview') ? A : I;
+  if (ad) ad.style.cssText = (tab === 'overview') ? I : A;
 }
 
 // Show/hide the advanced cost & price tabs (kept collapsed by default to reduce clutter).
@@ -10537,6 +10539,24 @@ SP-ING003,950.00</pre>
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">' + (ovCards || '<div class="card">No products yet — add products and a BOM to see costs.</div>') + '</div>'
     + setup + '</div>';
 
+  // ── Advanced hub — grouped cards (Set up / Review), not a tab pile ──
+  const _advCard = (pane, title, desc) => '<div class="card" style="padding:14px 16px;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,.12)\'" onmouseleave="this.style.boxShadow=\'\'" onclick="_pcSwitchTab(\'' + pane + '\')"><div style="font-weight:700;margin-bottom:2px">' + title + ' <span style="color:var(--text-3)">→</span></div><div style="font-size:12px;color:var(--text-3)">' + desc + '</div></div>';
+  const advHubTab = '<div id="pc-pane-advhub" style="display:none">'
+    + '<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-3);text-transform:uppercase;margin:2px 0 8px">Set up — what you enter</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:22px">'
+      + _advCard('ingredients','Ingredient Costs','Price per kg of each ingredient')
+      + _advCard('config','Cost Parameters','Packaging, making & overhead per pack')
+      + _advCard('opcosts','Operating Costs','Monthly salaries, utilities, rent…')
+      + _advCard('markups','Markups','Margin % at each trade level')
+    + '</div>'
+    + '<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-3);text-transform:uppercase;margin:2px 0 8px">Review — what you read</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px">'
+      + _advCard('standard','Standard Costs','Full cost & price table per SKU')
+      + _advCard('alerts','Profit Margin Alerts' + alertBadge,'Products below your minimum margin')
+      + _advCard('variance','Batch Variance','Actual vs standard cost per batch')
+      + _advCard('history','Cost History','Log of cost & parameter changes')
+    + '</div></div>';
+
   return `
   <div class="section-header">
     <div>
@@ -10546,24 +10566,13 @@ SP-ING003,950.00</pre>
     <button class="btn btn-outline" onclick="nav('prices-costs')">↺ Refresh</button>
   </div>
 
-  <div style="border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;white-space:nowrap">
-    <button id="pc-tab-overview"    onclick="_pcSwitchTab('overview')"    style="${activeStyle}">Overview</button>
-    <button id="pc-adv-toggle" onclick="_pcToggleAdv()" style="padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text-3)">Advanced ▾</button>
-    <span id="pc-adv-tabs" style="display:none">
-      <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);padding:0 6px 0 4px;text-transform:uppercase">Cost ·</span>
-      <button id="pc-tab-standard"    onclick="_pcSwitchTab('standard')"    style="${inactiveStyle}">Standard Costs</button>
-      <button id="pc-tab-ingredients" onclick="_pcSwitchTab('ingredients')" style="${inactiveStyle}">Ingredient Costs</button>
-      <button id="pc-tab-config"      onclick="_pcSwitchTab('config')"      style="${inactiveStyle}">Cost Parameters</button>
-      <button id="pc-tab-opcosts"     onclick="_pcSwitchTab('opcosts')"     style="${inactiveStyle}">Operating Costs</button>
-      <button id="pc-tab-variance"    onclick="_pcSwitchTab('variance')"    style="${inactiveStyle}">Batch Variance</button>
-      <button id="pc-tab-history"     onclick="_pcSwitchTab('history')"     style="${inactiveStyle}">Cost History</button>
-      <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);padding:0 6px 0 12px;text-transform:uppercase">Price ·</span>
-      <button id="pc-tab-markups"     onclick="_pcSwitchTab('markups')"     style="${inactiveStyle}">Markups</button>
-      <button id="pc-tab-alerts"      onclick="_pcSwitchTab('alerts')"      style="${inactiveStyle}">Profit Margin Alerts${alertBadge}</button>
-    </span>
+  <div style="border-bottom:2px solid var(--border);margin-bottom:20px">
+    <button id="pc-tab-overview" onclick="_pcSwitchTab('overview')" style="${activeStyle}">Overview</button>
+    <button id="pc-tab-advanced" onclick="_pcSwitchTab('advhub')" style="${inactiveStyle}">Advanced${alertBadge}</button>
   </div>
 
   ${overviewTab}
+  ${advHubTab}
   ${standardTab}
   ${ingredientsTab}
   ${configTab}

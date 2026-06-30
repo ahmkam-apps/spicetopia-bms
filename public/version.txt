@@ -1,2 +1,2 @@
-build: 2026-06-29 opcosts-phase1-screen
+build: 2026-06-29 costing-advanced-hub
 has_gtin: true
