@@ -167,6 +167,62 @@ def get_dashboard():
         op_cost_month = 0.0
     net_profit_mtd = r2(r2(sales_month.get('gp', 0)) - op_cost_month)
 
+    # ── Owner-tab analytics ────────────────────────────────────────
+    # 6-month revenue trend (oldest → newest for charting).
+    trend_rows = qry("""
+        SELECT strftime('%Y-%m', sale_date) AS mo,
+               COALESCE(SUM(total),0)        AS revenue,
+               COALESCE(SUM(gross_profit),0) AS gp
+        FROM sales
+        WHERE sale_date >= ?
+        GROUP BY mo ORDER BY mo ASC
+    """, ((today_d.replace(day=1) - timedelta(days=160)).isoformat(),)) or []
+    revenue_trend = [{'month': r['mo'], 'revenue': r2(r['revenue']), 'grossProfit': r2(r['gp'])}
+                     for r in trend_rows][-6:]
+
+    # Top products this month (by revenue).
+    top_products = [{'product': r['product_name'], 'packSize': r['pack_size'],
+                     'units': int(r['units'] or 0), 'revenue': r2(r['revenue'])}
+                    for r in (qry("""
+        SELECT product_name, pack_size,
+               COALESCE(SUM(qty),0)   AS units,
+               COALESCE(SUM(total),0) AS revenue
+        FROM sales WHERE sale_date >= ?
+        GROUP BY product_code, pack_size
+        ORDER BY revenue DESC LIMIT 5
+    """, (month_start,)) or [])]
+
+    # Top customers this month (by revenue).
+    top_customers = [{'name': r['cust_name'], 'customerType': r['customer_type'],
+                      'orders': int(r['cnt'] or 0), 'revenue': r2(r['revenue'])}
+                     for r in (qry("""
+        SELECT cust_name, customer_type,
+               COUNT(DISTINCT invoice_id) AS cnt,
+               COALESCE(SUM(total),0)     AS revenue
+        FROM sales WHERE sale_date >= ?
+        GROUP BY cust_code
+        ORDER BY revenue DESC LIMIT 5
+    """, (month_start,)) or [])]
+
+    # ── Operations-tab: open work orders (to make) ─────────────────
+    open_wos = []
+    try:
+        open_wos = [{'woNumber': w['wo_number'], 'product': w['product_name'],
+                     'packSize': w['pack_size'], 'qty': int(w['qty_units'] or 0),
+                     'status': w['status'], 'targetDate': w.get('target_date') or ''}
+                    for w in (qry("""
+            SELECT wo.wo_number, wo.qty_units, wo.status, wo.target_date,
+                   p.name AS product_name, ps.label AS pack_size
+            FROM work_orders wo
+            JOIN product_variants pv ON pv.id = wo.product_variant_id
+            JOIN products p ON p.id = pv.product_id
+            LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+            WHERE wo.status IN ('planned','in_progress')
+            ORDER BY wo.target_date ASC, wo.created_at ASC LIMIT 20
+        """) or [])]
+    except Exception:
+        open_wos = []
+
     return {
         'salesToday': {
             'count':       int(sales_today.get('cnt', 0)),

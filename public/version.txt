@@ -1,2 +1,2 @@
-build: 2026-06-29 dashboard-accuracy-cogs-cash
+build: 2026-06-29 dashboard-owner-ops-tabs
 has_gtin: true

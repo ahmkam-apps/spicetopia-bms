@@ -1776,6 +1776,49 @@ async function renderHome() {
   return h;
 }
 
+// Dashboard: which tab is showing (persisted within session).
+let _dashTab = 'owner';
+function _dashSwitchTab(which) {
+  _dashTab = which;
+  ['owner','operations'].forEach(t => {
+    const pane = document.getElementById('dash-pane-' + t);
+    if (pane) pane.style.display = (t === which) ? '' : 'none';
+    const btn = document.getElementById('dash-tab-' + t);
+    if (btn) {
+      btn.style.background = (t === which) ? 'var(--saffron)' : 'transparent';
+      btn.style.color      = (t === which) ? '#fff' : 'var(--text-2)';
+      btn.style.fontWeight = (t === which) ? '700' : '500';
+    }
+  });
+}
+function _kShort(v) {
+  v = v || 0;
+  if (Math.abs(v) >= 1000000) return (v/1000000).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1000)    return Math.round(v/1000) + 'k';
+  return String(Math.round(v));
+}
+// 6-month revenue trend as a dependency-free inline SVG bar chart.
+function _dashTrendSvg(trend) {
+  if (!trend || !trend.length) return '<div style="color:var(--text-3);font-size:13px;padding:24px;text-align:center">No sales history yet — bars appear once you record sales.</div>';
+  const MON = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const w = 560, h = 170, padB = 30, padL = 10, padT = 16;
+  const max = Math.max.apply(null, trend.map(t => t.revenue).concat([1]));
+  const n = trend.length;
+  const slot = (w - padL*2) / n;
+  const bw = slot * 0.55;
+  let bars = '';
+  trend.forEach((t, i) => {
+    const bh = (t.revenue / max) * (h - padB - padT);
+    const x = padL + i*slot + (slot - bw)/2;
+    const y = h - padB - bh;
+    const mlabel = MON[parseInt(t.month.slice(5),10)] || t.month.slice(5);
+    bars += '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(bh,1).toFixed(1)+'" rx="3" fill="var(--saffron)"><title>'+t.month+': '+fmtPKR(t.revenue)+'</title></rect>';
+    bars += '<text x="'+(x+bw/2).toFixed(1)+'" y="'+(h-padB+15)+'" text-anchor="middle" font-size="11" fill="var(--text-3)">'+mlabel+'</text>';
+    bars += '<text x="'+(x+bw/2).toFixed(1)+'" y="'+(y-5).toFixed(1)+'" text-anchor="middle" font-size="10" fill="var(--text-2)">'+_kShort(t.revenue)+'</text>';
+  });
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="xMidYMid meet" style="display:block">'+bars+'</svg>';
+}
+
 async function renderDashboard() {
   const dash = await GET('/api/dashboard');
   state.dash = dash;
@@ -1856,80 +1899,160 @@ async function renderDashboard() {
     </div>`;
   }
 
-  return `
-  <!-- ── KPI Tiles ────────────────────────────────────────────── -->
-  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:22px">
+  // ── Owner-tab derived figures ──────────────────────────────────
+  const np      = dash.netProfitMTD || 0;
+  const npColor = np >= 0 ? 'var(--cardamom)' : 'var(--chili)';
+  const opc     = dash.opCostMonth || 0;
+  const npSub   = opc > 0
+    ? `GP ${fmtPKR(sm.grossProfit||0)} − opex ${fmtPKR(opc)}`
+    : 'No operating costs entered this month';
 
-    <div class="card" style="border-top:3px solid var(--saffron);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('orders-invoices')" title="View today's orders">
-      <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Today's Sales</div>
-      <div class="card-value" style="font-size:20px;font-weight:700;color:var(--saffron);margin:6px 0 4px">${fmtPKR(sd.revenue||0)}</div>
-      <div class="card-sub" style="font-size:11px;color:var(--text-3)">${sd.count||0} order${(sd.count||0)===1?'':'s'}</div>
-      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View orders →</div>
+  let topProdRows = '';
+  (dash.topProducts || []).forEach(p => {
+    topProdRows += `<tr><td>${p.product}</td><td>${p.packSize}</td><td class="num text-right">${fmt(p.units,0)}</td><td class="num text-right">${fmtPKR(p.revenue)}</td></tr>`;
+  });
+  let topCustRows = '';
+  (dash.topCustomers || []).forEach(c => {
+    topCustRows += `<tr><td>${c.name}</td><td><span class="badge badge-${(c.customerType||'').toLowerCase()}">${c.customerType||''}</span></td><td class="num text-right">${fmtPKR(c.revenue)}</td></tr>`;
+  });
+  let woRows = '';
+  (dash.openWorkOrders || []).forEach(w => {
+    const stBadge = w.status === 'in_progress' ? '#2563eb' : '#a16207';
+    woRows += `<tr><td>${w.woNumber}</td><td>${w.product} ${w.packSize}</td><td class="num text-right">${fmt(w.qty,0)}</td><td><span style="color:${stBadge};font-size:11px">${w.status.replace('_',' ')}</span></td><td style="font-size:11px;color:var(--text-3)">${w.targetDate||'—'}</td></tr>`;
+  });
+  const trendSvg = _dashTrendSvg(dash.revenueTrend);
+
+  // ── Tab switcher ───────────────────────────────────────────────
+  const tabBar = `
+  <div style="display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0">
+    <button id="dash-tab-owner" onclick="_dashSwitchTab('owner')" style="border:none;border-radius:6px 6px 0 0;padding:8px 18px;cursor:pointer;font-size:13px;background:var(--saffron);color:#fff;font-weight:700">📊 Owner</button>
+    <button id="dash-tab-operations" onclick="_dashSwitchTab('operations')" style="border:none;border-radius:6px 6px 0 0;padding:8px 18px;cursor:pointer;font-size:13px;background:transparent;color:var(--text-2);font-weight:500">🏭 Operations</button>
+  </div>`;
+
+  // ── OWNER pane: financial cockpit ──────────────────────────────
+  const ownerPane = `
+  <div id="dash-pane-owner" style="display:${_dashTab==='owner'?'':'none'}">
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:22px">
+
+      <div class="card" style="border-top:3px solid var(--cardamom);cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('pl-report')" title="View P&amp;L report">
+        <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Revenue (This Month)</div>
+        <div class="card-value" style="font-size:20px;font-weight:700;color:var(--cardamom);margin:6px 0 4px">${fmtPKR(sm.revenue||0)}</div>
+        <div class="card-sub" style="font-size:11px;color:var(--text-3)">${sm.count||0} order${(sm.count||0)===1?'':'s'}</div>
+        <div style="font-size:10px;margin-top:4px;color:${momColor}">${momText}</div>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--cinnamon);cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('margins')" title="View product margins">
+        <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Gross Margin %</div>
+        <div class="card-value" style="font-size:20px;font-weight:700;color:var(--cinnamon);margin:6px 0 4px">${gpm}%</div>
+        <div class="card-sub" style="font-size:11px;color:var(--text-3)">GP: ${fmtPKR(sm.grossProfit||0)}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View margins →</div>
+      </div>
+
+      <div class="card" style="border-top:3px solid ${npColor};cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('prices-costs')" title="Net profit = gross profit − operating costs (this month)">
+        <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Net Profit (Month)</div>
+        <div class="card-value" style="font-size:20px;font-weight:700;color:${npColor};margin:6px 0 4px">${fmtPKR(np)}</div>
+        <div class="card-sub" style="font-size:11px;color:var(--text-3)">${npSub}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">Operating costs →</div>
+      </div>
+
+      <div class="card" style="border-top:3px solid ${cpColor};cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('pl-report')" title="All-time receipts minus supplier payments — not a bank balance">
+        <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Net Cash Flow</div>
+        <div class="card-value" style="font-size:20px;font-weight:700;color:${cpColor};margin:6px 0 4px">${fmtPKR(cp)}</div>
+        <div class="card-sub" style="font-size:11px;color:var(--text-3)">This month: ${fmtPKR(dash.cashFlowMTD||0)}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View P&amp;L →</div>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--mac-blue);cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('ar-aging')" title="View AR aging">
+        <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Receivables (AR)</div>
+        <div class="card-value" style="font-size:20px;font-weight:700;color:var(--mac-blue);margin:6px 0 4px">${fmtPKR(dash.ar.outstanding)}</div>
+        <div class="card-sub" style="font-size:11px;color:var(--text-3)">${dash.ar.unpaidCount} unpaid invoice${dash.ar.unpaidCount===1?'':'s'}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View aging →</div>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--chili);cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('ap-aging')" title="View AP aging">
+        <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Payables (AP)</div>
+        <div class="card-value" style="font-size:20px;font-weight:700;color:var(--chili);margin:6px 0 4px">${fmtPKR(dash.ap.outstanding)}</div>
+        <div class="card-sub" style="font-size:11px;color:var(--text-3)">${dash.ap.unpaidCount} unpaid bill${dash.ap.unpaidCount===1?'':'s'}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View aging →</div>
+      </div>
+
     </div>
 
-    <div class="card" style="border-top:3px solid var(--cardamom);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('pl-report')" title="View P&amp;L report">
-      <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Month-to-Date Sales</div>
-      <div class="card-value" style="font-size:20px;font-weight:700;color:var(--cardamom);margin:6px 0 4px">${fmtPKR(sm.revenue||0)}</div>
-      <div class="card-sub" style="font-size:11px;color:var(--text-3)">${sm.count||0} order${(sm.count||0)===1?'':'s'}</div>
-      <div style="font-size:10px;margin-top:4px;color:${momColor}">${momText}</div>
+    <div class="card" style="margin-bottom:18px">
+      <div class="section-header"><h2>Revenue — last 6 months</h2></div>
+      ${trendSvg}
     </div>
 
-    <div class="card" style="border-top:3px solid var(--cinnamon);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('margins')" title="View product margins">
-      <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Gross Margin %</div>
-      <div class="card-value" style="font-size:20px;font-weight:700;color:var(--cinnamon);margin:6px 0 4px">${gpm}%</div>
-      <div class="card-sub" style="font-size:11px;color:var(--text-3)">GP: ${fmtPKR(sm.grossProfit||0)}</div>
-      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View margins →</div>
-    </div>
-
-    <div class="card" style="border-top:3px solid ${cpColor};cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('pl-report')" title="View P&amp;L report">
-      <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Net Cash Flow</div>
-      <div class="card-value" style="font-size:20px;font-weight:700;color:${cpColor};margin:6px 0 4px">${fmtPKR(cp)}</div>
-      <div class="card-sub" style="font-size:11px;color:var(--text-3)" title="All-time customer receipts minus supplier payments. Not a bank balance — excludes opening balance, salaries, rent and other cash.">All-time: received − paid out</div>
-      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View P&amp;L →</div>
-    </div>
-
-    <div class="card" style="border-top:3px solid var(--mac-blue);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('ar-aging')" title="View AR aging">
-      <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Receivables (AR)</div>
-      <div class="card-value" style="font-size:20px;font-weight:700;color:var(--mac-blue);margin:6px 0 4px">${fmtPKR(dash.ar.outstanding)}</div>
-      <div class="card-sub" style="font-size:11px;color:var(--text-3)">${dash.ar.unpaidCount} unpaid invoice${dash.ar.unpaidCount===1?'':'s'}</div>
-      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View aging →</div>
-    </div>
-
-    <div class="card" style="border-top:3px solid var(--chili);cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('ap-aging')" title="View AP aging">
-      <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Payables (AP)</div>
-      <div class="card-value" style="font-size:20px;font-weight:700;color:var(--chili);margin:6px 0 4px">${fmtPKR(dash.ap.outstanding)}</div>
-      <div class="card-sub" style="font-size:11px;color:var(--text-3)">${dash.ap.unpaidCount} unpaid bill${dash.ap.unpaidCount===1?'':'s'}</div>
-      <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View aging →</div>
-    </div>
-
-  </div>
-
-  <!-- ── Payment Alert Banners ──────────────────────────────────── -->
-  ${alertBanners}
-
-  <div class="grid-3">
-    <div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('inventory')">
-      <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>Finished Goods Stock</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View inventory →</span></div>
-      <table>
-        <thead><tr><th>Product</th><th>Pack</th><th class="text-right">Units</th></tr></thead>
-        <tbody>${fgRows || '<tr><td colspan="3" style="text-align:center;color:var(--text-3)">No finished goods</td></tr>'}</tbody>
-      </table>
-    </div>
-    <div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('inventory')">
-      <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>${alertRows ? '⚠️ Low Stock Alerts' : '✅ Stock Levels'}</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View inventory →</span></div>
-      <table>
-        <thead><tr><th>Code</th><th>Ingredient</th><th class="text-right">Balance</th><th>Reorder</th></tr></thead>
-        <tbody>${alertRows || '<tr><td colspan="4" style="text-align:center;color:var(--cardamom)">All stock levels OK</td></tr>'}</tbody>
-      </table>
-    </div>
-    <div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('customers')">
-      <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>Sales by Customer Type</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View customers →</span></div>
-      <table>
-        <thead><tr><th>Type</th><th class="text-right">Orders</th><th class="text-right">Revenue</th></tr></thead>
-        <tbody>${byTypeHtml || '<tr><td colspan="3" style="text-align:center;color:var(--text-3)">No sales this month</td></tr>'}</tbody>
-      </table>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card">
+        <div class="section-header"><h2>Top Products (this month)</h2></div>
+        <table>
+          <thead><tr><th>Product</th><th>Pack</th><th class="text-right">Units</th><th class="text-right">Revenue</th></tr></thead>
+          <tbody>${topProdRows || '<tr><td colspan="4" style="text-align:center;color:var(--text-3)">No sales this month</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="section-header"><h2>Top Customers (this month)</h2></div>
+        <table>
+          <thead><tr><th>Customer</th><th>Type</th><th class="text-right">Revenue</th></tr></thead>
+          <tbody>${topCustRows || '<tr><td colspan="3" style="text-align:center;color:var(--text-3)">No sales this month</td></tr>'}</tbody>
+        </table>
+      </div>
     </div>
   </div>`;
+
+  // ── OPERATIONS pane: daily ops + chases ────────────────────────
+  const opsPane = `
+  <div id="dash-pane-operations" style="display:${_dashTab==='operations'?'':'none'}">
+    ${alertBanners || ''}
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px">
+      <div class="card" style="border-top:3px solid var(--saffron);cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('orders-invoices')" title="View today's orders">
+        <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Today's Sales</div>
+        <div class="card-value" style="font-size:20px;font-weight:700;color:var(--saffron);margin:6px 0 4px">${fmtPKR(sd.revenue||0)}</div>
+        <div class="card-sub" style="font-size:11px;color:var(--text-3)">${sd.count||0} order${(sd.count||0)===1?'':'s'}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View orders →</div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--mac-blue);cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('ar-aging')" title="Chase overdue receivables">
+        <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">To Collect (AR)</div>
+        <div class="card-value" style="font-size:20px;font-weight:700;color:var(--mac-blue);margin:6px 0 4px">${fmtPKR(dash.ar.outstanding)}</div>
+        <div class="card-sub" style="font-size:11px;color:var(--text-3)">${dash.ar.unpaidCount} unpaid · ${(dash.overdueAR||{}).count||0} overdue</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">Chase →</div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--chili);cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('ap-aging')" title="Bills to pay">
+        <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">To Pay (AP)</div>
+        <div class="card-value" style="font-size:20px;font-weight:700;color:var(--chili);margin:6px 0 4px">${fmtPKR(dash.ap.outstanding)}</div>
+        <div class="card-sub" style="font-size:11px;color:var(--text-3)">${dash.ap.unpaidCount} unpaid · ${(dash.apOverdue||{}).count||0} overdue</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">Pay →</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('production')">
+      <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>To Make — Open Work Orders</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View production →</span></div>
+      <table>
+        <thead><tr><th>WO #</th><th>Product</th><th class="text-right">Units</th><th>Status</th><th>Target</th></tr></thead>
+        <tbody>${woRows || '<tr><td colspan="5" style="text-align:center;color:var(--cardamom)">No open work orders</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('inventory')">
+        <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>Finished Goods Stock</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View inventory →</span></div>
+        <table>
+          <thead><tr><th>Product</th><th>Pack</th><th class="text-right">Units</th></tr></thead>
+          <tbody>${fgRows || '<tr><td colspan="3" style="text-align:center;color:var(--text-3)">No finished goods</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('inventory')">
+        <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>${alertRows ? '⚠️ Low Stock Alerts' : '✅ Stock Levels'}</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View inventory →</span></div>
+        <table>
+          <thead><tr><th>Code</th><th>Ingredient</th><th class="text-right">Balance</th><th>Reorder</th></tr></thead>
+          <tbody>${alertRows || '<tr><td colspan="4" style="text-align:center;color:var(--cardamom)">All stock levels OK</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  return tabBar + ownerPane + opsPane;
 }
 
 // ═══════════════════════════════════════════════════════════════
