@@ -46,6 +46,7 @@ __all__ = [
     'ensure_plan_release',
     'ensure_scenario_type_cleanup',
     'ensure_plan_forecast_zone',
+    'ensure_operating_costs',
 ]
 
 
@@ -1265,6 +1266,34 @@ def ensure_costing_config():
         c.execute("UPDATE costing_config SET label='Minimum Profit Margin % (alert threshold)' WHERE key='margin_floor_pct'")
         c.commit()
         print("  ✓ Costing config table ready")
+    finally:
+        c.close()
+
+
+def ensure_operating_costs():
+    """Monthly operating-costs log (salaries, utilities, rent, …) + the normal-volume
+    denominator used to derive per-pack labour/utilities/overhead. Idempotent."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS monthly_operating_costs (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                month      TEXT NOT NULL,            -- 'YYYY-MM'
+                category   TEXT NOT NULL,            -- salaries | electricity | gas | rent | transport | admin
+                amount     REAL NOT NULL DEFAULT 0,
+                note       TEXT,
+                updated_at TEXT DEFAULT (datetime('now')),
+                updated_by TEXT,
+                UNIQUE(month, category)
+            )
+        """)
+        # Normal monthly volume = the stable denominator (packs/month) for overhead absorption.
+        c.execute("""
+            INSERT OR IGNORE INTO costing_config (key, value, label)
+            VALUES ('normal_monthly_volume', '1000', 'Normal monthly volume (packs) — overhead denominator')
+        """)
+        c.commit()
+        print("  ✓ Operating costs table ready")
     finally:
         c.close()
 

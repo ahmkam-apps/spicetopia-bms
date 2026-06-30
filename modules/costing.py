@@ -41,6 +41,8 @@ __all__ = [
     'get_margin_alerts',
     'dismiss_margin_alert',
     'send_margin_alert_email',
+    'list_operating_costs',
+    'upsert_operating_cost',
 ]
 
 
@@ -89,6 +91,57 @@ def _selling_price_for_variant(variant_id):
 # ─────────────────────────────────────────────────────────────────
 #  STANDARD COST COMPUTATION
 # ─────────────────────────────────────────────────────────────────
+
+def list_operating_costs(months=6):
+    """Recent monthly operating costs + derived per-pack rates.
+    Per-pack rate = latest month's category total ÷ NORMAL monthly volume (stable
+    denominator — not the raw month's output). Phase 1: display only, doesn't change cost."""
+    rows = qry("SELECT month, category, amount FROM monthly_operating_costs ORDER BY month DESC, category")
+    cfg = get_costing_config()
+    normal_vol = _get_config_val(cfg, 'normal_monthly_volume', 1000.0)
+    by_month = {}
+    for r in rows:
+        by_month.setdefault(r['month'], {})[r['category']] = float(r['amount'] or 0)
+    months_sorted = sorted(by_month.keys(), reverse=True)[:months]
+    latest = months_sorted[0] if months_sorted else None
+    derived = {}
+    if latest and normal_vol > 0:
+        for cat, amt in by_month[latest].items():
+            derived[cat] = round(amt / normal_vol, 4)
+    return {
+        'normal_monthly_volume': normal_vol,
+        'months': [{'month': m,
+                    'categories': by_month[m],
+                    'total': round(sum(by_month[m].values()), 2)} for m in months_sorted],
+        'latest_month': latest,
+        'derived_per_pack': derived,
+        'derived_total_per_pack': round(sum(derived.values()), 4),
+    }
+
+
+def upsert_operating_cost(month, category, amount, username='admin'):
+    """Set one month's actual cost for a category (idempotent upsert by month+category)."""
+    month    = str(month or '').strip()
+    category = str(category or '').strip().lower()
+    amt      = float(amount or 0)
+    if not month or not category:
+        raise ValueError("month and category are required")
+    c = _conn()
+    try:
+        ex = c.execute("SELECT id FROM monthly_operating_costs WHERE month=? AND category=?",
+                       (month, category)).fetchone()
+        if ex:
+            c.execute("UPDATE monthly_operating_costs SET amount=?, updated_at=datetime('now'), updated_by=? WHERE id=?",
+                      (amt, username, ex[0]))
+        else:
+            c.execute("INSERT INTO monthly_operating_costs (month, category, amount, updated_at, updated_by) VALUES (?,?,?,datetime('now'),?)",
+                      (month, category, amt, username))
+        c.commit()
+    finally:
+        c.close()
+    save_db()
+    return list_operating_costs()
+
 
 def compute_standard_cost(product_code, pack_size_label, cfg=None):
     """

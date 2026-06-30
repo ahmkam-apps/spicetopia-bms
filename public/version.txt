@@ -1,2 +1,2 @@
-build: 2026-06-29 model-b-inline-price
+build: 2026-06-29 opcosts-phase1-backend
 has_gtin: true

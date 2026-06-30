@@ -9263,6 +9263,13 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_rep_performance_report(period))
                 return
 
+            # GET /api/costing/operating-costs  (admin or 'costs')
+            if path == '/api/costing/operating-costs':
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
+                send_json(self, list_operating_costs())
+                return
+
             # GET /api/bom/:productCode  (recipe owner / 'recipe' permission only — the secret)
             if path.startswith('/api/bom/'):
                 if not _can_recipe(sess):
@@ -10003,6 +10010,18 @@ class Handler(BaseHTTPRequestHandler):
                     result = dismiss_margin_alert(alert_id, sess.get('username', 'admin'))
                     send_json(self, result)
                 except (ValueError, IndexError) as e:
+                    send_error(self, str(e), 400)
+                return
+
+            # POST /api/costing/operating-costs  (admin or 'costs') — record a month's actual cost
+            if path == '/api/costing/operating-costs':
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
+                try:
+                    result = upsert_operating_cost(data.get('month'), data.get('category'),
+                                                   data.get('amount'), sess.get('username', 'admin'))
+                    send_json(self, result)
+                except ValueError as e:
                     send_error(self, str(e), 400)
                 return
 
@@ -13212,7 +13231,8 @@ if __name__ == '__main__':
         ensure_web_prices, ensure_recipe_tables, ensure_change_log_reason,
         ensure_planning_foundations, ensure_plan_version_horizon, ensure_plan_sales_tables,
         ensure_plan_m2_tables, ensure_plan_code, ensure_plan_release,
-        ensure_scenario_type_cleanup, ensure_plan_forecast_zone, backfill_customer_account_numbers,
+        ensure_scenario_type_cleanup, ensure_plan_forecast_zone, ensure_operating_costs,
+        backfill_customer_account_numbers,
     ):
         try:
             _step()
