@@ -1,2 +1,2 @@
-build: 2026-06-29 opcosts-phase1-backend
+build: 2026-06-29 opcosts-phase1-screen
 has_gtin: true

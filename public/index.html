@@ -9892,7 +9892,7 @@ function canEditCosts() {
 
 function _pcSwitchTab(tab) {
   _pcTab = tab;
-  ['overview','standard','ingredients','config','variance','history','markups','alerts'].forEach(t => {
+  ['overview','standard','ingredients','config','opcosts','variance','history','markups','alerts'].forEach(t => {
     const btn  = document.getElementById('pc-tab-' + t);
     const pane = document.getElementById('pc-pane-' + t);
     if (!btn || !pane) return;
@@ -9913,6 +9913,35 @@ function _pcToggleAdv() {
   box.style.display = show ? 'inline' : 'none';
   if (tog) tog.textContent = show ? 'Advanced ▴' : 'Advanced ▾';
   if (!show) _pcSwitchTab('overview');   // collapsing returns to the simple Overview
+}
+
+// Operating Costs (monthly) — save normal volume, load/save a month's actuals.
+async function _pcOpSaveVolume() {
+  const inp = document.getElementById('pc-op-volume'); const msg = document.getElementById('pc-op-vol-msg');
+  const v = parseFloat(inp && inp.value);
+  if (!(v > 0)) { if (msg) { msg.textContent = 'Enter a number'; msg.style.color = 'var(--chili)'; } return; }
+  if (msg) { msg.textContent = 'Saving…'; msg.style.color = 'var(--text-3)'; }
+  try { await PUT('/api/costing/config', { key: 'normal_monthly_volume', value: String(v) }); if (msg) { msg.textContent = '✓'; msg.style.color = 'var(--cardamom)'; } setTimeout(() => nav('prices-costs'), 600); }
+  catch (e) { if (msg) { msg.textContent = e.message; msg.style.color = 'var(--chili)'; } }
+}
+function _pcOpLoadMonth() {
+  const m = (document.getElementById('pc-op-month') || {}).value;
+  const data = (window._pcOpData && window._pcOpData.months) || [];
+  const cats = (data.find(x => x.month === m) || {}).categories || {};
+  ['salaries','electricity','gas','rent','transport','admin'].forEach(k => { const el = document.getElementById('pc-op-' + k); if (el) el.value = (cats[k] != null ? cats[k] : ''); });
+}
+async function _pcOpSaveMonth() {
+  const month = (document.getElementById('pc-op-month') || {}).value; const msg = document.getElementById('pc-op-msg');
+  if (!month) { if (msg) { msg.textContent = 'Pick a month'; msg.style.color = 'var(--chili)'; } return; }
+  if (msg) { msg.textContent = 'Saving…'; msg.style.color = 'var(--text-3)'; }
+  try {
+    for (const k of ['salaries','electricity','gas','rent','transport','admin']) {
+      const el = document.getElementById('pc-op-' + k); const val = el ? parseFloat(el.value) : NaN;
+      if (!isNaN(val)) { await POST('/api/costing/operating-costs', { month: month, category: k, amount: val }); }
+    }
+    if (msg) { msg.textContent = '✓ Saved'; msg.style.color = 'var(--cardamom)'; }
+    setTimeout(() => nav('prices-costs'), 700);
+  } catch (e) { if (msg) { msg.textContent = 'Could not save: ' + e.message; msg.style.color = 'var(--chili)'; } }
 }
 
 // Overview — set a product's selling price (distributor) inline, then refresh the verdict.
@@ -9983,6 +10012,8 @@ async function renderPricesCosts() {
   try { history  = await GET('/api/costing/price-history?limit=150'); } catch(e) { history = []; }
   try { alerts   = await GET('/api/costing/margin-alerts'); } catch(e) { alerts = []; }
   try { variances= await GET('/api/costing/batch-variances?days=90'); } catch(e) { variances = []; }
+  let opcosts = {}; try { opcosts = await GET('/api/costing/operating-costs'); } catch(e) { opcosts = {}; }
+  window._pcOpData = opcosts;
 
   const activeIngs = ings.filter(i => i.active !== 0);
 
@@ -10224,6 +10255,37 @@ SP-ING003,950.00</pre>
       </div>
     </div>
   </div>`;
+
+  // ── Operating Costs (monthly) — record actuals, derive per-pack rates ──
+  const _OPCATS = [['salaries','Salaries'],['electricity','Electricity'],['gas','Gas'],['rent','Rent'],['transport','Transport'],['admin','Admin']];
+  const opNormal  = (opcosts.normal_monthly_volume != null ? opcosts.normal_monthly_volume : 1000);
+  const opMonths  = opcosts.months || [];
+  const opDerived = opcosts.derived_per_pack || {};
+  const _opThisMonth = new Date().toISOString().slice(0, 7);
+  const _opCur = (opMonths.find(m => m.month === _opThisMonth) || {}).categories || {};
+  const opInputs = _OPCATS.map(function(p){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:4px 0;font-size:13px"><span>' + p[1] + '</span><span>₨ <input id="pc-op-' + p[0] + '" type="number" min="0" step="1" value="' + (_opCur[p[0]] != null ? _opCur[p[0]] : '') + '" class="form-input" style="width:110px;text-align:right"></span></div>'; }).join('');
+  const opHistRows = opMonths.map(function(m){ return '<tr><td>' + m.month + '</td>' + _OPCATS.map(function(p){ return '<td class="text-right">' + (m.categories[p[0]] != null ? fmtPKR(m.categories[p[0]]) : '—') + '</td>'; }).join('') + '<td class="text-right"><b>' + fmtPKR(m.total) + '</b></td></tr>'; }).join('') || ('<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:16px">No months recorded yet.</td></tr>');
+  const opDerivedRows = _OPCATS.filter(function(p){ return opDerived[p[0]] != null; }).map(function(p){ return '<div style="display:flex;justify-content:space-between;font-size:13px;margin:2px 0"><span>' + p[1] + '</span><b>' + fmtPKR(opDerived[p[0]]) + '/pack</b></div>'; }).join('');
+  const opcostsTab = '<div id="pc-pane-opcosts" style="display:none">'
+    + '<div class="card"><h3 style="margin:0 0 4px">Operating Costs (monthly)</h3>'
+      + '<p style="font-size:12px;color:var(--text-3);margin:0 0 14px">Record actual monthly costs. They\'re divided by your <b>normal monthly volume</b> to work out labour/utilities/overhead per pack — so these stop being guesses. <i>Shown for review; not yet applied to product cost.</i></p>'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="font-size:13px">Normal monthly volume (packs):</span>'
+        + '<input id="pc-op-volume" type="number" min="1" step="1" value="' + opNormal + '" class="form-input" style="width:120px;text-align:right">'
+        + '<button class="btn btn-xs btn-outline" onclick="_pcOpSaveVolume()">Save</button> <span id="pc-op-vol-msg" style="font-size:11px"></span></div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">'
+        + '<div><div style="font-weight:700;font-size:13px;margin-bottom:6px">Enter a month\'s costs</div>'
+          + '<div style="margin-bottom:8px"><span style="font-size:13px">Month: </span><input id="pc-op-month" type="month" value="' + _opThisMonth + '" onchange="_pcOpLoadMonth()" class="form-input" style="width:160px"></div>'
+          + opInputs
+          + '<div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="_pcOpSaveMonth()">Save month</button> <span id="pc-op-msg" style="font-size:11px;margin-left:8px"></span></div></div>'
+        + '<div><div style="font-weight:700;font-size:13px;margin-bottom:6px">Derived cost per pack <span style="color:var(--text-3);font-weight:400">(latest month ÷ ' + opNormal + ')</span></div>'
+          + (opDerivedRows || '<div style="color:var(--text-3);font-size:13px">Record a month to see derived rates.</div>')
+          + (opDerivedRows ? '<div style="display:flex;justify-content:space-between;font-size:14px;margin-top:6px;border-top:1px solid var(--border);padding-top:6px"><b>Total</b><b>' + fmtPKR(opcosts.derived_total_per_pack || 0) + '/pack</b></div>' : '')
+          + '</div>'
+      + '</div></div>'
+    + '<div class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">Recorded months</h3><div class="table-wrap"><table>'
+      + '<thead><tr><th>Month</th>' + _OPCATS.map(function(p){ return '<th class="text-right">' + p[1] + '</th>'; }).join('') + '<th class="text-right">Total</th></tr></thead>'
+      + '<tbody>' + opHistRows + '</tbody></table></div></div>'
+    + '</div>';
 
   const configTab = `
   <div id="pc-pane-config" style="display:none">
@@ -10492,6 +10554,7 @@ SP-ING003,950.00</pre>
       <button id="pc-tab-standard"    onclick="_pcSwitchTab('standard')"    style="${inactiveStyle}">Standard Costs</button>
       <button id="pc-tab-ingredients" onclick="_pcSwitchTab('ingredients')" style="${inactiveStyle}">Ingredient Costs</button>
       <button id="pc-tab-config"      onclick="_pcSwitchTab('config')"      style="${inactiveStyle}">Cost Parameters</button>
+      <button id="pc-tab-opcosts"     onclick="_pcSwitchTab('opcosts')"     style="${inactiveStyle}">Operating Costs</button>
       <button id="pc-tab-variance"    onclick="_pcSwitchTab('variance')"    style="${inactiveStyle}">Batch Variance</button>
       <button id="pc-tab-history"     onclick="_pcSwitchTab('history')"     style="${inactiveStyle}">Cost History</button>
       <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);padding:0 6px 0 12px;text-transform:uppercase">Price ·</span>
@@ -10504,6 +10567,7 @@ SP-ING003,950.00</pre>
   ${standardTab}
   ${ingredientsTab}
   ${configTab}
+  ${opcostsTab}
   ${markupsTab}
   ${historyTab}
   ${alertsTab}
