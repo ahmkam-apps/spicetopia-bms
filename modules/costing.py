@@ -92,10 +92,37 @@ def _selling_price_for_variant(variant_id):
 #  STANDARD COST COMPUTATION
 # ─────────────────────────────────────────────────────────────────
 
+def _operating_unit_rates():
+    """Trailing 3-month-average operating cost PER PACK, by category + grouped totals.
+    Averages whatever months are available (1 → that month). Denominator = the stable
+    normal monthly volume (not the raw month's output). {} if no data → caller falls back."""
+    rows = qry("SELECT month, category, amount FROM monthly_operating_costs ORDER BY month DESC")
+    if not rows:
+        return {}
+    normal = _get_config_val(get_costing_config(), 'normal_monthly_volume', 1000.0) or 1000.0
+    months = []
+    for r in rows:
+        if r['month'] not in months:
+            months.append(r['month'])
+        if len(months) >= 3:
+            break
+    by_cat = {}
+    for r in rows:
+        if r['month'] in months:
+            by_cat[r['category']] = by_cat.get(r['category'], 0.0) + float(r['amount'] or 0)
+    n = len(months) or 1
+    per_pack = {cat: round((tot / n) / normal, 4) for cat, tot in by_cat.items()}
+    MAKING = ('labour', 'electricity', 'gas', 'rent')
+    OVH    = ('transport', 'salaries', 'admin')
+    conversion = round(sum(v for c, v in per_pack.items() if c in MAKING), 4)
+    overhead   = round(sum(v for c, v in per_pack.items() if c in OVH), 4)
+    return {'per_pack': per_pack, 'conversion': conversion, 'overhead': overhead,
+            'total': round(conversion + overhead, 4), 'months_used': n, 'normal_volume': normal}
+
+
 def list_operating_costs(months=6):
-    """Recent monthly operating costs + derived per-pack rates.
-    Per-pack rate = latest month's category total ÷ NORMAL monthly volume (stable
-    denominator — not the raw month's output). Phase 1: display only, doesn't change cost."""
+    """Recent monthly operating costs + derived per-pack rates (trailing 3-month average
+    ÷ normal volume — the same figure that feeds Cost to Make in Phase 2)."""
     rows = qry("SELECT month, category, amount FROM monthly_operating_costs ORDER BY month DESC, category")
     cfg = get_costing_config()
     normal_vol = _get_config_val(cfg, 'normal_monthly_volume', 1000.0)
@@ -103,19 +130,16 @@ def list_operating_costs(months=6):
     for r in rows:
         by_month.setdefault(r['month'], {})[r['category']] = float(r['amount'] or 0)
     months_sorted = sorted(by_month.keys(), reverse=True)[:months]
-    latest = months_sorted[0] if months_sorted else None
-    derived = {}
-    if latest and normal_vol > 0:
-        for cat, amt in by_month[latest].items():
-            derived[cat] = round(amt / normal_vol, 4)
+    op = _operating_unit_rates()
     return {
         'normal_monthly_volume': normal_vol,
         'months': [{'month': m,
                     'categories': by_month[m],
                     'total': round(sum(by_month[m].values()), 2)} for m in months_sorted],
-        'latest_month': latest,
-        'derived_per_pack': derived,
-        'derived_total_per_pack': round(sum(derived.values()), 4),
+        'latest_month': months_sorted[0] if months_sorted else None,
+        'derived_per_pack': op.get('per_pack', {}) if op else {},
+        'derived_total_per_pack': op.get('total', 0) if op else 0,
+        'months_used': op.get('months_used', 0) if op else 0,
     }
 
 
@@ -173,6 +197,13 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
     _ovh_present   = any(k in cfg for k in ('ovh_transport', 'ovh_salaries', 'ovh_admin'))
     overhead_lines = _sum_cfg(['ovh_transport', 'ovh_salaries', 'ovh_admin'])
     overhead_pct   = _get_config_val(cfg, 'overhead_pct', 0.10)  # legacy fallback only
+    # Phase 2: if monthly operating costs are recorded, DERIVE conversion + overhead from
+    # them (trailing 3-month avg ÷ normal volume), replacing the typed conv_*/ovh_* constants.
+    _op = _operating_unit_rates()
+    if _op:
+        conversion     = _op['conversion']
+        overhead_lines = _op['overhead']
+        _ovh_present    = True
     labour         = conversion  # 'labour' return slot now carries the full conversion total
 
     variant = qry1("""

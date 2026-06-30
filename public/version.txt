@@ -1,2 +1,2 @@
-build: 2026-06-29 costing-advanced-hub
+build: 2026-06-29 costing-phase2-opcosts-wired
 has_gtin: true

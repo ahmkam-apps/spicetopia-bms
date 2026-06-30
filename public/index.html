@@ -9968,10 +9968,8 @@ async function _pcOvSetPrice(variantId) {
 function _pcOvPreview() {
   const g = id => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || 0) : 0; };
   const pkg  = g('pc-ov-pkg_pouch') + g('pc-ov-pkg_label') + g('pc-ov-pkg_carton');
-  const conv = g('pc-ov-conv_labour') + g('pc-ov-conv_electricity') + g('pc-ov-conv_gas') + g('pc-ov-conv_rent');
-  const ovh  = g('pc-ov-ovh_transport') + g('pc-ov-ovh_salaries') + g('pc-ov-ovh_admin');
-  const b = window._pcOvBase || { rm: 0, name: 'a product', floor: 30 };
-  const ctm = b.rm + pkg + conv + ovh;
+  const b = window._pcOvBase || { rm: 0, op: 0, name: 'a product', floor: 30 };
+  const ctm = b.rm + pkg + (b.op || 0);
   const sell = ctm * (1 + g('pc-ov-mfr') / 100) * (1 + g('pc-ov-dist') / 100) * (1 + g('pc-ov-mrp') / 100);
   const keep = sell - ctm;
   const margin = sell > 0 ? keep / sell * 100 : 0;
@@ -9986,8 +9984,6 @@ async function _pcOvSave() {
   if (msg) { msg.textContent = 'Saving…'; msg.style.color = 'var(--text-3)'; }
   const sets = {
     pkg_pouch: g('pc-ov-pkg_pouch'), pkg_label: g('pc-ov-pkg_label'), pkg_carton: g('pc-ov-pkg_carton'),
-    conv_labour: g('pc-ov-conv_labour'), conv_electricity: g('pc-ov-conv_electricity'), conv_gas: g('pc-ov-conv_gas'), conv_rent: g('pc-ov-conv_rent'),
-    ovh_transport: g('pc-ov-ovh_transport'), ovh_salaries: g('pc-ov-ovh_salaries'), ovh_admin: g('pc-ov-ovh_admin'),
     margin_mfr:  (1 + g('pc-ov-mfr') / 100).toFixed(4),
     margin_dist: (1 + g('pc-ov-dist') / 100).toFixed(4),
     margin_mrp:  (1 + g('pc-ov-mrp') / 100).toFixed(4),
@@ -10073,7 +10069,7 @@ async function renderPricesCosts() {
       <details style="margin-bottom:14px;border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--surface)">
         <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--saffron-deep)">How is MRP calculated?</summary>
         <div style="font-size:13px;color:var(--text-2);line-height:1.7;margin-top:8px">
-          MRP is built up from the cost to make a pack, adding a markup at each trade level. The three multipliers are set in <b>Cost Parameters</b>.
+          MRP is built up from the cost to make a pack, adding a markup at each trade level. The three multipliers are set in <b>Markups</b> (Advanced).
           <ol style="margin:8px 0 6px 18px;padding:0">
             <li><b>Cost to Make</b> = raw materials (from the BOM) + packaging + conversion + overhead</li>
             <li><b>Direct Sale</b> = Cost to Make × <b>${_mfr}</b> &nbsp;<span style="color:var(--text-3)">(Direct Sale Margin)</span></li>
@@ -10182,19 +10178,10 @@ SP-ING003,950.00</pre>
   };
 
   const cfgLabels = {
-    // ── Packaging (₨/pack) ──
+    // ── Packaging (₨/pack) — per-unit materials. Labour/utilities/overhead now live in Operating Costs. ──
     pkg_pouch:        { label: 'Packaging — Pouch',          unit: 'PKR', note: 'Cost of the pouch, per pack', tag: 'per-unit' },
     pkg_label:        { label: 'Packaging — Adhesive Label', unit: 'PKR', note: 'Label cost, per pack', tag: 'per-unit' },
     pkg_carton:       { label: 'Packaging — Master Carton',  unit: 'PKR', note: 'Per-pack share of the master carton', tag: 'per-unit' },
-    // ── Conversion (₨/pack) ──
-    conv_labour:      { label: 'Conversion — Labour',        unit: 'PKR', note: 'Labour to fill/seal one pack', tag: 'per-unit' },
-    conv_electricity: { label: 'Conversion — Electricity',   unit: 'PKR', note: 'Electricity, per pack', tag: 'per-unit' },
-    conv_gas:         { label: 'Conversion — Gas',           unit: 'PKR', note: 'Gas (cylinder), per pack', tag: 'per-unit' },
-    conv_rent:        { label: 'Conversion — Rent',          unit: 'PKR', note: 'Per-pack share of factory rent', tag: 'per-unit' },
-    // ── Overhead (₨/pack) — % of cost shown per SKU on Standard Costs ──
-    ovh_transport:    { label: 'Overhead — Transport',       unit: 'PKR', note: 'Transport, per pack', tag: 'per-unit' },
-    ovh_salaries:     { label: 'Overhead — Salaries',        unit: 'PKR', note: 'Per-pack share of salaries', tag: 'per-unit' },
-    ovh_admin:        { label: 'Overhead — Admin',           unit: 'PKR', note: 'Per-pack share of admin expenses', tag: 'per-unit' },
   };
 
   // Markups live in the Pricing tab (not Cost Parameters) — cost and price kept separate.
@@ -10293,7 +10280,7 @@ SP-ING003,950.00</pre>
   <div id="pc-pane-config" style="display:none">
     <div class="card">
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:4px">
-        <h3 style="margin:0">Cost Parameters</h3>
+        <h3 style="margin:0">Packaging &amp; Wastage</h3>
         <div style="display:flex;gap:8px">
           <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f0fe;color:#1a73e8">Per Unit</span>
           <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100">% Based</span>
@@ -10479,6 +10466,7 @@ SP-ING003,950.00</pre>
   const _ovBase = costs.find(c => c.has_bom);
   window._pcOvBase = {
     rm:   _ovBase ? (_ovBase.rm_cost || 0) : 0,
+    op:   opcosts.derived_total_per_pack || 0,
     name: _ovBase ? ((_ovBase.productName || _ovBase.productCode) + ' ' + _ovBase.packSize) : 'a product',
     floor: ovFloor,
   };
@@ -10525,10 +10513,9 @@ SP-ING003,950.00</pre>
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px">'
     + '<div><div style="font-weight:700;font-size:13px;margin-bottom:4px">Packaging (₨ per pack)</div>'
       + _row('Pouch', 'pc-ov-pkg_pouch', _gv('pkg_pouch',0)) + _row('Label', 'pc-ov-pkg_label', _gv('pkg_label',0)) + _row('Carton', 'pc-ov-pkg_carton', _gv('pkg_carton',0)) + '</div>'
-    + '<div><div style="font-weight:700;font-size:13px;margin-bottom:4px">Making cost (₨ per pack)</div>'
-      + _row('Labour', 'pc-ov-conv_labour', _gv('conv_labour',0)) + _row('Electricity', 'pc-ov-conv_electricity', _gv('conv_electricity',0)) + _row('Gas', 'pc-ov-conv_gas', _gv('conv_gas',0)) + _row('Rent', 'pc-ov-conv_rent', _gv('conv_rent',0)) + '</div>'
-    + '<div><div style="font-weight:700;font-size:13px;margin-bottom:4px">Overhead (₨ per pack)</div>'
-      + _row('Transport', 'pc-ov-ovh_transport', _gv('ovh_transport',0)) + _row('Salaries', 'pc-ov-ovh_salaries', _gv('ovh_salaries',0)) + _row('Admin', 'pc-ov-ovh_admin', _gv('ovh_admin',0)) + '</div>'
+    + '<div><div style="font-weight:700;font-size:13px;margin-bottom:4px">Labour, utilities &amp; overhead</div>'
+      + '<div style="font-size:13px;color:var(--text-2)">From <b>Operating Costs</b>: <b>' + fmtPKR(opcosts.derived_total_per_pack || 0) + '</b>/pack' + ((opcosts.months_used || 0) ? ' <span style="color:var(--text-3)">(' + opcosts.months_used + '-mo avg)</span>' : '') + '</div>'
+      + '<div style="font-size:11px;color:var(--text-3);margin-top:6px">Recorded monthly, then averaged ÷ normal volume — not typed here. <a href="#" onclick="_pcSwitchTab(\'opcosts\');return false">Edit in Operating Costs →</a></div></div>'
     + '<div><div style="font-weight:700;font-size:13px;margin-bottom:4px">Markup (add %)</div>'
       + _pctRow('To direct sale', 'pc-ov-mfr', ovMfr) + _pctRow('To distributor', 'pc-ov-dist', ovDist) + _pctRow('To MRP', 'pc-ov-mrp', ovMrp) + '</div>'
     + '</div>'
@@ -10545,7 +10532,7 @@ SP-ING003,950.00</pre>
     + '<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-3);text-transform:uppercase;margin:2px 0 8px">Set up — what you enter</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:22px">'
       + _advCard('ingredients','Ingredient Costs','Price per kg of each ingredient')
-      + _advCard('config','Cost Parameters','Packaging, making & overhead per pack')
+      + _advCard('config','Packaging &amp; Wastage','Packaging per pack + wastage %')
       + _advCard('opcosts','Operating Costs','Monthly salaries, utilities, rent…')
       + _advCard('markups','Markups','Margin % at each trade level')
     + '</div>'
