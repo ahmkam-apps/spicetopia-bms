@@ -8166,6 +8166,18 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, _box.get('data', []))
                 return
 
+            # GET /api/ingredients/archive-candidates — active ingredients safe to deactivate
+            # (zero stock + no recipe/movement/bill refs). READ-ONLY report, admin only.
+            if path == '/api/ingredients/archive-candidates':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                try:
+                    send_json(self, find_archive_candidates())
+                except Exception as _e:
+                    import traceback; traceback.print_exc()
+                    send_error(self, 'Archive-candidates scan failed: ' + str(_e), 500)
+                return
+
             # GET /api/products/next-blend-code?prefix=GM  — peek next GM-BC-xxx code (admin)
             if path == '/api/products/next-blend-code':
                 if not require(sess, 'admin'):

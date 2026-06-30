@@ -1,2 +1,2 @@
-build: 2026-06-29 ingredient-unit-perkg-lock
+build: 2026-06-29 ingredient-archive-candidates-report
 has_gtin: true

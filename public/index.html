@@ -7196,6 +7196,49 @@ async function findIngredientDuplicates() {
   }
 }
 
+async function findArchiveCandidates() {
+  const panel = document.getElementById('dup-panel'); if (!panel) return;
+  panel.innerHTML = '<div class="card" style="padding:14px;color:var(--text-3)">Scanning ingredients…</div>';
+  try {
+    const data = await GET('/api/ingredients/archive-candidates');
+    const cands = data.candidates || [];
+    const counts = data.counts || {};
+    const intro = '<div style="font-size:12px;color:var(--text-3);margin-bottom:12px">'
+      + 'Read-only report — nothing is changed. ' + (counts.active||0) + ' active · '
+      + '<strong>' + (counts.safe_to_archive||0) + ' safe to archive</strong> · '
+      + (counts.in_use||0) + ' in use. "Safe" = zero stock AND no recipe, movement, or bill reference.</div>';
+    if (!cands.length) {
+      panel.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--cardamom)">'
+        + '<div style="font-weight:700;margin-bottom:4px">✓ Nothing safe to archive</div>' + intro + '</div>';
+      return;
+    }
+    let h = '<div class="card" style="padding:16px;border-left:3px solid var(--saffron)">'
+      + '<div style="font-weight:700;margin-bottom:4px">🗂 ' + cands.length + ' ingredient' + (cands.length===1?'':'s') + ' safe to archive</div>'
+      + intro
+      + '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="color:var(--text-3);text-align:left">'
+      + '<th style="padding:3px 6px">Code</th><th style="padding:3px 6px">Name</th><th style="padding:3px 6px">Scheme</th>'
+      + '<th style="padding:3px 6px;text-align:right">Cost/kg</th><th style="padding:3px 6px;text-align:right">Stock</th>'
+      + '<th style="padding:3px 6px;text-align:right">Recipes</th><th style="padding:3px 6px;text-align:right">Moves</th>'
+      + '<th style="padding:3px 6px;text-align:right">Bills</th></tr></thead><tbody>';
+    cands.forEach(r => {
+      h += '<tr style="border-top:1px solid var(--border)">'
+        + '<td style="padding:4px 6px;font-family:monospace">' + esc(r.code) + '</td>'
+        + '<td style="padding:4px 6px">' + esc(r.name || '—') + '</td>'
+        + '<td style="padding:4px 6px;color:var(--text-3)">' + esc(r.scheme) + '</td>'
+        + '<td style="padding:4px 6px;text-align:right">' + fmtPKR(r.cost_per_kg) + '</td>'
+        + '<td style="padding:4px 6px;text-align:right">' + fmt(r.stock_grams/1000,3) + ' kg</td>'
+        + '<td style="padding:4px 6px;text-align:right">' + r.recipes + '</td>'
+        + '<td style="padding:4px 6px;text-align:right">' + r.movements + '</td>'
+        + '<td style="padding:4px 6px;text-align:right">' + r.bills + '</td></tr>';
+    });
+    h += '</tbody></table>'
+      + '<div style="font-size:11px;color:var(--text-3);margin-top:10px">This is a report only. To deactivate these, say the word and I\'ll add a one-click archive action (reversible, after a backup).</div></div>';
+    panel.innerHTML = h;
+  } catch(e) {
+    panel.innerHTML = '<div class="card" style="padding:14px;color:var(--chili)">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
 async function renderInventory() {
   const ings    = await GET('/api/ingredients');
   const isAdmin = isAdminRole();
@@ -7424,6 +7467,7 @@ async function renderInventory() {
   return '<div class="section-header"><h2>Inventory</h2>'
     + (isAdmin ? '<div style="display:flex;gap:8px">'
         + '<button class="btn btn-outline btn-sm" onclick="findIngredientDuplicates()" title="Find ingredients entered twice under different codes">🔍 Find duplicates</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="findArchiveCandidates()" title="Report: active ingredients safe to archive (zero stock, no recipe/movement/bill)">🗂 Archive candidates</button>'
         + '<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById(\'ing-add-card\');if(c)c.style.display=c.style.display===\'none\'?\'\':\'none\';switchInvTab(\'rm\')">＋ Ingredient</button>'
         + '</div>' : '')
     + '</div>'
