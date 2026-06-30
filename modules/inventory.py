@@ -520,16 +520,27 @@ def find_archive_candidates():
     Returns {candidates:[...], keep:[...], counts:{...}} — never changes data, never raises.
     Each row carries code, name, cost_per_kg, stock_grams, ref counts, scheme, and a
     `safe` flag so AK can eyeball exactly what a future archive action would touch."""
+    print("  [arch] enter", flush=True)
     try:
         rows = qry("SELECT id, code, name, COALESCE(cost_per_kg,0) AS cost_per_kg, "
                    "COALESCE(active,1) AS active FROM ingredients WHERE COALESCE(active,1)=1")
     except Exception as e:
         print("  [arch] ingredients query failed:", e, flush=True)
         return {'candidates': [], 'keep': [], 'counts': {}}
+    print(f"  [arch] {len(rows)} active ingredients", flush=True)
 
+    ids = [int(r['id']) for r in rows]
+    idlist = ','.join(str(i) for i in ids) or '0'
+
+    # Stock for ONLY these ingredients (targeted aggregate — avoids a full-ledger GROUP BY).
+    stock = {}
     try:
-        stock = get_stock_map()
-    except Exception:
+        for r in qry('SELECT ingredient_id AS iid, COALESCE(SUM(qty_grams),0) AS bal '
+                     'FROM inventory_ledger WHERE ingredient_id IN (%s) GROUP BY ingredient_id' % idlist):
+            stock[r['iid']] = r['bal']
+        print("  [arch] stock loaded", flush=True)
+    except Exception as e:
+        print(f"  [arch] stock query failed: {e}", flush=True)
         stock = {}
 
     try:
@@ -539,8 +550,6 @@ def find_archive_candidates():
     ref_tables = [t for t in ('bom_items', 'inventory_ledger', 'supplier_bill_items') if t in existing]
     LABELS = {'bom_items': 'recipes', 'inventory_ledger': 'movements', 'supplier_bill_items': 'bills'}
 
-    ids = [int(r['id']) for r in rows]
-    idlist = ','.join(str(i) for i in ids) or '0'
     counts = {}  # {ingredient_id: {label: n}}
     for t in ref_tables:
         label = LABELS.get(t, t)
@@ -548,6 +557,7 @@ def find_archive_candidates():
             for r in qry('SELECT ingredient_id AS iid, COUNT(*) AS n FROM "%s" '
                          'WHERE ingredient_id IN (%s) GROUP BY ingredient_id' % (t, idlist)):
                 counts.setdefault(r['iid'], {})[label] = r['n']
+            print(f"  [arch] counted {t}", flush=True)
         except Exception as e:
             print(f"  [arch] count {t} failed: {e}", flush=True)
             continue

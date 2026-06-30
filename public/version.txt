@@ -1,2 +1,2 @@
-build: 2026-06-29 ingredient-archive-candidates-report
+build: 2026-06-29 archive-report-watchdog-fix
 has_gtin: true

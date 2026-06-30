@@ -8168,14 +8168,30 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/ingredients/archive-candidates — active ingredients safe to deactivate
             # (zero stock + no recipe/movement/bill refs). READ-ONLY report, admin only.
+            # Runs in a worker thread with a 15s watchdog (same hardening as the duplicate
+            # scan) so a slow/locked query on the network volume returns 504, never hangs.
             if path == '/api/ingredients/archive-candidates':
                 if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
-                try:
-                    send_json(self, find_archive_candidates())
-                except Exception as _e:
-                    import traceback; traceback.print_exc()
-                    send_error(self, 'Archive-candidates scan failed: ' + str(_e), 500)
+                import threading as _th, time as _t
+                print("  [archive] request received", flush=True)
+                _box = {}
+                def _work():
+                    try:
+                        _box['data'] = find_archive_candidates()
+                    except Exception as _e:
+                        import traceback; traceback.print_exc()
+                        _box['err'] = str(_e)
+                _t0 = _t.time()
+                _wt = _th.Thread(target=_work, daemon=True); _wt.start(); _wt.join(15)
+                if _wt.is_alive():
+                    print(f"  [archive] TIMED OUT after {_t.time()-_t0:.1f}s", flush=True)
+                    send_error(self, 'Archive scan timed out (>15s) — likely a DB lock or data-volume issue', 504)
+                elif 'err' in _box:
+                    send_error(self, 'Archive-candidates scan failed: ' + _box['err'], 500)
+                else:
+                    print(f"  [archive] done in {_t.time()-_t0:.2f}s", flush=True)
+                    send_json(self, _box.get('data', {'candidates': [], 'keep': [], 'counts': {}}))
                 return
 
             # GET /api/products/next-blend-code?prefix=GM  — peek next GM-BC-xxx code (admin)
