@@ -13227,7 +13227,7 @@ if __name__ == '__main__':
         _ensure_b2b_order_columns, ensure_system_settings_schema, _reload_wa_from_db,
         ensure_review_queue_schema, ensure_master_schema, ensure_price_types_sprint6,
         ensure_price_history_extended, ensure_margin_alerts_table, ensure_field_otp_table,
-        ensure_ingredient_price_volatile, ensure_web_price_type, ensure_25g_pack_and_spgm25,
+        ensure_ingredient_price_volatile, ensure_ingredient_unit_kg, ensure_web_price_type, ensure_25g_pack_and_spgm25,
         ensure_web_prices, ensure_recipe_tables, ensure_change_log_reason,
         ensure_planning_foundations, ensure_plan_version_horizon, ensure_plan_sales_tables,
         ensure_plan_m2_tables, ensure_plan_code, ensure_plan_release,

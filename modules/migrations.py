@@ -31,6 +31,7 @@ __all__ = [
     'ensure_margin_alerts_table',
     'ensure_field_otp_table',
     'ensure_ingredient_price_volatile',
+    'ensure_ingredient_unit_kg',
     'ensure_clean_product_codes',
     'ensure_web_price_type',
     'ensure_25g_pack_and_spgm25',
@@ -1479,6 +1480,27 @@ def ensure_ingredient_price_volatile():
             print("  ✓ ingredients.price_volatile column added")
         else:
             print("  ✓ ingredients.price_volatile already exists")
+    finally:
+        c.close()
+
+
+def ensure_ingredient_unit_kg():
+    """Normalize ingredients.unit to 'kg' (idempotent). Costing always treats
+    cost_per_kg as a per-KILOGRAM rate and BOM quantities as grams — the `unit`
+    column is decorative and was a footgun (a 'g'/'gram' label could trick a
+    per-gram cost entry that the engine then reads as per-kg → ~1000x error).
+    Standardize the stored label so display, export, and reconcile all agree."""
+    c = _conn()
+    try:
+        cols = [r['name'] for r in c.execute("PRAGMA table_info(ingredients)").fetchall()]
+        if 'unit' not in cols:
+            print("  ✓ ingredients.unit absent — nothing to normalize")
+            return
+        n = c.execute("UPDATE ingredients SET unit='kg' WHERE unit IS NULL OR unit<>'kg'").rowcount
+        c.commit()
+        print(f"  ✓ ingredients.unit normalized to 'kg' ({n} row(s) updated)")
+    except Exception as e:
+        print(f"  ⚠ ensure_ingredient_unit_kg skipped: {e}")
     finally:
         c.close()
 

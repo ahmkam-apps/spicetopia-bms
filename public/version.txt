@@ -1,2 +1,2 @@
-build: 2026-06-29 dashboard-owner-ops-tabs
+build: 2026-06-29 ingredient-unit-perkg-lock
 has_gtin: true

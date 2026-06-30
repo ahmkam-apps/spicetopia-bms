@@ -12965,13 +12965,18 @@ async function renderIngredientsAdmin() {
 
   const renderRow = i => {
     const volBadge = i.price_volatile ? '<span title="Price volatile — margin check runs on every update" style="margin-left:6px;font-size:11px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:4px;padding:1px 5px;vertical-align:middle">⚠ Volatile</span>' : '';
+    // Audit: a real per-kg spice cost is never below ~₨10/kg. A tiny value almost
+    // certainly means someone typed a PER-GRAM price (engine reads it as per-kg → ~1000x low).
+    const lowCost = (i.cost_per_kg > 0 && i.cost_per_kg < 10)
+      ? '<span title="This looks like a per-gram price. Costs are entered PER KG — e.g. ₨1200/kg, not ₨1.20/g. Please check." style="margin-left:6px;font-size:11px;background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:1px 5px;vertical-align:middle">⚠ check ₨/kg</span>'
+      : '';
     return `
   <tr id="ing-row-${i.id}" style="${!i.active ? 'opacity:0.5' : ''}">
     <td><strong style="font-family:monospace">${i.code}</strong>${volBadge}${i.name ? '<br><span style="font-size:11px;color:var(--text-2)">' + i.name + '</span>' : ''}</td>
     <td class="num text-right">${fmt(i.balanceGrams || 0, 0)}g</td>
     <td class="num text-right">${fmt(i.reorder_level || 0, 0)}g</td>
-    <td class="num text-right"><strong>${fmtPKR(i.cost_per_kg)}/kg</strong></td>
-    <td>${i.unit || 'kg'}</td>
+    <td class="num text-right"><strong>${fmtPKR(i.cost_per_kg)}/kg</strong>${lowCost}</td>
+    <td style="color:var(--text-3)">per kg</td>
     <td><span class="badge ${badgeCls(i)}">${badgeTxt(i)}</span></td>
     <td style="white-space:nowrap">
       ${i.active !== 0 ? `
@@ -12988,13 +12993,8 @@ async function renderIngredientsAdmin() {
         <div id="ing-edit-msg-${i.id}" style="margin-bottom:6px"></div>
         <div class="form-row" style="align-items:flex-end;margin-bottom:0">
           <div class="form-group" style="flex:1;min-width:150px"><label style="font-size:12px">Name (optional)</label><input id="ie-name-${i.id}" type="text" class="form-input" placeholder="e.g. Chaat Masala"></div>
-          <div class="form-group"><label style="font-size:12px">Cost/kg (PKR)</label><input id="ie-cost-${i.id}" type="number" min="0" step="0.01" class="form-input" style="width:120px"></div>
+          <div class="form-group"><label style="font-size:12px">Cost <b>per kg</b> (PKR)</label><input id="ie-cost-${i.id}" type="number" min="0" step="0.01" class="form-input" style="width:130px" placeholder="e.g. 1200"><div style="font-size:10px;color:var(--text-3);margin-top:2px">Always per kilogram</div></div>
           <div class="form-group"><label style="font-size:12px">Reorder Level (g)</label><input id="ie-reorder-${i.id}" type="number" min="0" step="1" class="form-input" style="width:120px"></div>
-          <div class="form-group"><label style="font-size:12px">Unit</label>
-            <select id="ie-unit-${i.id}" class="form-input" style="width:80px">
-              <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="pcs">pcs</option>
-            </select>
-          </div>
           <div class="form-group" style="flex:0 0 auto">
             <label style="font-size:12px;display:block;margin-bottom:6px">Price Volatile</label>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
@@ -13055,13 +13055,8 @@ function ingShowAdd() {
     <div class="form-row" style="align-items:flex-end">
       <div class="form-group"><label>Code * <span style="font-size:10px;color:var(--text-3)">(e.g. ING-020SP)</span></label><input id="ia-code" class="form-input" placeholder="ING-020SP" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
       <div class="form-group" style="flex:1;min-width:140px"><label>Name <span style="font-size:10px;color:var(--text-3)">(optional)</span></label><input id="ia-name" class="form-input" placeholder="e.g. Chaat Masala"></div>
-      <div class="form-group"><label>Cost/kg (PKR) *</label><input id="ia-cost" type="number" min="0" step="0.01" class="form-input" placeholder="0.00"></div>
+      <div class="form-group"><label>Cost <b>per kg</b> (PKR) *</label><input id="ia-cost" type="number" min="0" step="0.01" class="form-input" placeholder="e.g. 1200"><div style="font-size:10px;color:var(--text-3);margin-top:2px">Always per kilogram, not per gram</div></div>
       <div class="form-group"><label>Reorder Level (g)</label><input id="ia-reorder" type="number" min="0" step="1" class="form-input" placeholder="0" value="0"></div>
-      <div class="form-group"><label>Unit</label>
-        <select id="ia-unit" class="form-input">
-          <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="pcs">pcs</option>
-        </select>
-      </div>
       <div class="form-group" style="flex:0;display:flex;gap:8px">
         <button class="btn btn-primary" onclick="ingSubmitAdd()">Add</button>
         <button class="btn btn-outline" onclick="document.getElementById('ing-add-area').innerHTML=''">Cancel</button>
