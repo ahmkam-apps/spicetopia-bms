@@ -1,2 +1,2 @@
-build: 2026-06-29 costing-phase2-opcosts-wired
+build: 2026-06-29 dashboard-accuracy-cogs-cash
 has_gtin: true

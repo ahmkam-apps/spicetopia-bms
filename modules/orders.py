@@ -1247,8 +1247,6 @@ def generate_invoice_from_order(order_id, data):
     inv_number   = next_id('invoice', 'INV')
     sale_ids_pre = [next_id('sale', 'SALE') for _ in resolved]
 
-    mfg_type = qry1("SELECT id FROM price_types WHERE code='mfg_cost'")
-
     c = _conn()
     try:
         c.execute("""
@@ -1265,16 +1263,6 @@ def generate_invoice_from_order(order_id, data):
             unit_price = r2(item['unit_price'])
             line_total = r2(qty * unit_price)
 
-            # COGS from mfg_cost price
-            cogs_price = 0.0
-            if mfg_type:
-                cp = qry1("""SELECT price FROM product_prices
-                             WHERE product_variant_id=? AND price_type_id=? AND active_flag=1
-                             ORDER BY effective_from DESC LIMIT 1""",
-                          (item['product_variant_id'], mfg_type['id']))
-                if cp:
-                    cogs_price = r2(cp['price'] * qty)
-
             sale_id = sale_ids_pre[idx]
             sale_ids.append(sale_id)
 
@@ -1285,6 +1273,15 @@ def generate_invoice_from_order(order_id, data):
                 JOIN pack_sizes ps ON ps.id=pv.pack_size_id
                 WHERE pv.id=?
             """, (item['product_variant_id'],))
+
+            # COGS: same BOM-computed Cost to Make as field sales, so the dashboard
+            # gross margin uses ONE consistent cost source across B2B + direct sales.
+            # (falls back to the typed mfg_cost price, then 0 — see field._unit_cost_to_make)
+            from modules.field import _unit_cost_to_make
+            cogs_price = r2(_unit_cost_to_make(
+                var_info['product_code'] if var_info else '',
+                var_info['pack_size']    if var_info else '',
+                item['product_variant_id']) * qty)
 
             c.execute("""
                 INSERT INTO sales

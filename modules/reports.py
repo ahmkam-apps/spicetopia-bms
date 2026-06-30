@@ -72,9 +72,18 @@ def get_dashboard():
         FROM sales WHERE sale_date >= ? AND sale_date <= ?
     """, (last_month_start, last_month_end)) or {}
 
+    # All-time net cash movement through the ERP (customer receipts − supplier payments).
+    # NOTE: this is NOT a bank balance — it has no opening balance and excludes any cash
+    # paid outside supplier_payments (salaries, rent, utilities, capital). Labelled honestly
+    # on the dashboard as "Net cash flow (all-time)".
     cash_in  = (qry1("SELECT COALESCE(SUM(amount),0) as v FROM customer_payments",  ()) or {}).get('v', 0)
     cash_out = (qry1("SELECT COALESCE(SUM(amount),0) as v FROM supplier_payments",  ()) or {}).get('v', 0)
     cash_position = r2(cash_in - cash_out)
+
+    # Month-to-date cash movement — the more useful, period-bounded figure.
+    cash_in_mtd  = (qry1("SELECT COALESCE(SUM(amount),0) as v FROM customer_payments WHERE payment_date >= ?", (month_start,)) or {}).get('v', 0)
+    cash_out_mtd = (qry1("SELECT COALESCE(SUM(amount),0) as v FROM supplier_payments WHERE payment_date >= ?", (month_start,)) or {}).get('v', 0)
+    cash_flow_mtd = r2(cash_in_mtd - cash_out_mtd)
 
     ar_invoices     = qry("SELECT inv.id, inv.status, inv.due_date FROM invoices inv")
     ar_unpaid_count = sum(1 for i in ar_invoices if i['status'] in ('UNPAID', 'PARTIAL'))
@@ -146,6 +155,18 @@ def get_dashboard():
                 fg_list.append({'skuCode': v['sku_code'], 'product': v['product_name'],
                                 'packSize': v['pack_size'], 'units': units})
 
+    # Net profit MTD = gross profit this month − operating costs recorded for this month.
+    # Operating costs are the TOTAL ₨ for the month (all categories), not per-pack.
+    month_key = today_d.strftime('%Y-%m')
+    op_cost_month = 0.0
+    try:
+        op_cost_month = r2((qry1(
+            "SELECT COALESCE(SUM(amount),0) as v FROM monthly_operating_costs WHERE month = ?",
+            (month_key,)) or {}).get('v', 0))
+    except Exception:
+        op_cost_month = 0.0
+    net_profit_mtd = r2(r2(sales_month.get('gp', 0)) - op_cost_month)
+
     return {
         'salesToday': {
             'count':       int(sales_today.get('cnt', 0)),
@@ -165,6 +186,9 @@ def get_dashboard():
             'grossProfit': r2(sales_last_month.get('gp', 0)),
         },
         'cashPosition': cash_position,
+        'cashFlowMTD':  cash_flow_mtd,
+        'opCostMonth':  op_cost_month,
+        'netProfitMTD': net_profit_mtd,
         'ar': {
             'unpaidCount': ar_unpaid_count,
             'outstanding': r2(ar_outstanding),

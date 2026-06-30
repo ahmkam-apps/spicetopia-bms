@@ -1882,9 +1882,9 @@ async function renderDashboard() {
     </div>
 
     <div class="card" style="border-top:3px solid ${cpColor};cursor:pointer;transition:box-shadow .15s;position:relative" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('pl-report')" title="View P&amp;L report">
-      <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Cash Position</div>
+      <div class="card-title" style="font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">Net Cash Flow</div>
       <div class="card-value" style="font-size:20px;font-weight:700;color:${cpColor};margin:6px 0 4px">${fmtPKR(cp)}</div>
-      <div class="card-sub" style="font-size:11px;color:var(--text-3)">Received − Paid out</div>
+      <div class="card-sub" style="font-size:11px;color:var(--text-3)" title="All-time customer receipts minus supplier payments. Not a bank balance — excludes opening balance, salaries, rent and other cash.">All-time: received − paid out</div>
       <div style="font-size:10px;color:var(--text-3);margin-top:4px;opacity:.6">View P&amp;L →</div>
     </div>
 
