@@ -5160,6 +5160,9 @@ async function renderSuppliers() {
 }
 
 function escQ(s) { return (s||'').replace(/'/g,"&#39;").replace(/"/g,'&quot;'); }
+// Full HTML escape — used by the duplicate-scan and archive-candidates reports.
+// (Was referenced as esc() in several places but never defined → those reports threw.)
+function esc(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function editSupplier(id) {
   // Collapse any other open edit rows first — tr[] prevents hiding child elements

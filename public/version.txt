@@ -1,2 +1,2 @@
-build: 2026-06-29 archive-report-clientside
+build: 2026-06-29 fix-missing-esc-helper
 has_gtin: true
