@@ -57,6 +57,16 @@ from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+# Route modules — HTTP dispatch extracted out of do_GET/do_POST by domain.
+# (routes.auth_routes imports `send_json` back from this file, but only inside
+# its function bodies, so there's no circular-import problem at load time.)
+from routes.auth_routes import (
+    handle_get_pre_gate as _auth_routes_get_pre_gate,
+    handle_get_post_gate as _auth_routes_get_post_gate,
+    handle_post_login as _auth_routes_post_login,
+    handle_post_logout as _auth_routes_post_logout,
+)
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 # sys._MEIPASS is set by PyInstaller when running as a bundled .exe
 # Falls back to the script's own directory when running normally
@@ -1854,22 +1864,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # ── GET /health — no auth required, for load balancers / monitoring ──
-            if path == '/health' or path == '/api/health':
-                db_ok = False
-                try:
-                    qry1("SELECT 1", ())
-                    db_ok = True
-                except Exception:
-                    pass
-                uptime = int(time.time() - _SERVER_START_TIME)
-                status = 'ok' if db_ok else 'degraded'
-                code   = 200 if db_ok else 503
-                send_json(self, {
-                    'status':         status,
-                    'db':             'ok' if db_ok else 'error',
-                    'uptime_seconds': uptime,
-                    'version':        '2.0',
-                }, code)
+            # (routes/auth_routes.py handle_get_pre_gate — moved, not rewritten)
+            if _auth_routes_get_pre_gate(self, path, _SERVER_START_TIME):
                 return
 
             # ── GET /api/public/prices — no auth, consumer website price feed ──
@@ -1959,18 +1955,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not sess:
                     send_json(self, {'error': 'Unauthorized'}, 401); return
 
-            # GET /api/health — no auth, returns server start time for deploy verification
-            if path == '/api/health':
-                send_json(self, {'ok': True, 'started_at': SERVER_START_TIME})
-                return
-
-            # GET /api/auth/me — session status
-            if path == '/api/auth/me':
-                sess = get_session(self)
-                if sess:
-                    send_json(self, {'authenticated': True, **sess})
-                else:
-                    send_json(self, {'authenticated': False})
+            # GET /api/health (again) + GET /api/auth/me — session status
+            # (routes/auth_routes.py handle_get_post_gate — moved, not rewritten)
+            if _auth_routes_get_post_gate(self, path, SERVER_START_TIME):
                 return
 
             # GET /api/users  (admin only)
@@ -3607,37 +3594,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # POST /api/auth/login  (no auth required)
-            if path == '/api/auth/login':
-                ip = _get_client_ip(self)
-                # One-time bypass: if ADMIN_BYPASS_TOKEN env var is set and matches,
-                # skip rate limiting and return admin session directly.
-                bypass_token = os.environ.get('ADMIN_BYPASS_TOKEN', '').strip()
-                if bypass_token and data.get('username') == 'admin' and data.get('password') == bypass_token:
-                    user = qry1("SELECT * FROM users WHERE username='admin' AND active=1")
-                    if user:
-                        token      = secrets.token_hex(32)
-                        now        = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
-                        expires_at = (datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)).strftime('%Y-%m-%dT%H:%M:%S')
-                        display    = user['display_name'] or user['username']
-                        run("""
-                            INSERT INTO sessions (token, user_id, username, display_name, role, permissions, created_at, expires_at, last_seen_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (token, user['id'], user['username'], display, user['role'], user.get('permissions','[]'), now, expires_at, now))
-                        _clear_rate_limit(ip)
-                        print(f"  ⚠ Admin bypass token used from {ip} — remove ADMIN_BYPASS_TOKEN now!")
-                        send_json(self, {'token': token, 'role': user['role'],
-                                         'username': user['username'],
-                                         'displayName': display,
-                                         'userId': user['id'], 'permissions': []})
-                        return
-                try:
-                    _check_rate_limit(ip)
-                    result = login_user(data.get('username', ''), data.get('password', ''))
-                    _clear_rate_limit(ip)
-                    send_json(self, result)
-                except ValueError as e:
-                    _record_failed_attempt(ip)
-                    send_json(self, {'error': str(e)}, 401)
+            # (routes/auth_routes.py handle_post_login — moved, not rewritten)
+            if _auth_routes_post_login(self, path, data):
                 return
 
             # POST /api/field/auth  (no BMS session required — PIN login for reps)
@@ -3787,11 +3745,8 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {'error': 'Unauthorized'}, 401); return
 
             # POST /api/auth/logout
-            if path == '/api/auth/logout':
-                auth = self.headers.get('Authorization', '')
-                if auth.startswith('Bearer '):
-                    logout_user(auth[7:])
-                send_json(self, {'ok': True})
+            # (routes/auth_routes.py handle_post_logout — moved, not rewritten)
+            if _auth_routes_post_logout(self, path):
                 return
 
             # POST /api/admin/reconcile-statuses (admin only — fix any status drift)
