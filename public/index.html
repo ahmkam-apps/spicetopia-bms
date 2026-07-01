@@ -9868,7 +9868,7 @@ async function renderPrices() {
         <td class="num text-right">${priceCell(pm.distributor)}</td>
         <td class="num text-right">${priceCell(pm.retail_mrp)}</td>
         <td style="text-align:right;white-space:nowrap">
-          <button class="btn btn-xs btn-outline" onclick="editPrice(${v.id}, ${JSON.stringify(pm)})" style="font-size:11px" title="Update price — pre-fills current values">✏ Update Price</button>
+          <button class="btn btn-xs btn-outline" data-variant-id="${v.id}" data-price-map="${JSON.stringify(pm).replace(/"/g,'&quot;')}" onclick="editPrice(this)" style="font-size:11px" title="Update price — pre-fills current values">✏ Update Price</button>
         </td>
       </tr>`).join('');
 
@@ -10025,7 +10025,9 @@ async function savePrice() {
   } catch(e) { showMsg('price-msg', e.message, 'error'); }
 }
 
-function editPrice(variantId, priceMap) {
+function editPrice(btn) {
+  const variantId = btn.dataset.variantId;
+  const priceMap  = JSON.parse(btn.dataset.priceMap || '{}');
   // Pre-select this variant in the Set Price form and scroll to it
   const skuSel  = document.getElementById('px-sku');
   const typeSel = document.getElementById('px-type');
@@ -11413,7 +11415,7 @@ function _rqRenderPendingRows(queue) {
             <label class="form-label">Approval note (optional)</label>
             <input type="text" id="rq-edit-note-${o.id}" class="form-input" placeholder="e.g. Reduced qty due to stock availability" style="margin-top:4px;margin-bottom:10px">
             <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" style="background:var(--cardamom);border-color:var(--cardamom)" onclick="_rqSubmitEditApprove(${o.id}, ${JSON.stringify(o.items||[])})">✓ Approve with Edits</button>
+              <button class="btn btn-primary" style="background:var(--cardamom);border-color:var(--cardamom)" onclick="_rqSubmitEditApprove(${o.id})">✓ Approve with Edits</button>
               <button class="btn btn-outline" onclick="_rqCancelEdit(${o.id})">Cancel</button>
             </div>
           </div>
@@ -11502,10 +11504,14 @@ function _rqOpenEditApprove(id) {
 function _rqCancelEdit(id) {
   document.getElementById(`rq-edit-form-${id}`).style.display = 'none';
 }
-async function _rqSubmitEditApprove(orderId, items) {
-  const quantities = items.map(item => {
-    const inp = document.getElementById(`rq-edit-qty-${orderId}-${item.id}`);
-    return { itemId: item.id, qty: inp ? parseInt(inp.value) : item.qtyOrdered };
+async function _rqSubmitEditApprove(orderId) {
+  // Quantities are read straight off the rendered inputs (ids already carry order+item id) —
+  // avoids passing an item-data blob through the onclick attribute (see editPrice for the same fix).
+  const prefix = `rq-edit-qty-${orderId}-`;
+  const quantities = [];
+  document.querySelectorAll('input[id^="' + prefix + '"]').forEach(inp => {
+    const itemId = inp.id.slice(prefix.length);
+    quantities.push({ itemId: isNaN(Number(itemId)) ? itemId : Number(itemId), qty: parseInt(inp.value) || 0 });
   });
   const noteEl = document.getElementById(`rq-edit-note-${orderId}`);
   const approvalNote = noteEl ? noteEl.value.trim() : '';

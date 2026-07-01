@@ -552,7 +552,7 @@ async function loadTodayData() {
   try {
     const [visitsR, ordersR] = await Promise.all([
       fetch('/api/beat-visits?repId=' + state.repId + '&date=' + today, opts),
-      fetch('/api/field-orders?repId=' + state.repId + '&dateFrom=' + today + '&dateTo=' + today, opts),
+      fetch('/api/field-orders?repId=' + state.repId + '&from=' + today + '&to=' + today, opts),
     ]);
     if (visitsR.ok) {
       const visits = await visitsR.json();
