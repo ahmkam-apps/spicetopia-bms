@@ -1586,7 +1586,7 @@ async function render(page, arg) {
       case 'bom':         c.innerHTML = await renderBomSetup();    break;
       case 'products':      c.innerHTML = await renderProducts();      break;
       case 'recipes':       c.innerHTML = await renderRecipes();       break;
-      case 'prices-costs':  c.innerHTML = await renderPricesCosts();  if(typeof _pcOvPreview==='function') _pcOvPreview();  break;
+      case 'prices-costs':  c.innerHTML = await renderPricesCosts();  if(typeof _pcSwitchTab==='function') _pcSwitchTab(_pcTab);  if(typeof _pcOvPreview==='function') _pcOvPreview();  break;
       case 'pl-report':       c.innerHTML = await renderPLReport(arg);    break;
       case 'margins':         c.innerHTML = await renderMargins();         break;
       case 'rep-performance': c.innerHTML = await renderRepPerformance(); break;
@@ -10703,6 +10703,7 @@ SP-ING003,950.00</pre>
     + '<div style="margin-top:12px"><button class="btn btn-primary" onclick="_pcOvSave()">Save</button> <span id="pc-ov-msg" style="margin-left:10px;font-size:13px"></span></div>'
     + '</div>';
   const overviewTab = '<div id="pc-pane-overview">'
+    + '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="_pcSwitchTab(\'ingredients\')">Update ingredient prices →</button></div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">' + (ovCards || '<div class="card">No products yet — add products and a BOM to see costs.</div>') + '</div>'
     + setup + '</div>';
 
