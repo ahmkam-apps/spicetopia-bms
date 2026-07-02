@@ -3321,10 +3321,18 @@ class Handler(BaseHTTPRequestHandler):
 
             # GET /api/reps/:id
             if path.startswith('/api/reps/') and len(path.split('/')) == 4:
+                _rsess = get_session(self, qs)
                 rep_id = int(path.split('/')[3])
+                # A field rep may only read their OWN profile, and never sees pay info.
+                if _rsess and _rsess.get('role') == 'field_rep':
+                    rep_id = _rsess.get('repId')
                 rep = get_rep(rep_id)
                 if not rep:
                     send_error(self, "Rep not found", 404); return
+                if _rsess and _rsess.get('role') == 'field_rep':
+                    for _k in ('salary_components', 'commission_rules', 'advances',
+                               'targets', 'base_salary', 'basic_salary'):
+                        rep.pop(_k, None)
                 send_json(self, rep)
                 return
 

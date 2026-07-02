@@ -1070,13 +1070,11 @@ async function loadProfile() {
     const r = await fetch(`/api/reps/${state.repId}`, { credentials: 'same-origin' });
     const rep = await r.json();
     if (!r.ok) return;
-    const salary = (rep.salary_components||[])[0] || {};
     document.getElementById('profile-info').innerHTML = `
       <b>Name:</b> ${escH(rep.name||'')} <br>
       <b>Employee ID:</b> ${escH(rep.employee_id||'')} <br>
       <b>Phone:</b> ${escH(rep.phone||'')} <br>
       <b>Designation:</b> ${escH(rep.designation||'')} <br>
-      <b>Basic Salary:</b> PKR ${(salary.basic_salary||0).toLocaleString()} <br>
       <b>Routes:</b> ${(rep.routes||[]).map(r=>escH(r.route_name)).join(', ')||'—'}
     `;
   } catch(e) {}
