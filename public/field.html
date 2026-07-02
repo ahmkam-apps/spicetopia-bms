@@ -127,6 +127,34 @@ select.form-input { background: #fff; }
 .alert-success { background: #d4edda; color: #155724; }
 .alert-error   { background: #f8d7da; color: #721c24; }
 
+/* ── LINKS / SUBFORM / HINTS ── */
+.link-btn { background:none; border:none; color:var(--saffron); font-size:13px; font-weight:700; cursor:pointer; padding:6px 0; }
+.subform { margin-top:12px; padding:14px; background:var(--bg); border:1px solid var(--border); border-radius:12px; }
+.subform .form-input { margin-bottom:10px; }
+.hint { font-size:11px; color:var(--text-2); margin:-6px 0 12px; }
+.two-col { display:flex; gap:8px; }
+.two-col > * { flex:1; margin-bottom:0; }
+
+/* ── CLEANER ORDER ITEM ── */
+.order-item2 { padding:10px 0; border-bottom:1px solid var(--border); }
+.order-item2:last-child { border-bottom:none; }
+.oi2-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.oi2-name { font-size:14px; font-weight:600; }
+.oi2-row { display:flex; align-items:center; gap:6px; }
+.oi2-lbl { font-size:11px; color:var(--text-2); font-weight:600; }
+.oi2-input { width:64px; padding:7px 8px; border:1.5px solid var(--border); border-radius:8px;
+  font-size:14px; text-align:center; outline:none; }
+.oi2-input:focus { border-color:var(--saffron); }
+.oi2-line { margin-left:auto; font-size:14px; font-weight:700; color:var(--saffron); }
+
+/* ── SUCCESS RESULT ── */
+.success-card { text-align:center; padding:24px 16px; }
+.success-check { width:60px; height:60px; border-radius:50%; background:var(--cardamom); color:#fff;
+  font-size:32px; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; }
+.success-inv { font-size:22px; font-weight:800; color:var(--text); }
+.success-total { font-size:16px; color:var(--text-2); margin-top:2px; }
+.success-hint { font-size:12px; color:var(--text-2); margin-top:4px; }
+
 /* Spacer for bottom nav */
 .bottom-space { height: 72px; }
 </style>
@@ -154,7 +182,8 @@ select.form-input { background: #fff; }
   <div class="login-card">
     <label class="login-label">Phone Number</label>
     <input class="login-input" id="login-phone" type="tel" placeholder="03001234567"
-      inputmode="numeric" autocomplete="tel">
+      inputmode="numeric" autocomplete="tel" style="margin-bottom:6px">
+    <div class="hint">Use the exact number your manager registered (e.g. 03001234567).</div>
 
     <!-- PIN section -->
     <div id="login-pin-section">
@@ -224,11 +253,32 @@ select.form-input { background: #fff; }
   <!-- NEW ORDER screen -->
   <div class="screen" id="screen-order">
     <div class="card" style="margin-bottom:12px">
-      <div class="card-title">Customer</div>
+      <div class="card-title">Shop</div>
       <select class="form-input" id="order-customer" onchange="onCustomerChange()">
-        <option value="">Select customer…</option>
+        <option value="">Select a shop…</option>
       </select>
       <div id="cust-info" style="margin-top:8px;font-size:12px;color:var(--text-2);display:none"></div>
+      <button class="link-btn" id="newshop-toggle" onclick="openNewShop()">＋ New shop</button>
+      <div id="newshop-form" class="subform" style="display:none">
+        <input class="form-input" id="ns-name" placeholder="Shop name *">
+        <input class="form-input" id="ns-phone" placeholder="Phone" inputmode="tel">
+        <div class="two-col" style="margin-bottom:10px">
+          <select class="form-input" id="ns-city">
+            <option value="Karachi">Karachi</option>
+            <option value="Hyderabad">Hyderabad</option>
+          </select>
+          <select class="form-input" id="ns-type">
+            <option value="RETAIL">Retail</option>
+            <option value="WHOLESALE">Wholesale</option>
+            <option value="DIRECT">Direct</option>
+          </select>
+        </div>
+        <select class="form-input" id="ns-zone"></select>
+        <div class="two-col">
+          <button class="btn btn-primary btn-sm" style="width:100%" onclick="createShop()">Save shop</button>
+          <button class="btn btn-secondary btn-sm" style="width:100%" onclick="cancelNewShop()">Cancel</button>
+        </div>
+      </div>
     </div>
     <div class="card" style="margin-bottom:12px">
       <div class="card-title">Add Products</div>
@@ -622,6 +672,69 @@ async function onCustomerChange() {
 }
 
 // ──────────────────────────────────────────────
+//  NEW SHOP (on-the-spot customer creation)
+// ──────────────────────────────────────────────
+function _zoneOptionsFromRoutes() {
+  const seen = {};
+  let opts = '<option value="">Zone (optional)</option>';
+  (state.routes || []).forEach(r => {
+    if (r.zone_id && !seen[r.zone_id]) {
+      seen[r.zone_id] = 1;
+      opts += '<option value="' + r.zone_id + '">' + escH(r.zone_name || ('Zone ' + r.zone_id)) + '</option>';
+    }
+  });
+  return opts;
+}
+
+function openNewShop() {
+  document.getElementById('ns-zone').innerHTML = _zoneOptionsFromRoutes();
+  document.getElementById('newshop-form').style.display = 'block';
+  document.getElementById('newshop-toggle').style.display = 'none';
+  document.getElementById('ns-name').focus();
+}
+
+function cancelNewShop() {
+  document.getElementById('newshop-form').style.display = 'none';
+  document.getElementById('newshop-toggle').style.display = 'inline-block';
+  document.getElementById('ns-name').value = '';
+  document.getElementById('ns-phone').value = '';
+}
+
+async function createShop() {
+  const name   = document.getElementById('ns-name').value.trim();
+  const phone  = document.getElementById('ns-phone').value.trim();
+  const city   = document.getElementById('ns-city').value;
+  const type   = document.getElementById('ns-type').value;
+  const zoneId = document.getElementById('ns-zone').value;
+  if (!name) return alert('Shop name is required');
+
+  const payload = { name, city, customerType: type, phone };
+  if (zoneId) payload.zoneId = parseInt(zoneId);
+
+  try {
+    const r = await fetch('/api/field/customers', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (!r.ok) { alert('Error: ' + (d.error || 'Could not create shop')); return; }
+    // Add to local list, select it, and continue the order
+    state.customers.push({
+      id: d.id, name: d.name || name, code: d.code || '',
+      customer_type: d.customer_type || type
+    });
+    populateDropdowns();
+    document.getElementById('order-customer').value = d.id;
+    cancelNewShop();
+    onCustomerChange();
+  } catch(e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+// ──────────────────────────────────────────────
 //  ROUTE SCREEN
 // ──────────────────────────────────────────────
 function renderRoute() {
@@ -717,24 +830,28 @@ function renderOrderItems() {
     document.getElementById('order-total').textContent = 'PKR 0';
     return;
   }
-  container.innerHTML = state.orderItems.map((item, idx) => `
-    <div class="order-item">
-      <div class="oi-name">${escH(item.name)}</div>
-      <input class="oi-qty" type="number" min="1" value="${item.qty}"
-        onchange="updateItemQty(${idx}, this.value)" inputmode="numeric">
-      <div style="display:flex;flex-direction:column;align-items:flex-end">
-        <input class="oi-qty" type="number" min="0" value="${item.unitPrice}"
-          onchange="updateItemPrice(${idx}, this.value)" placeholder="Price" inputmode="decimal" style="width:80px;margin-bottom:2px">
-        <span style="font-size:10px;color:var(--text-2)">unit price</span>
-      </div>
-      <button class="oi-remove" onclick="removeItem(${idx})">×</button>
-    </div>
-  `).join('');
+  container.innerHTML = state.orderItems.map((item, idx) =>
+      '<div class="order-item2">'
+    +   '<div class="oi2-top">'
+    +     '<span class="oi2-name">' + escH(item.name) + '</span>'
+    +     '<button class="oi-remove" onclick="removeItem(' + idx + ')">×</button>'
+    +   '</div>'
+    +   '<div class="oi2-row">'
+    +     '<label class="oi2-lbl">Qty</label>'
+    +     '<input class="oi2-input" type="number" min="1" value="' + item.qty + '" '
+    +       'onchange="updateItemQty(' + idx + ',this.value)" inputmode="numeric">'
+    +     '<label class="oi2-lbl">Price</label>'
+    +     '<input class="oi2-input" type="number" min="0" value="' + item.unitPrice + '" '
+    +       'onchange="updateItemPrice(' + idx + ',this.value)" inputmode="decimal">'
+    +     '<span class="oi2-line">PKR ' + Number(item.qty * item.unitPrice).toLocaleString() + '</span>'
+    +   '</div>'
+    + '</div>'
+  ).join('');
   recalcTotal();
 }
 
-function updateItemQty(idx, val)   { state.orderItems[idx].qty       = parseFloat(val)||1; recalcTotal(); }
-function updateItemPrice(idx, val) { state.orderItems[idx].unitPrice = parseFloat(val)||0; recalcTotal(); }
+function updateItemQty(idx, val)   { state.orderItems[idx].qty       = parseFloat(val)||1; renderOrderItems(); }
+function updateItemPrice(idx, val) { state.orderItems[idx].unitPrice = parseFloat(val)||0; renderOrderItems(); }
 function removeItem(idx)           { state.orderItems.splice(idx,1); renderOrderItems(); }
 
 function recalcTotal() {
@@ -792,16 +909,19 @@ function showOrderResult(d, total) {
   if (!box) return;
   const invNum = d.invoiceNumber || ('Invoice #' + d.invoiceId);
   const oor = d.outOfRoute
-    ? '<div style="color:var(--danger,#c0392b);font-size:13px;margin-top:6px">⚠ Out of your route — flagged for the office.</div>'
+    ? '<div style="color:var(--chili);font-size:12px;margin-top:8px">⚠ Out of your route — flagged for the office.</div>'
     : '';
+  box.className = 'card success-card';
+  box.style.border = '2px solid var(--cardamom)';
   box.innerHTML =
-      '<div class="card-title" style="color:var(--saffron)">✓ Invoice created</div>'
-    + '<div style="font-size:18px;font-weight:700;margin:4px 0">' + invNum + '</div>'
-    + '<div style="font-size:14px;color:var(--text-2)">Total: PKR ' + Number(total).toLocaleString() + '</div>'
+      '<div class="success-check">✓</div>'
+    + '<div class="success-inv">' + escH(invNum) + '</div>'
+    + '<div class="success-total">PKR ' + Number(total).toLocaleString() + '</div>'
+    + '<div class="success-hint">Invoice created — inventory & sales updated.</div>'
     + oor
-    + '<button class="btn btn-success" style="margin-top:12px" '
-    +   'onclick="shareInvoicePdf(' + d.invoiceId + ',\'' + invNum + '\')">📄 Send invoice on WhatsApp</button>'
-    + '<button class="btn btn-secondary" style="margin-top:8px" onclick="hideOrderResult()">New order</button>';
+    + '<button class="btn btn-success" style="margin-top:16px" '
+    +   'onclick="shareInvoicePdf(' + d.invoiceId + ',\'' + escH(invNum) + '\')">📄 Send invoice on WhatsApp</button>'
+    + '<button class="btn btn-secondary" onclick="hideOrderResult()">New order</button>';
   box.style.display = 'block';
   box.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
