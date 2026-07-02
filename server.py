@@ -1787,14 +1787,12 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, "Service worker not found", 404)
                 return
 
-            # /db-upload — one-time database upload page (admin only)
+            # /db-upload — one-time database upload page.
+            # NOTE: no session gate on the PAGE — browser navigations carry no
+            # Authorization header (token lives in localStorage), so a header
+            # check here always bounced admins to '/'. The page is inert; the
+            # actual POST /api/admin/db-upload endpoint enforces admin.
             if path == '/db-upload':
-                sess = get_session(self)
-                if not require(sess, 'admin'):
-                    self.send_response(302)
-                    self.send_header('Location', '/')
-                    self.end_headers()
-                    return
                 html = """<!DOCTYPE html><html><head><meta charset=utf-8>
                 <title>Upload Database — Spicetopia</title>
                 <style>
