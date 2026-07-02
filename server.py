@@ -1828,7 +1828,7 @@ class Handler(BaseHTTPRequestHandler):
                   const fd=new FormData();fd.append('db',f);
                   document.getElementById('msg').innerHTML='<span style=color:#888>Uploading...</span>';
                   const r=await fetch('/api/admin/db-upload',{method:'POST',body:fd,
-                    headers:{Authorization:'Bearer '+localStorage.getItem('sp_token')}});
+                    headers:{Authorization:'Bearer '+(localStorage.getItem('erp_token')||localStorage.getItem('sp_token'))}});
                   const d=await r.json();
                   if(d.ok){document.getElementById('msg').className='msg';
                             document.getElementById('msg').textContent='✓ Database replaced. Redirecting...'
