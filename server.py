@@ -3678,6 +3678,32 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, str(e), 400)
                 return
 
+            # POST /api/field/place-order  (field rep session) — book an order only
+            # (no confirm, no invoice, no stock decrement → works with zero stock)
+            if path == '/api/field/place-order':
+                fsess = _get_field_session(self, qs)
+                if not fsess:
+                    send_json(self, {'error': 'Field rep session required'}, 401); return
+                try:
+                    result = field_place_order(data, fsess['repId'])
+                    send_json(self, result, 201)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
+            # POST /api/field/orders/:id/invoice  (field rep session, scoped to own order)
+            if path.startswith('/api/field/orders/') and path.endswith('/invoice'):
+                fsess = _get_field_session(self, qs)
+                if not fsess:
+                    send_json(self, {'error': 'Field rep session required'}, 401); return
+                try:
+                    _oid = int(path.split('/')[4])
+                    result = field_invoice_order(_oid, fsess['repId'])
+                    send_json(self, result, 201)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
             # POST /api/public/orders  — no-auth consumer order intake from chacha.html
             if path == '/api/public/orders':
                 # Validate required fields

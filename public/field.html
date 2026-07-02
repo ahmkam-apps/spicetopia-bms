@@ -305,7 +305,7 @@ select.form-input { background: #fff; }
           placeholder="0" inputmode="decimal" style="flex:1">
       </div>
     </div>
-    <button class="btn btn-success" id="order-submit-btn" onclick="submitOrder()">Submit Order &amp; Invoice</button>
+    <button class="btn btn-success" id="order-submit-btn" onclick="placeOrder()">Submit Order</button>
     <button class="btn btn-secondary" onclick="clearOrder()">Clear</button>
     <div class="card" id="order-result" style="display:none;margin-top:14px;border:2px solid var(--saffron)"></div>
   </div>
@@ -859,14 +859,16 @@ function recalcTotal() {
   document.getElementById('order-total').textContent = 'PKR ' + total.toLocaleString();
 }
 
-async function submitOrder() {
+// STEP 1 — place the order (a booking). Never touches stock, so it always works.
+async function placeOrder() {
   const custId = document.getElementById('order-customer').value;
-  if (!custId) return alert('Please select a customer');
+  if (!custId) return alert('Please select a shop');
   if (!state.orderItems.length) return alert('Add at least one product');
 
   const emptyPrice = state.orderItems.filter(i => i.unitPrice <= 0);
   if (emptyPrice.length) return alert('Please enter unit price for all items');
 
+  const total = state.orderItems.reduce((s,i) => s + i.qty * i.unitPrice, 0);
   const payload = {
     order_source:    'rep_assisted',
     customerId:      parseInt(custId),
@@ -880,11 +882,9 @@ async function submitOrder() {
   };
 
   const btn = document.getElementById('order-submit-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Creating invoice…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Placing…'; }
   try {
-    // One tap: creates the order, confirms it, and invoices it through the
-    // standard engine (inventory ↓, sales/dashboard, AR all update).
-    const r = await fetch('/api/field/place-invoice', {
+    const r = await fetch('/api/field/place-order', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -892,33 +892,76 @@ async function submitOrder() {
     });
     const d = await r.json();
     if (!r.ok) { alert('Error: ' + (d.error||'unknown')); return; }
-    const total = state.orderItems.reduce((s,i) => s + i.qty * i.unitPrice, 0);
     state.todayOrders.push({id: d.orderId, total});
-    showOrderResult(d, total);
+    showOrderPlaced(d, total);
     clearOrder();
   } catch(e) {
     alert('Network error: ' + e.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Submit Order & Invoice'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit Order'; }
   }
 }
 
-// Show the invoice result with a one-tap "Send on WhatsApp" (shares the PDF).
-function showOrderResult(d, total) {
+// STEP 2 — generate the invoice for a placed order (needs stock). If stock is
+// short it fails but the order is preserved, so it can be invoiced later.
+async function generateInvoice(orderId, btnEl) {
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Generating…'; }
+  try {
+    const r = await fetch('/api/field/orders/' + orderId + '/invoice', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      alert('Could not invoice: ' + (d.error || 'unknown') +
+            '\n\nThe order is saved — you can generate the invoice once stock is available.');
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🧾 Generate Invoice'; }
+      return;
+    }
+    showInvoiceResult(d);
+  } catch(e) {
+    alert('Network error: ' + e.message);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🧾 Generate Invoice'; }
+  }
+}
+
+// Card after STEP 1: order placed → offer Generate Invoice.
+function showOrderPlaced(d, total) {
   const box = document.getElementById('order-result');
   if (!box) return;
-  const invNum = d.invoiceNumber || ('Invoice #' + d.invoiceId);
+  const ordNum = d.orderNumber || ('Order #' + d.orderId);
   const oor = d.outOfRoute
     ? '<div style="color:var(--chili);font-size:12px;margin-top:8px">⚠ Out of your route — flagged for the office.</div>'
     : '';
+  box.className = 'card success-card';
+  box.style.border = '2px solid var(--saffron)';
+  box.innerHTML =
+      '<div class="success-check" style="background:var(--saffron)">✓</div>'
+    + '<div class="success-inv">' + escH(ordNum) + '</div>'
+    + '<div class="success-total">PKR ' + Number(total).toLocaleString() + '</div>'
+    + '<div class="success-hint">Order placed. Generate the invoice when you’re ready.</div>'
+    + oor
+    + '<button class="btn btn-success" style="margin-top:16px" '
+    +   'onclick="generateInvoice(' + d.orderId + ', this)">🧾 Generate Invoice</button>'
+    + '<button class="btn btn-secondary" onclick="hideOrderResult()">New order</button>';
+  box.style.display = 'block';
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Card after STEP 2: invoice created → offer WhatsApp share.
+function showInvoiceResult(d) {
+  const box = document.getElementById('order-result');
+  if (!box) return;
+  const invNum = d.invoiceNumber || ('Invoice #' + d.invoiceId);
   box.className = 'card success-card';
   box.style.border = '2px solid var(--cardamom)';
   box.innerHTML =
       '<div class="success-check">✓</div>'
     + '<div class="success-inv">' + escH(invNum) + '</div>'
-    + '<div class="success-total">PKR ' + Number(total).toLocaleString() + '</div>'
+    + '<div class="success-total">PKR ' + Number(d.total || 0).toLocaleString() + '</div>'
     + '<div class="success-hint">Invoice created — inventory & sales updated.</div>'
-    + oor
     + '<button class="btn btn-success" style="margin-top:16px" '
     +   'onclick="shareInvoicePdf(' + d.invoiceId + ',\'' + escH(invNum) + '\')">📄 Send invoice on WhatsApp</button>'
     + '<button class="btn btn-secondary" onclick="hideOrderResult()">New order</button>';

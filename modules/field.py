@@ -62,6 +62,8 @@ __all__ = [
     'send_field_otp', 'verify_field_otp',
     # One-tap order → invoice (field app)
     'field_place_and_invoice',
+    # Two-step: place order (booking) + invoice existing order
+    'field_place_order', 'field_invoice_order',
 ]
 
 
@@ -1328,4 +1330,56 @@ def field_place_and_invoice(data, rep_id):
         'invoiceNumber': inv.get('invoiceNumber'),
         'total':         inv.get('total'),
         'outOfRoute':    bool(order.get('outOfRoute', False)),
+    }
+
+
+def field_place_order(data, rep_id):
+    """Field-rep: PLACE an order only (a booking) — creates a rep_assisted customer
+    order and stops. Does NOT confirm, invoice, or touch inventory, so it always
+    succeeds even when finished-goods stock is zero. Invoice it afterwards via
+    field_invoice_order (or later in the ERP)."""
+    from modules.orders import create_customer_order_external
+    payload = dict(data or {})
+    payload['order_source'] = 'rep_assisted'
+    if rep_id:
+        payload['created_by_rep_id'] = rep_id
+    order    = create_customer_order_external(payload)
+    order_id = order.get('orderId') or order.get('id')
+    if not order_id:
+        raise ValueError("Order creation failed")
+    return {
+        'orderId':     order_id,
+        'orderNumber': order.get('orderNumber') or order.get('order_number'),
+        'outOfRoute':  bool(order.get('outOfRoute', False)),
+    }
+
+
+def field_invoice_order(order_id, rep_id):
+    """Field-rep: invoice an order the rep placed. Confirms it if needed, then runs
+    generate_invoice_from_order for all still-uninvoiced lines (FG-stock check +
+    decrement + sales row/COGS + AR). Scoped: the order must belong to this rep.
+    If stock is short it raises (order is preserved — the rep can invoice later)."""
+    from modules.orders import confirm_customer_order, generate_invoice_from_order
+    order = qry1("SELECT id, created_by_rep_id, status FROM customer_orders WHERE id=?", (order_id,))
+    if not order:
+        raise ValueError("Order not found")
+    if rep_id and order['created_by_rep_id'] != rep_id:
+        raise ValueError("Not your order")
+    if order['status'] in ('cancelled', 'invoiced'):
+        raise ValueError(f"Order cannot be invoiced ({order['status']})")
+    if order['status'] in ('draft', 'pending_review'):
+        confirm_customer_order(order_id)
+
+    items = qry("SELECT id, qty_ordered, qty_invoiced FROM customer_order_items WHERE order_id=?", (order_id,))
+    lines = [{'orderItemId': it['id'], 'qty': it['qty_ordered'] - it['qty_invoiced']}
+             for it in items if (it['qty_ordered'] - it['qty_invoiced']) > 0]
+    if not lines:
+        raise ValueError("Nothing left to invoice on this order")
+
+    inv = generate_invoice_from_order(order_id, {'lines': lines, 'invoiceDate': str(date.today())})
+    return {
+        'orderId':       order_id,
+        'invoiceId':     inv.get('invoiceId'),
+        'invoiceNumber': inv.get('invoiceNumber'),
+        'total':         inv.get('total'),
     }
