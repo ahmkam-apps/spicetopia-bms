@@ -60,6 +60,8 @@ __all__ = [
     'create_sale', 'create_multi_sale',
     # OTP login
     'send_field_otp', 'verify_field_otp',
+    # One-tap order → invoice (field app)
+    'field_place_and_invoice',
 ]
 
 
@@ -1276,3 +1278,54 @@ def verify_field_otp(phone, code):
     if not rep:
         raise ValueError("Rep account not found or inactive.")
     return rep
+
+
+# ─────────────────────────────────────────────────────────────────
+#  FIELD REP: ONE-TAP ORDER → INVOICE (on-the-spot, no review queue)
+# ─────────────────────────────────────────────────────────────────
+
+def field_place_and_invoice(data, rep_id):
+    """Field-rep one-tap: create a rep_assisted customer order, confirm it, and
+    invoice ALL lines through the standard engine (orders.generate_invoice_from_order).
+
+    This routes field-app sales through the SAME pipe as the B2B portal, so a single
+    action correctly updates: finished-goods inventory (decremented), the sales table
+    (dashboard revenue + BOM-based COGS + gross profit), and the invoice + AR. No
+    review queue — the rep produces the invoice on the spot. The engine still enforces
+    finished-goods availability (blocks overselling) and the customer credit limit, so
+    removing human review does NOT remove those guards.
+
+    Returns invoice refs so the app can download the PDF. Lazy imports from
+    modules.orders avoid a circular import at module load."""
+    from modules.orders import (create_customer_order_external,
+                                 confirm_customer_order,
+                                 generate_invoice_from_order)
+    payload = dict(data or {})
+    payload['order_source'] = 'rep_assisted'
+    if rep_id:
+        payload['created_by_rep_id'] = rep_id
+
+    order    = create_customer_order_external(payload)
+    order_id = order.get('orderId') or order.get('id')
+    if not order_id:
+        raise ValueError("Order creation failed")
+
+    confirm_customer_order(order_id)
+
+    items = qry("SELECT id, qty_ordered FROM customer_order_items WHERE order_id=?", (order_id,))
+    lines = [{'orderItemId': it['id'], 'qty': it['qty_ordered']} for it in items]
+    if not lines:
+        raise ValueError("Order has no items to invoice")
+
+    inv = generate_invoice_from_order(order_id, {
+        'lines':       lines,
+        'invoiceDate': payload.get('orderDate') or str(date.today()),
+    })
+    return {
+        'orderId':       order_id,
+        'orderNumber':   order.get('orderNumber') or order.get('order_number'),
+        'invoiceId':     inv.get('invoiceId'),
+        'invoiceNumber': inv.get('invoiceNumber'),
+        'total':         inv.get('total'),
+        'outOfRoute':    bool(order.get('outOfRoute', False)),
+    }

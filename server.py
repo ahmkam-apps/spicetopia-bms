@@ -2912,9 +2912,19 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/invoices/:id/pdf
             if path.startswith('/api/invoices/') and path.endswith('/pdf'):
                 sess = get_session(self, qs)
-                if not require(sess, 'admin','accountant','sales','warehouse'):
-                    send_error(self, 'Permission denied', 403); return
                 inv_id = int(path.split('/')[3])
+                if sess and sess.get('role') == 'field_rep':
+                    # A field rep may pull ONLY the PDF for an invoice tied to an
+                    # order they created (scoped — cannot read others' invoices).
+                    _owns = qry1("""
+                        SELECT 1 FROM invoices inv
+                        JOIN customer_orders co ON co.id = inv.customer_order_id
+                        WHERE inv.id=? AND co.created_by_rep_id=?
+                    """, (inv_id, sess.get('repId')))
+                    if not _owns:
+                        send_error(self, 'Permission denied', 403); return
+                elif not require(sess, 'admin','accountant','sales','warehouse'):
+                    send_error(self, 'Permission denied', 403); return
                 try:
                     pdf_bytes = generate_invoice_pdf(inv_id)
                     inv_num = (qry1("SELECT invoice_number FROM invoices WHERE id=?",
@@ -3650,6 +3660,20 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, customer, 201)
                 except ValidationError as e:
                     send_json(self, {'error': 'Validation failed', 'fields': e.errors}, 422)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
+            # ── FIELD APP — POST /api/field/place-invoice  (field rep session) ──
+            # One-tap: create rep_assisted order → confirm → invoice via the standard
+            # engine (inventory + sales/dashboard COGS + AR all update). No review queue.
+            if path == '/api/field/place-invoice':
+                fsess = _get_field_session(self, qs)
+                if not fsess:
+                    send_json(self, {'error': 'Field rep session required'}, 401); return
+                try:
+                    result = field_place_and_invoice(data, fsess['repId'])
+                    send_json(self, result, 201)
                 except ValueError as e:
                     send_error(self, str(e), 400)
                 return

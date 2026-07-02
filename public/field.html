@@ -246,7 +246,8 @@ select.form-input { background: #fff; }
     </div>
     <textarea class="form-input" id="order-notes" placeholder="Notes…" rows="2"
       style="margin-bottom:12px"></textarea>
-    <div class="card" style="margin-bottom:12px">
+    <!-- Cash is recorded centrally as a payment against the invoice (kept hidden). -->
+    <div class="card" style="margin-bottom:12px;display:none">
       <div class="card-title">Cash Collected</div>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:14px;color:var(--text-2);font-weight:600">PKR</span>
@@ -254,8 +255,9 @@ select.form-input { background: #fff; }
           placeholder="0" inputmode="decimal" style="flex:1">
       </div>
     </div>
-    <button class="btn btn-success" onclick="submitOrder()">Submit Order</button>
+    <button class="btn btn-success" id="order-submit-btn" onclick="submitOrder()">Submit Order &amp; Invoice</button>
     <button class="btn btn-secondary" onclick="clearOrder()">Clear</button>
+    <div class="card" id="order-result" style="display:none;margin-top:14px;border:2px solid var(--saffron)"></div>
   </div>
 
   <!-- VISIT LOG screen -->
@@ -748,15 +750,11 @@ async function submitOrder() {
   const emptyPrice = state.orderItems.filter(i => i.unitPrice <= 0);
   if (emptyPrice.length) return alert('Please enter unit price for all items');
 
-  const routeId     = state.routes[0]?.id;
-  const cashRaw     = document.getElementById('order-cash').value.trim();
-  const cashCollected = cashRaw ? parseFloat(cashRaw) : 0;
   const payload = {
-    repId:         state.repId,
-    routeId:       routeId || null,
-    customerId:    parseInt(custId),
-    notes:         document.getElementById('order-notes').value.trim(),
-    cashCollected: cashCollected,
+    order_source:    'rep_assisted',
+    customerId:      parseInt(custId),
+    notes:           document.getElementById('order-notes').value.trim(),
+    idempotency_key: 'FLD-' + state.repId + '-' + Date.now(),
     items: state.orderItems.map(i => ({
       variantId: i.variantId,
       qty:       i.qty,
@@ -764,8 +762,12 @@ async function submitOrder() {
     }))
   };
 
+  const btn = document.getElementById('order-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating invoice…'; }
   try {
-    const r = await fetch('/api/field-orders', {
+    // One tap: creates the order, confirms it, and invoices it through the
+    // standard engine (inventory ↓, sales/dashboard, AR all update).
+    const r = await fetch('/api/field/place-invoice', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -774,13 +776,61 @@ async function submitOrder() {
     const d = await r.json();
     if (!r.ok) { alert('Error: ' + (d.error||'unknown')); return; }
     const total = state.orderItems.reduce((s,i) => s + i.qty * i.unitPrice, 0);
-    state.todayOrders.push({id: d.id, total});
+    state.todayOrders.push({id: d.orderId, total});
+    showOrderResult(d, total);
     clearOrder();
-    alert(`Order submitted! Total: PKR ${total.toLocaleString()}`);
-    switchTab('route');
-    renderRoute();
   } catch(e) {
     alert('Network error: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit Order & Invoice'; }
+  }
+}
+
+// Show the invoice result with a one-tap "Send on WhatsApp" (shares the PDF).
+function showOrderResult(d, total) {
+  const box = document.getElementById('order-result');
+  if (!box) return;
+  const invNum = d.invoiceNumber || ('Invoice #' + d.invoiceId);
+  const oor = d.outOfRoute
+    ? '<div style="color:var(--danger,#c0392b);font-size:13px;margin-top:6px">⚠ Out of your route — flagged for the office.</div>'
+    : '';
+  box.innerHTML =
+      '<div class="card-title" style="color:var(--saffron)">✓ Invoice created</div>'
+    + '<div style="font-size:18px;font-weight:700;margin:4px 0">' + invNum + '</div>'
+    + '<div style="font-size:14px;color:var(--text-2)">Total: PKR ' + Number(total).toLocaleString() + '</div>'
+    + oor
+    + '<button class="btn btn-success" style="margin-top:12px" '
+    +   'onclick="shareInvoicePdf(' + d.invoiceId + ',\'' + invNum + '\')">📄 Send invoice on WhatsApp</button>'
+    + '<button class="btn btn-secondary" style="margin-top:8px" onclick="hideOrderResult()">New order</button>';
+  box.style.display = 'block';
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function hideOrderResult() {
+  const box = document.getElementById('order-result');
+  if (box) box.style.display = 'none';
+}
+
+// Fetch the invoice PDF and hand it to the phone's share sheet (WhatsApp shows up).
+// Falls back to a plain download where the Web Share API can't share files (desktop).
+async function shareInvoicePdf(invId, invNum) {
+  try {
+    const r = await fetch('/api/invoices/' + invId + '/pdf', { credentials: 'same-origin' });
+    if (!r.ok) { alert('Could not fetch the invoice PDF.'); return; }
+    const blob  = await r.blob();
+    const fname = (invNum || ('invoice-' + invId)) + '.pdf';
+    const file  = new File([blob], fname, { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: fname, text: 'Your Spicetopia invoice' });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+  } catch(e) {
+    if (e && e.name !== 'AbortError') alert('Share error: ' + e.message);
   }
 }
 
