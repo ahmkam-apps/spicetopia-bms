@@ -48,6 +48,7 @@ __all__ = [
     'ensure_scenario_type_cleanup',
     'ensure_plan_forecast_zone',
     'ensure_operating_costs',
+    'ensure_deactivate_spring_catalog',
 ]
 
 
@@ -2076,3 +2077,37 @@ def ensure_plan_forecast_zone():
             c.close()
     except Exception as e:
         print(f"  ⚠ ensure_plan_forecast_zone: {e}")
+
+
+def ensure_deactivate_spring_catalog():
+    """Retire the orphaned SP-ING### ingredient catalog (idempotent).
+
+    Spicetopia carried TWO overlapping ingredient code schemes: the 15 `ING-###SP`
+    codes that the live SPGM/SPCM BOMs, the costing engine, the Planning buy-list,
+    and the ingredient-code generator (`next_ingredient_code`) all use — and 29
+    `SP-ING###` codes that are a parallel, UNUSED catalog (referenced by ZERO
+    bom_items). Keeping both is a footgun: duplicate names and conflicting per-kg
+    prices for the same spice. This deactivates the SP-ING catalog so only the
+    in-use scheme stays active.
+
+    Reversible — sets active=0, never deletes; the rows (and their prices) remain
+    as a reference and can be re-activated. SAFETY: the query explicitly refuses to
+    deactivate any ingredient referenced by a BOM line, so it can never break a
+    recipe even if BOM links change later. Idempotent — re-running touches 0 rows."""
+    c = _conn()
+    try:
+        cols = [r['name'] for r in c.execute("PRAGMA table_info(ingredients)").fetchall()]
+        if 'active' not in cols or 'code' not in cols:
+            print("  ✓ ingredients.active/code absent — skipping SP-ING retire")
+            return
+        n = c.execute(
+            "UPDATE ingredients SET active=0 "
+            "WHERE code LIKE 'SP-ING%' AND active=1 "
+            "AND id NOT IN (SELECT DISTINCT ingredient_id FROM bom_items)"
+        ).rowcount
+        c.commit()
+        print(f"  ✓ SP-ING catalog retired (deactivated {n} orphaned ingredient(s))")
+    except Exception as e:
+        print(f"  ⚠ ensure_deactivate_spring_catalog skipped: {e}")
+    finally:
+        c.close()

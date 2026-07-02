@@ -5615,6 +5615,7 @@ if __name__ == '__main__':
         ensure_planning_foundations, ensure_plan_version_horizon, ensure_plan_sales_tables,
         ensure_plan_m2_tables, ensure_plan_code, ensure_plan_release,
         ensure_scenario_type_cleanup, ensure_plan_forecast_zone, ensure_operating_costs,
+        ensure_deactivate_spring_catalog,
         backfill_customer_account_numbers,
     ):
         try:
