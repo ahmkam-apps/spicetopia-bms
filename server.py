@@ -2914,14 +2914,15 @@ class Handler(BaseHTTPRequestHandler):
                 sess = get_session(self, qs)
                 inv_id = int(path.split('/')[3])
                 if sess and sess.get('role') == 'field_rep':
-                    # A field rep may pull ONLY the PDF for an invoice tied to an
-                    # order they created (scoped — cannot read others' invoices).
-                    _owns = qry1("""
+                    # A field rep may pull the PDF for any field-channel invoice
+                    # (rep_assisted / field_rep orders) — reps are trusted internal
+                    # staff, but this still keeps them out of pure B2B/admin invoices.
+                    _fld = qry1("""
                         SELECT 1 FROM invoices inv
                         JOIN customer_orders co ON co.id = inv.customer_order_id
-                        WHERE inv.id=? AND co.created_by_rep_id=?
-                    """, (inv_id, sess.get('repId')))
-                    if not _owns:
+                        WHERE inv.id=? AND co.order_source IN ('rep_assisted','field_rep')
+                    """, (inv_id,))
+                    if not _fld:
                         send_error(self, 'Permission denied', 403); return
                 elif not require(sess, 'admin','accountant','sales','warehouse'):
                     send_error(self, 'Permission denied', 403); return

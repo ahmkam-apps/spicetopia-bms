@@ -495,23 +495,24 @@ def record_advance(rep_id, data):
 # ─────────────────────────────────────────────────────────────────
 
 def record_beat_visit(data):
-    """Log a beat visit. Required: repId, routeId, customerId.
+    """Log a beat visit. Required: repId, customerId. routeId OPTIONAL — a rep can
+    log a visit to any shop even if it isn't on a formal route (route_id 0 = none).
     Optional: visitDate (YYYY-MM-DD, default today), outcome (default 'visited'), notes.
     """
     rep_id     = data.get('repId')
-    route_id   = data.get('routeId')
+    route_id   = data.get('routeId') or 0
     cust_id    = data.get('customerId')
     visit_date = data.get('visitDate', str(date.today()))
     outcome    = data.get('outcome', 'visited')
     notes      = data.get('notes', '')
-    if not rep_id or not route_id or not cust_id:
-        raise ValueError("repId, routeId, customerId are required")
+    if not rep_id or not cust_id:
+        raise ValueError("repId and customerId are required")
     c = _conn()
     try:
         c.execute("""
-            INSERT INTO beat_visits (rep_id, route_id, customer_id, visit_date, outcome, notes)
-            VALUES (?,?,?,?,?,?)
-        """, (int(rep_id), int(route_id), int(cust_id), visit_date, outcome, notes))
+            INSERT INTO beat_visits (rep_id, route_id, customer_id, visit_date, outcome, payment_collected, notes)
+            VALUES (?,?,?,?,?,?,?)
+        """, (int(rep_id), int(route_id), int(cust_id), visit_date, outcome, 0, notes))
         c.commit()
         visit_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
@@ -1355,16 +1356,15 @@ def field_place_order(data, rep_id):
 
 
 def field_invoice_order(order_id, rep_id):
-    """Field-rep: invoice an order the rep placed. Confirms it if needed, then runs
+    """Field-rep: invoice a placed order. Confirms it if needed, then runs
     generate_invoice_from_order for all still-uninvoiced lines (FG-stock check +
-    decrement + sales row/COGS + AR). Scoped: the order must belong to this rep.
-    If stock is short it raises (order is preserved — the rep can invoice later)."""
+    decrement + sales row/COGS + AR). Any field rep may invoice any order — reps
+    are trusted internal staff (no per-rep ownership lock). If stock is short it
+    raises (the order is preserved — invoice it later once stock is made)."""
     from modules.orders import confirm_customer_order, generate_invoice_from_order
-    order = qry1("SELECT id, created_by_rep_id, status FROM customer_orders WHERE id=?", (order_id,))
+    order = qry1("SELECT id, status FROM customer_orders WHERE id=?", (order_id,))
     if not order:
         raise ValueError("Order not found")
-    if rep_id and order['created_by_rep_id'] != rep_id:
-        raise ValueError("Not your order")
     if order['status'] in ('cancelled', 'invoiced'):
         raise ValueError(f"Order cannot be invoiced ({order['status']})")
     if order['status'] in ('draft', 'pending_review'):
