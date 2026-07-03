@@ -685,7 +685,8 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-collapse" onclick="toggleSidebar()" title="Collapse / expand sidebar"><span id="collapse-chev">«</span></div>
 
       <!-- Home — Start Here landing -->
-      <div class="nav-item active" onclick="nav('home')" id="nav-home"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
+      <div class="nav-item active" onclick="nav('home')" id="nav-home"><span class="icon" data-icon="home"></span> Home</div>
+      <div class="nav-item" onclick="nav('dashboard')" id="nav-dashboard"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
 
       <!-- ── DAILY USE ──────────────────────────────────────────── -->
       <div class="nav-section">Sales &amp; AR</div>
@@ -1538,18 +1539,16 @@ function nav(page, arg) {
 
 async function render(page, arg) {
   const c = document.getElementById('content');
-  // Full-screen Home — hide the sidebar on the landing, show it inside every module
+  // Sidebar shows on every page now (the dashboard is the landing, not a full-screen Home).
   const _sb = document.getElementById('sidebar');
   if (_sb) {
-    _sb.style.display = (page === 'home') ? 'none' : '';
-    if (page !== 'home') {
-      const _stored = localStorage.getItem('erp_sidebar_collapsed');
-      const _col = (_stored === null) ? true : (_stored === '1');  // default collapsed
-      _sb.classList.toggle('collapsed', _col);
-      const _chev = document.getElementById('collapse-chev');
-      if (_chev) _chev.textContent = _col ? '»' : '«';
-      _sb.querySelectorAll('.nav-item').forEach(el => { if (!el.title) el.title = el.textContent.trim(); });
-    }
+    _sb.style.display = '';
+    const _stored = localStorage.getItem('erp_sidebar_collapsed');
+    const _col = (_stored === null) ? true : (_stored === '1');  // default collapsed
+    _sb.classList.toggle('collapsed', _col);
+    const _chev = document.getElementById('collapse-chev');
+    if (_chev) _chev.textContent = _col ? '»' : '«';
+    _sb.querySelectorAll('.nav-item').forEach(el => { if (!el.title) el.title = el.textContent.trim(); });
   }
   // Access guard
   if (!canAccess(page)) {
@@ -1564,7 +1563,7 @@ async function render(page, arg) {
   c.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)">Loading…</div>';
   try {
     switch(page) {
-      case 'home':        c.innerHTML = await renderDashboard();   break;
+      case 'home':        c.innerHTML = await renderHome();        break;
       case 'section-hub': c.innerHTML = renderSectionHub(state.hubKey); break;
       case 'dashboard':   c.innerHTML = await renderDashboard();   break;
       case 'customers':       c.innerHTML = await renderCustomers(); initCustomersTable(); break;
@@ -1712,7 +1711,105 @@ function renderSectionHub(key) {
     + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">' + cards + '</div>';
 }
 
+let _homeMonth = new Date().toISOString().slice(0, 7);
+function _homeShiftMonth(delta) {
+  const [y, m] = _homeMonth.split('-').map(Number);
+  const dt = new Date(y, m - 1 + delta, 1);
+  _homeMonth = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
+  nav('home');
+}
 async function renderHome() {
+  const u = state.currentUser || {};
+  const isAdmin = u.role === 'admin' || u.role === 'super_user';
+  const canPlan = isAdmin || ((u.permissions || []).includes('planning'));
+  const canCostsU = (typeof canCosts === 'function') && canCosts();
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? 'Good morning' : (hr < 17 ? 'Good afternoon' : 'Good evening');
+  const name = u.name || u.username || '';
+
+  let d = {}, oc = {}, lines = [];
+  try { d = await GET('/api/dashboard'); } catch (e) {}
+  if (canCostsU) {
+    try { oc = await GET('/api/costing/operating-costs'); } catch (e) {}
+    try { lines = await GET('/api/costing/cost-lines'); } catch (e) {}
+  }
+
+  const sd = d.salesToday || {}, oAR = d.overdueAR || {};
+  const packsToMake = (d.openWorkOrders || []).reduce((s, w) => s + (w.qty || 0), 0);
+  const vital = (label, value, sub, alert, target) =>
+    '<div onclick="nav(\'' + target + '\')" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;cursor:pointer" onmouseover="this.style.borderColor=\'var(--saffron)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+    + '<div style="font-size:12px;color:var(--text-3)">' + label + '</div>'
+    + '<div style="font-family:var(--font-serif);font-size:22px;font-weight:500;margin-top:2px;' + (alert ? 'color:var(--chili)' : '') + '">' + value + '</div>'
+    + (sub ? '<div style="font-size:11px;color:var(--text-3);margin-top:2px">' + sub + '</div>' : '') + '</div>';
+  const vitals = '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px">'
+    + vital('Sales today', fmtPKR(sd.revenue || 0), (sd.count || 0) + ' sales', false, 'dashboard')
+    + vital('Net cash flow (MTD)', fmtPKR(d.cashFlowMTD || 0), 'in − out', (d.cashFlowMTD || 0) < 0, 'pl-report')
+    + vital('Overdue AR', fmtPKR(oAR.amount || 0), (oAR.count || 0) + ' invoices', (oAR.count || 0) > 0, 'ar-aging')
+    + vital('Low stock', String((d.lowStockAlerts || []).length), 'ingredients', (d.lowStockAlerts || []).length > 0, 'inventory')
+    + vital('To make', String(packsToMake), 'packs', false, 'production')
+    + '</div>';
+
+  const att = [];
+  if (oAR.count) att.push({ c: 'var(--chili)', t: oAR.count + ' invoice' + (oAR.count > 1 ? 's' : '') + ' overdue · ' + fmtPKR(oAR.amount), n: 'ar-aging' });
+  (d.lowStockAlerts || []).length && att.push({ c: 'var(--saffron-deep)', t: d.lowStockAlerts.length + ' ingredient' + (d.lowStockAlerts.length > 1 ? 's' : '') + ' low on stock', n: 'inventory' });
+  packsToMake && att.push({ c: '#1a73e8', t: packsToMake + ' packs to make in open work orders', n: 'production' });
+  const attHtml = att.length
+    ? '<div style="margin-bottom:20px">' + att.map(a => '<div onclick="nav(\'' + a.n + '\')" style="border-left:3px solid ' + a.c + ';background:var(--surface);padding:8px 12px;margin-bottom:6px;cursor:pointer;font-size:13px;color:' + a.c + ';font-weight:600">' + a.t + ' →</div>').join('') + '</div>'
+    : '';
+
+  let costWidget = '';
+  if (canCostsU) {
+    const months = oc.months || [];
+    const cur = months.find(m => m.month === _homeMonth);
+    const cats = (cur && cur.categories) || {};
+    const bucketOf = {};
+    (lines || []).forEach(l => { bucketOf[(l.name || '').toLowerCase()] = l.bucket; });
+    let vSum = 0, fSum = 0, total = 0;
+    Object.keys(cats).forEach(k => { const amt = cats[k] || 0; total += amt; const b = bucketOf[k]; if (b === 'variable') vSum += amt; else if (b === 'fixed') fSum += amt; });
+    const parts = _homeMonth.split('-');
+    const mLabel = new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    costWidget = '<div class="card" style="margin-bottom:24px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+      + '<span style="font-family:var(--font-serif);font-size:16px">Cost tracking</span>'
+      + '<span style="display:flex;align-items:center;gap:8px">'
+      + '<button class="btn btn-xs btn-outline" onclick="_homeShiftMonth(-1)" title="Previous month">‹</button>'
+      + '<span style="font-size:13px;font-weight:600;min-width:130px;text-align:center">' + mLabel + '</span>'
+      + '<button class="btn btn-xs btn-outline" onclick="_homeShiftMonth(1)" title="Next month">›</button>'
+      + '<button class="btn btn-xs btn-outline" onclick="nav(\'cost-tracking\')" title="Open Cost Tracking" style="margin-left:6px">Open →</button></span></div>'
+      + (cur
+        ? ('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'
+          + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Variable</div><div style="font-size:20px;font-weight:700">' + fmtPKR(vSum) + '</div></div>'
+          + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Fixed</div><div style="font-size:20px;font-weight:700">' + fmtPKR(fSum) + '</div></div>'
+          + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Total spent</div><div style="font-size:20px;font-weight:700">' + fmtPKR(total) + '</div></div>'
+          + '</div>')
+        : '<div style="color:var(--text-3);font-size:13px;padding:8px 0">No costs recorded for ' + mLabel + '. <a onclick="nav(\'cost-tracking\')" style="color:var(--saffron);cursor:pointer">Add them →</a></div>')
+      + '</div>';
+  }
+
+  const tile = (icon, t, onclick) =>
+    '<div onclick="' + onclick + '" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;cursor:pointer;text-align:center" onmouseover="this.style.borderColor=\'var(--saffron)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+    + '<div style="font-size:22px;margin-bottom:6px">' + icon + '</div><div style="font-size:13px">' + t + '</div></div>';
+  const tiles = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'
+    + tile('🧾', 'Take an order', "nav('orders-invoices','new')")
+    + tile('💵', 'Record payment', "nav('receipts-aging')")
+    + tile('📦', 'Inventory', "nav('inventory')")
+    + tile('🏭', 'Production', "nav('production')")
+    + (canCostsU ? tile('🏷️', 'Pricing', "nav('pricing')") : '')
+    + (canCostsU ? tile('📅', 'Cost Tracking', "nav('cost-tracking')") : '')
+    + tile('📊', 'Full dashboard', "nav('dashboard')")
+    + tile('📈', 'Reports', "nav('pl-report')")
+    + '</div>';
+
+  return '<div style="max-width:960px;margin:0 auto;padding-top:8px">'
+    + '<div style="font-size:13px;color:var(--text-2)">' + greet + (name ? ', ' + name : '') + '</div>'
+    + '<h1 style="font-family:var(--font-serif);font-weight:500;font-size:28px;margin:4px 0 18px">Home</h1>'
+    + vitals + attHtml + costWidget
+    + '<div style="font-family:var(--font-serif);font-size:16px;margin-bottom:12px">Quick access</div>'
+    + tiles
+    + '</div>';
+}
+
+async function renderHomeOld() {
   const u = state.currentUser || {};
   const isAdmin = u.role === 'admin' || u.role === 'super_user';
   const canPlan = isAdmin || ((u.permissions || []).includes('planning'));
