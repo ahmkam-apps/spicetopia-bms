@@ -923,8 +923,10 @@ def get_rep_today_route(rep_id):
 
 
 def field_get_products(customer_type='RETAIL'):
-    """Return active products + variants as flat list with price for given customer type.
-    Never exposes mfg_cost or ex_factory prices.
+    """Return active + LIVE products/variants as a flat list with price for the given
+    customer type. Honours the same "Live/Off" (show_online) toggle as the website —
+    a SKU switched Off in the ERP disappears from the field app too. Never exposes
+    mfg_cost or ex_factory prices.
     """
     type_map      = {'RETAIL': 'retail_mrp', 'DIRECT': 'distributor', 'WHOLESALE': 'distributor'}
     price_type_cd = type_map.get((customer_type or 'RETAIL').upper(), 'retail_mrp')
@@ -941,6 +943,7 @@ def field_get_products(customer_type='RETAIL'):
                   AND pp.active_flag = 1
                   AND pp.price_type_id = (SELECT id FROM price_types WHERE code=?)
             WHERE pv.product_id=? AND pv.active_flag=1
+              AND COALESCE(pv.show_online, 0) = 1
             ORDER BY ps.grams
         """, (price_type_cd, prod['id']))
         for v in variants:

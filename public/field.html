@@ -22,7 +22,6 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh;}
-.ur{color:var(--text-3);font-weight:400;}
 
 /* topbar */
 .topbar{background:var(--terra);padding:13px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
@@ -50,7 +49,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 /* cards / forms */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;margin-bottom:12px;box-shadow:var(--sh);}
 .card-t{font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:9px;text-transform:uppercase;letter-spacing:.4px;}
-.card-t .ur{text-transform:none;letter-spacing:0;}
 .lbl{font-size:12px;font-weight:600;color:var(--text-2);margin:0 0 5px;display:block;}
 .form-input{width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-size:15px;font-family:var(--font);outline:none;background:#fff;color:var(--ink);}
 .form-input:focus{border-color:var(--terra);}
@@ -59,13 +57,12 @@ textarea.form-input{resize:vertical;}
 .pin-input{text-align:center;font-size:22px;letter-spacing:8px;}
 
 /* buttons */
-.btn{width:100%;padding:13px;border-radius:var(--r);border:none;font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;margin-bottom:9px;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.25;}
-.btn .ur{font-size:11px;font-weight:400;opacity:.82;color:inherit;}
+.btn{width:100%;padding:13px;border-radius:var(--r);border:none;font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;margin-bottom:9px;line-height:1.25;}
 .btn-primary{background:var(--terra);color:#fff;}
 .btn-primary:active{background:var(--terra-deep);}
 .btn-success{background:var(--cardamom);color:#fff;}
 .btn-secondary{background:var(--surface);color:var(--ink);border:1.5px solid var(--border);}
-.btn-sm{padding:10px 14px;width:auto;font-size:13px;margin:0;flex-direction:row;gap:5px;}
+.btn-sm{padding:10px 14px;width:auto;font-size:13px;margin:0;}
 .link-btn{background:none;border:none;color:var(--terra);font-size:13px;font-weight:600;cursor:pointer;padding:6px 0;font-family:var(--font);}
 
 /* coaching strip */
@@ -123,7 +120,7 @@ textarea.form-input{resize:vertical;}
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;padding:7px 0 10px;z-index:100;}
 .nav-tab{flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px;font-family:var(--font);}
 .nav-tab .icon{font-size:19px;color:var(--text-3);}
-.nav-tab .label{font-size:9.5px;color:var(--text-2);font-weight:500;}
+.nav-tab .label{font-size:10px;color:var(--text-2);font-weight:500;}
 .nav-tab.active .icon{color:var(--terra);}
 .nav-tab.active .label{color:var(--terra);}
 
@@ -132,8 +129,7 @@ textarea.form-input{resize:vertical;}
 .tour{background:var(--surface);border-radius:var(--r-lg);padding:22px;width:100%;max-width:360px;box-shadow:var(--sh-lg);text-align:center;}
 .tour-ic{width:50px;height:50px;border-radius:50%;background:var(--terra-pale);font-size:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;}
 .tour-h{font-family:var(--serif);font-size:20px;font-weight:500;margin-bottom:6px;}
-.tour-p{font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:4px;}
-.tour-ur{font-size:12px;color:var(--text-3);margin-bottom:16px;line-height:1.5;}
+.tour-p{font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:16px;}
 .tour-dots{display:flex;gap:6px;justify-content:center;margin-bottom:14px;}
 .tour-dot{width:7px;height:7px;border-radius:50%;background:var(--border-strong);}
 .tour-dot.on{background:var(--terra);}
@@ -148,28 +144,28 @@ textarea.form-input{resize:vertical;}
 <div id="login-screen" style="display:none">
   <div class="login-logo">Sp<span class="i">i</span>cetopia</div>
   <div class="login-tag">Flavors Redefined</div>
-  <div class="login-sub">Field Sales · Field App</div>
+  <div class="login-sub">Field Sales App</div>
 
   <div class="login-card">
-    <label class="lbl">Phone number <span class="ur">· Phone number</span></label>
+    <label class="lbl">Phone number</label>
     <input class="form-input" id="login-phone" type="tel" placeholder="03001234567" inputmode="numeric" autocomplete="tel" style="margin-bottom:6px">
-    <div class="login-hint">Use the number your manager registered.<br>Wohi number likhein jo manager ne darj kiya.</div>
+    <div class="login-hint">Use the exact number your manager registered.</div>
 
     <div id="login-pin-section">
-      <label class="lbl">4-digit PIN <span class="ur">· PIN</span></label>
+      <label class="lbl">4-digit PIN</label>
       <input class="form-input pin-input" id="login-pin" type="password" maxlength="4" placeholder="••••" inputmode="numeric" style="margin-bottom:12px">
-      <button class="btn btn-primary" onclick="doLogin()">Sign in<span class="ur">Login karein</span></button>
-      <button class="btn btn-secondary" id="otp-switch-btn" onclick="switchToOtp()">Sign in with WhatsApp code<span class="ur">WhatsApp code se login</span></button>
+      <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
+      <button class="btn btn-secondary" id="otp-switch-btn" onclick="switchToOtp()">Sign in with WhatsApp code</button>
     </div>
 
     <div id="login-otp-section" style="display:none">
-      <label class="lbl">WhatsApp code <span class="ur">· OTP</span></label>
+      <label class="lbl">WhatsApp code</label>
       <p style="font-size:12px;color:var(--text-2);margin:0 0 10px">We’ll send a 6-digit code to your WhatsApp.</p>
-      <button class="btn btn-primary" id="send-otp-btn" onclick="sendOtp()">Send code<span class="ur">Code bhejein</span></button>
+      <button class="btn btn-primary" id="send-otp-btn" onclick="sendOtp()">Send code</button>
       <div id="otp-input-wrap" style="display:none;margin-top:12px">
         <label class="lbl">Enter 6-digit code</label>
         <input class="form-input pin-input" id="login-otp" type="text" maxlength="6" placeholder="––––––" inputmode="numeric" style="letter-spacing:12px;margin-bottom:12px">
-        <button class="btn btn-primary" onclick="verifyOtp()">Verify &amp; sign in<span class="ur">Verify karein</span></button>
+        <button class="btn btn-primary" onclick="verifyOtp()">Verify &amp; sign in</button>
         <button class="btn btn-secondary" id="resend-otp-btn" onclick="sendOtp()">Resend code</button>
       </div>
       <button class="link-btn" onclick="switchToPin()" style="width:100%;text-align:center;margin-top:8px">← Back to PIN login</button>
@@ -195,7 +191,7 @@ textarea.form-input{resize:vertical;}
   <!-- ROUTE -->
   <div class="screen active" id="screen-route">
     <div class="scr-head">Today’s round</div>
-    <div class="scr-sub">Aaj ka raasta</div>
+    <div class="scr-sub">Your stops for today</div>
     <div class="kpi-grid" id="daily-kpis">
       <div class="kpi-tile"><div class="kpi-label">Stops today</div><div class="kpi-value" id="kpi-stops">—</div></div>
       <div class="kpi-tile"><div class="kpi-label">Visited</div><div class="kpi-value" id="kpi-visited">—</div></div>
@@ -210,27 +206,27 @@ textarea.form-input{resize:vertical;}
   <!-- NEW ORDER -->
   <div class="screen" id="screen-order">
     <div class="scr-head">New order</div>
-    <div class="scr-sub">Naya order banayein</div>
+    <div class="scr-sub">Take an order</div>
 
     <div class="coach">
-      <div class="coach-h">How to take an order · Order kaise lein</div>
+      <div class="coach-h">How to take an order</div>
       <div class="coach-steps">
-        <div class="coach-step"><span class="coach-n">1</span><span>Pick the shop <span class="ur">· Dukaan chunein</span></span></div>
-        <div class="coach-step"><span class="coach-n">2</span><span>Add products <span class="ur">· Saman shamil karein</span></span></div>
-        <div class="coach-step"><span class="coach-n">3</span><span>Submit the order <span class="ur">· Order jama karein</span></span></div>
-        <div class="coach-step"><span class="coach-n">4</span><span>Generate invoice <span class="ur">· Invoice banayein</span></span></div>
-        <div class="coach-step"><span class="coach-n">5</span><span>Send on WhatsApp <span class="ur">· WhatsApp par bhejein</span></span></div>
+        <div class="coach-step"><span class="coach-n">1</span><span>Pick the shop</span></div>
+        <div class="coach-step"><span class="coach-n">2</span><span>Add products</span></div>
+        <div class="coach-step"><span class="coach-n">3</span><span>Submit the order</span></div>
+        <div class="coach-step"><span class="coach-n">4</span><span>Generate invoice</span></div>
+        <div class="coach-step"><span class="coach-n">5</span><span>Send on WhatsApp</span></div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-t">Shop <span class="ur">· Dukaan</span></div>
+      <div class="card-t">Shop</div>
       <select class="form-input" id="order-customer" onchange="onCustomerChange()"><option value="">Select a shop…</option></select>
       <div id="cust-info" style="margin-top:8px;font-size:12px;color:var(--text-2);display:none"></div>
-      <button class="link-btn" id="newshop-toggle" onclick="openNewShop()">＋ New shop <span class="ur">· Nayi dukaan</span></button>
+      <button class="link-btn" id="newshop-toggle" onclick="openNewShop()">＋ New shop</button>
       <div id="newshop-form" class="subform" style="display:none">
-        <input class="form-input" id="ns-name" placeholder="Shop name · Dukaan ka naam">
-        <input class="form-input" id="ns-phone" placeholder="Phone · Phone number" inputmode="tel">
+        <input class="form-input" id="ns-name" placeholder="Shop name">
+        <input class="form-input" id="ns-phone" placeholder="Phone" inputmode="tel">
         <div class="two-col" style="margin-bottom:10px">
           <select class="form-input" id="ns-city"><option value="Karachi">Karachi</option><option value="Hyderabad">Hyderabad</option></select>
           <select class="form-input" id="ns-type"><option value="RETAIL">Retail</option><option value="WHOLESALE">Wholesale</option><option value="DIRECT">Direct</option></select>
@@ -244,7 +240,7 @@ textarea.form-input{resize:vertical;}
     </div>
 
     <div class="card">
-      <div class="card-t">Add products <span class="ur">· Saman</span></div>
+      <div class="card-t">Add products</div>
       <div style="display:flex;gap:8px;margin-bottom:10px">
         <select class="form-input" id="order-product" style="flex:1"><option value="">Select product…</option></select>
         <button class="btn btn-primary btn-sm" onclick="addOrderItem()">Add</button>
@@ -254,34 +250,34 @@ textarea.form-input{resize:vertical;}
 
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div class="card-t" style="margin:0">Order total <span class="ur">· Total</span></div>
+        <div class="card-t" style="margin:0">Order total</div>
         <div class="total-v" id="order-total">PKR 0</div>
       </div>
     </div>
 
-    <textarea class="form-input" id="order-notes" placeholder="Notes · Note (optional)" rows="2" style="margin-bottom:12px"></textarea>
+    <textarea class="form-input" id="order-notes" placeholder="Notes (optional)" rows="2" style="margin-bottom:12px"></textarea>
 
-    <button class="btn btn-primary" id="order-submit-btn" onclick="placeOrder()">Submit order<span class="ur">Order jama karein</span></button>
-    <button class="btn btn-secondary" onclick="clearOrder()">Clear<span class="ur">Saaf karein</span></button>
+    <button class="btn btn-primary" id="order-submit-btn" onclick="placeOrder()">Submit order</button>
+    <button class="btn btn-secondary" onclick="clearOrder()">Clear</button>
     <div class="card" id="order-result" style="display:none;margin-top:14px"></div>
   </div>
 
   <!-- VISIT LOG -->
   <div class="screen" id="screen-log">
     <div class="scr-head">Log a visit</div>
-    <div class="scr-sub">Visit likhein</div>
+    <div class="scr-sub">Record a shop visit</div>
     <div class="card">
-      <div class="lbl">Shop <span class="ur">· Dukaan</span></div>
+      <div class="lbl">Shop</div>
       <select class="form-input" id="visit-customer" style="margin-bottom:12px"><option value="">Select a shop…</option></select>
-      <div class="lbl">Outcome <span class="ur">· Nateeja</span></div>
+      <div class="lbl">Outcome</div>
       <select class="form-input" id="visit-outcome" style="margin-bottom:12px">
         <option value="visited">Visited — order taken</option>
         <option value="no_order">Visited — no order</option>
         <option value="closed">Shop closed</option>
       </select>
-      <div class="lbl">Notes <span class="ur">· Note</span></div>
+      <div class="lbl">Notes</div>
       <textarea class="form-input" id="visit-notes" rows="2" placeholder="Optional…" style="margin-bottom:12px"></textarea>
-      <button class="btn btn-primary" onclick="submitVisit()">Log visit<span class="ur">Visit save karein</span></button>
+      <button class="btn btn-primary" onclick="submitVisit()">Log visit</button>
     </div>
     <div id="visit-log-list" style="margin-top:14px"></div>
   </div>
@@ -289,12 +285,12 @@ textarea.form-input{resize:vertical;}
   <!-- PROFILE -->
   <div class="screen" id="screen-profile">
     <div class="scr-head">My profile</div>
-    <div class="scr-sub">Meri maloomat</div>
+    <div class="scr-sub">Your account</div>
     <div class="card"><div id="profile-info" style="font-size:14px;line-height:2.1"></div></div>
     <div class="card">
-      <div class="card-t">Change PIN <span class="ur">· PIN badlein</span></div>
+      <div class="card-t">Change PIN</div>
       <input class="form-input pin-input" id="new-pin" type="password" maxlength="4" placeholder="••••" inputmode="numeric" style="margin-bottom:10px">
-      <button class="btn btn-primary" onclick="changePin()">Update PIN<span class="ur">PIN update karein</span></button>
+      <button class="btn btn-primary" onclick="changePin()">Update PIN</button>
     </div>
   </div>
 
@@ -313,7 +309,6 @@ textarea.form-input{resize:vertical;}
       <div class="tour-ic" id="tour-ic">👋</div>
       <div class="tour-h" id="tour-h"></div>
       <div class="tour-p" id="tour-p"></div>
-      <div class="tour-ur" id="tour-ur"></div>
       <div class="tour-dots" id="tour-dots"></div>
       <button class="btn btn-primary" onclick="tourNext()" id="tour-btn"></button>
     </div>
@@ -483,7 +478,7 @@ async function onCustomerChange(){
 
 // ── NEW SHOP ──
 function _zoneOptionsFromRoutes(){
-  const seen={}; let opts='<option value="">Zone (optional) · Ilaqa</option>';
+  const seen={}; let opts='<option value="">Zone (optional)</option>';
   (state.routes||[]).forEach(r=>{ if(r.zone_id && !seen[r.zone_id]){ seen[r.zone_id]=1;
     opts+='<option value="'+r.zone_id+'">'+escH(r.zone_name||('Zone '+r.zone_id))+'</option>'; } });
   return opts;
@@ -505,7 +500,7 @@ async function createShop(){
   const city=document.getElementById('ns-city').value;
   const type=document.getElementById('ns-type').value;
   const zoneId=document.getElementById('ns-zone').value;
-  if (!name) return alert('Shop name is required · Dukaan ka naam zaroori hai');
+  if (!name) return alert('Shop name is required');
   const payload={ name, city, customerType:type, phone };
   if (zoneId) payload.zoneId=parseInt(zoneId);
   try {
@@ -526,8 +521,8 @@ function renderRoute(){
   const container=document.getElementById('route-list');
   if (!state.routes.length){
     container.innerHTML='<div class="card"><div style="text-align:center;padding:30px;color:var(--text-2)">'
-      +'<div style="font-size:34px;margin-bottom:10px">◎</div><div style="font-weight:600">No route yet · Koi raasta nahi</div>'
-      +'<div style="font-size:12px;margin-top:6px">You can still take orders from the Order tab.<br>Order tab se order le sakte hain.</div></div></div>';
+      +'<div style="font-size:34px;margin-bottom:10px">◎</div><div style="font-weight:600">No route assigned yet</div>'
+      +'<div style="font-size:12px;margin-top:6px">You can still take orders from the Order tab.</div></div></div>';
     updateKPIs(0,0,0,0); return;
   }
   let totalStops=0, html='';
@@ -571,7 +566,7 @@ function addOrderItem(){
 }
 function renderOrderItems(){
   const container=document.getElementById('order-items');
-  if (!state.orderItems.length){ container.innerHTML='<div style="color:var(--text-2);font-size:12.5px;padding:8px 0">No items yet · Abhi koi maal nahi</div>';
+  if (!state.orderItems.length){ container.innerHTML='<div style="color:var(--text-2);font-size:12.5px;padding:8px 0">No items yet</div>';
     document.getElementById('order-total').textContent='PKR 0'; return; }
   container.innerHTML=state.orderItems.map((item,idx)=>
     '<div class="order-item2"><div class="oi2-top"><span class="oi2-name">'+escH(item.name)+'</span>'
@@ -589,9 +584,9 @@ function recalcTotal(){ const t=state.orderItems.reduce((s,i)=>s+i.qty*i.unitPri
 // ── PLACE ORDER (step 1) ──
 async function placeOrder(){
   const custId=document.getElementById('order-customer').value;
-  if (!custId) return alert('Please select a shop · Dukaan chunein');
-  if (!state.orderItems.length) return alert('Add at least one product · Kam az kam ek maal daalein');
-  if (state.orderItems.filter(i=>i.unitPrice<=0).length) return alert('Enter price for all items · Har maal ki price likhein');
+  if (!custId) return alert('Please select a shop');
+  if (!state.orderItems.length) return alert('Add at least one product');
+  if (state.orderItems.filter(i=>i.unitPrice<=0).length) return alert('Enter a price for all items');
   const total=state.orderItems.reduce((s,i)=>s+i.qty*i.unitPrice,0);
   const payload={ order_source:'rep_assisted', customerId:parseInt(custId),
     notes:document.getElementById('order-notes').value.trim(),
@@ -607,7 +602,7 @@ async function placeOrder(){
     state.todayOrders.push({id:d.orderId, total});
     showOrderPlaced(d,total); clearOrder();
   } catch(e){ alert('Network error: '+e.message); }
-  finally { if(btn){ btn.disabled=false; btn.innerHTML='Submit order<span class="ur">Order jama karein</span>'; } }
+  finally { if(btn){ btn.disabled=false; btn.textContent='Submit order'; } }
 }
 // ── GENERATE INVOICE (step 2) ──
 async function generateInvoice(orderId, btnEl){
@@ -616,10 +611,10 @@ async function generateInvoice(orderId, btnEl){
     const r=await fetch('/api/field/orders/'+orderId+'/invoice',{ method:'POST', credentials:'same-origin',
       headers:{'Content-Type':'application/json'}, body:'{}' });
     const d=await r.json();
-    if (!r.ok){ alert('Could not invoice: '+(d.error||'unknown')+'\n\nThe order is saved — invoice it once stock is available.\nOrder save hai — stock aane par invoice banayein.');
-      if(btnEl){ btnEl.disabled=false; btnEl.innerHTML='🧾 Generate invoice<span class="ur">Invoice banayein</span>'; } return; }
+    if (!r.ok){ alert('Could not invoice: '+(d.error||'unknown')+'\n\nThe order is saved — you can invoice it once stock is available.');
+      if(btnEl){ btnEl.disabled=false; btnEl.textContent='🧾 Generate invoice'; } return; }
     showInvoiceResult(d);
-  } catch(e){ alert('Network error: '+e.message); if(btnEl){ btnEl.disabled=false; btnEl.innerHTML='🧾 Generate invoice<span class="ur">Invoice banayein</span>'; } }
+  } catch(e){ alert('Network error: '+e.message); if(btnEl){ btnEl.disabled=false; btnEl.textContent='🧾 Generate invoice'; } }
 }
 function showOrderPlaced(d,total){
   const box=document.getElementById('order-result'); if(!box) return;
@@ -628,9 +623,9 @@ function showOrderPlaced(d,total){
   box.className='card success-card'; box.style.border='2px solid var(--terra)'; box.style.display='block';
   box.innerHTML='<div class="success-check" style="background:var(--terra)">✓</div>'
     +'<div class="success-inv">'+escH(ordNum)+'</div><div class="success-total">PKR '+Number(total).toLocaleString()+'</div>'
-    +'<div class="success-hint">Order saved. Generate the invoice when ready.<br><span style="color:var(--text-3)">Order save ho gaya — invoice tayyar karein</span></div>'+oor
-    +'<button class="btn btn-success" style="margin-top:16px" onclick="generateInvoice('+d.orderId+', this)">🧾 Generate invoice<span class="ur">Invoice banayein</span></button>'
-    +'<button class="btn btn-secondary" onclick="hideOrderResult()">New order<span class="ur">Naya order</span></button>';
+    +'<div class="success-hint">Order saved. Generate the invoice when you’re ready.</div>'+oor
+    +'<button class="btn btn-success" style="margin-top:16px" onclick="generateInvoice('+d.orderId+', this)">🧾 Generate invoice</button>'
+    +'<button class="btn btn-secondary" onclick="hideOrderResult()">New order</button>';
   box.scrollIntoView({behavior:'smooth', block:'center'});
 }
 function showInvoiceResult(d){
@@ -639,9 +634,9 @@ function showInvoiceResult(d){
   box.className='card success-card'; box.style.border='2px solid var(--cardamom)'; box.style.display='block';
   box.innerHTML='<div class="success-check">✓</div>'
     +'<div class="success-inv">'+escH(invNum)+'</div><div class="success-total">PKR '+Number(d.total||0).toLocaleString()+'</div>'
-    +'<div class="success-hint">Invoice created — stock &amp; sales updated.<br><span style="color:var(--text-3)">Invoice ban gaya — stock update ho gaya</span></div>'
-    +'<button class="btn btn-success" style="margin-top:16px" onclick="shareInvoicePdf('+d.invoiceId+',\''+escH(invNum)+'\')">📄 Send invoice on WhatsApp<span class="ur">WhatsApp par bhejein</span></button>'
-    +'<button class="btn btn-secondary" onclick="hideOrderResult()">New order<span class="ur">Naya order</span></button>';
+    +'<div class="success-hint">Invoice created — stock &amp; sales updated.</div>'
+    +'<button class="btn btn-success" style="margin-top:16px" onclick="shareInvoicePdf('+d.invoiceId+',\''+escH(invNum)+'\')">📄 Send invoice on WhatsApp</button>'
+    +'<button class="btn btn-secondary" onclick="hideOrderResult()">New order</button>';
   box.scrollIntoView({behavior:'smooth', block:'center'});
 }
 function hideOrderResult(){ const box=document.getElementById('order-result'); if(box) box.style.display='none'; }
@@ -670,7 +665,7 @@ async function submitVisit(){
   const custId=document.getElementById('visit-customer').value;
   const outcome=document.getElementById('visit-outcome').value;
   const notes=document.getElementById('visit-notes').value.trim();
-  if (!custId) return alert('Please select a shop · Dukaan chunein');
+  if (!custId) return alert('Please select a shop');
   const payload={ repId:state.repId, routeId:state.routes[0]?.id||null, customerId:parseInt(custId), outcome, notes };
   try {
     const r=await fetch('/api/beat-visits',{ method:'POST', credentials:'same-origin',
@@ -704,12 +699,12 @@ async function loadProfile(){
 }
 async function changePin(){
   const pin=document.getElementById('new-pin').value.trim();
-  if (pin.length!==4 || !/^\d+$/.test(pin)) return alert('PIN must be exactly 4 digits · PIN 4 hindson ka ho');
+  if (pin.length!==4 || !/^\d+$/.test(pin)) return alert('PIN must be exactly 4 digits');
   const r=await fetch('/api/reps/'+state.repId,{ method:'PUT', credentials:'same-origin',
     headers:{'Content-Type':'application/json'}, body:JSON.stringify({pin}) });
   const d=await r.json();
   if (!r.ok) return alert('Error: '+(d.error||'unknown'));
-  document.getElementById('new-pin').value=''; alert('PIN updated · PIN update ho gaya');
+  document.getElementById('new-pin').value=''; alert('PIN updated');
 }
 
 // ── NAV ──
@@ -726,12 +721,9 @@ function switchTab(tab){
 
 // ── FIRST-RUN TOUR ──
 const TOUR=[
-  {ic:'👋', h:'Welcome', p:'Take an order in a few taps: pick the shop, add products, submit, then make the invoice and send it on WhatsApp.',
-   ur:'Dukaan chunein, saman daalein, order jama karein, phir invoice WhatsApp par bhejein.'},
-  {ic:'🏪', h:'New shop on the spot', p:'Not in the list? Tap “＋ New shop” to add it right away, then keep taking the order.',
-   ur:'Nayi dukaan? “＋ New shop” dabayein aur foran add karein.'},
-  {ic:'📄', h:'Invoice & WhatsApp', p:'After you submit, tap “Generate invoice”, then “Send on WhatsApp” to share the bill with the shop.',
-   ur:'Order ke baad invoice banayein, phir WhatsApp par dukaan ko bhejein.'},
+  {ic:'👋', h:'Welcome', p:'Take an order in a few taps: pick the shop, add products, submit, then make the invoice and send it on WhatsApp.'},
+  {ic:'🏪', h:'New shop on the spot', p:'Shop not in the list? Tap “＋ New shop” to add it right away, then keep taking the order.'},
+  {ic:'📄', h:'Invoice & WhatsApp', p:'After you submit, tap “Generate invoice”, then “Send on WhatsApp” to share the bill with the shop.'},
 ];
 let _tourI=0;
 function openTour(){ _tourI=0; renderTour(); document.getElementById('tour').classList.remove('hidden'); }
@@ -740,9 +732,8 @@ function renderTour(){
   document.getElementById('tour-ic').textContent=t.ic;
   document.getElementById('tour-h').textContent=t.h;
   document.getElementById('tour-p').textContent=t.p;
-  document.getElementById('tour-ur').textContent=t.ur;
   document.getElementById('tour-dots').innerHTML=TOUR.map((_,i)=>'<span class="tour-dot'+(i===_tourI?' on':'')+'"></span>').join('');
-  document.getElementById('tour-btn').innerHTML=(_tourI<TOUR.length-1)?'Next<span class="ur">Aagey</span>':'Got it<span class="ur">Theek hai</span>';
+  document.getElementById('tour-btn').textContent=(_tourI<TOUR.length-1)?'Next':'Got it';
 }
 function tourNext(){ if(_tourI<TOUR.length-1){ _tourI++; renderTour(); } else { document.getElementById('tour').classList.add('hidden'); } }
 
