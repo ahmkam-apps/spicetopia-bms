@@ -5717,7 +5717,12 @@ if __name__ == '__main__':
     _ord_mod2._check_wo_feasibility_fn   = check_wo_feasibility
     import modules.invoices   as _inv_mod3                                      # wire invoices callbacks
     _inv_mod3._order_status_fn           = _order_status
-    for _step in (generate_master_templates, sync_master_files, seed_price_history, seed_zones_routes):
+    # NOTE: sync_master_files() intentionally NOT run at startup. It treated the
+    # masters/*.csv files as the source of truth and overwrote the DB on every boot —
+    # which re-added deleted seed suppliers (Spice World Ltd / Lahore Spices Co) and
+    # could revert in-app edits to customers/ingredient prices. The DB is now the
+    # source of truth; master CSVs remain a MANUAL import tool only.
+    for _step in (generate_master_templates, seed_price_history, seed_zones_routes):
         try:
             _step()
         except Exception as _se:
