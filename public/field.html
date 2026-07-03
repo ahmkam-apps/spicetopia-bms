@@ -4,221 +4,175 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Spicetopia Field App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --saffron:  #E8901A;
-  --turmeric: #D4700A;
-  --cardamom: #2E8B57;
-  --chili:    #C0392B;
-  --bg:       #F7F4EF;
-  --card:     #FFFFFF;
-  --text:     #1A1209;
-  --text-2:   #5A4A35;
-  --border:   #E8DFD0;
+:root{
+  --terra:#9A4A24; --terra-lt:#B5532A; --terra-pale:#F1E4D8; --terra-deep:#7E3A1B;
+  --cardamom:#5E7245; --cardamom-pale:#EAEEDD;
+  --chili:#B23A2E; --chili-pale:#F6E7E2;
+  --bg:#F4F0E7; --surface:#FCFAF5; --surface-2:#F1EBE0;
+  --border:#E4DACA; --border-strong:#C9B79F;
+  --ink:#2A211A; --text-2:#7C6F5E; --text-3:#A89A85;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+  --serif:'Fraunces',Georgia,serif;
+  --r:8px; --r-lg:12px;
+  --sh:0 2px 8px rgba(42,33,26,.06); --sh-lg:0 8px 24px rgba(42,33,26,.12);
 }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-       background: var(--bg); color: var(--text); min-height: 100vh; }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh;}
+.ur{color:var(--text-3);font-weight:400;}
 
-/* ── TOPBAR ── */
-.topbar {
-  background: var(--saffron);
-  padding: 14px 16px;
-  display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; z-index: 100;
-}
-.topbar-title { color: #fff; font-weight: 700; font-size: 17px; }
-.topbar-subtitle { color: rgba(255,255,255,0.75); font-size: 12px; }
-.logout-btn { background: rgba(255,255,255,0.2); border: none; color: #fff;
-  padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
+/* topbar */
+.topbar{background:var(--terra);padding:13px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.tb-name{color:#fff;font-weight:600;font-size:15px;}
+.tb-date{color:rgba(255,255,255,.72);font-size:11px;}
+.tb-r{display:flex;gap:8px;}
+.tb-btn{background:rgba(255,255,255,.18);border:none;color:#fff;min-width:30px;height:30px;border-radius:16px;font-size:13px;padding:0 11px;cursor:pointer;}
 
-/* ── SCREENS ── */
-.screen { display: none; padding: 16px; max-width: 480px; margin: 0 auto; }
-.screen.active { display: block; }
+/* screens */
+.screen{display:none;padding:14px;max-width:480px;margin:0 auto;}
+.screen.active{display:block;}
+.scr-head{font-family:var(--serif);font-size:22px;font-weight:500;margin-bottom:1px;}
+.scr-sub{font-size:12px;color:var(--text-2);margin-bottom:14px;}
 
-/* ── LOGIN ── */
-#login-screen {
-  min-height: 100vh; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; padding: 24px;
-  background: linear-gradient(135deg, #1C0E04 0%, #3D1F0A 100%);
-}
-.login-sub { color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 36px; }
-.login-card { background: #fff; border-radius: 16px; padding: 24px; width: 100%; max-width: 340px; }
-.login-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; display: block; }
-.login-input { width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
-  border-radius: 10px; font-size: 16px; outline: none; margin-bottom: 14px; }
-.login-input:focus { border-color: var(--saffron); }
-.pin-input { font-size: 24px; letter-spacing: 8px; text-align: center; }
-.login-btn { width: 100%; padding: 14px; background: var(--saffron); color: #fff;
-  border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }
-.login-btn:active { background: var(--turmeric); }
-.login-error { color: var(--chili); font-size: 13px; text-align: center; margin-top: 10px; display: none; }
+/* login */
+#login-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px;background:var(--bg);}
+.login-logo{font-family:var(--serif);font-size:34px;font-weight:600;color:var(--terra);letter-spacing:-.5px;}
+.login-logo .i{color:var(--chili);}
+.login-tag{font-size:10px;letter-spacing:4px;color:var(--text-3);text-transform:uppercase;margin:2px 0 6px;}
+.login-sub{font-size:13px;color:var(--text-2);margin-bottom:26px;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:22px;width:100%;max-width:340px;box-shadow:var(--sh);}
+.login-hint{font-size:11px;color:var(--text-3);margin:-4px 0 12px;line-height:1.5;}
+.login-error{color:var(--chili);font-size:13px;text-align:center;margin-top:10px;display:none;}
 
-/* ── CARDS ── */
-.card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 14px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-.card-title { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 10px;
-  text-transform: uppercase; letter-spacing: 0.5px; }
+/* cards / forms */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;margin-bottom:12px;box-shadow:var(--sh);}
+.card-t{font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:9px;text-transform:uppercase;letter-spacing:.4px;}
+.card-t .ur{text-transform:none;letter-spacing:0;}
+.lbl{font-size:12px;font-weight:600;color:var(--text-2);margin:0 0 5px;display:block;}
+.form-input{width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-size:15px;font-family:var(--font);outline:none;background:#fff;color:var(--ink);}
+.form-input:focus{border-color:var(--terra);}
+select.form-input{background:#fff;}
+textarea.form-input{resize:vertical;}
+.pin-input{text-align:center;font-size:22px;letter-spacing:8px;}
 
-/* ── BUTTONS ── */
-.btn { padding: 12px 20px; border-radius: 10px; border: none; font-size: 14px;
-  font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 10px; }
-.btn-primary { background: var(--saffron); color: #fff; }
-.btn-secondary { background: var(--bg); color: var(--text); border: 1.5px solid var(--border); }
-.btn-success { background: var(--cardamom); color: #fff; }
-.btn-danger  { background: var(--chili); color: #fff; }
-.btn-sm { padding: 6px 14px; font-size: 13px; border-radius: 8px; width: auto;
-  margin-bottom: 0; }
+/* buttons */
+.btn{width:100%;padding:13px;border-radius:var(--r);border:none;font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;margin-bottom:9px;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.25;}
+.btn .ur{font-size:11px;font-weight:400;opacity:.82;color:inherit;}
+.btn-primary{background:var(--terra);color:#fff;}
+.btn-primary:active{background:var(--terra-deep);}
+.btn-success{background:var(--cardamom);color:#fff;}
+.btn-secondary{background:var(--surface);color:var(--ink);border:1.5px solid var(--border);}
+.btn-sm{padding:10px 14px;width:auto;font-size:13px;margin:0;flex-direction:row;gap:5px;}
+.link-btn{background:none;border:none;color:var(--terra);font-size:13px;font-weight:600;cursor:pointer;padding:6px 0;font-family:var(--font);}
 
-/* ── NAV TABS ── */
-.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0;
-  background: var(--card); border-top: 1px solid var(--border);
-  display: flex; justify-content: space-around; padding: 8px 0 12px; z-index: 100; }
-.nav-tab { display: flex; flex-direction: column; align-items: center; gap: 2px;
-  flex: 1; background: none; border: none; cursor: pointer; padding: 4px; }
-.nav-tab .icon { font-size: 22px; }
-.nav-tab .label { font-size: 10px; color: var(--text-2); font-weight: 500; }
-.nav-tab.active .label { color: var(--saffron); }
-.nav-tab.active .icon { filter: saturate(2); }
+/* coaching strip */
+.coach{background:var(--terra-pale);border:1px solid #e6cdb8;border-radius:var(--r-lg);padding:12px;margin-bottom:12px;}
+.coach-h{font-size:12px;font-weight:600;color:var(--terra-deep);margin-bottom:8px;}
+.coach-steps{display:flex;flex-direction:column;gap:7px;}
+.coach-step{display:flex;align-items:center;gap:9px;font-size:12.5px;}
+.coach-n{width:20px;height:20px;border-radius:50%;background:var(--terra);color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 
-/* ── STOP LIST ── */
-.stop-item { display: flex; align-items: center; gap: 12px; padding: 12px;
-  border-bottom: 1px solid var(--border); cursor: pointer; }
-.stop-item:last-child { border-bottom: none; }
-.stop-num { width: 28px; height: 28px; background: var(--saffron); color: #fff;
-  border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700; flex-shrink: 0; }
-.stop-num.done { background: var(--cardamom); }
-.stop-name { font-size: 14px; font-weight: 600; }
-.stop-sub  { font-size: 12px; color: var(--text-2); }
-.stop-status { margin-left: auto; font-size: 11px; font-weight: 600;
-  padding: 3px 8px; border-radius: 20px; flex-shrink: 0; }
-.stop-status.visited { background: #d4edda; color: var(--cardamom); }
-.stop-status.no_order { background: #f8d7da; color: var(--chili); }
+/* subform */
+.subform{margin-top:10px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);}
+.subform .form-input{margin-bottom:10px;}
+.two-col{display:flex;gap:8px;}
+.two-col>*{flex:1;}
 
-/* ── FORM ── */
-.form-group { margin-bottom: 14px; }
-.form-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 5px; display: block; }
-.form-input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
-  border-radius: 9px; font-size: 15px; outline: none; }
-.form-input:focus { border-color: var(--saffron); }
-select.form-input { background: #fff; }
+/* kpi */
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px;}
+.kpi-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px;box-shadow:var(--sh);}
+.kpi-label{font-size:10.5px;color:var(--text-2);font-weight:600;margin-bottom:3px;}
+.kpi-value{font-family:var(--serif);font-size:22px;font-weight:500;color:var(--terra);}
 
-/* ── ORDER ITEMS ── */
-.order-item { display: flex; align-items: center; gap: 8px; padding: 8px 0;
-  border-bottom: 1px solid var(--border); }
-.order-item:last-child { border-bottom: none; }
-.oi-name { flex: 1; font-size: 13px; }
-.oi-qty  { width: 60px; padding: 6px 8px; border: 1.5px solid var(--border);
-  border-radius: 7px; font-size: 14px; text-align: center; outline: none; }
-.oi-price { width: 80px; text-align: right; font-size: 13px; color: var(--text-2); }
-.oi-remove { background: none; border: none; color: var(--chili); font-size: 18px; cursor: pointer; }
+/* stops */
+.stop-item{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+.stop-item:last-child{border-bottom:none;}
+.stop-num{width:26px;height:26px;border-radius:50%;background:var(--terra);color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.stop-num.done{background:var(--cardamom);}
+.stop-name{font-size:13.5px;font-weight:600;}
+.stop-sub{font-size:11.5px;color:var(--text-2);}
+.stop-status{margin-left:auto;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;flex-shrink:0;}
+.stop-status.visited{background:var(--cardamom-pale);color:var(--cardamom);}
+.stop-status.no_order{background:var(--chili-pale);color:var(--chili);}
 
-/* ── KPI TILES ── */
-.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-.kpi-tile { background: var(--card); border-radius: 12px; padding: 14px;
-  box-shadow: 0 2px 6px rgba(0,0,0,.06); }
-.kpi-label { font-size: 11px; color: var(--text-2); font-weight: 600; margin-bottom: 4px; }
-.kpi-value { font-size: 20px; font-weight: 700; color: var(--saffron); }
-.kpi-sub   { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+/* order items */
+.order-item2{padding:10px 0;border-bottom:1px solid var(--border);}
+.order-item2:last-child{border-bottom:none;}
+.oi2-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+.oi2-name{font-size:13.5px;font-weight:600;}
+.oi-remove{background:none;border:none;color:var(--chili);font-size:18px;cursor:pointer;}
+.oi2-row{display:flex;align-items:center;gap:6px;}
+.oi2-lbl{font-size:10.5px;color:var(--text-2);font-weight:600;}
+.oi2-input{width:58px;padding:7px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:14px;text-align:center;font-family:var(--font);outline:none;}
+.oi2-input:focus{border-color:var(--terra);}
+.oi2-line{margin-left:auto;font-family:var(--serif);font-size:14px;font-weight:500;color:var(--terra);}
+.total-v{font-family:var(--serif);font-size:26px;font-weight:500;color:var(--terra);}
 
-/* ── ALERTS ── */
-.alert { padding: 12px 14px; border-radius: 10px; font-size: 13px; margin-bottom: 12px; }
-.alert-success { background: #d4edda; color: #155724; }
-.alert-error   { background: #f8d7da; color: #721c24; }
+/* success */
+.success-card{text-align:center;padding:22px 10px;}
+.success-check{width:58px;height:58px;border-radius:50%;background:var(--cardamom);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;}
+.success-inv{font-family:var(--serif);font-size:24px;font-weight:500;}
+.success-total{font-size:15px;color:var(--text-2);margin-top:2px;}
+.success-hint{font-size:12px;color:var(--text-2);margin-top:5px;line-height:1.5;}
 
-/* ── LINKS / SUBFORM / HINTS ── */
-.link-btn { background:none; border:none; color:var(--saffron); font-size:13px; font-weight:700; cursor:pointer; padding:6px 0; }
-.subform { margin-top:12px; padding:14px; background:var(--bg); border:1px solid var(--border); border-radius:12px; }
-.subform .form-input { margin-bottom:10px; }
-.hint { font-size:11px; color:var(--text-2); margin:-6px 0 12px; }
-.two-col { display:flex; gap:8px; }
-.two-col > * { flex:1; margin-bottom:0; }
+/* bottom nav */
+.bottom-space{height:70px;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;padding:7px 0 10px;z-index:100;}
+.nav-tab{flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px;font-family:var(--font);}
+.nav-tab .icon{font-size:19px;color:var(--text-3);}
+.nav-tab .label{font-size:9.5px;color:var(--text-2);font-weight:500;}
+.nav-tab.active .icon{color:var(--terra);}
+.nav-tab.active .label{color:var(--terra);}
 
-/* ── CLEANER ORDER ITEM ── */
-.order-item2 { padding:10px 0; border-bottom:1px solid var(--border); }
-.order-item2:last-child { border-bottom:none; }
-.oi2-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-.oi2-name { font-size:14px; font-weight:600; }
-.oi2-row { display:flex; align-items:center; gap:6px; }
-.oi2-lbl { font-size:11px; color:var(--text-2); font-weight:600; }
-.oi2-input { width:64px; padding:7px 8px; border:1.5px solid var(--border); border-radius:8px;
-  font-size:14px; text-align:center; outline:none; }
-.oi2-input:focus { border-color:var(--saffron); }
-.oi2-line { margin-left:auto; font-size:14px; font-weight:700; color:var(--saffron); }
+/* tour */
+.tour-bg{position:fixed;inset:0;background:rgba(42,33,26,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;}
+.tour{background:var(--surface);border-radius:var(--r-lg);padding:22px;width:100%;max-width:360px;box-shadow:var(--sh-lg);text-align:center;}
+.tour-ic{width:50px;height:50px;border-radius:50%;background:var(--terra-pale);font-size:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;}
+.tour-h{font-family:var(--serif);font-size:20px;font-weight:500;margin-bottom:6px;}
+.tour-p{font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:4px;}
+.tour-ur{font-size:12px;color:var(--text-3);margin-bottom:16px;line-height:1.5;}
+.tour-dots{display:flex;gap:6px;justify-content:center;margin-bottom:14px;}
+.tour-dot{width:7px;height:7px;border-radius:50%;background:var(--border-strong);}
+.tour-dot.on{background:var(--terra);}
 
-/* ── SUCCESS RESULT ── */
-.success-card { text-align:center; padding:24px 16px; }
-.success-check { width:60px; height:60px; border-radius:50%; background:var(--cardamom); color:#fff;
-  font-size:32px; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; }
-.success-inv { font-size:22px; font-weight:800; color:var(--text); }
-.success-total { font-size:16px; color:var(--text-2); margin-top:2px; }
-.success-hint { font-size:12px; color:var(--text-2); margin-top:4px; }
-
-/* Spacer for bottom nav */
-.bottom-space { height: 72px; }
+.badge{display:inline-block;background:var(--surface-2);color:var(--text-2);font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;}
+.hidden{display:none!important;}
 </style>
 </head>
 <body>
 
-<!-- ── LOGIN SCREEN ── -->
-<div id="login-screen">
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 115" style="width:220px;margin-bottom:16px;display:block">
-    <defs>
-      <linearGradient id="chiliGradW" x1="0.5" y1="0" x2="0.5" y2="1">
-        <stop offset="0%"   stop-color="#FFB347"/>
-        <stop offset="55%"  stop-color="#FA6420"/>
-        <stop offset="100%" stop-color="#D42010"/>
-      </linearGradient>
-    </defs>
-    <text font-family="'Arial Black','Arial Bold',Arial,sans-serif" font-weight="900" font-size="54" fill="#FFFFFF" letter-spacing="1"><tspan x="36" y="68">SP</tspan></text>
-    <path d="M128,16 C138,26 140,46 135,58 Q128,67 121,58 C116,46 118,26 128,16 Z" fill="url(#chiliGradW)"/>
-    <text font-family="'Arial Black','Arial Bold',Arial,sans-serif" font-weight="900" font-size="54" fill="#FFFFFF" letter-spacing="1"><tspan x="144" y="68">CETOPIA</tspan></text>
-    <line x1="36" y1="80" x2="424" y2="80" stroke="rgba(255,255,255,0.25)" stroke-width="0.9"/>
-    <text x="230" y="101" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="11.5" fill="rgba(255,255,255,0.5)" letter-spacing="6" font-weight="400">FLAVORS REDEFINED</text>
-  </svg>
-  <div class="login-sub">Field Sales App</div>
+<!-- ── LOGIN ── -->
+<div id="login-screen" style="display:none">
+  <div class="login-logo">Sp<span class="i">i</span>cetopia</div>
+  <div class="login-tag">Flavors Redefined</div>
+  <div class="login-sub">Field Sales · Field App</div>
 
   <div class="login-card">
-    <label class="login-label">Phone Number</label>
-    <input class="login-input" id="login-phone" type="tel" placeholder="03001234567"
-      inputmode="numeric" autocomplete="tel" style="margin-bottom:6px">
-    <div class="hint">Use the exact number your manager registered (e.g. 03001234567).</div>
+    <label class="lbl">Phone number <span class="ur">· Phone number</span></label>
+    <input class="form-input" id="login-phone" type="tel" placeholder="03001234567" inputmode="numeric" autocomplete="tel" style="margin-bottom:6px">
+    <div class="login-hint">Use the number your manager registered.<br>Wohi number likhein jo manager ne darj kiya.</div>
 
-    <!-- PIN section -->
     <div id="login-pin-section">
-      <label class="login-label">4-Digit PIN</label>
-      <input class="login-input pin-input" id="login-pin" type="password"
-        maxlength="4" placeholder="••••" inputmode="numeric">
-      <button class="login-btn" onclick="doLogin()">Sign In</button>
-      <button class="login-btn" id="otp-switch-btn" onclick="switchToOtp()"
-        style="margin-top:10px;background:#fff;color:var(--saffron);border:1.5px solid var(--saffron);">
-        Sign in with WhatsApp OTP instead
-      </button>
+      <label class="lbl">4-digit PIN <span class="ur">· PIN</span></label>
+      <input class="form-input pin-input" id="login-pin" type="password" maxlength="4" placeholder="••••" inputmode="numeric" style="margin-bottom:12px">
+      <button class="btn btn-primary" onclick="doLogin()">Sign in<span class="ur">Login karein</span></button>
+      <button class="btn btn-secondary" id="otp-switch-btn" onclick="switchToOtp()">Sign in with WhatsApp code<span class="ur">WhatsApp code se login</span></button>
     </div>
 
-    <!-- OTP section (hidden by default) -->
     <div id="login-otp-section" style="display:none">
-      <label class="login-label">WhatsApp OTP</label>
-      <p style="font-size:12px;color:var(--text-2);margin:0 0 10px;">
-        We'll send a 6-digit code to your WhatsApp number.
-      </p>
-      <button class="login-btn" id="send-otp-btn" onclick="sendOtp()">Send OTP via WhatsApp</button>
-      <div id="otp-input-wrap" style="display:none;margin-top:14px;">
-        <label class="login-label">Enter 6-Digit Code</label>
-        <input class="login-input pin-input" id="login-otp" type="text"
-          maxlength="6" placeholder="––––––" inputmode="numeric"
-          style="letter-spacing:12px;font-size:22px;">
-        <button class="login-btn" onclick="verifyOtp()" style="margin-top:10px;">Verify &amp; Sign In</button>
-        <button class="login-btn" onclick="sendOtp()" id="resend-otp-btn"
-          style="margin-top:8px;background:#fff;color:var(--text-2);border:1.5px solid var(--border);font-size:13px;">
-          Resend Code
-        </button>
+      <label class="lbl">WhatsApp code <span class="ur">· OTP</span></label>
+      <p style="font-size:12px;color:var(--text-2);margin:0 0 10px">We’ll send a 6-digit code to your WhatsApp.</p>
+      <button class="btn btn-primary" id="send-otp-btn" onclick="sendOtp()">Send code<span class="ur">Code bhejein</span></button>
+      <div id="otp-input-wrap" style="display:none;margin-top:12px">
+        <label class="lbl">Enter 6-digit code</label>
+        <input class="form-input pin-input" id="login-otp" type="text" maxlength="6" placeholder="––––––" inputmode="numeric" style="letter-spacing:12px;margin-bottom:12px">
+        <button class="btn btn-primary" onclick="verifyOtp()">Verify &amp; sign in<span class="ur">Verify karein</span></button>
+        <button class="btn btn-secondary" id="resend-otp-btn" onclick="sendOtp()">Resend code</button>
       </div>
-      <button onclick="switchToPin()"
-        style="background:none;border:none;color:var(--saffron);font-size:13px;margin-top:12px;cursor:pointer;width:100%;text-align:center;">
-        ← Back to PIN login
-      </button>
+      <button class="link-btn" onclick="switchToPin()" style="width:100%;text-align:center;margin-top:8px">← Back to PIN login</button>
     </div>
 
     <div class="login-error" id="login-error"></div>
@@ -227,891 +181,572 @@ select.form-input { background: #fff; }
 
 <!-- ── MAIN APP ── -->
 <div id="app" style="display:none">
-
-  <!-- Topbar -->
   <div class="topbar">
     <div>
-      <div class="topbar-title" id="topbar-name">Sales Rep</div>
-      <div class="topbar-subtitle" id="topbar-date"></div>
+      <div class="tb-name" id="topbar-name">Sales Rep</div>
+      <div class="tb-date" id="topbar-date"></div>
     </div>
-    <button class="logout-btn" onclick="doLogout()">Logout</button>
+    <div class="tb-r">
+      <button class="tb-btn" onclick="openTour()" title="Help">? Help</button>
+      <button class="tb-btn" onclick="doLogout()">Logout</button>
+    </div>
   </div>
 
-  <!-- TODAY'S ROUTE screen -->
+  <!-- ROUTE -->
   <div class="screen active" id="screen-route">
+    <div class="scr-head">Today’s round</div>
+    <div class="scr-sub">Aaj ka raasta</div>
     <div class="kpi-grid" id="daily-kpis">
-      <div class="kpi-tile"><div class="kpi-label">Stops Today</div><div class="kpi-value" id="kpi-stops">—</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Stops today</div><div class="kpi-value" id="kpi-stops">—</div></div>
       <div class="kpi-tile"><div class="kpi-label">Visited</div><div class="kpi-value" id="kpi-visited">—</div></div>
       <div class="kpi-tile"><div class="kpi-label">Orders</div><div class="kpi-value" id="kpi-orders">—</div></div>
-      <div class="kpi-tile"><div class="kpi-label">Day Sales</div><div class="kpi-value" id="kpi-sales" style="font-size:15px">—</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Day sales</div><div class="kpi-value" id="kpi-sales" style="font-size:15px">—</div></div>
     </div>
     <div id="route-list">
-      <div class="card"><div style="text-align:center;color:var(--text-2);padding:24px">Loading routes…</div></div>
+      <div class="card"><div style="text-align:center;color:var(--text-2);padding:22px">Loading…</div></div>
     </div>
   </div>
 
-  <!-- NEW ORDER screen -->
+  <!-- NEW ORDER -->
   <div class="screen" id="screen-order">
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-title">Shop</div>
-      <select class="form-input" id="order-customer" onchange="onCustomerChange()">
-        <option value="">Select a shop…</option>
-      </select>
+    <div class="scr-head">New order</div>
+    <div class="scr-sub">Naya order banayein</div>
+
+    <div class="coach">
+      <div class="coach-h">How to take an order · Order kaise lein</div>
+      <div class="coach-steps">
+        <div class="coach-step"><span class="coach-n">1</span><span>Pick the shop <span class="ur">· Dukaan chunein</span></span></div>
+        <div class="coach-step"><span class="coach-n">2</span><span>Add products <span class="ur">· Saman shamil karein</span></span></div>
+        <div class="coach-step"><span class="coach-n">3</span><span>Submit the order <span class="ur">· Order jama karein</span></span></div>
+        <div class="coach-step"><span class="coach-n">4</span><span>Generate invoice <span class="ur">· Invoice banayein</span></span></div>
+        <div class="coach-step"><span class="coach-n">5</span><span>Send on WhatsApp <span class="ur">· WhatsApp par bhejein</span></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Shop <span class="ur">· Dukaan</span></div>
+      <select class="form-input" id="order-customer" onchange="onCustomerChange()"><option value="">Select a shop…</option></select>
       <div id="cust-info" style="margin-top:8px;font-size:12px;color:var(--text-2);display:none"></div>
-      <button class="link-btn" id="newshop-toggle" onclick="openNewShop()">＋ New shop</button>
+      <button class="link-btn" id="newshop-toggle" onclick="openNewShop()">＋ New shop <span class="ur">· Nayi dukaan</span></button>
       <div id="newshop-form" class="subform" style="display:none">
-        <input class="form-input" id="ns-name" placeholder="Shop name *">
-        <input class="form-input" id="ns-phone" placeholder="Phone" inputmode="tel">
+        <input class="form-input" id="ns-name" placeholder="Shop name · Dukaan ka naam">
+        <input class="form-input" id="ns-phone" placeholder="Phone · Phone number" inputmode="tel">
         <div class="two-col" style="margin-bottom:10px">
-          <select class="form-input" id="ns-city">
-            <option value="Karachi">Karachi</option>
-            <option value="Hyderabad">Hyderabad</option>
-          </select>
-          <select class="form-input" id="ns-type">
-            <option value="RETAIL">Retail</option>
-            <option value="WHOLESALE">Wholesale</option>
-            <option value="DIRECT">Direct</option>
-          </select>
+          <select class="form-input" id="ns-city"><option value="Karachi">Karachi</option><option value="Hyderabad">Hyderabad</option></select>
+          <select class="form-input" id="ns-type"><option value="RETAIL">Retail</option><option value="WHOLESALE">Wholesale</option><option value="DIRECT">Direct</option></select>
         </div>
-        <select class="form-input" id="ns-zone"></select>
+        <select class="form-input" id="ns-zone" style="margin-bottom:10px"></select>
         <div class="two-col">
           <button class="btn btn-primary btn-sm" style="width:100%" onclick="createShop()">Save shop</button>
           <button class="btn btn-secondary btn-sm" style="width:100%" onclick="cancelNewShop()">Cancel</button>
         </div>
       </div>
     </div>
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-title">Add Products</div>
+
+    <div class="card">
+      <div class="card-t">Add products <span class="ur">· Saman</span></div>
       <div style="display:flex;gap:8px;margin-bottom:10px">
-        <select class="form-input" id="order-product" style="flex:1">
-          <option value="">Select product…</option>
-        </select>
+        <select class="form-input" id="order-product" style="flex:1"><option value="">Select product…</option></select>
         <button class="btn btn-primary btn-sm" onclick="addOrderItem()">Add</button>
       </div>
       <div id="order-items"></div>
     </div>
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-title">Order Total</div>
-      <div style="font-size:24px;font-weight:700;color:var(--saffron)" id="order-total">PKR 0</div>
-    </div>
-    <textarea class="form-input" id="order-notes" placeholder="Notes…" rows="2"
-      style="margin-bottom:12px"></textarea>
-    <!-- Cash is recorded centrally as a payment against the invoice (kept hidden). -->
-    <div class="card" style="margin-bottom:12px;display:none">
-      <div class="card-title">Cash Collected</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:14px;color:var(--text-2);font-weight:600">PKR</span>
-        <input class="form-input" id="order-cash" type="number" min="0" step="1"
-          placeholder="0" inputmode="decimal" style="flex:1">
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div class="card-t" style="margin:0">Order total <span class="ur">· Total</span></div>
+        <div class="total-v" id="order-total">PKR 0</div>
       </div>
     </div>
-    <button class="btn btn-success" id="order-submit-btn" onclick="placeOrder()">Submit Order</button>
-    <button class="btn btn-secondary" onclick="clearOrder()">Clear</button>
-    <div class="card" id="order-result" style="display:none;margin-top:14px;border:2px solid var(--saffron)"></div>
+
+    <textarea class="form-input" id="order-notes" placeholder="Notes · Note (optional)" rows="2" style="margin-bottom:12px"></textarea>
+
+    <button class="btn btn-primary" id="order-submit-btn" onclick="placeOrder()">Submit order<span class="ur">Order jama karein</span></button>
+    <button class="btn btn-secondary" onclick="clearOrder()">Clear<span class="ur">Saaf karein</span></button>
+    <div class="card" id="order-result" style="display:none;margin-top:14px"></div>
   </div>
 
-  <!-- VISIT LOG screen -->
+  <!-- VISIT LOG -->
   <div class="screen" id="screen-log">
+    <div class="scr-head">Log a visit</div>
+    <div class="scr-sub">Visit likhein</div>
     <div class="card">
-      <div class="card-title">Record Visit</div>
-      <div class="form-group">
-        <label class="form-label">Customer</label>
-        <select class="form-input" id="visit-customer">
-          <option value="">Select customer…</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Outcome</label>
-        <select class="form-input" id="visit-outcome">
-          <option value="visited">Visited — Order taken</option>
-          <option value="no_order">Visited — No order</option>
-          <option value="closed">Shop closed</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Notes</label>
-        <textarea class="form-input" id="visit-notes" rows="2" placeholder="Optional notes…"></textarea>
-      </div>
-      <button class="btn btn-primary" onclick="submitVisit()">Log Visit</button>
+      <div class="lbl">Shop <span class="ur">· Dukaan</span></div>
+      <select class="form-input" id="visit-customer" style="margin-bottom:12px"><option value="">Select a shop…</option></select>
+      <div class="lbl">Outcome <span class="ur">· Nateeja</span></div>
+      <select class="form-input" id="visit-outcome" style="margin-bottom:12px">
+        <option value="visited">Visited — order taken</option>
+        <option value="no_order">Visited — no order</option>
+        <option value="closed">Shop closed</option>
+      </select>
+      <div class="lbl">Notes <span class="ur">· Note</span></div>
+      <textarea class="form-input" id="visit-notes" rows="2" placeholder="Optional…" style="margin-bottom:12px"></textarea>
+      <button class="btn btn-primary" onclick="submitVisit()">Log visit<span class="ur">Visit save karein</span></button>
     </div>
     <div id="visit-log-list" style="margin-top:14px"></div>
   </div>
 
-  <!-- PROFILE screen -->
+  <!-- PROFILE -->
   <div class="screen" id="screen-profile">
+    <div class="scr-head">My profile</div>
+    <div class="scr-sub">Meri maloomat</div>
+    <div class="card"><div id="profile-info" style="font-size:14px;line-height:2.1"></div></div>
     <div class="card">
-      <div class="card-title">My Profile</div>
-      <div id="profile-info" style="font-size:14px;line-height:2"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">Change PIN</div>
-      <div class="form-group">
-        <label class="form-label">New PIN (4 digits)</label>
-        <input class="login-input pin-input" id="new-pin" type="password" maxlength="4"
-          placeholder="••••" inputmode="numeric" style="margin-bottom:0">
-      </div>
-      <button class="btn btn-primary" style="margin-top:10px" onclick="changePin()">Update PIN</button>
+      <div class="card-t">Change PIN <span class="ur">· PIN badlein</span></div>
+      <input class="form-input pin-input" id="new-pin" type="password" maxlength="4" placeholder="••••" inputmode="numeric" style="margin-bottom:10px">
+      <button class="btn btn-primary" onclick="changePin()">Update PIN<span class="ur">PIN update karein</span></button>
     </div>
   </div>
 
   <div class="bottom-space"></div>
 
-  <!-- Bottom navigation -->
   <nav class="bottom-nav">
-    <button class="nav-tab active" id="tab-route" onclick="switchTab('route')">
-      <span class="icon">🗺️</span><span class="label">Route</span>
-    </button>
-    <button class="nav-tab" id="tab-order" onclick="switchTab('order')">
-      <span class="icon">📝</span><span class="label">New Order</span>
-    </button>
-    <button class="nav-tab" id="tab-log" onclick="switchTab('log')">
-      <span class="icon">✅</span><span class="label">Visit Log</span>
-    </button>
-    <button class="nav-tab" id="tab-profile" onclick="switchTab('profile')">
-      <span class="icon">👤</span><span class="label">Profile</span>
-    </button>
+    <button class="nav-tab active" id="tab-route" onclick="switchTab('route')"><span class="icon">◎</span><span class="label">Route</span></button>
+    <button class="nav-tab" id="tab-order" onclick="switchTab('order')"><span class="icon">✎</span><span class="label">Order</span></button>
+    <button class="nav-tab" id="tab-log" onclick="switchTab('log')"><span class="icon">✓</span><span class="label">Visit</span></button>
+    <button class="nav-tab" id="tab-profile" onclick="switchTab('profile')"><span class="icon">◔</span><span class="label">Profile</span></button>
   </nav>
+
+  <!-- FIRST-RUN TOUR -->
+  <div class="tour-bg hidden" id="tour">
+    <div class="tour">
+      <div class="tour-ic" id="tour-ic">👋</div>
+      <div class="tour-h" id="tour-h"></div>
+      <div class="tour-p" id="tour-p"></div>
+      <div class="tour-ur" id="tour-ur"></div>
+      <div class="tour-dots" id="tour-dots"></div>
+      <button class="btn btn-primary" onclick="tourNext()" id="tour-btn"></button>
+    </div>
+  </div>
 </div>
 
 <script>
-// ──────────────────────────────────────────────
-//  STATE
-// ──────────────────────────────────────────────
 const state = {
   repId:      parseInt(sessionStorage.getItem('field_rep_id') || '0'),
   repName:    sessionStorage.getItem('field_rep_name') || '',
-  routes:     [],
-  customers:  [],
-  products:   [],
-  productsByType: {},   // cache: { RETAIL: [...], DIRECT: [...] }
-  selectedCustType: 'RETAIL',
-  orderItems: [],
-  todayVisits:  [],
-  todayOrders:  [],
+  routes:[], customers:[], products:[], productsByType:{},
+  selectedCustType:'RETAIL', orderItems:[], todayVisits:[], todayOrders:[],
 };
 
-// Check session via a lightweight API ping (cookie sent automatically)
 async function _checkSession() {
   try {
-    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
-    if (r.ok) {
-      const d = await r.json();
-      if (d.authenticated && d.role === 'field_rep') {
-        state.repId   = d.userId;
-        state.repName = d.displayName;
-        return true;
-      }
-    }
-  } catch(e) {}
+    const r = await fetch('/api/auth/me', { credentials:'same-origin' });
+    if (r.ok) { const d = await r.json();
+      if (d.authenticated && d.role === 'field_rep') { state.repId=d.userId; state.repName=d.displayName; return true; } }
+  } catch(e){}
   return false;
 }
 
-// ──────────────────────────────────────────────
-//  INIT
-// ──────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('topbar-date').textContent =
     new Date().toLocaleDateString('en-PK', {weekday:'long', day:'numeric', month:'long'});
-
   const loggedIn = await _checkSession();
-  if (loggedIn) {
-    showApp();
-  } else {
-    document.getElementById('login-screen').style.display = 'flex';
-  }
-
-  // Enter key on PIN triggers login
-  document.getElementById('login-pin').addEventListener('keyup', e => {
-    if (e.key === 'Enter') doLogin();
-  });
-  // Enter key on OTP triggers verify
-  document.getElementById('login-otp').addEventListener('keyup', e => {
-    if (e.key === 'Enter') verifyOtp();
-  });
+  if (loggedIn) showApp(); else document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-pin').addEventListener('keyup', e => { if(e.key==='Enter') doLogin(); });
+  document.getElementById('login-otp').addEventListener('keyup', e => { if(e.key==='Enter') verifyOtp(); });
 });
 
-// ──────────────────────────────────────────────
-//  AUTH
-// ──────────────────────────────────────────────
+// ── AUTH ──
 async function doLogin() {
   const phone = document.getElementById('login-phone').value.trim();
   const pin   = document.getElementById('login-pin').value.trim();
-  const errEl = document.getElementById('login-error');
-  errEl.style.display = 'none';
-
-  if (!phone || !pin) { showError('Phone and PIN are required'); return; }
-
+  document.getElementById('login-error').style.display='none';
+  if (!phone || !pin) { showError('Enter phone and PIN'); return; }
   try {
-    const r = await fetch('/api/field/auth', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({phone, pin})
-    });
+    const r = await fetch('/api/field/auth', { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone,pin}) });
     const d = await r.json();
     if (!r.ok) { showError(d.error || 'Login failed'); return; }
-    // Token is set as httpOnly cookie by server — not accessible in JS
-    state.repId   = d.repId;
-    state.repName = d.name;
-    sessionStorage.setItem('field_rep_id',   d.repId);
-    sessionStorage.setItem('field_rep_name', d.name);
+    state.repId=d.repId; state.repName=d.name;
+    sessionStorage.setItem('field_rep_id',d.repId); sessionStorage.setItem('field_rep_name',d.name);
     showApp();
-  } catch(e) {
-    showError('Connection error. Is the server running?');
-  }
+  } catch(e){ showError('Connection error. Try again.'); }
 }
-
-function switchToOtp() {
-  document.getElementById('login-pin-section').style.display = 'none';
-  document.getElementById('login-otp-section').style.display = 'block';
-  document.getElementById('otp-input-wrap').style.display = 'none';
-  document.getElementById('login-error').style.display = 'none';
-}
-
-function switchToPin() {
-  document.getElementById('login-otp-section').style.display = 'none';
-  document.getElementById('login-pin-section').style.display = 'block';
-  document.getElementById('login-error').style.display = 'none';
-}
-
-async function sendOtp() {
+function switchToOtp(){ document.getElementById('login-pin-section').style.display='none';
+  document.getElementById('login-otp-section').style.display='block';
+  document.getElementById('otp-input-wrap').style.display='none';
+  document.getElementById('login-error').style.display='none'; }
+function switchToPin(){ document.getElementById('login-otp-section').style.display='none';
+  document.getElementById('login-pin-section').style.display='block';
+  document.getElementById('login-error').style.display='none'; }
+async function sendOtp(){
   const phone = document.getElementById('login-phone').value.trim();
   if (!phone) { showError('Enter your phone number first'); return; }
-  const btn = document.getElementById('send-otp-btn');
-  btn.disabled = true; btn.textContent = 'Sending…';
-  document.getElementById('login-error').style.display = 'none';
+  const btn = document.getElementById('send-otp-btn'); btn.disabled=true; btn.textContent='Sending…';
+  document.getElementById('login-error').style.display='none';
   try {
-    const r = await fetch('/api/field/send-otp', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({phone})
-    });
+    const r = await fetch('/api/field/send-otp', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone}) });
     const d = await r.json();
-    if (!r.ok) { showError(d.error || 'Failed to send OTP'); btn.disabled = false; btn.textContent = 'Send OTP via WhatsApp'; return; }
-    document.getElementById('otp-input-wrap').style.display = 'block';
-    btn.textContent = 'Sent ✓';
-    setTimeout(() => { btn.disabled = false; btn.textContent = 'Resend OTP'; }, 30000);
+    if (!r.ok) { showError(d.error||'Failed to send code'); btn.disabled=false; btn.textContent='Send code'; return; }
+    document.getElementById('otp-input-wrap').style.display='block';
+    btn.textContent='Sent ✓';
+    setTimeout(()=>{ btn.disabled=false; btn.textContent='Resend code'; }, 30000);
     document.getElementById('login-otp').focus();
-  } catch(e) {
-    showError('Connection error. Try again.');
-    btn.disabled = false; btn.textContent = 'Send OTP via WhatsApp';
-  }
+  } catch(e){ showError('Connection error. Try again.'); btn.disabled=false; btn.textContent='Send code'; }
 }
-
-async function verifyOtp() {
+async function verifyOtp(){
   const phone = document.getElementById('login-phone').value.trim();
   const code  = document.getElementById('login-otp').value.trim();
-  if (!phone || !code) { showError('Enter your phone and OTP code'); return; }
-  document.getElementById('login-error').style.display = 'none';
+  if (!phone || !code) { showError('Enter your phone and code'); return; }
+  document.getElementById('login-error').style.display='none';
   try {
-    const r = await fetch('/api/field/verify-otp', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({phone, code})
-    });
+    const r = await fetch('/api/field/verify-otp', { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone,code}) });
     const d = await r.json();
-    if (!r.ok) { showError(d.error || 'Invalid OTP'); return; }
-    state.repId   = d.repId;
-    state.repName = d.name;
-    sessionStorage.setItem('field_rep_id',   d.repId);
-    sessionStorage.setItem('field_rep_name', d.name);
+    if (!r.ok) { showError(d.error||'Invalid code'); return; }
+    state.repId=d.repId; state.repName=d.name;
+    sessionStorage.setItem('field_rep_id',d.repId); sessionStorage.setItem('field_rep_name',d.name);
     showApp();
-  } catch(e) {
-    showError('Connection error. Try again.');
-  }
+  } catch(e){ showError('Connection error. Try again.'); }
 }
-
-function showError(msg) {
-  const el = document.getElementById('login-error');
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
-function doLogout() {
-  state.repId = 0; state.repName = '';
-  sessionStorage.clear();
-  // Expire the httpOnly cookie server-side by clearing it
-  document.cookie = 'field_token=; Max-Age=0; Path=/;';
-  document.getElementById('app').style.display = 'none';
-  // Reset login form to PIN view
+function showError(msg){ const el=document.getElementById('login-error'); el.textContent=msg; el.style.display='block'; }
+function doLogout(){
+  state.repId=0; state.repName=''; sessionStorage.clear();
+  document.cookie='field_token=; Max-Age=0; Path=/;';
+  document.getElementById('app').style.display='none';
   switchToPin();
-  document.getElementById('login-pin').value = '';
-  document.getElementById('login-otp').value = '';
-  document.getElementById('otp-input-wrap').style.display = 'none';
-  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-pin').value=''; document.getElementById('login-otp').value='';
+  document.getElementById('otp-input-wrap').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
 }
 
-// ──────────────────────────────────────────────
-//  APP INIT
-// ──────────────────────────────────────────────
-async function showApp() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('topbar-name').textContent = state.repName;
+// ── APP INIT ──
+async function showApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('topbar-name').textContent = state.repName || 'Sales Rep';
   await loadAppData();
   renderRoute();
+  if (!localStorage.getItem('field_tour_seen')) { openTour(); localStorage.setItem('field_tour_seen','1'); }
 }
-
-async function loadAppData() {
-  const opts = { credentials: 'same-origin' };
+async function loadAppData(){
+  const opts = { credentials:'same-origin' };
   try {
-    const [routesR, custsR] = await Promise.all([
-      fetch('/api/field/my-routes', opts),
-      fetch('/api/customers?all=1', opts),
-    ]);
+    const [routesR, custsR] = await Promise.all([ fetch('/api/field/my-routes',opts), fetch('/api/customers?all=1',opts) ]);
     state.routes    = routesR.ok ? await routesR.json() : [];
     state.customers = custsR.ok  ? await custsR.json()  : [];
-
-    await loadProducts('RETAIL');   // load default price tier
-    await loadTodayData();          // restore visits + orders from server
+    await loadProducts('RETAIL');
+    await loadTodayData();
     populateDropdowns();
-  } catch(e) {
-    console.error('loadAppData error', e);
-  }
+  } catch(e){ console.error('loadAppData', e); }
 }
-
-async function loadProducts(custType) {
-  custType = (custType || 'RETAIL').toUpperCase();
-  if (state.productsByType[custType]) {
-    state.products = state.productsByType[custType];
-    populateProductDropdown();
-    return;
-  }
+async function loadProducts(custType){
+  custType = (custType||'RETAIL').toUpperCase();
+  if (state.productsByType[custType]) { state.products=state.productsByType[custType]; populateProductDropdown(); return; }
   try {
-    const r = await fetch('/api/field/products?customerType=' + custType,
-                          { credentials: 'same-origin' });
+    const r = await fetch('/api/field/products?customerType='+custType, { credentials:'same-origin' });
     if (!r.ok) return;
     const data = await r.json();
-    const mapped = data.map(p => ({
-      variantId: p.variant_id,
-      label:     p.product_name + ' ' + p.pack_size,
-      packSize:  p.pack_size,
-      sku:       p.sku_code,
-      price:     p.price || 0,
-    }));
-    state.productsByType[custType] = mapped;
-    state.products = mapped;
-    populateProductDropdown();
-  } catch(e) {
-    console.error('loadProducts error', e);
-  }
+    const mapped = data.map(p => ({ variantId:p.variant_id, label:p.product_name+' '+p.pack_size, packSize:p.pack_size, sku:p.sku_code, price:p.price||0 }));
+    state.productsByType[custType]=mapped; state.products=mapped; populateProductDropdown();
+  } catch(e){ console.error('loadProducts', e); }
 }
-
-async function loadTodayData() {
-  const today = new Date().toISOString().slice(0, 10);
-  const opts  = { credentials: 'same-origin' };
+async function loadTodayData(){
+  const today = new Date().toISOString().slice(0,10);
+  const opts  = { credentials:'same-origin' };
   try {
     const [visitsR, ordersR] = await Promise.all([
-      fetch('/api/beat-visits?repId=' + state.repId + '&date=' + today, opts),
-      fetch('/api/field-orders?repId=' + state.repId + '&from=' + today + '&to=' + today, opts),
+      fetch('/api/beat-visits?repId='+state.repId+'&date='+today, opts),
+      fetch('/api/field-orders?repId='+state.repId+'&from='+today+'&to='+today, opts),
     ]);
-    if (visitsR.ok) {
-      const visits = await visitsR.json();
-      state.todayVisits = (Array.isArray(visits) ? visits : []).map(v => ({
-        customer_id: v.customer_id,
-        outcome:     v.outcome,
-      }));
-    }
-    if (ordersR.ok) {
-      const orders = await ordersR.json();
-      state.todayOrders = (Array.isArray(orders) ? orders : []).map(o => ({
-        id:    o.id,
-        total: o.total || 0,
-      }));
-    }
-  } catch(e) {
-    console.error('loadTodayData error', e);
-  }
+    if (visitsR.ok) { const v = await visitsR.json();
+      state.todayVisits = (Array.isArray(v)?v:[]).map(x=>({customer_id:x.customer_id, outcome:x.outcome})); }
+    if (ordersR.ok) { const o = await ordersR.json();
+      state.todayOrders = (Array.isArray(o)?o:[]).map(x=>({id:x.id, total:x.total||0})); }
+  } catch(e){ console.error('loadTodayData', e); }
 }
-
-function populateDropdowns() {
+function populateDropdowns(){
   const custOpts = state.customers.map(c =>
-    `<option value="${c.id}" data-type="${escH(c.customer_type||'RETAIL')}">${escH(c.name)} (${escH(c.code)})</option>`).join('');
-  document.getElementById('order-customer').innerHTML = '<option value="">Select customer…</option>' + custOpts;
-  document.getElementById('visit-customer').innerHTML = '<option value="">Select customer…</option>' + custOpts;
+    '<option value="'+c.id+'" data-type="'+escH(c.customer_type||'RETAIL')+'">'+escH(c.name)+' ('+escH(c.code)+')</option>').join('');
+  document.getElementById('order-customer').innerHTML = '<option value="">Select a shop…</option>'+custOpts;
+  document.getElementById('visit-customer').innerHTML = '<option value="">Select a shop…</option>'+custOpts;
   populateProductDropdown();
 }
-
-function populateProductDropdown() {
+function populateProductDropdown(){
   const prodOpts = state.products.map(p =>
-    '<option value="' + p.variantId + '" data-price="' + p.price + '">' +
-    escH(p.label) + (p.price ? '  —  PKR ' + p.price.toLocaleString() : '') +
-    '</option>'
-  ).join('');
-  document.getElementById('order-product').innerHTML = '<option value="">Select product…</option>' + prodOpts;
+    '<option value="'+p.variantId+'" data-price="'+p.price+'">'+escH(p.label)+(p.price?'  —  PKR '+p.price.toLocaleString():'')+'</option>').join('');
+  document.getElementById('order-product').innerHTML = '<option value="">Select product…</option>'+prodOpts;
+}
+async function onCustomerChange(){
+  const sel=document.getElementById('order-customer'); const custId=sel.value; const infoEl=document.getElementById('cust-info');
+  if (!custId){ infoEl.style.display='none'; return; }
+  const cust = state.customers.find(c=>c.id==custId);
+  if (!cust){ infoEl.style.display='none'; return; }
+  const typeLabel={RETAIL:'Retail',DIRECT:'Direct',WHOLESALE:'Wholesale'};
+  infoEl.innerHTML='<span class="badge">'+escH(typeLabel[cust.customer_type]||cust.customer_type||'Retail')+'</span>';
+  infoEl.style.display='block';
+  const newType=(cust.customer_type||'RETAIL').toUpperCase();
+  if (newType!==state.selectedCustType){ state.selectedCustType=newType;
+    if (state.orderItems.length>0){ state.orderItems=[]; renderOrderItems(); }
+    await loadProducts(newType); }
 }
 
-async function onCustomerChange() {
-  const sel  = document.getElementById('order-customer');
-  const custId = sel.value;
-  const infoEl = document.getElementById('cust-info');
-
-  if (!custId) { infoEl.style.display = 'none'; return; }
-
-  const cust = state.customers.find(c => c.id == custId);
-  if (!cust) { infoEl.style.display = 'none'; return; }
-
-  // Show customer type badge
-  const typeLabel = { RETAIL: 'Retail', DIRECT: 'Direct Sale', WHOLESALE: 'Wholesale' };
-  infoEl.innerHTML = '<span style="background:var(--border);padding:2px 8px;border-radius:10px;font-weight:600">' +
-    escH(typeLabel[cust.customer_type] || cust.customer_type || 'Retail') + '</span>';
-  infoEl.style.display = 'block';
-
-  // Reload product prices for this customer type
-  const newType = (cust.customer_type || 'RETAIL').toUpperCase();
-  if (newType !== state.selectedCustType) {
-    state.selectedCustType = newType;
-    // Clear order items — prices have changed
-    if (state.orderItems.length > 0) {
-      state.orderItems = [];
-      renderOrderItems();
-    }
-    await loadProducts(newType);
-  }
-}
-
-// ──────────────────────────────────────────────
-//  NEW SHOP (on-the-spot customer creation)
-// ──────────────────────────────────────────────
-function _zoneOptionsFromRoutes() {
-  const seen = {};
-  let opts = '<option value="">Zone (optional)</option>';
-  (state.routes || []).forEach(r => {
-    if (r.zone_id && !seen[r.zone_id]) {
-      seen[r.zone_id] = 1;
-      opts += '<option value="' + r.zone_id + '">' + escH(r.zone_name || ('Zone ' + r.zone_id)) + '</option>';
-    }
-  });
+// ── NEW SHOP ──
+function _zoneOptionsFromRoutes(){
+  const seen={}; let opts='<option value="">Zone (optional) · Ilaqa</option>';
+  (state.routes||[]).forEach(r=>{ if(r.zone_id && !seen[r.zone_id]){ seen[r.zone_id]=1;
+    opts+='<option value="'+r.zone_id+'">'+escH(r.zone_name||('Zone '+r.zone_id))+'</option>'; } });
   return opts;
 }
-
-function openNewShop() {
-  document.getElementById('ns-zone').innerHTML = _zoneOptionsFromRoutes();
-  document.getElementById('newshop-form').style.display = 'block';
-  document.getElementById('newshop-toggle').style.display = 'none';
+function openNewShop(){
+  document.getElementById('ns-zone').innerHTML=_zoneOptionsFromRoutes();
+  document.getElementById('newshop-form').style.display='block';
+  document.getElementById('newshop-toggle').style.display='none';
   document.getElementById('ns-name').focus();
 }
-
-function cancelNewShop() {
-  document.getElementById('newshop-form').style.display = 'none';
-  document.getElementById('newshop-toggle').style.display = 'inline-block';
-  document.getElementById('ns-name').value = '';
-  document.getElementById('ns-phone').value = '';
+function cancelNewShop(){
+  document.getElementById('newshop-form').style.display='none';
+  document.getElementById('newshop-toggle').style.display='inline-block';
+  document.getElementById('ns-name').value=''; document.getElementById('ns-phone').value='';
 }
-
-async function createShop() {
-  const name   = document.getElementById('ns-name').value.trim();
-  const phone  = document.getElementById('ns-phone').value.trim();
-  const city   = document.getElementById('ns-city').value;
-  const type   = document.getElementById('ns-type').value;
-  const zoneId = document.getElementById('ns-zone').value;
-  if (!name) return alert('Shop name is required');
-
-  const payload = { name, city, customerType: type, phone };
-  if (zoneId) payload.zoneId = parseInt(zoneId);
-
+async function createShop(){
+  const name=document.getElementById('ns-name').value.trim();
+  const phone=document.getElementById('ns-phone').value.trim();
+  const city=document.getElementById('ns-city').value;
+  const type=document.getElementById('ns-type').value;
+  const zoneId=document.getElementById('ns-zone').value;
+  if (!name) return alert('Shop name is required · Dukaan ka naam zaroori hai');
+  const payload={ name, city, customerType:type, phone };
+  if (zoneId) payload.zoneId=parseInt(zoneId);
   try {
-    const r = await fetch('/api/field/customers', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    const r = await fetch('/api/field/customers', { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
     const d = await r.json();
-    if (!r.ok) { alert('Error: ' + (d.error || 'Could not create shop')); return; }
-    // Add to local list, select it, and continue the order
-    state.customers.push({
-      id: d.id, name: d.name || name, code: d.code || '',
-      customer_type: d.customer_type || type
-    });
+    if (!r.ok){ alert('Error: '+(d.error||'Could not create shop')); return; }
+    state.customers.push({ id:d.id, name:d.name||name, code:d.code||'', customer_type:d.customer_type||type });
     populateDropdowns();
-    document.getElementById('order-customer').value = d.id;
+    document.getElementById('order-customer').value=d.id;
     cancelNewShop();
     onCustomerChange();
-  } catch(e) {
-    alert('Network error: ' + e.message);
-  }
+  } catch(e){ alert('Network error: '+e.message); }
 }
 
-// ──────────────────────────────────────────────
-//  ROUTE SCREEN
-// ──────────────────────────────────────────────
-function renderRoute() {
-  const container = document.getElementById('route-list');
-  if (!state.routes.length) {
-    container.innerHTML = `
-      <div class="card">
-        <div style="text-align:center;padding:32px;color:var(--text-2)">
-          <div style="font-size:36px;margin-bottom:12px">🗺️</div>
-          <div style="font-weight:600">No routes assigned today</div>
-          <div style="font-size:13px;margin-top:6px">Contact your manager to assign routes</div>
-        </div>
-      </div>`;
-    updateKPIs(0, 0, 0, 0);
-    return;
+// ── ROUTE ──
+function renderRoute(){
+  const container=document.getElementById('route-list');
+  if (!state.routes.length){
+    container.innerHTML='<div class="card"><div style="text-align:center;padding:30px;color:var(--text-2)">'
+      +'<div style="font-size:34px;margin-bottom:10px">◎</div><div style="font-weight:600">No route yet · Koi raasta nahi</div>'
+      +'<div style="font-size:12px;margin-top:6px">You can still take orders from the Order tab.<br>Order tab se order le sakte hain.</div></div></div>';
+    updateKPIs(0,0,0,0); return;
   }
-
-  let totalStops = 0;
-  let html = '';
-  state.routes.forEach(route => {
-    const stops = route.stops || [];
-    totalStops += stops.length;
-    const stopRows = stops.map((stop, i) => {
-      const visit = state.todayVisits.find(v => v.customer_id == stop.customer_id);
-      const statusHtml = visit
-        ? `<span class="stop-status ${visit.outcome}">${visit.outcome === 'visited' ? '✓ Visited' : visit.outcome === 'no_order' ? 'No Order' : 'Closed'}</span>`
-        : '';
-      return `
-        <div class="stop-item" onclick="quickVisit(${stop.customer_id}, ${route.id})">
-          <div class="stop-num ${visit?'done':''}">${i+1}</div>
-          <div style="flex:1">
-            <div class="stop-name">${escH(stop.customer_name||stop.shop_name||'')}</div>
-            <div class="stop-sub">${escH(stop.address||stop.customer_code||'')}</div>
-          </div>
-          ${statusHtml}
-          <span style="font-size:18px;color:var(--saffron)">›</span>
-        </div>`;
+  let totalStops=0, html='';
+  state.routes.forEach(route=>{
+    const stops=route.stops||[]; totalStops+=stops.length;
+    const rows=stops.map((stop,i)=>{
+      const visit=state.todayVisits.find(v=>v.customer_id==stop.customer_id);
+      const status=visit?('<span class="stop-status '+visit.outcome+'">'+(visit.outcome==='visited'?'Visited':visit.outcome==='no_order'?'No order':'Closed')+'</span>'):'';
+      return '<div class="stop-item" onclick="quickVisit('+stop.customer_id+','+route.id+')">'
+        +'<div class="stop-num '+(visit?'done':'')+'">'+(visit?'✓':(i+1))+'</div>'
+        +'<div style="flex:1"><div class="stop-name">'+escH(stop.customer_name||stop.shop_name||'')+'</div>'
+        +'<div class="stop-sub">'+escH(stop.address||stop.customer_code||'')+'</div></div>'+status+'<span style="margin-left:auto;color:var(--terra);font-size:17px">›</span></div>';
     }).join('');
-
-    html += `
-      <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
-        <div style="padding:12px 14px;background:var(--saffron);display:flex;justify-content:space-between">
-          <div style="color:#fff;font-weight:700;font-size:14px">${escH(route.name||'')} 🗺️</div>
-          <div style="color:rgba(255,255,255,0.8);font-size:12px">${escH(route.zone_name||'')}</div>
-        </div>
-        ${stopRows || '<div style="padding:16px;color:var(--text-2);font-size:13px">No stops assigned to this route</div>'}
-      </div>`;
+    html+='<div class="card" style="padding:0;overflow:hidden">'
+      +'<div style="padding:11px 14px;background:var(--terra);display:flex;justify-content:space-between;align-items:center">'
+      +'<div style="color:#fff;font-weight:600;font-size:13px">'+escH(route.name||'')+'</div>'
+      +'<div style="color:rgba(255,255,255,.8);font-size:11px">'+escH(route.zone_name||'')+'</div></div>'
+      +'<div style="padding:0 14px">'+(rows||'<div style="padding:16px;color:var(--text-2);font-size:12px">No stops</div>')+'</div></div>';
   });
-
-  container.innerHTML = html;
-  updateKPIs(totalStops,
-    state.todayVisits.length,
-    state.todayOrders.length,
-    state.todayOrders.reduce((s,o) => s + (o.total||0), 0));
+  container.innerHTML=html;
+  updateKPIs(totalStops, state.todayVisits.length, state.todayOrders.length, state.todayOrders.reduce((s,o)=>s+(o.total||0),0));
 }
-
-function updateKPIs(stops, visited, orders, sales) {
-  document.getElementById('kpi-stops').textContent   = stops;
-  document.getElementById('kpi-visited').textContent = visited;
-  document.getElementById('kpi-orders').textContent  = orders;
-  document.getElementById('kpi-sales').textContent   = 'PKR '+(sales||0).toLocaleString();
+function updateKPIs(stops,visited,orders,sales){
+  document.getElementById('kpi-stops').textContent=stops;
+  document.getElementById('kpi-visited').textContent=visited;
+  document.getElementById('kpi-orders').textContent=orders;
+  document.getElementById('kpi-sales').textContent='PKR '+(sales||0).toLocaleString();
 }
+function quickVisit(customerId,routeId){ document.getElementById('visit-customer').value=customerId; switchTab('log'); }
 
-function quickVisit(customerId, routeId) {
-  // Pre-fill visit log and switch tab
-  document.getElementById('visit-customer').value = customerId;
-  switchTab('log');
-}
-
-// ──────────────────────────────────────────────
-//  ORDER SCREEN
-// ──────────────────────────────────────────────
-function addOrderItem() {
-  const sel = document.getElementById('order-product');
-  const vid = sel.value;
-  if (!vid) return;
-
-  const existing = state.orderItems.find(i => i.variantId == vid);
-  if (existing) { existing.qty++; renderOrderItems(); return; }
-
-  const product = state.products.find(p => p.variantId == vid);
-  const label   = product ? product.label : (sel.options[sel.selectedIndex]?.text || '');
-  const price   = product ? (product.price || 0) : 0;
-
-  state.orderItems.push({variantId: vid, name: label, qty: 1, unitPrice: price});
+// ── ORDER ITEMS ──
+function addOrderItem(){
+  const sel=document.getElementById('order-product'); const vid=sel.value; if(!vid) return;
+  const existing=state.orderItems.find(i=>i.variantId==vid);
+  if (existing){ existing.qty++; renderOrderItems(); return; }
+  const product=state.products.find(p=>p.variantId==vid);
+  const label=product?product.label:(sel.options[sel.selectedIndex]?.text||'');
+  const price=product?(product.price||0):0;
+  state.orderItems.push({variantId:vid, name:label, qty:1, unitPrice:price});
   renderOrderItems();
 }
-
-function renderOrderItems() {
-  const container = document.getElementById('order-items');
-  if (!state.orderItems.length) {
-    container.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:8px 0">No items added</div>';
-    document.getElementById('order-total').textContent = 'PKR 0';
-    return;
-  }
-  container.innerHTML = state.orderItems.map((item, idx) =>
-      '<div class="order-item2">'
-    +   '<div class="oi2-top">'
-    +     '<span class="oi2-name">' + escH(item.name) + '</span>'
-    +     '<button class="oi-remove" onclick="removeItem(' + idx + ')">×</button>'
-    +   '</div>'
-    +   '<div class="oi2-row">'
-    +     '<label class="oi2-lbl">Qty</label>'
-    +     '<input class="oi2-input" type="number" min="1" value="' + item.qty + '" '
-    +       'onchange="updateItemQty(' + idx + ',this.value)" inputmode="numeric">'
-    +     '<label class="oi2-lbl">Price</label>'
-    +     '<input class="oi2-input" type="number" min="0" value="' + item.unitPrice + '" '
-    +       'onchange="updateItemPrice(' + idx + ',this.value)" inputmode="decimal">'
-    +     '<span class="oi2-line">PKR ' + Number(item.qty * item.unitPrice).toLocaleString() + '</span>'
-    +   '</div>'
-    + '</div>'
-  ).join('');
+function renderOrderItems(){
+  const container=document.getElementById('order-items');
+  if (!state.orderItems.length){ container.innerHTML='<div style="color:var(--text-2);font-size:12.5px;padding:8px 0">No items yet · Abhi koi maal nahi</div>';
+    document.getElementById('order-total').textContent='PKR 0'; return; }
+  container.innerHTML=state.orderItems.map((item,idx)=>
+    '<div class="order-item2"><div class="oi2-top"><span class="oi2-name">'+escH(item.name)+'</span>'
+    +'<button class="oi-remove" onclick="removeItem('+idx+')">×</button></div><div class="oi2-row">'
+    +'<label class="oi2-lbl">Qty</label><input class="oi2-input" type="number" min="1" value="'+item.qty+'" onchange="updateItemQty('+idx+',this.value)" inputmode="numeric">'
+    +'<label class="oi2-lbl">Price</label><input class="oi2-input" type="number" min="0" value="'+item.unitPrice+'" onchange="updateItemPrice('+idx+',this.value)" inputmode="decimal">'
+    +'<span class="oi2-line">PKR '+Number(item.qty*item.unitPrice).toLocaleString()+'</span></div></div>').join('');
   recalcTotal();
 }
+function updateItemQty(idx,val){ state.orderItems[idx].qty=parseFloat(val)||1; renderOrderItems(); }
+function updateItemPrice(idx,val){ state.orderItems[idx].unitPrice=parseFloat(val)||0; renderOrderItems(); }
+function removeItem(idx){ state.orderItems.splice(idx,1); renderOrderItems(); }
+function recalcTotal(){ const t=state.orderItems.reduce((s,i)=>s+i.qty*i.unitPrice,0); document.getElementById('order-total').textContent='PKR '+t.toLocaleString(); }
 
-function updateItemQty(idx, val)   { state.orderItems[idx].qty       = parseFloat(val)||1; renderOrderItems(); }
-function updateItemPrice(idx, val) { state.orderItems[idx].unitPrice = parseFloat(val)||0; renderOrderItems(); }
-function removeItem(idx)           { state.orderItems.splice(idx,1); renderOrderItems(); }
-
-function recalcTotal() {
-  const total = state.orderItems.reduce((s,i) => s + i.qty * i.unitPrice, 0);
-  document.getElementById('order-total').textContent = 'PKR ' + total.toLocaleString();
-}
-
-// STEP 1 — place the order (a booking). Never touches stock, so it always works.
-async function placeOrder() {
-  const custId = document.getElementById('order-customer').value;
-  if (!custId) return alert('Please select a shop');
-  if (!state.orderItems.length) return alert('Add at least one product');
-
-  const emptyPrice = state.orderItems.filter(i => i.unitPrice <= 0);
-  if (emptyPrice.length) return alert('Please enter unit price for all items');
-
-  const total = state.orderItems.reduce((s,i) => s + i.qty * i.unitPrice, 0);
-  const payload = {
-    order_source:    'rep_assisted',
-    customerId:      parseInt(custId),
-    notes:           document.getElementById('order-notes').value.trim(),
-    idempotency_key: 'FLD-' + state.repId + '-' + Date.now(),
-    items: state.orderItems.map(i => ({
-      variantId: i.variantId,
-      qty:       i.qty,
-      unitPrice: i.unitPrice,
-    }))
-  };
-
-  const btn = document.getElementById('order-submit-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Placing…'; }
+// ── PLACE ORDER (step 1) ──
+async function placeOrder(){
+  const custId=document.getElementById('order-customer').value;
+  if (!custId) return alert('Please select a shop · Dukaan chunein');
+  if (!state.orderItems.length) return alert('Add at least one product · Kam az kam ek maal daalein');
+  if (state.orderItems.filter(i=>i.unitPrice<=0).length) return alert('Enter price for all items · Har maal ki price likhein');
+  const total=state.orderItems.reduce((s,i)=>s+i.qty*i.unitPrice,0);
+  const payload={ order_source:'rep_assisted', customerId:parseInt(custId),
+    notes:document.getElementById('order-notes').value.trim(),
+    idempotency_key:'FLD-'+state.repId+'-'+Date.now(),
+    items:state.orderItems.map(i=>({variantId:i.variantId, qty:i.qty, unitPrice:i.unitPrice})) };
+  const btn=document.getElementById('order-submit-btn');
+  if (btn){ btn.disabled=true; btn.textContent='Placing…'; }
   try {
-    const r = await fetch('/api/field/place-order', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const d = await r.json();
-    if (!r.ok) { alert('Error: ' + (d.error||'unknown')); return; }
-    state.todayOrders.push({id: d.orderId, total});
-    showOrderPlaced(d, total);
-    clearOrder();
-  } catch(e) {
-    alert('Network error: ' + e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Submit Order'; }
-  }
+    const r=await fetch('/api/field/place-order',{ method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const d=await r.json();
+    if (!r.ok){ alert('Error: '+(d.error||'unknown')); return; }
+    state.todayOrders.push({id:d.orderId, total});
+    showOrderPlaced(d,total); clearOrder();
+  } catch(e){ alert('Network error: '+e.message); }
+  finally { if(btn){ btn.disabled=false; btn.innerHTML='Submit order<span class="ur">Order jama karein</span>'; } }
 }
-
-// STEP 2 — generate the invoice for a placed order (needs stock). If stock is
-// short it fails but the order is preserved, so it can be invoiced later.
-async function generateInvoice(orderId, btnEl) {
-  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Generating…'; }
+// ── GENERATE INVOICE (step 2) ──
+async function generateInvoice(orderId, btnEl){
+  if (btnEl){ btnEl.disabled=true; btnEl.textContent='Generating…'; }
   try {
-    const r = await fetch('/api/field/orders/' + orderId + '/invoice', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}'
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      alert('Could not invoice: ' + (d.error || 'unknown') +
-            '\n\nThe order is saved — you can generate the invoice once stock is available.');
-      if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🧾 Generate Invoice'; }
-      return;
-    }
+    const r=await fetch('/api/field/orders/'+orderId+'/invoice',{ method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'}, body:'{}' });
+    const d=await r.json();
+    if (!r.ok){ alert('Could not invoice: '+(d.error||'unknown')+'\n\nThe order is saved — invoice it once stock is available.\nOrder save hai — stock aane par invoice banayein.');
+      if(btnEl){ btnEl.disabled=false; btnEl.innerHTML='🧾 Generate invoice<span class="ur">Invoice banayein</span>'; } return; }
     showInvoiceResult(d);
-  } catch(e) {
-    alert('Network error: ' + e.message);
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🧾 Generate Invoice'; }
-  }
+  } catch(e){ alert('Network error: '+e.message); if(btnEl){ btnEl.disabled=false; btnEl.innerHTML='🧾 Generate invoice<span class="ur">Invoice banayein</span>'; } }
 }
-
-// Card after STEP 1: order placed → offer Generate Invoice.
-function showOrderPlaced(d, total) {
-  const box = document.getElementById('order-result');
-  if (!box) return;
-  const ordNum = d.orderNumber || ('Order #' + d.orderId);
-  const oor = d.outOfRoute
-    ? '<div style="color:var(--chili);font-size:12px;margin-top:8px">⚠ Out of your route — flagged for the office.</div>'
-    : '';
-  box.className = 'card success-card';
-  box.style.border = '2px solid var(--saffron)';
-  box.innerHTML =
-      '<div class="success-check" style="background:var(--saffron)">✓</div>'
-    + '<div class="success-inv">' + escH(ordNum) + '</div>'
-    + '<div class="success-total">PKR ' + Number(total).toLocaleString() + '</div>'
-    + '<div class="success-hint">Order placed. Generate the invoice when you’re ready.</div>'
-    + oor
-    + '<button class="btn btn-success" style="margin-top:16px" '
-    +   'onclick="generateInvoice(' + d.orderId + ', this)">🧾 Generate Invoice</button>'
-    + '<button class="btn btn-secondary" onclick="hideOrderResult()">New order</button>';
-  box.style.display = 'block';
-  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+function showOrderPlaced(d,total){
+  const box=document.getElementById('order-result'); if(!box) return;
+  const ordNum=d.orderNumber||('Order #'+d.orderId);
+  const oor=d.outOfRoute?'<div style="color:var(--chili);font-size:11.5px;margin-top:7px">⚠ Out of your route — flagged for the office.</div>':'';
+  box.className='card success-card'; box.style.border='2px solid var(--terra)'; box.style.display='block';
+  box.innerHTML='<div class="success-check" style="background:var(--terra)">✓</div>'
+    +'<div class="success-inv">'+escH(ordNum)+'</div><div class="success-total">PKR '+Number(total).toLocaleString()+'</div>'
+    +'<div class="success-hint">Order saved. Generate the invoice when ready.<br><span style="color:var(--text-3)">Order save ho gaya — invoice tayyar karein</span></div>'+oor
+    +'<button class="btn btn-success" style="margin-top:16px" onclick="generateInvoice('+d.orderId+', this)">🧾 Generate invoice<span class="ur">Invoice banayein</span></button>'
+    +'<button class="btn btn-secondary" onclick="hideOrderResult()">New order<span class="ur">Naya order</span></button>';
+  box.scrollIntoView({behavior:'smooth', block:'center'});
 }
-
-// Card after STEP 2: invoice created → offer WhatsApp share.
-function showInvoiceResult(d) {
-  const box = document.getElementById('order-result');
-  if (!box) return;
-  const invNum = d.invoiceNumber || ('Invoice #' + d.invoiceId);
-  box.className = 'card success-card';
-  box.style.border = '2px solid var(--cardamom)';
-  box.innerHTML =
-      '<div class="success-check">✓</div>'
-    + '<div class="success-inv">' + escH(invNum) + '</div>'
-    + '<div class="success-total">PKR ' + Number(d.total || 0).toLocaleString() + '</div>'
-    + '<div class="success-hint">Invoice created — inventory & sales updated.</div>'
-    + '<button class="btn btn-success" style="margin-top:16px" '
-    +   'onclick="shareInvoicePdf(' + d.invoiceId + ',\'' + escH(invNum) + '\')">📄 Send invoice on WhatsApp</button>'
-    + '<button class="btn btn-secondary" onclick="hideOrderResult()">New order</button>';
-  box.style.display = 'block';
-  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+function showInvoiceResult(d){
+  const box=document.getElementById('order-result'); if(!box) return;
+  const invNum=d.invoiceNumber||('Invoice #'+d.invoiceId);
+  box.className='card success-card'; box.style.border='2px solid var(--cardamom)'; box.style.display='block';
+  box.innerHTML='<div class="success-check">✓</div>'
+    +'<div class="success-inv">'+escH(invNum)+'</div><div class="success-total">PKR '+Number(d.total||0).toLocaleString()+'</div>'
+    +'<div class="success-hint">Invoice created — stock &amp; sales updated.<br><span style="color:var(--text-3)">Invoice ban gaya — stock update ho gaya</span></div>'
+    +'<button class="btn btn-success" style="margin-top:16px" onclick="shareInvoicePdf('+d.invoiceId+',\''+escH(invNum)+'\')">📄 Send invoice on WhatsApp<span class="ur">WhatsApp par bhejein</span></button>'
+    +'<button class="btn btn-secondary" onclick="hideOrderResult()">New order<span class="ur">Naya order</span></button>';
+  box.scrollIntoView({behavior:'smooth', block:'center'});
 }
-
-function hideOrderResult() {
-  const box = document.getElementById('order-result');
-  if (box) box.style.display = 'none';
-}
-
-// Fetch the invoice PDF and hand it to the phone's share sheet (WhatsApp shows up).
-// Falls back to a plain download where the Web Share API can't share files (desktop).
-async function shareInvoicePdf(invId, invNum) {
+function hideOrderResult(){ const box=document.getElementById('order-result'); if(box) box.style.display='none'; }
+async function shareInvoicePdf(invId, invNum){
   try {
-    const r = await fetch('/api/invoices/' + invId + '/pdf', { credentials: 'same-origin' });
-    if (!r.ok) { alert('Could not fetch the invoice PDF.'); return; }
-    const blob  = await r.blob();
-    const fname = (invNum || ('invoice-' + invId)) + '.pdf';
-    const file  = new File([blob], fname, { type: 'application/pdf' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: fname, text: 'Your Spicetopia invoice' });
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = fname;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-    }
-  } catch(e) {
-    if (e && e.name !== 'AbortError') alert('Share error: ' + e.message);
-  }
+    const r=await fetch('/api/invoices/'+invId+'/pdf', { credentials:'same-origin' });
+    if (!r.ok){ alert('Could not fetch the invoice PDF.'); return; }
+    const blob=await r.blob(); const fname=(invNum||('invoice-'+invId))+'.pdf';
+    const file=new File([blob], fname, {type:'application/pdf'});
+    if (navigator.canShare && navigator.canShare({files:[file]})) { await navigator.share({files:[file], title:fname, text:'Your Spicetopia invoice'}); }
+    else { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=fname;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); }
+  } catch(e){ if(e && e.name!=='AbortError') alert('Share error: '+e.message); }
 }
-
-function clearOrder() {
-  state.orderItems = [];
-  state.selectedCustType = 'RETAIL';
-  document.getElementById('order-customer').value = '';
-  document.getElementById('order-notes').value = '';
-  document.getElementById('order-product').value = '';
-  document.getElementById('order-cash').value = '';
-  document.getElementById('cust-info').style.display = 'none';
+function clearOrder(){
+  state.orderItems=[]; state.selectedCustType='RETAIL';
+  document.getElementById('order-customer').value='';
+  document.getElementById('order-notes').value='';
+  document.getElementById('order-product').value='';
+  document.getElementById('cust-info').style.display='none';
   renderOrderItems();
 }
 
-// ──────────────────────────────────────────────
-//  VISIT LOG SCREEN
-// ──────────────────────────────────────────────
-async function submitVisit() {
-  const custId  = document.getElementById('visit-customer').value;
-  const outcome = document.getElementById('visit-outcome').value;
-  const notes   = document.getElementById('visit-notes').value.trim();
-  if (!custId) return alert('Please select a customer');
-
-  const routeId = state.routes[0]?.id;
-  const payload = {
-    repId:      state.repId,
-    routeId:    routeId || null,
-    customerId: parseInt(custId),
-    outcome,
-    notes,
-  };
-
+// ── VISIT ──
+async function submitVisit(){
+  const custId=document.getElementById('visit-customer').value;
+  const outcome=document.getElementById('visit-outcome').value;
+  const notes=document.getElementById('visit-notes').value.trim();
+  if (!custId) return alert('Please select a shop · Dukaan chunein');
+  const payload={ repId:state.repId, routeId:state.routes[0]?.id||null, customerId:parseInt(custId), outcome, notes };
   try {
-    const r = await fetch('/api/beat-visits', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const d = await r.json();
-    if (!r.ok) { alert('Error: ' + (d.error||'unknown')); return; }
-    state.todayVisits.push({customer_id: parseInt(custId), outcome});
-    document.getElementById('visit-customer').value = '';
-    document.getElementById('visit-notes').value = '';
-    renderVisitLog();
-    renderRoute();
-  } catch(e) {
-    alert('Network error: ' + e.message);
-  }
+    const r=await fetch('/api/beat-visits',{ method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const d=await r.json();
+    if (!r.ok){ alert('Error: '+(d.error||'unknown')); return; }
+    state.todayVisits.push({customer_id:parseInt(custId), outcome});
+    document.getElementById('visit-customer').value=''; document.getElementById('visit-notes').value='';
+    renderVisitLog(); renderRoute();
+  } catch(e){ alert('Network error: '+e.message); }
+}
+function renderVisitLog(){
+  const container=document.getElementById('visit-log-list');
+  if (!state.todayVisits.length){ container.innerHTML=''; return; }
+  container.innerHTML='<div class="card"><div class="card-t">Today’s visits ('+state.todayVisits.length+')</div>'
+    +state.todayVisits.map(v=>{ const cust=state.customers.find(c=>c.id==v.customer_id);
+      return '<div class="stop-item"><div class="stop-num done">✓</div><div style="flex:1"><div class="stop-name">'+(cust?escH(cust.name):'Unknown')+'</div></div>'
+        +'<span class="stop-status '+v.outcome+'">'+(v.outcome==='visited'?'Visited':v.outcome==='no_order'?'No order':'Closed')+'</span></div>'; }).join('')+'</div>';
 }
 
-function renderVisitLog() {
-  const container = document.getElementById('visit-log-list');
-  if (!state.todayVisits.length) { container.innerHTML = ''; return; }
-  container.innerHTML = `
-    <div class="card">
-      <div class="card-title">Today's Visits (${state.todayVisits.length})</div>
-      ${state.todayVisits.map(v => {
-        const cust = state.customers.find(c => c.id == v.customer_id);
-        return `<div class="stop-item">
-          <div class="stop-num done">✓</div>
-          <div><div class="stop-name">${cust ? escH(cust.name) : 'Unknown'}</div></div>
-          <span class="stop-status ${v.outcome}">${v.outcome === 'visited' ? 'Visited' : v.outcome === 'no_order' ? 'No Order' : 'Closed'}</span>
-        </div>`;
-      }).join('')}
-    </div>`;
-}
-
-// ──────────────────────────────────────────────
-//  PROFILE SCREEN
-// ──────────────────────────────────────────────
-async function loadProfile() {
+// ── PROFILE ──
+async function loadProfile(){
   try {
-    const r = await fetch(`/api/reps/${state.repId}`, { credentials: 'same-origin' });
-    const rep = await r.json();
-    if (!r.ok) return;
-    document.getElementById('profile-info').innerHTML = `
-      <b>Name:</b> ${escH(rep.name||'')} <br>
-      <b>Employee ID:</b> ${escH(rep.employee_id||'')} <br>
-      <b>Phone:</b> ${escH(rep.phone||'')} <br>
-      <b>Designation:</b> ${escH(rep.designation||'')} <br>
-      <b>Routes:</b> ${(rep.routes||[]).map(r=>escH(r.route_name)).join(', ')||'—'}
-    `;
-  } catch(e) {}
+    const r=await fetch('/api/reps/'+state.repId, { credentials:'same-origin' });
+    const rep=await r.json(); if(!r.ok) return;
+    document.getElementById('profile-info').innerHTML=
+      '<b>Name:</b> '+escH(rep.name||'')+'<br><b>Employee ID:</b> '+escH(rep.employee_id||'')
+      +'<br><b>Phone:</b> '+escH(rep.phone||'')+'<br><b>Designation:</b> '+escH(rep.designation||'')
+      +'<br><b>Routes:</b> '+((rep.routes||[]).map(r=>escH(r.route_name)).join(', ')||'—');
+  } catch(e){}
 }
-
-async function changePin() {
-  const pin = document.getElementById('new-pin').value.trim();
-  if (pin.length !== 4 || !/^\d+$/.test(pin)) return alert('PIN must be exactly 4 digits');
-  const r = await fetch(`/api/reps/${state.repId}`, {
-    method: 'PUT',
-    credentials: 'same-origin',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({pin})
-  });
-  const d = await r.json();
+async function changePin(){
+  const pin=document.getElementById('new-pin').value.trim();
+  if (pin.length!==4 || !/^\d+$/.test(pin)) return alert('PIN must be exactly 4 digits · PIN 4 hindson ka ho');
+  const r=await fetch('/api/reps/'+state.repId,{ method:'PUT', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify({pin}) });
+  const d=await r.json();
   if (!r.ok) return alert('Error: '+(d.error||'unknown'));
-  document.getElementById('new-pin').value = '';
-  alert('PIN updated successfully!');
+  document.getElementById('new-pin').value=''; alert('PIN updated · PIN update ho gaya');
 }
 
-// ──────────────────────────────────────────────
-//  NAV TABS
-// ──────────────────────────────────────────────
-function switchTab(tab) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('screen-' + tab).classList.add('active');
-  document.getElementById('tab-' + tab).classList.add('active');
-  if (tab === 'profile') loadProfile();
-  if (tab === 'log')     renderVisitLog();
-  if (tab === 'order' && !state.orderItems.length) renderOrderItems();
+// ── NAV ──
+function switchTab(tab){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('screen-'+tab).classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  if (tab==='profile') loadProfile();
+  if (tab==='log') renderVisitLog();
+  if (tab==='order' && !state.orderItems.length) renderOrderItems();
+  window.scrollTo(0,0);
 }
 
-// ──────────────────────────────────────────────
-//  HELPERS
-// ──────────────────────────────────────────────
-function escH(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// ── FIRST-RUN TOUR ──
+const TOUR=[
+  {ic:'👋', h:'Welcome', p:'Take an order in a few taps: pick the shop, add products, submit, then make the invoice and send it on WhatsApp.',
+   ur:'Dukaan chunein, saman daalein, order jama karein, phir invoice WhatsApp par bhejein.'},
+  {ic:'🏪', h:'New shop on the spot', p:'Not in the list? Tap “＋ New shop” to add it right away, then keep taking the order.',
+   ur:'Nayi dukaan? “＋ New shop” dabayein aur foran add karein.'},
+  {ic:'📄', h:'Invoice & WhatsApp', p:'After you submit, tap “Generate invoice”, then “Send on WhatsApp” to share the bill with the shop.',
+   ur:'Order ke baad invoice banayein, phir WhatsApp par dukaan ko bhejein.'},
+];
+let _tourI=0;
+function openTour(){ _tourI=0; renderTour(); document.getElementById('tour').classList.remove('hidden'); }
+function renderTour(){
+  const t=TOUR[_tourI];
+  document.getElementById('tour-ic').textContent=t.ic;
+  document.getElementById('tour-h').textContent=t.h;
+  document.getElementById('tour-p').textContent=t.p;
+  document.getElementById('tour-ur').textContent=t.ur;
+  document.getElementById('tour-dots').innerHTML=TOUR.map((_,i)=>'<span class="tour-dot'+(i===_tourI?' on':'')+'"></span>').join('');
+  document.getElementById('tour-btn').innerHTML=(_tourI<TOUR.length-1)?'Next<span class="ur">Aagey</span>':'Got it<span class="ur">Theek hai</span>';
+}
+function tourNext(){ if(_tourI<TOUR.length-1){ _tourI++; renderTour(); } else { document.getElementById('tour').classList.add('hidden'); } }
+
+function escH(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 </script>
 </body>
 </html>
