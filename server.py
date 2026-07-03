@@ -2724,8 +2724,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, list_work_orders())
                 return
 
-            # GET /api/work-orders/:id  — single WO detail
+            # GET /api/work-orders/:id  — single WO detail (exposes BOM quantities → recipe-gated)
             if path.startswith('/api/work-orders/') and path.count('/') == 3 and path.split('/')[-1].isdigit():
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
                 wo_id = int(path.split('/')[-1])
                 wo = qry1("""
                     SELECT wo.*, p.name as product_name, p.code as product_code,
@@ -2746,14 +2748,18 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, wo)
                 return
 
-            # GET /api/work-orders/:id/procurement
+            # GET /api/work-orders/:id/procurement (per-ingredient BOM quantities → recipe-gated)
             if path.startswith('/api/work-orders/') and path.endswith('/procurement'):
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
                 wo_id = int(path.split('/')[-2])
                 send_json(self, get_procurement_list(wo_id))
                 return
 
-            # GET /api/work-orders/:id/feasibility  — structured shortfall data
+            # GET /api/work-orders/:id/feasibility  — structured shortfall data (per-ingredient grams → recipe-gated)
             if path.startswith('/api/work-orders/') and path.endswith('/feasibility'):
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
                 wo_id = int(path.split('/')[-2])
                 wo    = qry1("SELECT * FROM work_orders WHERE id=?", (wo_id,))
                 if not wo:
@@ -2762,8 +2768,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
-            # GET /api/work-orders/check?productVariantId=X&qtyUnits=Y
+            # GET /api/work-orders/check?productVariantId=X&qtyUnits=Y (per-ingredient grams → recipe-gated)
             if path == '/api/work-orders/check':
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
                 vid  = qs.get('productVariantId', [None])[0]
                 qty  = qs.get('qtyUnits', ['0'])[0]
                 if not vid:
@@ -2771,8 +2779,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, check_wo_feasibility(int(vid), int(qty)))
                 return
 
-            # GET /api/production/:id  — batch detail with ingredient breakdown
+            # GET /api/production/:id  — batch detail with ingredient breakdown (consumption grams → recipe-gated)
             if path.startswith('/api/production/') and len(path.split('/')) == 4:
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
                 batch_db_id = int(path.split('/')[3])
                 batch = qry1("""
                     SELECT pb.*, p.code as product_code, p.name as product_name,
@@ -3438,8 +3448,10 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, list_purchase_orders(status_f))
                 return
 
-            # GET /api/purchase-orders/bom-calculate?variantId=X&qty=Y
+            # GET /api/purchase-orders/bom-calculate?variantId=X&qty=Y (returns the exact per-unit BOM → recipe-gated)
             if path == '/api/purchase-orders/bom-calculate':
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
                 vid = qs.get('variantId', [None])[0]
                 qty = qs.get('qty', [None])[0]
                 if not vid or not qty:
