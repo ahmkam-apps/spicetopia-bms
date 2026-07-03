@@ -45,7 +45,7 @@ __all__ = [
     '_order_status', '_order_detail',
     'list_customer_orders', '_check_order_stock_warnings',
     'create_customer_order', 'update_customer_order',
-    'add_customer_order_item', 'confirm_customer_order', 'cancel_customer_order',
+    'add_customer_order_item', 'confirm_customer_order', 'cancel_customer_order', 'delete_customer_order',
     # WO + invoice from order
     'create_wo_from_order_item', 'generate_invoice_from_order',
 ]
@@ -1112,6 +1112,53 @@ def cancel_customer_order(order_id):
               old_val={'status': order['status']}, new_val={'status': 'cancelled'})
     run_many(ops)
     return {'ok': True}
+
+
+def delete_customer_order(order_id):
+    """OWNER-ONLY hard delete of a submitted order that has NOT been invoiced.
+
+    Blocks if any live (non-VOID) invoice is linked — the owner must void that
+    invoice first. Un-invoiced orders never moved inventory, so there is nothing to
+    restore. Removes the order, its items, any soft-hold row, and cleans up leftover
+    VOID invoices + their lines/sales (voided sales don't affect stock). Gated to
+    super_user at the route layer — this function assumes that check already passed."""
+    order = qry1("SELECT id, order_number, status FROM customer_orders WHERE id=?", (order_id,))
+    if not order:
+        raise ValueError("Order not found")
+    live = qry1("SELECT COUNT(*) AS n FROM invoices WHERE customer_order_id=? AND status != 'VOID'", (order_id,))
+    if live and live['n'] > 0:
+        raise ValueError("This order has an invoice. Void the invoice first, then delete the order.")
+
+    void_inv_ids = [r['id'] for r in qry("SELECT id FROM invoices WHERE customer_order_id=?", (order_id,))]
+    c = _conn()
+    try:
+        c.execute("PRAGMA foreign_keys=OFF")
+        for iid in void_inv_ids:
+            c.execute("DELETE FROM sales WHERE invoice_id=?", (iid,))
+            c.execute("DELETE FROM payment_allocations WHERE invoice_id=?", (iid,))
+            c.execute("DELETE FROM invoice_items WHERE invoice_id=?", (iid,))
+            c.execute("DELETE FROM invoices WHERE id=?", (iid,))
+        try:
+            c.execute("DELETE FROM order_hold_expiry WHERE order_id=?", (order_id,))
+        except Exception:
+            pass
+        c.execute("DELETE FROM customer_order_items WHERE order_id=?", (order_id,))
+        c.execute("DELETE FROM customer_orders WHERE id=?", (order_id,))
+        c.execute("PRAGMA foreign_keys=ON")
+        c.commit()
+    except Exception:
+        c.rollback()
+        raise
+    finally:
+        c.close()
+
+    try:
+        run("INSERT INTO change_log (table_name, record_id, action, new_value) VALUES ('customer_orders', ?, 'DELETE', ?)",
+            (order['order_number'], 'deleted by owner (status was ' + str(order['status']) + ')'))
+    except Exception:
+        pass
+    save_db()
+    return {'deleted': True, 'orderNumber': order['order_number']}
 
 
 # ═══════════════════════════════════════════════════════════════════

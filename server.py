@@ -4083,6 +4083,17 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, cancel_customer_order(order_id), 200)
                 return
 
+            # POST /api/customer-orders/:id/delete  (OWNER / super_user ONLY)
+            if path.startswith('/api/customer-orders/') and path.endswith('/delete'):
+                if not (sess and sess.get('role') == 'super_user'):
+                    send_error(self, 'Owner access required', 403); return
+                order_id = int(path.split('/')[3])
+                try:
+                    send_json(self, delete_customer_order(order_id), 200)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
             # ── Phase 3: Review Queue endpoints ──────────────────────────
 
             # POST /api/orders/parse  — parse WhatsApp message via Claude API

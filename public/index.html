@@ -3566,6 +3566,7 @@ function _renderOrderDetail(o) {
         ${linesEditable ? `<button class="btn btn-outline btn-sm" style="color:var(--cardamom)" onclick="showAddItemForm(${o.id})">+ Add Product</button>` : ''}
         ${canInvoice  ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('co-inv-form').style.display='block';document.getElementById('co-edit-form-${o.id}').style.display='none'">🧾 Generate Invoice</button>` : ''}
         ${canCancel   ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="doCancelOrder(${o.id})">✕ Cancel</button>` : ''}
+        ${isSuperUser() ? `<button class="btn btn-outline btn-sm" style="color:var(--chili);border-color:var(--chili)" onclick="doDeleteOrder(${o.id})">🗑 Delete</button>` : ''}
         <button class="btn btn-outline btn-sm" onclick="_closeProcModal()">Close</button>
       </div>
     </div>
@@ -3876,6 +3877,16 @@ async function doCancelOrder(orderId) {
     await POST(`/api/customer-orders/${orderId}/cancel`, {});
     nav('orders-invoices');
   } catch(e) { alert('Error: ' + e.message); }
+}
+
+// Owner-only: permanently delete a submitted order (only if it has no invoice).
+async function doDeleteOrder(orderId) {
+  if (!confirm('Delete this order permanently? This cannot be undone.\n\n(Only works if the order has not been invoiced. If it has an invoice, void the invoice first.)')) return;
+  try {
+    await POST(`/api/customer-orders/${orderId}/delete`, {});
+    alert('Order deleted.');
+    nav('orders-invoices');
+  } catch(e) { alert('Could not delete: ' + e.message); }
 }
 
 function coItemShowEdit(orderId, itemId) {
