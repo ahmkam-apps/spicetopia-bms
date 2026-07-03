@@ -45,7 +45,7 @@ __all__ = [
     'list_reps', 'get_rep', 'create_rep', 'update_rep',
     'assign_rep_route', 'unassign_rep_route',
     # Targets & advances
-    'set_rep_target', 'record_advance',
+    'set_rep_target', 'record_advance', 'set_rep_zones',
     # Beat visits
     'record_beat_visit',
     # Field orders
@@ -239,6 +239,14 @@ def get_rep(rep_id):
         JOIN zones  z ON z.id=r.zone_id
         WHERE rr.rep_id=? AND rr.assigned_to IS NULL
     """, (rep_id,))
+    try:
+        rep['zones'] = qry("""
+            SELECT rz.zone_id, z.name AS zone_name
+            FROM rep_zones rz JOIN zones z ON z.id=rz.zone_id
+            WHERE rz.rep_id=? ORDER BY z.name
+        """, (rep_id,))
+    except Exception:
+        rep['zones'] = []
     rep['salary'] = qry1("""
         SELECT * FROM rep_salary_components WHERE rep_id=? AND active=1
         ORDER BY effective_from DESC LIMIT 1
@@ -964,14 +972,52 @@ def field_get_products(customer_type='RETAIL'):
 # ─────────────────────────────────────────────────────────────────
 
 def _is_out_of_route(rep_id, customer_id):
-    """Return True if customer's zone does not match the rep's assigned zone."""
-    rep = qry1("SELECT primary_zone_id FROM sales_reps WHERE id=?", (rep_id,))
-    if not rep or not rep.get('primary_zone_id'):
-        return False
+    """Out of route if the customer's zone is not among the rep's assigned zones.
+    Uses the multi-zone rep_zones set; falls back to the single primary_zone_id for
+    reps not yet migrated. If the rep has no zones at all, nothing is flagged."""
     customer = qry1("SELECT zone_id FROM customers WHERE id=?", (customer_id,))
     if not customer or not customer.get('zone_id'):
         return False
-    return int(rep['primary_zone_id']) != int(customer['zone_id'])
+    cust_zone = int(customer['zone_id'])
+    zones = []
+    try:
+        zones = [int(r['zone_id']) for r in qry("SELECT zone_id FROM rep_zones WHERE rep_id=?", (rep_id,))]
+    except Exception:
+        zones = []
+    if not zones:
+        rep = qry1("SELECT primary_zone_id FROM sales_reps WHERE id=?", (rep_id,))
+        if rep and rep.get('primary_zone_id'):
+            zones = [int(rep['primary_zone_id'])]
+    if not zones:
+        return False
+    return cust_zone not in zones
+
+
+def set_rep_zones(rep_id, zone_ids):
+    """Replace a rep's assigned zones (multi-zone coverage). Also sets primary_zone_id
+    to the first zone for back-compat (planning forecast rollup). zone_ids: list of ints."""
+    rep = qry1("SELECT id FROM sales_reps WHERE id=?", (rep_id,))
+    if not rep:
+        raise ValueError("Rep not found")
+    ids = []
+    for z in (zone_ids or []):
+        try:
+            zi = int(z)
+        except (TypeError, ValueError):
+            continue
+        if zi and zi not in ids:
+            ids.append(zi)
+    c = _conn()
+    try:
+        c.execute("DELETE FROM rep_zones WHERE rep_id=?", (rep_id,))
+        for zi in ids:
+            c.execute("INSERT OR IGNORE INTO rep_zones (rep_id, zone_id) VALUES (?,?)", (rep_id, zi))
+        c.execute("UPDATE sales_reps SET primary_zone_id=? WHERE id=?", (ids[0] if ids else None, rep_id))
+        c.commit()
+    finally:
+        c.close()
+    save_db()
+    return get_rep(rep_id)
 
 
 def _wa_notify_out_of_route(order_id, rep_id):

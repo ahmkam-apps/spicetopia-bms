@@ -49,6 +49,7 @@ __all__ = [
     'ensure_plan_forecast_zone',
     'ensure_operating_costs',
     'ensure_deactivate_spring_catalog',
+    'ensure_rep_zones',
 ]
 
 
@@ -2109,5 +2110,33 @@ def ensure_deactivate_spring_catalog():
         print(f"  ✓ SP-ING catalog retired (deactivated {n} orphaned ingredient(s))")
     except Exception as e:
         print(f"  ⚠ ensure_deactivate_spring_catalog skipped: {e}")
+    finally:
+        c.close()
+
+
+def ensure_rep_zones():
+    """Many-to-many rep↔zone assignment so a sales rep can cover MULTIPLE zones
+    (e.g. a Karachi zone + Hyderabad). Backfills each rep's existing single
+    primary_zone_id as their first assigned zone. Idempotent."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS rep_zones (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep_id  INTEGER NOT NULL,
+                zone_id INTEGER NOT NULL,
+                UNIQUE(rep_id, zone_id)
+            )
+        """)
+        cols = [r['name'] for r in c.execute("PRAGMA table_info(sales_reps)").fetchall()]
+        if 'primary_zone_id' in cols:
+            c.execute("""
+                INSERT OR IGNORE INTO rep_zones (rep_id, zone_id)
+                SELECT id, primary_zone_id FROM sales_reps WHERE primary_zone_id IS NOT NULL
+            """)
+        c.commit()
+        print("  ✓ rep_zones ready (multi-zone rep assignment)")
+    except Exception as e:
+        print(f"  ⚠ ensure_rep_zones skipped: {e}")
     finally:
         c.close()

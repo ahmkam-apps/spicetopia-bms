@@ -4581,6 +4581,14 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
+            # POST /api/reps/:id/zones  (admin only) — set a rep's zones (multi-zone)
+            if path.startswith('/api/reps/') and path.endswith('/zones'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                rep_id = int(path.split('/')[3])
+                send_json(self, set_rep_zones(rep_id, data.get('zoneIds', [])), 200)
+                return
+
             # POST /api/reps/:id/routes/:assign_id/unassign  (admin only)
             if path.startswith('/api/reps/') and path.endswith('/unassign'):
                 if not require(sess, 'admin'):
@@ -5685,7 +5693,7 @@ if __name__ == '__main__':
         ensure_planning_foundations, ensure_plan_version_horizon, ensure_plan_sales_tables,
         ensure_plan_m2_tables, ensure_plan_code, ensure_plan_release,
         ensure_scenario_type_cleanup, ensure_plan_forecast_zone, ensure_operating_costs,
-        ensure_deactivate_spring_catalog,
+        ensure_deactivate_spring_catalog, ensure_rep_zones,
         backfill_customer_account_numbers,
     ):
         try:

@@ -12353,6 +12353,7 @@ async function renderSalesReps() {
 
   const zoneOpts = zones.map(z =>
     `<option value="${z.id}">${z.name}</option>`).join('');
+  window._allZones = zones;
 
   const rows = reps.map(rep => `
     <tr id="rep-row-${rep.id}">
@@ -12364,7 +12365,7 @@ async function renderSalesReps() {
       <td>${escQ(rep.zone_name||'—')}</td>
       <td>
         <button class="btn-sm" onclick="viewRepDetail(${rep.id})" style="background:var(--saffron)">Detail</button>
-        <button class="btn-sm" onclick="showAssignZone(${rep.id})" style="background:var(--turmeric)">Assign Zone</button>
+        <button class="btn-sm" onclick="showAssignZone(${rep.id})" style="background:var(--turmeric)">Assign Zones</button>
         <button class="btn-sm" onclick="resetPin(${rep.id})" style="background:var(--text-3);color:#fff">Reset PIN</button>
       </td>
     </tr>
@@ -12404,12 +12405,12 @@ async function renderSalesReps() {
     <!-- Assign zone modal -->
     <div id="assign-zone-panel" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
       background:#fff;border-radius:12px;padding:24px;min-width:320px;z-index:1000;box-shadow:0 8px 40px rgba(0,0,0,.25)">
-      <h3 style="margin:0 0 16px">Assign Zone to Rep</h3>
+      <h3 style="margin:0 0 16px">Assign Zones to Rep</h3>
       <input type="hidden" id="assign-rep-id">
-      <label class="form-label">Select Zone</label>
-      <select class="form-input" id="assign-zone-select">${zoneOpts}</select>
+      <label class="form-label">Select one or more zones</label>
+      <div id="assign-zone-list" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:4px"></div>
       <div style="display:flex;gap:8px;margin-top:16px">
-        <button class="btn btn-primary" onclick="doAssignZone()">Assign</button>
+        <button class="btn btn-primary" onclick="doAssignZone()">Save zones</button>
         <button class="btn" onclick="closeAssignZone()">Cancel</button>
       </div>
     </div>
@@ -12441,13 +12442,19 @@ async function saveNewRep() {
   } catch(e) { alert('Error: ' + e.message); }
 }
 
-function showAssignZone(repId) {
-  const sel = document.getElementById('assign-zone-select');
-  if (!sel || sel.options.length === 0) {
+async function showAssignZone(repId) {
+  const zones = window._allZones || [];
+  if (!zones.length) {
     alert('No zones exist yet. Please create zones first in the Zones & Routes section.');
     return;
   }
   document.getElementById('assign-rep-id').value = repId;
+  let assigned = [];
+  try { const rep = await GET('/api/reps/' + repId); assigned = (rep.zones || []).map(z => z.zone_id); } catch(e) {}
+  document.getElementById('assign-zone-list').innerHTML = zones.map(z =>
+    `<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer">
+       <input type="checkbox" class="az-zone" value="${z.id}" ${assigned.includes(z.id) ? 'checked' : ''}> ${escQ(z.name)}
+     </label>`).join('');
   document.getElementById('assign-zone-panel').style.display = 'block';
   document.getElementById('assign-overlay').style.display = 'block';
 }
@@ -12456,11 +12463,10 @@ function closeAssignZone() {
   document.getElementById('assign-overlay').style.display = 'none';
 }
 async function doAssignZone() {
-  const repId  = document.getElementById('assign-rep-id').value;
-  const zoneId = document.getElementById('assign-zone-select').value;
-  if (!zoneId) { alert('Please select a zone.'); return; }
+  const repId   = document.getElementById('assign-rep-id').value;
+  const zoneIds = Array.from(document.querySelectorAll('#assign-zone-list .az-zone:checked')).map(c => parseInt(c.value));
   try {
-    await PUT(`/api/reps/${repId}`, {zoneId: parseInt(zoneId)});
+    await POST(`/api/reps/${repId}/zones`, { zoneIds });
     closeAssignZone();
     nav('sales-reps');
   } catch(e) { alert('Error: ' + e.message); }
