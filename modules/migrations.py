@@ -50,6 +50,7 @@ __all__ = [
     'ensure_operating_costs',
     'ensure_deactivate_spring_catalog',
     'ensure_rep_zones',
+    'ensure_dedup_seed_suppliers',
 ]
 
 
@@ -2138,5 +2139,31 @@ def ensure_rep_zones():
         print("  ✓ rep_zones ready (multi-zone rep assignment)")
     except Exception as e:
         print(f"  ⚠ ensure_rep_zones skipped: {e}")
+    finally:
+        c.close()
+
+
+def ensure_dedup_seed_suppliers():
+    """One-time cleanup: remove the accumulated duplicate SEED suppliers
+    ('Spice World Ltd', 'Lahore Spices Co') that the old startup master-CSV sync kept
+    re-creating (sync re-inserted them, then the code-normalizer renamed them, freeing
+    the code for the next deploy to re-insert — +2 per deploy). Only deletes rows NOT
+    referenced by any bill / PO / supplier payment, so a genuinely-used supplier of the
+    same name is never harmed. Idempotent (re-run deletes 0)."""
+    c = _conn()
+    try:
+        c.execute("PRAGMA foreign_keys=OFF")
+        n = c.execute("""
+            DELETE FROM suppliers
+            WHERE name IN ('Spice World Ltd', 'Lahore Spices Co')
+              AND id NOT IN (SELECT supplier_id FROM supplier_bills    WHERE supplier_id IS NOT NULL)
+              AND id NOT IN (SELECT supplier_id FROM purchase_orders   WHERE supplier_id IS NOT NULL)
+              AND id NOT IN (SELECT supplier_id FROM supplier_payments WHERE supplier_id IS NOT NULL)
+        """).rowcount
+        c.execute("PRAGMA foreign_keys=ON")
+        c.commit()
+        print(f"  ✓ removed {n} duplicate seed supplier(s)")
+    except Exception as e:
+        print(f"  ⚠ ensure_dedup_seed_suppliers skipped: {e}")
     finally:
         c.close()
