@@ -51,6 +51,7 @@ __all__ = [
     'ensure_deactivate_spring_catalog',
     'ensure_rep_zones',
     'ensure_dedup_seed_suppliers',
+    'ensure_cost_lines',
 ]
 
 
@@ -1308,6 +1309,60 @@ def ensure_operating_costs():
         c.execute("UPDATE costing_config SET value='600' WHERE key='normal_monthly_volume' AND value='1000'")
         c.commit()
         print("  ✓ Operating costs table ready")
+    finally:
+        c.close()
+
+
+def ensure_cost_lines():
+    """User-managed cost lines (two-engine model). One row per cost line the owner tracks.
+    bucket ∈ {'variable','fixed','tracking'}:
+      - variable  → standard_value is ₨/pack, flows into product cost-to-make.
+      - fixed     → standard_value is ₨/MONTH, absorbed ÷ normal volume into cost-to-make.
+      - tracking  → monthly spend only (e.g. Raw materials, Marketing) — NOT in product cost.
+    Monthly actuals are logged per line NAME in monthly_operating_costs. Seeds once (from any
+    existing costing_config standards, for continuity) then is fully user-editable. Idempotent."""
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS cost_lines (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                name           TEXT NOT NULL,
+                bucket         TEXT NOT NULL DEFAULT 'variable',
+                standard_value REAL NOT NULL DEFAULT 0,
+                sort_order     INTEGER NOT NULL DEFAULT 0,
+                active         INTEGER NOT NULL DEFAULT 1,
+                created_at     TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        n = c.execute("SELECT COUNT(*) FROM cost_lines").fetchone()[0]
+        if n == 0:
+            def _cv(key, d=0.0):
+                r = c.execute("SELECT value FROM costing_config WHERE key=?", (key,)).fetchone()
+                try:
+                    return float(r[0]) if r and r[0] is not None else d
+                except (TypeError, ValueError):
+                    return d
+            pkg = _cv('pkg_pouch', 15) + _cv('pkg_label') + _cv('pkg_carton')
+            seed = [
+                ('Raw materials',   'tracking', 0.0,                  10),
+                ('Packaging',       'variable', pkg,                  20),
+                ('Labour (temp)',   'variable', _cv('conv_labour', 5), 30),
+                ('Gas',             'variable', _cv('conv_gas'),       40),
+                ('Electricity',     'variable', _cv('conv_electricity'), 50),
+                ('Misc. variable',  'variable', 0.0,                  60),
+                ('Salaries',        'fixed',    _cv('fix_salaries'),   70),
+                ('Rent',            'fixed',    _cv('fix_rent'),       80),
+                ('Transport',       'fixed',    _cv('fix_transport'),  90),
+                ('Admin',           'fixed',    _cv('fix_admin'),     100),
+                ('Misc. fixed',     'fixed',    0.0,                 110),
+            ]
+            for name, bucket, val, so in seed:
+                c.execute("INSERT INTO cost_lines (name, bucket, standard_value, sort_order) VALUES (?,?,?,?)",
+                          (name, bucket, val, so))
+        c.commit()
+        print("  ✓ cost_lines ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_cost_lines: {e}")
     finally:
         c.close()
 

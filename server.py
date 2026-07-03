@@ -3247,6 +3247,13 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, list_operating_costs())
                 return
 
+            # GET /api/costing/cost-lines  (admin or 'costs') — user-managed cost lines
+            if path == '/api/costing/cost-lines':
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
+                send_json(self, list_cost_lines())
+                return
+
             # GET /api/bom/:productCode  (recipe owner / 'recipe' permission only — the secret)
             if path.startswith('/api/bom/'):
                 if not _can_recipe(sess):
@@ -4015,6 +4022,18 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     result = upsert_operating_cost(data.get('month'), data.get('category'),
                                                    data.get('amount'), sess.get('username', 'admin'))
+                    send_json(self, result)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
+            # POST /api/costing/cost-lines  (admin or 'costs') — add a cost line
+            if path == '/api/costing/cost-lines':
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
+                try:
+                    result = create_cost_line(data.get('name'), data.get('bucket', 'tracking'),
+                                              data.get('standard_value', 0))
                     send_json(self, result)
                 except ValueError as e:
                     send_error(self, str(e), 400)
@@ -4926,6 +4945,18 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, str(e), 400)
                 return
 
+            # PUT /api/costing/cost-lines/:id  (admin or 'costs') — edit a cost line
+            if (path.startswith('/api/costing/cost-lines/') and len(parts) == 5 and parts[4].isdigit()):
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
+                try:
+                    result = update_cost_line(int(parts[4]), data.get('name'),
+                                              data.get('bucket'), data.get('standard_value'))
+                    send_json(self, result)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
             # PUT /api/products/variants/:id/sku  (admin only)
             if (path.startswith('/api/products/variants/') and
                     len(parts) == 6 and parts[5] == 'sku'):
@@ -5108,6 +5139,13 @@ class Handler(BaseHTTPRequestHandler):
             sess = get_session(self)
             if not sess:
                 send_json(self, {'error': 'Unauthorized'}, 401); return
+
+            # DELETE /api/costing/cost-lines/:id  (admin or 'costs') — soft-delete a cost line
+            if path.startswith('/api/costing/cost-lines/') and len(path.split('/')) == 5 and path.split('/')[4].isdigit():
+                if not _can_costs(sess):
+                    send_error(self, 'Costing access required', 403); return
+                send_json(self, delete_cost_line(int(path.split('/')[4])))
+                return
 
             # DELETE /api/recipes/:id  → soft deactivate (admin only)
             if path.startswith('/api/recipes/') and len(path.split('/')) == 4:
@@ -5706,6 +5744,7 @@ if __name__ == '__main__':
         ensure_plan_m2_tables, ensure_plan_code, ensure_plan_release,
         ensure_scenario_type_cleanup, ensure_plan_forecast_zone, ensure_operating_costs,
         ensure_deactivate_spring_catalog, ensure_rep_zones, ensure_dedup_seed_suppliers,
+        ensure_cost_lines,
         backfill_customer_account_numbers,
     ):
         try:

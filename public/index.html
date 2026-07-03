@@ -724,8 +724,10 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('recipes')" id="nav-recipes" style="display:none"><span class="icon" data-icon="book-open"></span> Website Recipes</div>
 
       <div class="nav-section" id="nav-section-pricing" style="display:none">Pricing &amp; Costing</div>
+      <div class="nav-item" onclick="nav('cost-tracking')" id="nav-cost-tracking" style="display:none"><span class="icon" data-icon="calendar"></span> Cost Tracking</div>
+      <div class="nav-item" onclick="nav('pricing')" id="nav-pricing" style="display:none"><span class="icon" data-icon="tag"></span> Pricing</div>
       <div class="nav-item" onclick="nav('price-master')" id="nav-price-master" style="display:none"><span class="icon" data-icon="tags"></span> Price Master</div>
-      <div class="nav-item" onclick="nav('prices-costs')" id="nav-prices-costs" style="display:none"><span class="icon" data-icon="dollar-sign"></span> Prices &amp; Costs</div>
+      <div class="nav-item" onclick="nav('prices-costs')" id="nav-prices-costs" style="display:none"><span class="icon" data-icon="dollar-sign"></span> Prices &amp; Costs (advanced)</div>
 
       <div class="nav-section" id="nav-section-recipe" style="display:none">Recipe / IP</div>
       <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon" data-icon="lock"></span> Ingredients</div>
@@ -895,6 +897,7 @@ function canAccess(pageId) {
   if (pageId === 'section-hub') return true;     // hub itself is open; items inside are individually gated
   if (pageId === 'bom') return canRecipe();      // recipe is the secret: owner + granted only (even admins need the grant)
   if (pageId === 'prices-costs') return canCosts(); // admin or 'costs' permission
+  if (pageId === 'cost-tracking' || pageId === 'pricing') return canCosts(); // new clean screens, same gate
   if (u.role === 'admin' || u.role === 'super_user') return true;   // admin/owner have full access
   // Admin/Owner-only pages
   const adminPages = new Set([
@@ -923,7 +926,7 @@ function applyRoleUI(role) {
   const adminOnlyIds = [
     'nav-section-master','nav-section-pricing','nav-section-recipe','nav-section-system',
     'nav-customers','nav-suppliers','nav-products','nav-recipes','nav-sales-reps','nav-zones-routes',
-    'nav-price-master','nav-prices-costs',
+    'nav-cost-tracking','nav-pricing','nav-price-master','nav-prices-costs',
     'nav-users','nav-payroll','nav-master-data','nav-ingredients-admin','nav-audit','nav-system'
   ];
   adminOnlyIds.forEach(id => {
@@ -937,6 +940,7 @@ function applyRoleUI(role) {
   // Prices & Costs — admin or 'costs' permission (overrides the admin-only default above).
   const navPc = document.getElementById('nav-prices-costs');
   if (navPc) navPc.style.display = canCosts() ? '' : 'none';
+  ['nav-cost-tracking','nav-pricing'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = canCosts() ? '' : 'none'; });
   // If a non-admin holds recipe/costs, reveal the relevant sub-section header so the item isn't orphaned.
   if (!isAdmin) {
     if (canRecipe()) { const s = document.getElementById('nav-section-recipe');  if (s) s.style.display = ''; }
@@ -1587,6 +1591,8 @@ async function render(page, arg) {
       case 'products':      c.innerHTML = await renderProducts();      break;
       case 'recipes':       c.innerHTML = await renderRecipes();       break;
       case 'prices-costs':  c.innerHTML = await renderPricesCosts();  if(typeof _pcSwitchTab==='function') _pcSwitchTab(_pcTab);  if(typeof _pcOvPreview==='function') _pcOvPreview();  break;
+      case 'cost-tracking': c.innerHTML = await renderCostTracking(); if(typeof _ctTotals==='function') _ctTotals(); break;
+      case 'pricing':       c.innerHTML = await renderPricing();      if(typeof _prRenderWs==='function') _prRenderWs(); break;
       case 'pl-report':       c.innerHTML = await renderPLReport(arg);    break;
       case 'margins':         c.innerHTML = await renderMargins();         break;
       case 'rep-performance': c.innerHTML = await renderRepPerformance(); break;
@@ -10188,6 +10194,167 @@ async function _pcOvSave() {
   } catch (e) {
     if (msg) { msg.textContent = 'Could not save: ' + e.message; msg.style.color = 'var(--chili)'; }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  COST TRACKING screen — record actual monthly spend by cost line
+// ═══════════════════════════════════════════════════════════════════
+let _ctMonth = new Date().toISOString().slice(0, 7);
+async function renderCostTracking() {
+  if (!canCosts()) return '<div class="alert alert-error" style="margin-top:40px">Access denied — costing permission required</div>';
+  let lines = [], oc = {};
+  try { lines = await GET('/api/costing/cost-lines'); } catch (e) { lines = []; }
+  try { oc = await GET('/api/costing/operating-costs'); } catch (e) { oc = {}; }
+  window._ctLines = lines;
+  const months = oc.months || [];
+  const cur = (months.find(m => m.month === _ctMonth) || {}).categories || {};
+  const val = nm => { const v = cur[(nm || '').toLowerCase()]; return v != null ? v : ''; };
+  const mset = new Set(months.map(m => m.month)); mset.add(_ctMonth);
+  const monthOpts = [...mset].sort().reverse().map(m => '<option value="' + m + '"' + (m === _ctMonth ? ' selected' : '') + '>' + m + '</option>').join('');
+  const row = l => '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:6px 0">'
+    + '<span style="font-size:14px">' + esc(l.name) + '</span>'
+    + '<span style="display:flex;align-items:center;gap:6px">₨ '
+    + '<input id="ct-in-' + l.id + '" data-bucket="' + l.bucket + '" type="number" min="0" step="1" value="' + val(l.name) + '" oninput="_ctTotals()" class="form-input" style="width:120px;text-align:right">'
+    + '<button class="btn btn-xs btn-outline" title="Remove line" onclick="_ctDeleteLine(' + l.id + ')">✕</button></span></div>';
+  const grp = (bucket, label, tint) => {
+    const ls = lines.filter(l => l.bucket === bucket);
+    return '<div style="margin:16px 0 6px"><span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;' + tint + '">' + label + '</span></div>'
+      + (ls.map(row).join('') || '<div style="color:var(--text-3);font-size:12px">No lines yet.</div>');
+  };
+  return '<div style="max-width:640px">'
+    + '<h2 style="margin:0 0 2px">Cost Tracking</h2>'
+    + '<p style="color:var(--text-3);font-size:13px;margin:0 0 16px">Record what you actually spent, month by month.</p>'
+    + '<div class="card">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><label style="font-size:13px;color:var(--text-2)">Month</label>'
+    + '<select id="ct-month" onchange="_ctChangeMonth(this.value)" class="form-input" style="width:150px">' + monthOpts + '</select></div>'
+    + grp('variable', 'Variable — scales with production', 'background:#e8f0fe;color:#1a73e8')
+    + grp('fixed', 'Fixed — roughly the same every month', 'background:#fff3e0;color:#e65100')
+    + grp('tracking', 'Other tracked — not in product cost', 'background:#eee;color:#555')
+    + '<div id="ct-addbox" style="margin-top:12px"></div>'
+    + '<button class="btn btn-sm btn-outline" style="margin-top:10px" onclick="_ctShowAdd()">+ Add cost line</button>'
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px">'
+    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Variable</div><div id="ct-t-var" style="font-size:20px;font-weight:700">₨0</div></div>'
+    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Fixed</div><div id="ct-t-fix" style="font-size:20px;font-weight:700">₨0</div></div>'
+    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Total this month</div><div id="ct-t-all" style="font-size:20px;font-weight:700">₨0</div></div>'
+    + '</div>'
+    + '<div style="margin-top:14px"><button class="btn btn-primary" onclick="_ctSaveMonth()">Save month</button> <span id="ct-msg" style="font-size:12px;margin-left:8px"></span></div>'
+    + '</div></div>';
+}
+function _ctTotals() {
+  let v = 0, f = 0, all = 0;
+  document.querySelectorAll('input[id^="ct-in-"]').forEach(el => {
+    const amt = parseFloat(el.value) || 0; all += amt;
+    const b = el.getAttribute('data-bucket');
+    if (b === 'variable') v += amt; else if (b === 'fixed') f += amt;
+  });
+  const set = (id, x) => { const e = document.getElementById(id); if (e) e.textContent = fmtPKR(x); };
+  set('ct-t-var', v); set('ct-t-fix', f); set('ct-t-all', all);
+}
+function _ctChangeMonth(m) { _ctMonth = m; nav('cost-tracking'); }
+async function _ctSaveMonth() {
+  const msg = document.getElementById('ct-msg'); if (msg) { msg.textContent = 'Saving…'; msg.style.color = 'var(--text-3)'; }
+  try {
+    const lines = window._ctLines || [];
+    for (const el of document.querySelectorAll('input[id^="ct-in-"]')) {
+      const id = el.id.replace('ct-in-', '');
+      const line = lines.find(l => String(l.id) === id);
+      if (!line) continue;
+      await POST('/api/costing/operating-costs', { month: _ctMonth, category: line.name.toLowerCase(), amount: parseFloat(el.value) || 0 });
+    }
+    if (msg) { msg.textContent = '✓ Saved'; msg.style.color = 'var(--cardamom)'; }
+  } catch (e) { if (msg) { msg.textContent = 'Could not save: ' + e.message; msg.style.color = 'var(--chili)'; } }
+}
+function _ctShowAdd() {
+  const box = document.getElementById('ct-addbox'); if (!box) return;
+  box.innerHTML = '<div style="background:var(--saffron-pale);padding:12px;border-radius:8px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'
+    + '<div><label style="font-size:11px;display:block;margin-bottom:2px">Name</label><input id="ct-new-name" class="form-input" style="width:170px" placeholder="e.g. Marketing"></div>'
+    + '<div><label style="font-size:11px;display:block;margin-bottom:2px">Type</label><select id="ct-new-bucket" class="form-input" style="width:170px"><option value="variable">Variable (per pack)</option><option value="fixed">Fixed (monthly)</option><option value="tracking" selected>Other (track only)</option></select></div>'
+    + '<button class="btn btn-sm btn-primary" onclick="_ctAddLine()">Add</button>'
+    + '<button class="btn btn-sm btn-outline" onclick="document.getElementById(\'ct-addbox\').innerHTML=\'\'">Cancel</button>'
+    + '<span id="ct-new-msg" style="font-size:11px"></span></div>';
+}
+async function _ctAddLine() {
+  const nm = (document.getElementById('ct-new-name').value || '').trim();
+  const bk = document.getElementById('ct-new-bucket').value;
+  const msg = document.getElementById('ct-new-msg');
+  if (!nm) { if (msg) msg.textContent = 'Enter a name'; return; }
+  try { await POST('/api/costing/cost-lines', { name: nm, bucket: bk }); nav('cost-tracking'); }
+  catch (e) { if (msg) msg.textContent = e.message; }
+}
+async function _ctDeleteLine(id) {
+  if (!confirm('Remove this cost line? Recorded months are kept.')) return;
+  try { await api('DELETE', '/api/costing/cost-lines/' + id); nav('cost-tracking'); }
+  catch (e) { alert('Could not remove: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PRICING screen — pick a product, set its price against cost-to-make
+// ═══════════════════════════════════════════════════════════════════
+let _prVariantId = null;
+async function renderPricing() {
+  if (!canCosts()) return '<div class="alert alert-error" style="margin-top:40px">Access denied — costing permission required</div>';
+  let costs = [];
+  try { costs = await GET('/api/costing/standard-costs'); } catch (e) { costs = []; }
+  window._prCosts = costs;
+  window._prDistTypeId = ((state.ref.priceTypes || []).find(t => t.code === 'distributor') || {}).id || null;
+  if (!costs.length) return '<div style="max-width:640px"><h2>Pricing</h2><p style="color:var(--text-3)">No products found.</p></div>';
+  if (_prVariantId == null || !costs.find(c => c.variantId === _prVariantId)) { const f = costs.find(c => c.has_bom) || costs[0]; _prVariantId = f.variantId; }
+  const opts = costs.map(c => '<option value="' + c.variantId + '"' + (c.variantId === _prVariantId ? ' selected' : '') + '>' + esc((c.productName || c.productCode) + ' — ' + (c.packSize || '')) + '</option>').join('');
+  return '<div style="max-width:640px">'
+    + '<h2 style="margin:0 0 2px">Pricing</h2>'
+    + '<p style="color:var(--text-3);font-size:13px;margin:0 0 16px">Pick a product and work on its price.</p>'
+    + '<div class="card">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><label style="font-size:13px;color:var(--text-2)">Product</label>'
+    + '<select id="pr-sel" onchange="_prSelect(this.value)" class="form-input" style="width:260px">' + opts + '</select></div>'
+    + '<div id="pr-ws"></div>'
+    + '</div></div>';
+}
+function _prSelect(vid) { _prVariantId = parseInt(vid, 10); _prRenderWs(); }
+function _prRenderWs() {
+  const c = (window._prCosts || []).find(x => x.variantId === _prVariantId);
+  const box = document.getElementById('pr-ws'); if (!box || !c) return;
+  if (!c.has_bom) { box.innerHTML = '<div style="color:var(--text-3);font-size:14px">⚠ No recipe (BOM) set for this product yet — set it up to see its cost.</div>'; return; }
+  const ctm = c.cost_to_make || 0, price = c.selling_price || 0;
+  const keep = Math.round(price - ctm), margin = price > 0 ? Math.round((price - ctm) / price * 100) : 0;
+  const good = price > 0 && !c.actual_below_floor;
+  window._prCtm = ctm; window._prFloor = c.floor_pct || 30;
+  const live = c.has_live
+    ? '<div style="font-size:12px;color:var(--text-3);margin-top:8px">Actual this month: <b>' + fmtPKR(c.live_cost_to_make) + '</b>' + (c.live_variance_pct != null ? ' <span style="color:' + (c.live_variance_pct > 0 ? 'var(--chili)' : 'var(--cardamom)') + '">(' + (c.live_variance_pct > 0 ? '+' : '') + c.live_variance_pct + '% vs standard)</span>' : '') + '</div>'
+    : '';
+  box.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'
+    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:14px">'
+    + '<div style="font-size:12px;color:var(--text-3)">What it costs to make</div>'
+    + '<div style="font-size:24px;font-weight:700">' + fmtPKR(ctm) + '</div>'
+    + '<div style="font-size:12px;color:var(--text-2);margin-top:8px;line-height:1.9">ingredients ' + fmtPKR(c.rm_cost) + '<br>variable ' + fmtPKR(c.labour) + '<br>fixed share ' + fmtPKR(c.overhead) + '</div>'
+    + live
+    + '</div>'
+    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:14px">'
+    + '<div style="font-size:12px;color:var(--text-3);margin-bottom:6px">What you sell it for</div>'
+    + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">₨ <input id="pr-price" type="number" min="0" step="1" value="' + (price || '') + '" oninput="_prReprice()" class="form-input" style="width:120px;font-size:16px"></div>'
+    + '<div style="font-size:14px">You keep <span id="pr-keep" style="font-weight:700;color:' + (good ? 'var(--cardamom)' : 'var(--chili)') + '">' + fmtPKR(keep) + '</span> <span id="pr-mg" style="color:var(--text-3)">(' + margin + '%)</span></div>'
+    + '<div id="pr-verdict" style="margin-top:10px;font-size:12px;font-weight:700;display:inline-block;padding:3px 10px;border-radius:12px;' + (good ? 'background:#eafaf1;color:#1aaa55' : 'background:#fff5f5;color:#e03131') + '">' + (price > 0 ? (good ? 'Healthy margin' : 'Margin too low') : 'No price set') + '</div>'
+    + '<div style="font-size:12px;color:var(--text-3);margin-top:12px">Suggested (cost + markups): ' + fmtPKR(c.mrp) + '</div>'
+    + '<div style="margin-top:12px"><button class="btn btn-sm btn-primary" onclick="_prSavePrice()">Save price</button> <span id="pr-msg" style="font-size:11px"></span></div>'
+    + '</div></div>';
+}
+function _prReprice() {
+  const v = parseFloat(document.getElementById('pr-price').value) || 0, ctm = window._prCtm || 0, floor = window._prFloor || 30;
+  const keep = Math.round(v - ctm), m = v > 0 ? Math.round((v - ctm) / v * 100) : 0, good = v > 0 && m >= floor;
+  const k = document.getElementById('pr-keep'); if (k) { k.textContent = fmtPKR(keep); k.style.color = good ? 'var(--cardamom)' : 'var(--chili)'; }
+  const mg = document.getElementById('pr-mg'); if (mg) mg.textContent = '(' + m + '%)';
+  const vd = document.getElementById('pr-verdict');
+  if (vd) { vd.textContent = v > 0 ? (good ? 'Healthy margin' : 'Margin too low') : 'No price set'; vd.style.cssText = 'margin-top:10px;font-size:12px;font-weight:700;display:inline-block;padding:3px 10px;border-radius:12px;' + (good ? 'background:#eafaf1;color:#1aaa55' : 'background:#fff5f5;color:#e03131'); }
+}
+async function _prSavePrice() {
+  const v = parseFloat(document.getElementById('pr-price').value), msg = document.getElementById('pr-msg');
+  if (!(v > 0)) { if (msg) { msg.textContent = 'Enter a price'; msg.style.color = 'var(--chili)'; } return; }
+  if (!window._prDistTypeId) { if (msg) { msg.textContent = 'No distributor price type set up'; msg.style.color = 'var(--chili)'; } return; }
+  if (msg) { msg.textContent = 'Saving…'; msg.style.color = 'var(--text-3)'; }
+  try {
+    await POST('/api/prices', { productVariantId: _prVariantId, priceTypeId: window._prDistTypeId, price: v, effectiveFrom: new Date().toISOString().slice(0, 10) });
+    if (msg) { msg.textContent = '✓ Saved'; msg.style.color = 'var(--cardamom)'; }
+    setTimeout(() => nav('pricing'), 700);
+  } catch (e) { if (msg) { msg.textContent = 'Could not save: ' + e.message; msg.style.color = 'var(--chili)'; } }
 }
 
 async function renderPricesCosts() {

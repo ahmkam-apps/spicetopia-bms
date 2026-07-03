@@ -43,6 +43,11 @@ __all__ = [
     'send_margin_alert_email',
     'list_operating_costs',
     'upsert_operating_cost',
+    'list_cost_lines',
+    'create_cost_line',
+    'update_cost_line',
+    'delete_cost_line',
+    'cost_line_rates',
 ]
 
 
@@ -167,6 +172,109 @@ def upsert_operating_cost(month, category, amount, username='admin'):
     return list_operating_costs()
 
 
+# ─────────────────────────────────────────────────────────────────
+#  COST LINES (user-managed; two-engine model)
+# ─────────────────────────────────────────────────────────────────
+
+_VALID_BUCKETS = ('variable', 'fixed', 'tracking')
+
+
+def list_cost_lines():
+    """All active cost lines, grouped variable → fixed → tracking, then by sort order."""
+    return qry("""
+        SELECT id, name, bucket, standard_value, sort_order
+        FROM cost_lines WHERE active=1
+        ORDER BY CASE bucket WHEN 'variable' THEN 1 WHEN 'fixed' THEN 2 ELSE 3 END,
+                 sort_order, id
+    """)
+
+
+def create_cost_line(name, bucket='tracking', standard_value=0.0):
+    """Add a cost line. bucket defaults to 'tracking' (safest — never touches product cost
+    until deliberately set to variable/fixed)."""
+    name   = str(name or '').strip()
+    bucket = (bucket or 'tracking').strip().lower()
+    if not name:
+        raise ValueError("name is required")
+    if bucket not in _VALID_BUCKETS:
+        bucket = 'tracking'
+    c = _conn()
+    try:
+        mx = c.execute("SELECT COALESCE(MAX(sort_order),0) FROM cost_lines").fetchone()[0]
+        c.execute("INSERT INTO cost_lines (name, bucket, standard_value, sort_order) VALUES (?,?,?,?)",
+                  (name, bucket, float(standard_value or 0), mx + 10))
+        c.commit()
+    finally:
+        c.close()
+    save_db()
+    return list_cost_lines()
+
+
+def update_cost_line(line_id, name=None, bucket=None, standard_value=None):
+    """Edit a cost line's name, bucket, and/or standard value (partial update)."""
+    c = _conn()
+    try:
+        row = c.execute("SELECT name, bucket, standard_value FROM cost_lines WHERE id=?", (line_id,)).fetchone()
+        if not row:
+            raise ValueError("cost line not found")
+        new_name   = str(name).strip() if name is not None else row[0]
+        new_bucket = (bucket or row[1]).strip().lower()
+        if new_bucket not in _VALID_BUCKETS:
+            new_bucket = row[1]
+        new_val    = float(standard_value) if standard_value is not None else row[2]
+        c.execute("UPDATE cost_lines SET name=?, bucket=?, standard_value=? WHERE id=?",
+                  (new_name, new_bucket, new_val, line_id))
+        c.commit()
+    finally:
+        c.close()
+    save_db()
+    return list_cost_lines()
+
+
+def delete_cost_line(line_id):
+    """Soft-delete a cost line (active=0). Recorded monthly actuals are left untouched."""
+    c = _conn()
+    try:
+        c.execute("UPDATE cost_lines SET active=0 WHERE id=?", (line_id,))
+        c.commit()
+    finally:
+        c.close()
+    save_db()
+    return list_cost_lines()
+
+
+def cost_line_rates(normal_vol=None):
+    """Standard cost contribution from user cost lines:
+      variable_per_pack = Σ standard_value where bucket='variable'   (₨/pack)
+      fixed_monthly     = Σ standard_value where bucket='fixed'      (₨/month)
+      fixed_per_pack    = fixed_monthly ÷ normal_vol
+    'tracking' lines are ignored (they never touch product cost)."""
+    if normal_vol is None:
+        normal_vol = _get_config_val(get_costing_config(), 'normal_monthly_volume', 600.0) or 600.0
+    rows   = qry("SELECT bucket, standard_value FROM cost_lines WHERE active=1")
+    var_pp = round(sum(float(r['standard_value'] or 0) for r in rows if r['bucket'] == 'variable'), 4)
+    fix_mo = round(sum(float(r['standard_value'] or 0) for r in rows if r['bucket'] == 'fixed'), 2)
+    fix_pp = round(fix_mo / normal_vol, 4) if normal_vol else 0.0
+    return {'variable_per_pack': var_pp, 'fixed_monthly': fix_mo,
+            'fixed_per_pack': fix_pp, 'normal_volume': normal_vol}
+
+
+def _live_unit_rate(normal_vol):
+    """ACTUAL variable+fixed cost per pack from the latest recorded month's operating costs,
+    matched to cost_lines by name (tracking lines like Raw materials excluded — RM comes from
+    the BOM). ₨/pack, or None if no month/data recorded yet."""
+    row = qry1("SELECT MAX(month) AS m FROM monthly_operating_costs")
+    if not row or not row.get('m'):
+        return None
+    lines = qry("SELECT LOWER(name) AS lname FROM cost_lines WHERE active=1 AND bucket IN ('variable','fixed')")
+    keep  = {l['lname'] for l in lines}
+    acts  = qry("SELECT LOWER(category) AS cat, amount FROM monthly_operating_costs WHERE month=?", (row['m'],))
+    total = sum(float(a['amount'] or 0) for a in acts if a['cat'] in keep)
+    if total <= 0 or not normal_vol:
+        return None
+    return round(total / normal_vol, 4)
+
+
 def compute_standard_cost(product_code, pack_size_label, cfg=None):
     """
     Compute standard cost for one SKU using current BOM + ingredient costs + costing_config.
@@ -190,29 +298,22 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
             return round(sum(_get_config_val(cfg, k, 0.0) for k in keys), 2)
         return _get_config_val(cfg, fallback_key, fallback_default) if fallback_key else 0.0
 
-    # ── TWO-ENGINE MODEL (2026-07-03): standards only, split by cost BEHAVIOUR ──
-    # The STANDARD cost prices off deliberate standards in costing_config ONLY — it no
-    # longer pulls the trailing monthly-actual average (that made MRP twitch every month).
-    # Monthly actuals are tracking-only now (see list_operating_costs / _operating_unit_rates),
-    # surfaced as a LIVE reference beside the standard (below), NOT as the price driver.
-    #
-    # VARIABLE (per-pack — scales with each pack made): packaging + temp labour + gas + electricity.
-    packaging     = _sum_cfg(['pkg_pouch', 'pkg_label', 'pkg_carton'],
-                             'packaging_cost_per_unit', 15.0)
-    variable_conv = _sum_cfg(['conv_labour', 'conv_gas', 'conv_electricity'],
-                             'labour_cost_per_unit', 5.0)
-    # FIXED (entered as MONTHLY totals, absorbed over the normal monthly volume): salaries,
-    # rent, transport, admin. Per-pack fixed = total monthly fixed ÷ normal volume.
-    normal_vol     = _get_config_val(cfg, 'normal_monthly_volume', 600.0) or 600.0
-    fixed_monthly  = _sum_cfg(['fix_salaries', 'fix_rent', 'fix_transport', 'fix_admin'])
-    fixed_per_pack = round(fixed_monthly / normal_vol, 2) if normal_vol else 0.0
-    # Return-slot names kept stable for the frontend: 'labour' = variable conversion,
-    # 'overhead' = absorbed fixed cost per pack.
-    conversion     = variable_conv
+    # ── TWO-ENGINE MODEL: standard cost from USER-MANAGED cost lines (see cost_line_rates) ──
+    # Variable lines are ₨/pack; fixed lines are ₨/month absorbed ÷ normal volume; tracking
+    # lines (e.g. Raw materials, Marketing) never touch product cost. RM comes from the BOM
+    # below. Monthly actuals are surfaced as a LIVE reference beside the standard, not the price.
+    normal_vol          = _get_config_val(cfg, 'normal_monthly_volume', 600.0) or 600.0
+    _rates              = cost_line_rates(normal_vol)
+    variable_pp         = _rates['variable_per_pack']
+    fixed_per_pack      = _rates['fixed_per_pack']
+    fixed_monthly_total = _rates['fixed_monthly']
+    # Back-compat return slots: packaging is now a variable line, so 'packaging'=0;
+    # 'labour' carries all variable per-pack, 'overhead' carries absorbed fixed per pack.
+    packaging      = 0.0
+    conversion     = variable_pp
     overhead_lines = fixed_per_pack
     _ovh_present   = True
-    labour         = conversion
-    fixed_monthly_total = fixed_monthly
+    labour         = variable_pp
 
     variant = qry1("""
         SELECT pv.id, pv.sku_code, p.code as product_code, p.name as product_name,
@@ -320,9 +421,9 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
     # LIVE reference (decision support, NOT the price): this SKU's RM + standard packaging +
     # the ACTUAL conversion/overhead per pack from recorded monthly operating costs. Shown
     # beside the standard so the MRP can be set against reality. None until a month is recorded.
-    _op = _operating_unit_rates()
-    if _op:
-        live_cost_to_make = round(rm_cost_adjusted + packaging + _op.get('total', 0), 2)
+    _live_rate = _live_unit_rate(normal_vol)
+    if _live_rate is not None:
+        live_cost_to_make = round(rm_cost_adjusted + _live_rate, 2)
         live_variance     = round(live_cost_to_make - cost_to_make, 2)
         live_variance_pct = round(live_variance / cost_to_make * 100, 1) if cost_to_make > 0 else None
         live_margin_pct   = round((sell_price - live_cost_to_make) / sell_price * 100, 1) if sell_price > 0 else None
@@ -357,7 +458,7 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
         'floor_pct':        floor_pct,
         'fixed_monthly_total': fixed_monthly_total,   # sum of fix_* monthly standards
         'normal_volume':    normal_vol,               # absorption denominator
-        'has_live':         bool(_op),                # any monthly actuals recorded?
+        'has_live':         _live_rate is not None,    # any monthly actuals recorded?
         'live_cost_to_make': live_cost_to_make,       # RM + packaging + ACTUAL conv/ovh (None if no actuals)
         'live_variance':    live_variance,            # live − standard (₨)
         'live_variance_pct': live_variance_pct,       # (live − standard) / standard %
