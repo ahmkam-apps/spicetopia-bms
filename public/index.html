@@ -685,8 +685,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-collapse" onclick="toggleSidebar()" title="Collapse / expand sidebar"><span id="collapse-chev">«</span></div>
 
       <!-- Home — Start Here landing -->
-      <div class="nav-item active" onclick="nav('home')" id="nav-home"><span class="icon" data-icon="home"></span> Home</div>
-      <div class="nav-item" onclick="nav('dashboard')" id="nav-dashboard"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
+      <div class="nav-item active" onclick="nav('home')" id="nav-home"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
 
       <!-- ── DAILY USE ──────────────────────────────────────────── -->
       <div class="nav-section">Sales &amp; AR</div>
@@ -1565,7 +1564,7 @@ async function render(page, arg) {
   c.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)">Loading…</div>';
   try {
     switch(page) {
-      case 'home':        c.innerHTML = await renderHome();        break;
+      case 'home':        c.innerHTML = await renderDashboard();   break;
       case 'section-hub': c.innerHTML = renderSectionHub(state.hubKey); break;
       case 'dashboard':   c.innerHTML = await renderDashboard();   break;
       case 'customers':       c.innerHTML = await renderCustomers(); initCustomersTable(); break;
@@ -1826,6 +1825,87 @@ function _dashTrendSvg(trend) {
 }
 
 async function renderDashboard() {
+  const d = await GET('/api/dashboard');
+  state.dash = d;
+  const sm = d.salesMonth || {}, slm = d.salesLastMonth || {};
+  const gm = sm.revenue > 0 ? Math.round(sm.grossProfit / sm.revenue * 100) : 0;
+  const mom = slm.revenue > 0 ? Math.round(((sm.revenue || 0) - slm.revenue) / slm.revenue * 100) : null;
+  const momUp = (sm.revenue || 0) >= (slm.revenue || 0);
+  const oAR = d.overdueAR || {}, apOv = d.apOverdue || {}, apDue = d.apDueSoon || {};
+  const cf = d.cashFlowMTD || 0;
+
+  const kpi = (label, value, sub, subColor, target) =>
+    '<div onclick="nav(\'' + target + '\')" style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow=\'0 3px 12px rgba(0,0,0,.08)\'" onmouseleave="this.style.boxShadow=\'\'">'
+    + '<div style="font-size:12px;color:var(--text-3)">' + label + '</div>'
+    + '<div style="font-size:23px;font-weight:700;color:var(--text-1);margin:2px 0">' + value + '</div>'
+    + '<div style="font-size:12px;color:' + (subColor || 'var(--text-3)') + '">' + sub + '</div></div>';
+
+  const kpis = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">'
+    + kpi('Revenue (this month)', fmtPKR(sm.revenue || 0),
+        mom !== null ? ((momUp ? '▲ ' : '▼ ') + Math.abs(mom) + '% vs last month') : 'no prior month',
+        mom === null ? 'var(--text-3)' : (momUp ? 'var(--cardamom)' : 'var(--chili)'), 'pl-report')
+    + kpi('Gross margin', gm + '%', 'target 30%', gm >= 30 ? 'var(--cardamom)' : 'var(--chili)', 'margins')
+    + kpi('Net profit (month)', fmtPKR(d.netProfitMTD || 0), 'after operating costs', (d.netProfitMTD || 0) >= 0 ? 'var(--text-3)' : 'var(--chili)', 'pl-report')
+    + kpi('Net cash flow (MTD)', fmtPKR(cf), 'received − paid out', cf >= 0 ? 'var(--text-3)' : 'var(--chili)', 'pl-report')
+    + kpi('Receivables (owed to you)', fmtPKR((d.ar || {}).outstanding || 0),
+        (oAR.count ? (fmtPKR(oAR.amount) + ' overdue') : 'all current'), oAR.count ? 'var(--chili)' : 'var(--text-3)', 'ar-aging')
+    + kpi('Payables (you owe)', fmtPKR((d.ap || {}).outstanding || 0),
+        (apDue.count ? (apDue.count + ' due this week') : 'nothing due soon'), apDue.count ? 'var(--saffron-deep)' : 'var(--text-3)', 'ap-aging')
+    + '</div>';
+
+  // Needs-attention items
+  const att = [];
+  if (oAR.count) att.push({ c: 'var(--chili)', bg: '#fff5f5', t: oAR.count + ' invoice' + (oAR.count > 1 ? 's' : '') + ' overdue · ' + fmtPKR(oAR.amount), s: 'oldest ' + (oAR.maxDaysOverdue || 0) + ' days — chase payment', nav: 'ar-aging' });
+  (d.lowStockAlerts || []).length && att.push({ c: 'var(--saffron-deep)', bg: 'var(--saffron-pale)', t: d.lowStockAlerts.length + ' ingredient' + (d.lowStockAlerts.length > 1 ? 's' : '') + ' low on stock', s: 'reorder before the next batch', nav: 'inventory' });
+  (d.openWorkOrders || []).forEach(w => att.push({ c: '#1a73e8', bg: '#e8f0fe', t: 'Work order to make · ' + (w.qty || 0) + ' packs', s: w.woNumber + ' · ' + w.product + ' ' + w.packSize, nav: 'production' }));
+  if (apOv.count) att.push({ c: 'var(--chili)', bg: '#fff5f5', t: apOv.count + ' bill' + (apOv.count > 1 ? 's' : '') + ' overdue · ' + fmtPKR(apOv.amount), s: 'pay to keep suppliers happy', nav: 'ap-aging' });
+  const attHtml = att.length
+    ? att.map(a => '<div onclick="nav(\'' + a.nav + '\')" style="border-left:3px solid ' + a.c + ';background:' + a.bg + ';padding:7px 11px;margin-bottom:8px;cursor:pointer">'
+        + '<div style="font-size:13px;font-weight:600;color:' + a.c + '">' + a.t + '</div>'
+        + '<div style="font-size:12px;color:' + a.c + ';opacity:.85">' + a.s + '</div></div>').join('')
+    : '<div style="color:var(--cardamom);font-size:13px;padding:12px 0">✅ Nothing needs your attention right now.</div>';
+
+  // Sales by product (live)
+  const sbp = d.salesByProduct || [];
+  const maxRev = Math.max.apply(null, sbp.map(p => p.revenueMtd).concat([1]));
+  const sbpRows = sbp.length ? sbp.map(p => {
+    const pct = Math.round(p.revenueMtd / maxRev * 100);
+    return '<div style="display:grid;grid-template-columns:1.6fr .7fr .8fr 1fr;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--border)">'
+      + '<div style="font-size:13px;color:var(--text-1)">' + esc(p.product) + ' ' + esc(p.packSize) + '<div style="height:4px;width:' + pct + '%;background:var(--saffron);border-radius:2px;margin-top:5px"></div></div>'
+      + '<div style="text-align:right;font-size:13px;color:' + (p.todayUnits > 0 ? 'var(--text-1)' : 'var(--text-3)') + '">' + (p.todayUnits > 0 ? '+' + p.todayUnits : '—') + '</div>'
+      + '<div style="text-align:right;font-size:13px">' + (p.unitsMtd || 0) + '</div>'
+      + '<div style="text-align:right;font-size:13px;font-weight:600">' + fmtPKR(p.revenueMtd) + '</div></div>';
+  }).join('') : '<div style="color:var(--text-3);font-size:13px;padding:12px 0">No sales yet this month.</div>';
+
+  const custRows = (d.topCustomers || []).length
+    ? d.topCustomers.map(c => '<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:13px">' + esc(c.name || '—') + '</span><span style="font-size:13px;color:var(--text-2)">' + fmtPKR(c.revenue) + '</span></div>').join('')
+    : '<div style="color:var(--text-3);font-size:13px;padding:12px 0">No customer sales yet.</div>';
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const uname = (state.currentUser && (state.currentUser.name || state.currentUser.username)) || 'there';
+
+  return ''
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
+      + '<div><div style="font-size:20px;font-weight:700">Good day, ' + esc(uname) + '</div>'
+      + '<div style="font-size:13px;color:var(--text-3)">' + dateStr + ' · Spicetopia</div></div>'
+      + '<div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" onclick="nav(\'orders-invoices\',\'new\')">+ New order</button>'
+      + '<button class="btn btn-outline btn-sm" onclick="nav(\'receipts-aging\')">Record payment</button></div>'
+    + '</div>'
+    + kpis
+    + '<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:14px;margin-bottom:14px">'
+      + '<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px">Revenue · last 6 months</div>' + _dashTrendSvg(d.revenueTrend) + '</div>'
+      + '<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px">Needs your attention</div>' + attHtml + '</div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1.5fr 1fr;gap:14px">'
+      + '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:700">Sales by product</span><span style="font-size:12px;color:var(--text-3)">this month · live</span></div>'
+        + '<div style="display:grid;grid-template-columns:1.6fr .7fr .8fr 1fr;gap:8px;font-size:11px;color:var(--text-3);padding-bottom:4px;border-bottom:1px solid var(--border)"><span>Product</span><span style="text-align:right">Today</span><span style="text-align:right">Packs</span><span style="text-align:right">Revenue</span></div>'
+        + sbpRows + '</div>'
+      + '<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px">Top customers (month)</div>' + custRows + '</div>'
+    + '</div>';
+}
+
+async function renderDashboardOld() {
   const dash = await GET('/api/dashboard');
   state.dash = dash;
   const sd  = dash.salesToday     || {};
@@ -9198,6 +9278,8 @@ async function saveBatch() {
 // ═══════════════════════════════════════════════════════════════
 async function renderProducts() {
   const prods = state.ref.products || [];
+  let offVars = [];
+  if (isAdminRole()) { try { offVars = await GET('/api/products/inactive-variants'); } catch (e) { offVars = []; } }
 
   // Group by product name
   const groups = {};
@@ -9265,6 +9347,10 @@ async function renderProducts() {
         ) : ''}
         ${isAdmin ? (
           '<div style="display:flex;gap:4px;justify-content:center">' +
+            '<button onclick="toggleProductActive(' + v.id + ',1)" ' +
+            'title="Turn this product OFF — removes it from pricing, dashboard and order forms. Past sales are kept." ' +
+            'style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #bfe6cf;' +
+            'background:#eafaf1;color:#1a7a4a;cursor:pointer;font-weight:600">On</button>' +
             '<button onclick="skuShowEdit(' + v.id + ',\'' + v.sku_code + '\')" ' +
             'title="Edit SKU Code" ' +
             'style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);' +
@@ -9424,7 +9510,16 @@ async function renderProducts() {
       headerBtns +
     '</div>' +
     newProdForm +
-    (panels || emptyState);
+    (panels || emptyState) +
+    ((isAdmin && offVars.length) ?
+      ('<div class="card" style="margin-top:20px;background:var(--surface-2)">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--text-2);margin-bottom:4px">Turned-off products (' + offVars.length + ')</div>' +
+        '<div style="font-size:12px;color:var(--text-3);margin-bottom:6px">Hidden from pricing, the dashboard and order forms. Past sales are kept — turn one back on anytime.</div>' +
+        offVars.map(v => '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border)">' +
+          '<span style="font-size:13px;color:var(--text-2)">' + esc(v.product_name || '') + ' — ' + esc(v.pack_size || '') + ' <span style="font-family:monospace;font-size:11px;color:var(--text-3)">' + esc(v.sku_code || '') + '</span></span>' +
+          '<button onclick="toggleProductActive(' + v.id + ',0)" style="font-size:11px;padding:3px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;font-weight:600">Turn On</button>' +
+        '</div>').join('') +
+      '</div>') : '');
 }
 
 async function previewBlendCode() {
@@ -10027,6 +10122,16 @@ async function toggleShowOnline(variantId, currentVal) {
     if (btn) { btn.disabled = false; btn.textContent = currentVal ? '🌐 Live' : 'Off'; }
     alert('Could not update: ' + e.message);
   }
+}
+
+async function toggleProductActive(variantId, currentVal) {
+  const goingOff = currentVal === 1;
+  if (goingOff && !confirm('Turn this product OFF? It disappears from pricing, the dashboard and order forms. Past sales are kept, and you can turn it back on anytime.')) return;
+  try {
+    await api('PUT', '/api/products/variants/' + variantId + '/active', { active: goingOff ? 0 : 1 });
+    state.ref = await GET('/api/ref');
+    nav('products');
+  } catch (e) { alert('Could not update: ' + e.message); }
 }
 
 async function savePrice() {

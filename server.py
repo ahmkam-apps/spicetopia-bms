@@ -2264,6 +2264,20 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, ref.get('products', []))
                 return
 
+            # GET /api/products/inactive-variants  (admin) — turned-off SKUs (active_flag=0)
+            if path == '/api/products/inactive-variants':
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                send_json(self, qry("""
+                    SELECT pv.id, pv.sku_code, p.name AS product_name, ps.label AS pack_size
+                    FROM product_variants pv
+                    JOIN products p ON p.id = pv.product_id
+                    LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                    WHERE pv.active_flag = 0
+                    ORDER BY p.code, ps.grams
+                """))
+                return
+
             # GET /api/prices  — all active prices (product_code, pack_size, price, price_type_code)
             if path == '/api/prices':
                 prices = qry("""
@@ -4928,6 +4942,25 @@ class Handler(BaseHTTPRequestHandler):
                     c.close()
                 load_ref()
                 send_json(self, {'ok': True, 'variant_id': variant_id, 'show_online': show_online})
+                return
+
+            # PUT /api/products/variants/:id/active  (admin only) — the operating On/Off.
+            # active_flag=0 retires the SKU everywhere (dropdowns, cost, dashboard, order forms);
+            # history is preserved. Distinct from show-online (storefront visibility only).
+            if (path.startswith('/api/products/variants/') and
+                    len(parts) == 6 and parts[5] == 'active'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Admin only', 403); return
+                variant_id = int(parts[4])
+                active_val = 1 if data.get('active') else 0
+                c = _conn()
+                try:
+                    c.execute("UPDATE product_variants SET active_flag=? WHERE id=?", (active_val, variant_id))
+                    c.commit()
+                finally:
+                    c.close()
+                load_ref()
+                send_json(self, {'ok': True, 'variant_id': variant_id, 'active': active_val})
                 return
 
             # PUT /api/costing/config  (admin or 'costs' permission)

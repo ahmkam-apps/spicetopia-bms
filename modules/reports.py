@@ -223,6 +223,37 @@ def get_dashboard():
     except Exception:
         open_wos = []
 
+    # ── Sales by product (LIVE) — every ACTIVE variant with today + MTD units/revenue ──
+    # Off (deactivated) variants are excluded so a retired SKU (e.g. SPGM-25) disappears here.
+    sbp_variants = qry("""
+        SELECT p.code AS product_code, p.name AS product_name, ps.label AS pack_size, ps.grams AS grams
+        FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id
+        JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+        WHERE pv.active_flag = 1 AND p.active = 1
+        ORDER BY p.code, ps.grams
+    """) or []
+    _today_by_sku = {(r['product_code'], r['pack_size']): r for r in (qry("""
+        SELECT product_code, pack_size, COALESCE(SUM(qty),0) AS units
+        FROM sales WHERE sale_date = ? GROUP BY product_code, pack_size
+    """, (today_str,)) or [])}
+    _mtd_by_sku = {(r['product_code'], r['pack_size']): r for r in (qry("""
+        SELECT product_code, pack_size, COALESCE(SUM(qty),0) AS units, COALESCE(SUM(total),0) AS revenue
+        FROM sales WHERE sale_date >= ? GROUP BY product_code, pack_size
+    """, (month_start,)) or [])}
+    sales_by_product = []
+    for v in sbp_variants:
+        key = (v['product_code'], v['pack_size'])
+        t = _today_by_sku.get(key) or {}
+        m = _mtd_by_sku.get(key) or {}
+        sales_by_product.append({
+            'productCode': v['product_code'], 'product': v['product_name'], 'packSize': v['pack_size'],
+            'todayUnits': int(t.get('units') or 0),
+            'unitsMtd':   int(m.get('units') or 0),
+            'revenueMtd': r2(m.get('revenue') or 0),
+        })
+    sales_by_product.sort(key=lambda x: x['revenueMtd'], reverse=True)
+
     return {
         'salesToday': {
             'count':       int(sales_today.get('cnt', 0)),
@@ -269,6 +300,11 @@ def get_dashboard():
         'lowStockAlerts': low_stock,
         'salesByType':    by_type,
         'finishedGoods':  fg_list,
+        'revenueTrend':     revenue_trend,
+        'topProducts':      top_products,
+        'topCustomers':     top_customers,
+        'openWorkOrders':   open_wos,
+        'salesByProduct':   sales_by_product,
     }
 
 
