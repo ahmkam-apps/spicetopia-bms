@@ -99,7 +99,7 @@ def _operating_unit_rates():
     rows = qry("SELECT month, category, amount FROM monthly_operating_costs ORDER BY month DESC")
     if not rows:
         return {}
-    normal = _get_config_val(get_costing_config(), 'normal_monthly_volume', 1000.0) or 1000.0
+    normal = _get_config_val(get_costing_config(), 'normal_monthly_volume', 600.0) or 600.0
     months = []
     for r in rows:
         if r['month'] not in months:
@@ -125,7 +125,7 @@ def list_operating_costs(months=6):
     ÷ normal volume — the same figure that feeds Cost to Make in Phase 2)."""
     rows = qry("SELECT month, category, amount FROM monthly_operating_costs ORDER BY month DESC, category")
     cfg = get_costing_config()
-    normal_vol = _get_config_val(cfg, 'normal_monthly_volume', 1000.0)
+    normal_vol = _get_config_val(cfg, 'normal_monthly_volume', 600.0)
     by_month = {}
     for r in rows:
         by_month.setdefault(r['month'], {})[r['category']] = float(r['amount'] or 0)
@@ -190,21 +190,29 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
             return round(sum(_get_config_val(cfg, k, 0.0) for k in keys), 2)
         return _get_config_val(cfg, fallback_key, fallback_default) if fallback_key else 0.0
 
-    packaging  = _sum_cfg(['pkg_pouch', 'pkg_label', 'pkg_carton'],
-                          'packaging_cost_per_unit', 15.0)
-    conversion = _sum_cfg(['conv_labour', 'conv_electricity', 'conv_gas', 'conv_rent'],
-                          'labour_cost_per_unit', 5.0)
-    _ovh_present   = any(k in cfg for k in ('ovh_transport', 'ovh_salaries', 'ovh_admin'))
-    overhead_lines = _sum_cfg(['ovh_transport', 'ovh_salaries', 'ovh_admin'])
-    overhead_pct   = _get_config_val(cfg, 'overhead_pct', 0.10)  # legacy fallback only
-    # Phase 2: if monthly operating costs are recorded, DERIVE conversion + overhead from
-    # them (trailing 3-month avg ÷ normal volume), replacing the typed conv_*/ovh_* constants.
-    _op = _operating_unit_rates()
-    if _op:
-        conversion     = _op['conversion']
-        overhead_lines = _op['overhead']
-        _ovh_present    = True
-    labour         = conversion  # 'labour' return slot now carries the full conversion total
+    # ── TWO-ENGINE MODEL (2026-07-03): standards only, split by cost BEHAVIOUR ──
+    # The STANDARD cost prices off deliberate standards in costing_config ONLY — it no
+    # longer pulls the trailing monthly-actual average (that made MRP twitch every month).
+    # Monthly actuals are tracking-only now (see list_operating_costs / _operating_unit_rates),
+    # surfaced as a LIVE reference beside the standard (below), NOT as the price driver.
+    #
+    # VARIABLE (per-pack — scales with each pack made): packaging + temp labour + gas + electricity.
+    packaging     = _sum_cfg(['pkg_pouch', 'pkg_label', 'pkg_carton'],
+                             'packaging_cost_per_unit', 15.0)
+    variable_conv = _sum_cfg(['conv_labour', 'conv_gas', 'conv_electricity'],
+                             'labour_cost_per_unit', 5.0)
+    # FIXED (entered as MONTHLY totals, absorbed over the normal monthly volume): salaries,
+    # rent, transport, admin. Per-pack fixed = total monthly fixed ÷ normal volume.
+    normal_vol     = _get_config_val(cfg, 'normal_monthly_volume', 600.0) or 600.0
+    fixed_monthly  = _sum_cfg(['fix_salaries', 'fix_rent', 'fix_transport', 'fix_admin'])
+    fixed_per_pack = round(fixed_monthly / normal_vol, 2) if normal_vol else 0.0
+    # Return-slot names kept stable for the frontend: 'labour' = variable conversion,
+    # 'overhead' = absorbed fixed cost per pack.
+    conversion     = variable_conv
+    overhead_lines = fixed_per_pack
+    _ovh_present   = True
+    labour         = conversion
+    fixed_monthly_total = fixed_monthly
 
     variant = qry1("""
         SELECT pv.id, pv.sku_code, p.code as product_code, p.name as product_name,
@@ -250,6 +258,13 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
             'actual_margin_pct': None,    # no BOM → cost is incomplete, don't claim a margin
             'actual_below_floor': False,
             'floor_pct':        _get_config_val(cfg, 'margin_floor_pct', 30.0),
+            'fixed_monthly_total': fixed_monthly_total,
+            'normal_volume':    normal_vol,
+            'has_live':         False,
+            'live_cost_to_make': None,
+            'live_variance':    None,
+            'live_variance_pct': None,
+            'live_margin_pct':  None,
         }
 
     # Scale BOM to 1 unit of this pack size
@@ -287,9 +302,8 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
         rm_cost_adjusted = rm_cost_raw
     wastage_adj  = round(rm_cost_adjusted - rm_cost_raw, 2)
 
-    # Overhead: fixed ₨/pack from the itemized lines (post-migration); only fall
-    # back to the legacy %-of-RM when the itemized overhead keys are absent.
-    overhead     = overhead_lines if _ovh_present else round(rm_cost_adjusted * overhead_pct, 2)
+    # Fixed cost per pack = monthly fixed ÷ normal volume (computed above as overhead_lines).
+    overhead     = overhead_lines
     cost_to_make = round(rm_cost_adjusted + overhead + packaging + conversion, 2)
     overhead_pct_of_cost = round(overhead / cost_to_make * 100, 1) if cost_to_make > 0 else 0
     direct_sale  = round(cost_to_make * margin_mfr, 2)
@@ -302,6 +316,18 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
     sell_price, sell_chan = _selling_price_for_variant(variant['id'])
     actual_margin_pct  = round((sell_price - cost_to_make) / sell_price * 100, 1) if sell_price > 0 else None
     actual_below_floor = (actual_margin_pct is not None and actual_margin_pct < floor_pct)
+
+    # LIVE reference (decision support, NOT the price): this SKU's RM + standard packaging +
+    # the ACTUAL conversion/overhead per pack from recorded monthly operating costs. Shown
+    # beside the standard so the MRP can be set against reality. None until a month is recorded.
+    _op = _operating_unit_rates()
+    if _op:
+        live_cost_to_make = round(rm_cost_adjusted + packaging + _op.get('total', 0), 2)
+        live_variance     = round(live_cost_to_make - cost_to_make, 2)
+        live_variance_pct = round(live_variance / cost_to_make * 100, 1) if cost_to_make > 0 else None
+        live_margin_pct   = round((sell_price - live_cost_to_make) / sell_price * 100, 1) if sell_price > 0 else None
+    else:
+        live_cost_to_make = live_variance = live_variance_pct = live_margin_pct = None
 
     return {
         'productCode':      product_code,
@@ -329,6 +355,13 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
         'actual_margin_pct': actual_margin_pct,       # REAL margin vs actual price (None if no price)
         'actual_below_floor': actual_below_floor,
         'floor_pct':        floor_pct,
+        'fixed_monthly_total': fixed_monthly_total,   # sum of fix_* monthly standards
+        'normal_volume':    normal_vol,               # absorption denominator
+        'has_live':         bool(_op),                # any monthly actuals recorded?
+        'live_cost_to_make': live_cost_to_make,       # RM + packaging + ACTUAL conv/ovh (None if no actuals)
+        'live_variance':    live_variance,            # live − standard (₨)
+        'live_variance_pct': live_variance_pct,       # (live − standard) / standard %
+        'live_margin_pct':  live_margin_pct,          # margin vs actual price on the LIVE cost
     }
 
 

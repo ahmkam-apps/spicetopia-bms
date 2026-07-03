@@ -1257,6 +1257,13 @@ def ensure_costing_config():
             ('ovh_transport',    '0.00',  'Overhead — Transport (Rs/pack)'),
             ('ovh_salaries',     '0.00',  'Overhead — Salaries share (Rs/pack)'),
             ('ovh_admin',        '0.00',  'Overhead — Admin share (Rs/pack)'),
+            # ── Two-engine model (2026-07-03): FIXED costs entered as MONTHLY totals,
+            #    absorbed in compute_standard_cost as (sum ÷ normal_monthly_volume) per pack.
+            #    Distinct from the per-pack VARIABLE lines above (pkg_*, conv_labour/gas/electricity).
+            ('fix_salaries',     '0.00',  'Fixed — Salaries, permanent staff (Rs/MONTH)'),
+            ('fix_rent',         '0.00',  'Fixed — Rent (Rs/MONTH)'),
+            ('fix_transport',    '0.00',  'Fixed — Transport, own vehicle (Rs/MONTH)'),
+            ('fix_admin',        '0.00',  'Fixed — Admin (Rs/MONTH)'),
         ]
         for key, value, label in defaults:
             c.execute(
@@ -1291,11 +1298,14 @@ def ensure_operating_costs():
                 UNIQUE(month, category)
             )
         """)
-        # Normal monthly volume = the stable denominator (packs/month) for overhead absorption.
+        # Normal monthly volume = the stable denominator (packs/month) for fixed-cost absorption.
         c.execute("""
             INSERT OR IGNORE INTO costing_config (key, value, label)
-            VALUES ('normal_monthly_volume', '1000', 'Normal monthly volume (packs) — overhead denominator')
+            VALUES ('normal_monthly_volume', '600', 'Normal monthly volume (packs) — fixed-cost denominator')
         """)
+        # Bump the old default (1000) to the soft-launch volume (600). Only touches the
+        # untouched default — if AK set any other value it won't be 1000, so it's left alone. Idempotent.
+        c.execute("UPDATE costing_config SET value='600' WHERE key='normal_monthly_volume' AND value='1000'")
         c.commit()
         print("  ✓ Operating costs table ready")
     finally:

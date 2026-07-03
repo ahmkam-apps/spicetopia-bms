@@ -10123,14 +10123,14 @@ function _pcOpLoadMonth() {
   const m = (document.getElementById('pc-op-month') || {}).value;
   const data = (window._pcOpData && window._pcOpData.months) || [];
   const cats = (data.find(x => x.month === m) || {}).categories || {};
-  ['salaries','electricity','gas','rent','transport','admin'].forEach(k => { const el = document.getElementById('pc-op-' + k); if (el) el.value = (cats[k] != null ? cats[k] : ''); });
+  ['labour','salaries','electricity','gas','rent','transport','admin'].forEach(k => { const el = document.getElementById('pc-op-' + k); if (el) el.value = (cats[k] != null ? cats[k] : ''); });
 }
 async function _pcOpSaveMonth() {
   const month = (document.getElementById('pc-op-month') || {}).value; const msg = document.getElementById('pc-op-msg');
   if (!month) { if (msg) { msg.textContent = 'Pick a month'; msg.style.color = 'var(--chili)'; } return; }
   if (msg) { msg.textContent = 'Saving…'; msg.style.color = 'var(--text-3)'; }
   try {
-    for (const k of ['salaries','electricity','gas','rent','transport','admin']) {
+    for (const k of ['labour','salaries','electricity','gas','rent','transport','admin']) {
       const el = document.getElementById('pc-op-' + k); const val = el ? parseFloat(el.value) : NaN;
       if (!isNaN(val)) { await POST('/api/costing/operating-costs', { month: month, category: k, amount: val }); }
     }
@@ -10240,14 +10240,16 @@ async function renderPricesCosts() {
       <td class="text-right">${c.has_bom ? fmtPKR(c.rm_cost) : '—'}</td>
       <td class="text-right">${c.has_bom && c.wastage_adj > 0 ? fmtPKR(c.wastage_adj) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.overhead||0) + ' <span style="color:var(--text-3);font-size:11px">(' + (c.overhead_pct_of_cost||0) + '% of cost)</span>' : '—'}</td>
-      <td class="text-right">${c.has_bom ? fmtPKR(c.cost_to_make) : '—'}</td>
+      <td class="text-right"><strong>${c.has_bom ? fmtPKR(c.cost_to_make) : '—'}</strong></td>
+      <td class="text-right">${c.has_bom ? (c.has_live ? fmtPKR(c.live_cost_to_make) : '<span style="color:var(--text-3)" title="No monthly costs recorded yet">—</span>') : '—'}</td>
+      <td class="text-right">${c.has_bom && c.has_live ? '<span style="color:' + ((c.live_variance_pct||0) > 0 ? 'var(--chili)' : 'var(--cardamom)') + ';font-weight:700">' + ((c.live_variance_pct||0) > 0 ? '+' : '') + (c.live_variance_pct||0).toFixed(1) + '%</span>' : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.direct_sale) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.distributor) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.mrp) : '—'}</td>
       <td class="text-right" style="${flagStyle}">${c.has_bom ? (c.gross_margin_pct||0).toFixed(1)+'%' : '—'}</td>
       <td>${c.has_bom && c.below_floor ? '<span style="color:var(--chili);font-size:13px">⚠ Below min profit margin</span>' : ''}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="13" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>`;
+  }).join('') : `<tr><td colspan="15" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>`;
 
   const _mfr  = parseFloat((cfg.margin_mfr  || {}).value || 1.30);
   const _dist = parseFloat((cfg.margin_dist || {}).value || 1.10);
@@ -10279,8 +10281,10 @@ async function renderPricesCosts() {
             <th>Code</th><th>Product</th><th>Pack Size</th><th>BOM</th>
             <th class="text-right">RM Cost</th>
             <th class="text-right">Wastage Adj</th>
-            <th class="text-right">Overhead</th>
+            <th class="text-right">Fixed/pack</th>
             <th class="text-right">Cost to Make</th>
+            <th class="text-right" title="LIVE cost = raw materials + packaging + your ACTUAL monthly conversion/overhead ÷ normal volume. A reference so you can set the MRP against reality — it does NOT change the price.">Live Cost</th>
+            <th class="text-right" title="How far the live (actual) cost is from the standard. + = actual running above standard.">&Delta;</th>
             <th class="text-right">Direct Sale</th>
             <th class="text-right">Distributor</th>
             <th class="text-right">MRP</th>
@@ -10363,6 +10367,8 @@ SP-ING003,950.00</pre>
   const _cfgTag = (type) => {
     const tags = {
       'per-unit': { label: 'Per Unit',  bg: '#e8f0fe', color: '#1a73e8' },
+      'variable': { label: 'Variable',  bg: '#e8f0fe', color: '#1a73e8' },
+      'fixed':    { label: 'Fixed/mo',  bg: '#fff3e0', color: '#e65100' },
       'pct':      { label: '% Based',  bg: '#fff3e0', color: '#e65100' },
       'pricing':  { label: 'Pricing',  bg: '#e8f5e9', color: '#2e7d32' },
     };
@@ -10370,11 +10376,21 @@ SP-ING003,950.00</pre>
     return '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:' + t.bg + ';color:' + t.color + '">' + t.label + '</span>';
   };
 
-  const cfgLabels = {
-    // ── Packaging (₨/pack) — per-unit materials. Labour/utilities/overhead now live in Operating Costs. ──
-    pkg_pouch:        { label: 'Packaging — Pouch',          unit: 'PKR', note: 'Cost of the pouch, per pack', tag: 'per-unit' },
-    pkg_label:        { label: 'Packaging — Adhesive Label', unit: 'PKR', note: 'Label cost, per pack', tag: 'per-unit' },
-    pkg_carton:       { label: 'Packaging — Master Carton',  unit: 'PKR', note: 'Per-pack share of the master carton', tag: 'per-unit' },
+  // VARIABLE standards (₨ per pack — scale with each pack made). Drive the standard cost directly.
+  const varCfgLabels = {
+    pkg_pouch:        { label: 'Packaging — Pouch',          unit: 'PKR', note: 'Cost of the pouch, per pack', tag: 'variable' },
+    pkg_label:        { label: 'Packaging — Adhesive Label', unit: 'PKR', note: 'Label cost, per pack', tag: 'variable' },
+    pkg_carton:       { label: 'Packaging — Master Carton',  unit: 'PKR', note: 'Per-pack share of the master carton', tag: 'variable' },
+    conv_labour:      { label: 'Labour (temp/production)',   unit: 'PKR', note: 'Temp/casual labour paid per run, per pack', tag: 'variable' },
+    conv_gas:         { label: 'Gas',                        unit: 'PKR', note: 'Gas used in production, per pack', tag: 'variable' },
+    conv_electricity: { label: 'Electricity',               unit: 'PKR', note: 'Electricity used in production, per pack', tag: 'variable' },
+  };
+  // FIXED standards (₨ per MONTH — don't move with output). Absorbed ÷ normal volume → per pack.
+  const fixCfgLabels = {
+    fix_salaries:     { label: 'Salaries (permanent staff)', unit: 'PKR/mo', note: 'Monthly permanent payroll', tag: 'fixed', monthly: true },
+    fix_rent:         { label: 'Rent',                       unit: 'PKR/mo', note: 'Monthly rent', tag: 'fixed', monthly: true },
+    fix_transport:    { label: 'Transport (own vehicle)',    unit: 'PKR/mo', note: 'Monthly vehicle cost (fuel, upkeep)', tag: 'fixed', monthly: true },
+    fix_admin:        { label: 'Admin',                      unit: 'PKR/mo', note: 'Monthly admin / overhead', tag: 'fixed', monthly: true },
   };
 
   // Markups live in the Pricing tab (not Cost Parameters) — cost and price kept separate.
@@ -10385,11 +10401,15 @@ SP-ING003,950.00</pre>
     margin_floor_pct: { label: 'Minimum Profit Margin', unit: '%', note: 'Profit Margin Alert fires if gross margin drops below this', tag: 'pricing' },
   };
 
-  const _cfgRowsFor = (labels) => Object.entries(labels).map(([key, meta]) => {
+  const _cfgRowsFor = (labels, normVol) => Object.entries(labels).map(([key, meta]) => {
     const row    = cfg[key] || {};
     const rawVal = parseFloat(row.value || 0);
     const dispVal = meta.scale ? (rawVal * meta.scale).toFixed(1) : rawVal;
     const updatedAt = row.updated_at ? ' · updated ' + fmtDate(row.updated_at) + (row.updated_by ? ' by ' + row.updated_by : '') : '';
+    // Fixed (monthly) lines show the monthly figure PLUS the derived per-pack (÷ normal volume).
+    const valueCell = (meta.monthly && normVol)
+      ? '<strong style="font-size:15px">' + fmtPKR(rawVal) + '/mo</strong><br><span style="font-size:12px;color:var(--saffron-deep)">= ' + fmtPKR(rawVal / normVol) + '/pack</span><br><span style="font-size:10px;color:var(--text-3)">÷ ' + normVol + updatedAt + '</span>'
+      : '<strong style="font-size:16px">' + dispVal + ' ' + meta.unit + '</strong><br><span style="font-size:11px;color:var(--text-3)">' + updatedAt + '</span>';
     return `
     <tr id="pc-cfg-row-${key}">
       <td>
@@ -10398,7 +10418,7 @@ SP-ING003,950.00</pre>
         </div>
         <span style="font-size:11px;color:var(--text-3)">${meta.note}</span>
       </td>
-      <td class="text-right"><strong style="font-size:16px">${dispVal} ${meta.unit}</strong><br><span style="font-size:11px;color:var(--text-3)">${updatedAt}</span></td>
+      <td class="text-right">${valueCell}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-xs btn-outline" onclick="pcCfgShowEdit('${key}',${rawVal})">Edit</button>
       </td>
@@ -10421,7 +10441,7 @@ SP-ING003,950.00</pre>
     </tr>`;
   }).join('');
 
-  const cfgRows    = _cfgRowsFor(cfgLabels);
+  const varCfgRows = _cfgRowsFor(varCfgLabels);
   const markupRows = _cfgRowsFor(markupLabels);
 
   const markupsTab = `
@@ -10439,18 +10459,19 @@ SP-ING003,950.00</pre>
   </div>`;
 
   // ── Operating Costs (monthly) — record actuals, derive per-pack rates ──
-  const _OPCATS = [['salaries','Salaries'],['electricity','Electricity'],['gas','Gas'],['rent','Rent'],['transport','Transport'],['admin','Admin']];
-  const opNormal  = (opcosts.normal_monthly_volume != null ? opcosts.normal_monthly_volume : 1000);
+  const _OPCATS = [['labour','Labour (temp)'],['gas','Gas'],['electricity','Electricity'],['salaries','Salaries'],['rent','Rent'],['transport','Transport'],['admin','Admin']];
+  const opNormal  = (opcosts.normal_monthly_volume != null ? opcosts.normal_monthly_volume : 600);
+  const fixCfgRows = _cfgRowsFor(fixCfgLabels, opNormal);   // fixed monthly standards → per-pack ÷ opNormal
   const opMonths  = opcosts.months || [];
   const opDerived = opcosts.derived_per_pack || {};
   const _opThisMonth = new Date().toISOString().slice(0, 7);
   const _opCur = (opMonths.find(m => m.month === _opThisMonth) || {}).categories || {};
   const opInputs = _OPCATS.map(function(p){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:4px 0;font-size:13px"><span>' + p[1] + '</span><span>₨ <input id="pc-op-' + p[0] + '" type="number" min="0" step="1" value="' + (_opCur[p[0]] != null ? _opCur[p[0]] : '') + '" class="form-input" style="width:110px;text-align:right"></span></div>'; }).join('');
-  const opHistRows = opMonths.map(function(m){ return '<tr><td>' + m.month + '</td>' + _OPCATS.map(function(p){ return '<td class="text-right">' + (m.categories[p[0]] != null ? fmtPKR(m.categories[p[0]]) : '—') + '</td>'; }).join('') + '<td class="text-right"><b>' + fmtPKR(m.total) + '</b></td></tr>'; }).join('') || ('<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:16px">No months recorded yet.</td></tr>');
+  const opHistRows = opMonths.map(function(m){ return '<tr><td>' + m.month + '</td>' + _OPCATS.map(function(p){ return '<td class="text-right">' + (m.categories[p[0]] != null ? fmtPKR(m.categories[p[0]]) : '—') + '</td>'; }).join('') + '<td class="text-right"><b>' + fmtPKR(m.total) + '</b></td></tr>'; }).join('') || ('<tr><td colspan="9" style="text-align:center;color:var(--text-3);padding:16px">No months recorded yet.</td></tr>');
   const opDerivedRows = _OPCATS.filter(function(p){ return opDerived[p[0]] != null; }).map(function(p){ return '<div style="display:flex;justify-content:space-between;font-size:13px;margin:2px 0"><span>' + p[1] + '</span><b>' + fmtPKR(opDerived[p[0]]) + '/pack</b></div>'; }).join('');
   const opcostsTab = '<div id="pc-pane-opcosts" style="display:none">'
     + '<div class="card"><h3 style="margin:0 0 4px">Operating Costs (monthly)</h3>'
-      + '<p style="font-size:12px;color:var(--text-3);margin:0 0 14px">Record actual monthly costs. They\'re divided by your <b>normal monthly volume</b> to work out labour/utilities/overhead per pack — so these stop being guesses. <i>Shown for review; not yet applied to product cost.</i></p>'
+      + '<p style="font-size:12px;color:var(--text-3);margin:0 0 14px">Record what you <b>actually</b> spent each month — variable lines first (Labour temp, Gas, Electricity — these scale with production), then fixed (Salaries, Rent, Transport, Admin). Divided by your <b>normal monthly volume</b> to show real cost per pack. <i>Used for tracking + the live-cost reference in Standard Costs — it does <b>not</b> set your price. Your selling price is driven by the standards in Cost Parameters.</i></p>'
       + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="font-size:13px">Normal monthly volume (packs):</span>'
         + '<input id="pc-op-volume" type="number" min="1" step="1" value="' + opNormal + '" class="form-input" style="width:120px;text-align:right">'
         + '<button class="btn btn-xs btn-outline" onclick="_pcOpSaveVolume()">Save</button> <span id="pc-op-vol-msg" style="font-size:11px"></span></div>'
@@ -10472,19 +10493,29 @@ SP-ING003,950.00</pre>
   const configTab = `
   <div id="pc-pane-config" style="display:none">
     <div class="card">
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:4px">
-        <h3 style="margin:0">Packaging &amp; Wastage</h3>
-        <div style="display:flex;gap:8px">
-          <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f0fe;color:#1a73e8">Per Unit</span>
-          <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100">% Based</span>
-          <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32">Pricing</span>
-        </div>
+      <h3 style="margin:0 0 4px">Standard Cost Parameters</h3>
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:6px">Your <b>standard</b> cost inputs — they drive the suggested MRP and stay stable until you change them. Your actual monthly spend is recorded separately in <b>Operating Costs</b> and shown as a live reference in Standard Costs. All changes are logged.</p>
+
+      <div style="display:flex;align-items:center;gap:8px;margin:16px 0 4px">
+        <span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:10px;background:#e8f0fe;color:#1a73e8">Variable</span>
+        <span style="font-size:13px;font-weight:700">Cost per pack — scales with each pack made</span>
       </div>
-      <p style="font-size:12px;color:var(--text-3);margin-bottom:16px">Changes take effect immediately on all new standard cost calculations. All changes are logged.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Parameter</th><th class="text-right">Current Value</th><th>Action</th></tr></thead>
-          <tbody>${cfgRows}</tbody>
+          <tbody>${varCfgRows}</tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin:22px 0 4px">
+        <span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:10px;background:#fff3e0;color:#e65100">Fixed</span>
+        <span style="font-size:13px;font-weight:700">Monthly cost — spread over ${opNormal} packs/month</span>
+      </div>
+      <p style="font-size:11px;color:var(--text-3);margin:0 0 6px">Enter the <b>monthly</b> figure; it's divided by your normal monthly volume (<b>${opNormal}</b>, set in Operating Costs) to get the per-pack cost. Make more packs → per-pack fixed cost falls.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Parameter</th><th class="text-right">Monthly &rarr; per pack</th><th>Action</th></tr></thead>
+          <tbody>${fixCfgRows}</tbody>
         </table>
       </div>
     </div>
@@ -10659,7 +10690,8 @@ SP-ING003,950.00</pre>
   const _ovBase = costs.find(c => c.has_bom);
   window._pcOvBase = {
     rm:   _ovBase ? (_ovBase.rm_cost || 0) : 0,
-    op:   opcosts.derived_total_per_pack || 0,
+    // STANDARD conversion (variable) + absorbed fixed per pack — decoupled from monthly actuals.
+    op:   _ovBase ? ((_ovBase.labour || 0) + (_ovBase.overhead || 0)) : 0,
     name: _ovBase ? ((_ovBase.productName || _ovBase.productCode) + ' ' + _ovBase.packSize) : 'a product',
     floor: ovFloor,
   };
