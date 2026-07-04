@@ -581,6 +581,17 @@ def approve_order_with_edit(order_id, data):
     return detail
 
 
+def _item_in_production(item_id):
+    """Units for an order line currently on ACTIVE (planned/in_progress) work orders, net of
+    what those WOs have already produced. Computed LIVE — the cached customer_order_items.
+    qty_in_production column is only ever incremented (never decremented), so it drifts high
+    once a WO completes or the line is invoiced; this avoids that."""
+    r = qry1("""SELECT COALESCE(SUM(qty_units - COALESCE(produced_units, 0)), 0) AS ip
+                FROM work_orders
+                WHERE customer_order_item_id=? AND status IN ('planned','in_progress')""", (item_id,))
+    return max(0, int((r or {}).get('ip') or 0))
+
+
 def update_order_item_qty(order_id, item_id, new_qty):
     """Update qty_ordered on a single order line (admin/sales only)."""
     order = qry1("SELECT * FROM customer_orders WHERE id=?", (order_id,))
@@ -597,11 +608,12 @@ def update_order_item_qty(order_id, item_id, new_qty):
     if new_qty <= 0:
         raise ValueError("Quantity must be greater than zero")
 
-    committed = (item['qty_in_production'] or 0) + (item['qty_invoiced'] or 0)
+    in_prod   = _item_in_production(item_id)
+    committed = in_prod + (item['qty_invoiced'] or 0)
     if new_qty < committed:
         raise ValueError(
             f"Cannot reduce below {committed} units "
-            f"({item['qty_in_production'] or 0} in production + {item['qty_invoiced'] or 0} invoiced)"
+            f"({in_prod} in production + {item['qty_invoiced'] or 0} invoiced)"
         )
 
     run("UPDATE customer_order_items SET qty_ordered=? WHERE id=?", (new_qty, item_id))
@@ -695,6 +707,8 @@ def _order_detail(order_id):
         WHERE coi.order_id = ?
         ORDER BY coi.id
     """, (order_id,))
+    for _it in items:   # show LIVE in-production (the cached column drifts high — see _item_in_production)
+        _it['qty_in_production'] = _item_in_production(_it['id'])
 
     wos = qry("""
         SELECT wo.id, wo.wo_number, wo.qty_units, wo.status, wo.target_date,
@@ -928,12 +942,13 @@ def update_customer_order(order_id, data):
                 ex  = existing.get(vid)
 
                 if ex:
-                    committed = ex['qty_in_production'] + ex['qty_invoiced']
+                    in_prod   = _item_in_production(ex['id'])
+                    committed = in_prod + ex['qty_invoiced']
                     if r['qty'] < committed:
                         var_label = f"{r['var'].get('product_name','?')} {r['var'].get('pack_size','')}"
                         raise ValueError(
                             f"{var_label}: cannot reduce to {r['qty']} — "
-                            f"{ex['qty_in_production']} in production, {ex['qty_invoiced']} invoiced "
+                            f"{in_prod} in production, {ex['qty_invoiced']} invoiced "
                             f"(minimum: {committed})"
                         )
                     if r['qty'] > ex['qty_ordered']:
@@ -959,7 +974,8 @@ def update_customer_order(order_id, data):
 
             for vid, ex in existing.items():
                 if vid not in submitted_vids:
-                    committed = ex['qty_in_production'] + ex['qty_invoiced']
+                    in_prod   = _item_in_production(ex['id'])
+                    committed = in_prod + ex['qty_invoiced']
                     if committed > 0:
                         var_info = qry1("""
                             SELECT p.name, ps.label as pack FROM product_variants pv
@@ -969,7 +985,7 @@ def update_customer_order(order_id, data):
                         """, (vid,))
                         label = f"{var_info['name']} {var_info['pack']}" if var_info else f"Variant {vid}"
                         raise ValueError(
-                            f"Cannot remove '{label}' — it has {ex['qty_in_production']} unit(s) "
+                            f"Cannot remove '{label}' — it has {in_prod} unit(s) "
                             f"in production and {ex['qty_invoiced']} unit(s) invoiced."
                         )
                     c.execute("DELETE FROM customer_order_items WHERE id=?", (ex['id'],))
