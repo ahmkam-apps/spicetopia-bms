@@ -2794,6 +2794,13 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, check_wo_feasibility(int(vid), int(qty)))
                 return
 
+            # GET /api/production/dashboard  (admin, warehouse) — production overview data
+            if path == '/api/production/dashboard':
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                send_json(self, get_production_dashboard())
+                return
+
             # GET /api/production/:id  — batch detail with ingredient breakdown (consumption grams → recipe-gated)
             if path.startswith('/api/production/') and len(path.split('/')) == 4:
                 if not _can_recipe(sess):

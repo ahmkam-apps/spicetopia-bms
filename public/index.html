@@ -7992,10 +7992,45 @@ async function renderBomSetup() {
 }
 
 
+function _prodDashHtml(d) {
+  const pct = d.target > 0 ? Math.min(100, Math.round(d.madeThisMonth / d.target * 100)) : 0;
+  const kpi = (label, val, sub, color) => '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px">'
+    + '<div style="font-size:12px;color:var(--text-3)">' + label + '</div>'
+    + '<div style="font-size:20px;font-weight:700;' + (color ? 'color:' + color : '') + '">' + val + '</div>'
+    + (sub ? '<div style="font-size:11px;color:var(--text-3);margin-top:2px">' + sub + '</div>' : '') + '</div>';
+  const kpis = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">'
+    + '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:12px;color:var(--text-3)">Made this month</div><div style="font-size:20px;font-weight:700">' + (d.madeThisMonth || 0).toLocaleString() + ' <span style="font-size:12px;color:var(--text-3)">/ ' + (d.target || 0).toLocaleString() + '</span></div><div style="height:5px;background:var(--surface);border-radius:3px;margin-top:6px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:var(--cardamom)"></div></div></div>'
+    + kpi('Open work orders', d.openWoCount || 0, (d.packsToMake || 0).toLocaleString() + ' packs to make')
+    + kpi('Batches this month', d.batchesThisMonth || 0, d.lastBatch ? ('last: ' + fmtDate(d.lastBatch)) : '—')
+    + kpi('Materials to buy', d.belowReorder || 0, 'below reorder', (d.belowReorder || 0) > 0 ? 'var(--chili)' : '')
+    + '</div>';
+  const tc = s => s === 'red' ? 'var(--chili)' : (s === 'amber' ? 'var(--saffron)' : 'var(--cardamom)');
+  const tanks = (d.tanks || []).map(t => {
+    const top = t.targetKg > 0 ? t.targetKg : Math.max(t.balanceKg, t.reorderKg * 2, 10);
+    const fpct = top > 0 ? Math.min(100, Math.round(t.balanceKg / top * 100)) : 0;
+    const rpct = top > 0 ? Math.min(100, Math.round(t.reorderKg / top * 100)) : 0;
+    return '<div style="display:grid;grid-template-columns:118px 1fr 66px;gap:8px;align-items:center;margin:6px 0">'
+      + '<div style="font-size:12px">' + esc(t.name || t.code) + '</div>'
+      + '<div style="position:relative;height:16px;background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;width:' + fpct + '%;background:' + tc(t.status) + '"></div><div style="position:absolute;top:-2px;bottom:-2px;left:' + rpct + '%;width:2px;background:var(--text-1);opacity:.5"></div></div>'
+      + '<div style="font-size:11px;text-align:right;color:' + (t.status === 'red' ? 'var(--chili)' : 'var(--text-3)') + '">' + t.balanceKg + ' kg</div></div>';
+  }).join('') || '<div style="color:var(--text-3);font-size:12px;padding:8px 0">No ingredients.</div>';
+  const wos = (d.openWos || []).map(w =>
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)">'
+    + '<div><div style="font-size:13px">' + esc(w.product || '') + ' ' + esc(w.packSize || '') + '</div><div style="font-size:11px;color:var(--text-3)">' + esc(w.woNumber) + ' · ' + w.remaining + ' packs</div></div>'
+    + '<span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;background:' + (w.canMake ? '#eafaf1' : '#fff5f5') + ';color:' + (w.canMake ? '#1aaa55' : '#e03131') + '">' + (w.canMake ? 'can make' : 'short') + '</span></div>'
+  ).join('') || '<div style="color:var(--text-3);font-size:12px;padding:8px 0">No open work orders.</div>';
+  return kpis
+    + '<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:14px;margin-bottom:20px">'
+    + '<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px">Material tanks</div>' + tanks + '</div>'
+    + '<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px">To make</div>' + wos + '</div>'
+    + '</div>';
+}
+
 async function renderProduction() {
-  const [batches, workOrders] = await Promise.all([
+  const [batches, workOrders, prodDash] = await Promise.all([
     GET('/api/production'),
-    GET('/api/work-orders')
+    GET('/api/work-orders'),
+    GET('/api/production/dashboard').catch(() => null)
   ]);
 
   // Pre-load BOMs for all products (for BOM setup panel)
@@ -8108,6 +8143,8 @@ async function renderProduction() {
     <h2>Production</h2>
     <button class="btn btn-primary btn-sm" onclick="showWoForm()">+ New Work Order</button>
   </div>
+
+  ${prodDash ? _prodDashHtml(prodDash) : ''}
 
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px">
     <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="filterWoTable('planned')" title="Show Planned work orders">

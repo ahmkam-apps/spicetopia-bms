@@ -37,6 +37,7 @@ __all__ = [
     'update_work_order',
     'update_work_order_status',
     'delete_work_order',
+    'get_production_dashboard',
     'create_production_batch',
     'create_or_update_bom',
     'import_bom_master',
@@ -390,6 +391,71 @@ def update_work_order_status(wo_id, status):
         raise ValueError("Work order not found")
     run("UPDATE work_orders SET status=?, updated_at=datetime('now') WHERE id=?", (status, wo_id))
     return {'id': wo_id, 'status': status}
+
+
+def get_production_dashboard():
+    """Overview data for the Production section: output this month vs target, batch count,
+    open work orders (with feasibility), and material fuel-gauge data (stock vs full/reorder)."""
+    from modules.inventory import get_stock_map
+    t = today()
+    month_start = t[:8] + '01'
+
+    made = int((qry1("SELECT COALESCE(SUM(qty_units),0) v FROM production_batches WHERE batch_date>=?",
+                     (month_start,)) or {}).get('v') or 0)
+    batches_month = int((qry1("SELECT COUNT(*) v FROM production_batches WHERE batch_date>=?",
+                              (month_start,)) or {}).get('v') or 0)
+    last_batch = (qry1("SELECT MAX(batch_date) v FROM production_batches") or {}).get('v')
+
+    tv = qry1("SELECT value FROM costing_config WHERE key='normal_monthly_volume'")
+    try:
+        target = int(float(tv['value'])) if tv and tv.get('value') else 2000
+    except (TypeError, ValueError):
+        target = 2000
+
+    open_rows = qry("""
+        SELECT wo.wo_number, wo.qty_units, COALESCE(wo.produced_units,0) AS produced,
+               wo.feasibility_ok, p.name AS product_name, ps.label AS pack_size
+        FROM work_orders wo
+        JOIN product_variants pv ON pv.id = wo.product_variant_id
+        JOIN products p ON p.id = pv.product_id
+        LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+        WHERE wo.status IN ('planned','in_progress')
+        ORDER BY wo.target_date ASC, wo.created_at ASC
+    """) or []
+    open_wos, packs_to_make = [], 0
+    for w in open_rows:
+        rem = max(0, int(w['qty_units']) - int(w['produced'] or 0))
+        packs_to_make += rem
+        open_wos.append({'woNumber': w['wo_number'], 'product': w['product_name'],
+                         'packSize': w['pack_size'], 'remaining': rem,
+                         'canMake': bool(w['feasibility_ok'])})
+
+    stock = get_stock_map()
+    tanks, below = [], 0
+    for i in qry("""SELECT id, code, name, COALESCE(reorder_level,0) AS reorder_level,
+                           COALESCE(target_grams,0) AS target_grams
+                    FROM ingredients WHERE active=1 ORDER BY code"""):
+        bal_g = stock.get(i['id'], 0)
+        ro_g  = float(i['reorder_level'] or 0)     # reorder_level stored in grams
+        tg_g  = float(i['target_grams'] or 0)
+        if bal_g <= ro_g:
+            status = 'red'; below += 1
+        elif tg_g > 0 and bal_g <= tg_g * 0.45:
+            status = 'amber'
+        elif tg_g == 0 and bal_g <= ro_g * 1.5:
+            status = 'amber'
+        else:
+            status = 'green'
+        tanks.append({'code': i['code'], 'name': i['name'],
+                      'balanceKg': r2(bal_g / 1000), 'targetKg': r2(tg_g / 1000),
+                      'reorderKg': r2(ro_g / 1000), 'status': status})
+
+    return {
+        'madeThisMonth': made, 'target': target,
+        'batchesThisMonth': batches_month, 'lastBatch': last_batch,
+        'openWoCount': len(open_wos), 'packsToMake': packs_to_make,
+        'openWos': open_wos, 'tanks': tanks, 'belowReorder': below,
+    }
 
 
 def delete_work_order(wo_id):
