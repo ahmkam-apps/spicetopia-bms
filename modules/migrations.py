@@ -53,6 +53,7 @@ __all__ = [
     'ensure_dedup_seed_suppliers',
     'ensure_cost_lines',
     'ensure_wo_produced_units',
+    'ensure_ingredient_target_grams',
 ]
 
 
@@ -1327,6 +1328,22 @@ def ensure_wo_produced_units():
         print("  ✓ work_orders.produced_units ready")
     except Exception as e:
         print(f"  ⚠ ensure_wo_produced_units: {e}")
+    finally:
+        c.close()
+
+
+def ensure_ingredient_target_grams():
+    """Add ingredients.target_grams — the 'full tank' / par stock level per ingredient (grams).
+    Powers the fuel-gauge inventory view + the bulk stock loader. Idempotent."""
+    c = _conn()
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(ingredients)").fetchall()]
+        if cols and 'target_grams' not in cols:
+            c.execute("ALTER TABLE ingredients ADD COLUMN target_grams REAL NOT NULL DEFAULT 0")
+            c.commit()
+        print("  ✓ ingredients.target_grams ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_ingredient_target_grams: {e}")
     finally:
         c.close()
 

@@ -898,6 +898,7 @@ function canAccess(pageId) {
   if (pageId === 'bom') return canRecipe();      // recipe is the secret: owner + granted only (even admins need the grant)
   if (pageId === 'prices-costs') return canCosts(); // admin or 'costs' permission
   if (pageId === 'cost-tracking' || pageId === 'pricing') return canCosts(); // new clean screens, same gate
+  if (pageId === 'bulk-stock') return canAccess('inventory'); // bulk RM loader = same access as Inventory
   if (u.role === 'admin' || u.role === 'super_user') return true;   // admin/owner have full access
   // Admin/Owner-only pages
   const adminPages = new Set([
@@ -1584,6 +1585,7 @@ async function render(page, arg) {
       case 'ap-payments': c.innerHTML = await renderAPPayments();  break;
       case 'ap-aging':    c.innerHTML = await renderAPAging();      break;
       case 'inventory':   c.innerHTML = await renderInventory();   break;
+      case 'bulk-stock':  c.innerHTML = await renderBulkStock();   break;
       case 'production':  c.innerHTML = await renderProduction();  break;
       case 'bom':         c.innerHTML = await renderBomSetup();    break;
       case 'products':      c.innerHTML = await renderProducts();      break;
@@ -7674,6 +7676,7 @@ async function renderInventory() {
 
   return '<div class="section-header"><h2>Inventory</h2>'
     + (isAdmin ? '<div style="display:flex;gap:8px">'
+        + '<button class="btn btn-primary btn-sm" onclick="nav(\'bulk-stock\')" title="Load or update raw-material stock in bulk with tank sliders">🛢 Bulk update stock</button>'
         + '<button class="btn btn-outline btn-sm" onclick="findIngredientDuplicates()" title="Find ingredients entered twice under different codes">🔍 Find duplicates</button>'
         + '<button class="btn btn-outline btn-sm" onclick="findArchiveCandidates()" title="Report: active ingredients safe to archive (zero stock, no recipe/movement/bill)">🗂 Archive candidates</button>'
         + '<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById(\'ing-add-card\');if(c)c.style.display=c.style.display===\'none\'?\'\':\'none\';switchInvTab(\'rm\')">＋ Ingredient</button>'
@@ -9399,6 +9402,54 @@ async function saveBatch() {
 // ═══════════════════════════════════════════════════════════════
 //  PRODUCTS
 // ═══════════════════════════════════════════════════════════════
+// ── Bulk RM stock loader (slider tanks) ──────────────────────────
+async function renderBulkStock() {
+  if (!isAdminRole()) return '<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>';
+  let ings = [];
+  try { ings = await GET('/api/ingredients'); } catch (e) { ings = []; }
+  window._bsIngs = ings;
+  const cols = '150px 1fr 88px 84px';
+  const row = it => {
+    const stock  = Math.round((it.balanceGrams || 0) / 100) / 10;
+    const target = Math.round((it.targetGrams || 0) / 100) / 10;
+    const smax   = Math.max(target, stock, 10);
+    return '<div style="display:grid;grid-template-columns:' + cols + ';gap:10px;align-items:center;margin:9px 0">'
+      + '<div style="font-size:13px">' + esc(it.name || it.code) + '</div>'
+      + '<input type="range" id="bs-sl-' + it.id + '" min="0" max="' + smax + '" step="0.5" value="' + stock + '" oninput="_bsSync(' + it.id + ',\'sl\')" style="width:100%">'
+      + '<input type="number" id="bs-nm-' + it.id + '" min="0" step="0.5" value="' + stock + '" oninput="_bsSync(' + it.id + ',\'nm\')" class="form-input" style="text-align:right">'
+      + '<input type="number" id="bs-fl-' + it.id + '" min="0" step="1" value="' + target + '" oninput="_bsSync(' + it.id + ',\'fl\')" class="form-input" style="text-align:right">'
+      + '</div>';
+  };
+  return '<div style="max-width:780px">'
+    + '<div class="section-header"><div><h2>Load raw material stock</h2><span style="font-size:12px;color:var(--text-3)">Drag each tank or type the kg, and set the full level per ingredient. Saving records the stock movements.</span></div>'
+    + '<button class="btn btn-outline btn-sm" onclick="nav(\'inventory\')">← Inventory</button></div>'
+    + '<div class="card">'
+    + '<div style="display:grid;grid-template-columns:' + cols + ';gap:10px;font-size:11px;color:var(--text-3);padding-bottom:8px;border-bottom:1px solid var(--border)"><span>Ingredient</span><span>Fill level</span><span style="text-align:right">Have (kg)</span><span style="text-align:right">Full (kg)</span></div>'
+    + (ings.length ? ings.map(row).join('') : '<div style="color:var(--text-3);padding:16px">No ingredients found.</div>')
+    + '<div style="margin-top:16px"><button class="btn btn-primary" onclick="_bsSaveAll()">Save all</button> <span id="bs-msg" style="font-size:12px;margin-left:10px"></span></div>'
+    + '</div></div>';
+}
+function _bsSync(id, src) {
+  const sl = document.getElementById('bs-sl-' + id), nm = document.getElementById('bs-nm-' + id), fl = document.getElementById('bs-fl-' + id);
+  if (!sl || !nm || !fl) return;
+  if (src === 'fl') { sl.max = Math.max(parseFloat(fl.value) || 0, parseFloat(nm.value) || 0, 10); }
+  else if (src === 'nm') { let v = parseFloat(nm.value) || 0; if (v > parseFloat(sl.max)) sl.max = v; sl.value = v; }
+  else { nm.value = sl.value; }
+}
+async function _bsSaveAll() {
+  const msg = document.getElementById('bs-msg'); if (msg) { msg.textContent = 'Saving…'; msg.style.color = 'var(--text-3)'; }
+  const rows = (window._bsIngs || []).map(it => ({
+    ingredientId: it.id,
+    stockKg: parseFloat((document.getElementById('bs-nm-' + it.id) || {}).value) || 0,
+    targetKg: parseFloat((document.getElementById('bs-fl-' + it.id) || {}).value) || 0
+  }));
+  try {
+    const res = await POST('/api/inventory/bulk-stock', { rows });
+    if (msg) { msg.textContent = '✓ Saved ' + (res.updated || 0) + ' ingredients.'; msg.style.color = 'var(--cardamom)'; }
+    setTimeout(() => nav('inventory'), 1200);
+  } catch (e) { if (msg) { msg.textContent = 'Error: ' + e.message; msg.style.color = 'var(--chili)'; } }
+}
+
 async function renderProducts() {
   const prods = state.ref.products || [];
   let offVars = [];

@@ -2647,7 +2647,7 @@ class Handler(BaseHTTPRequestHandler):
                     price_hist[row['ingredient_id']] = row
                 result = []
                 for i in ref.get('ingredients', []):
-                    irow = qry1("SELECT id, cost_per_kg FROM ingredients WHERE code=?", (i['code'],))
+                    irow = qry1("SELECT id, cost_per_kg, COALESCE(target_grams,0) AS target_grams FROM ingredients WHERE code=?", (i['code'],))
                     if not irow:
                         continue
                     iid       = irow['id']
@@ -2666,6 +2666,7 @@ class Handler(BaseHTTPRequestHandler):
                         **i,
                         'id':                iid,
                         'balanceGrams':      r2(bal),
+                        'targetGrams':       r2(irow.get('target_grams') or 0),
                         'reservedGrams':     r2(reserved),
                         'availableGrams':    available,
                         'status':            'OK' if available > rl else ('LOW' if available > 0 else 'OUT'),
@@ -4405,6 +4406,17 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result)
                 return
 
+            # POST /api/inventory/bulk-stock  (admin, warehouse) — bulk set stock + target level
+            if path == '/api/inventory/bulk-stock':
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                try:
+                    result = bulk_set_stock((data or {}).get('rows', []), sess.get('username', 'admin'))
+                    send_json(self, result)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
             # POST /api/prices  (admin only)
             if path == '/api/prices':
                 if not _can_costs(sess):
@@ -5797,7 +5809,7 @@ if __name__ == '__main__':
         ensure_plan_m2_tables, ensure_plan_code, ensure_plan_release,
         ensure_scenario_type_cleanup, ensure_plan_forecast_zone, ensure_operating_costs,
         ensure_deactivate_spring_catalog, ensure_rep_zones, ensure_dedup_seed_suppliers,
-        ensure_cost_lines, ensure_wo_produced_units,
+        ensure_cost_lines, ensure_wo_produced_units, ensure_ingredient_target_grams,
         backfill_customer_account_numbers,
     ):
         try:

@@ -25,6 +25,7 @@ __all__ = [
     'get_stock_situation',
     # Inventory adjustment
     'create_adjustment',
+    'bulk_set_stock',
     # Ingredient CRUD
     'create_ingredient',
     'update_ingredient',
@@ -224,6 +225,43 @@ def create_adjustment(data):
               new_val={'ingredient': ing['code'], 'qty_grams': qty})
     run_many(ops)
     return {'ingredientCode': ing['code'], 'adjustment': qty}
+
+
+def bulk_set_stock(rows, username='admin'):
+    """Bulk load raw-material stock + full/target level in one save.
+    rows: list of {ingredientId, stockKg, targetKg} (either field optional).
+      - targetKg  → sets ingredients.target_grams (the 'full tank').
+      - stockKg   → SET current stock to this value: records a movement of the delta
+                    (want − current), so the balance becomes exactly stockKg.
+    kg in, grams stored. Never writes negative stock. Idempotent per submitted value."""
+    if not isinstance(rows, list):
+        raise ValueError("rows must be a list")
+    stock_map = get_stock_map()
+    ops, updated = [], 0
+    for r in rows:
+        ing = qry1("SELECT id, code FROM ingredients WHERE id=?", (r.get('ingredientId'),))
+        if not ing:
+            continue
+        touched = False
+        if r.get('targetKg') is not None:
+            tg = max(0.0, float(r.get('targetKg') or 0)) * 1000.0
+            ops.append(("UPDATE ingredients SET target_grams=?, updated_at=? WHERE id=?",
+                        (tg, today(), ing['id'])))
+            touched = True
+        if r.get('stockKg') is not None:
+            want  = max(0.0, float(r.get('stockKg') or 0)) * 1000.0
+            delta = r2(want - stock_map.get(ing['id'], 0))
+            if abs(delta) >= 0.001:
+                ops.append(("""INSERT INTO inventory_ledger (ingredient_id, movement_type, qty_grams, notes)
+                               VALUES (?,?,?,?)""",
+                            (ing['id'], 'ADJUSTMENT', delta, 'Bulk stock load')))
+            touched = True
+        if touched:
+            updated += 1
+    if ops:
+        run_many(ops)
+        save_db()
+    return {'ok': True, 'updated': updated}
 
 
 # ═══════════════════════════════════════════════════════════════════
