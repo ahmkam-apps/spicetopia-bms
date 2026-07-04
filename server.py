@@ -1760,6 +1760,15 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, "Field app not found", 404)
                 return
 
+            # /app — unified phone launcher (one login → Sales and/or Production, gated per person)
+            if path in ('/app', '/app/'):
+                app_page = PUBLIC_DIR / 'app.html'
+                if app_page.exists():
+                    self._serve_file(app_page, 'text/html; charset=utf-8')
+                else:
+                    send_error(self, "App not found", 404)
+                return
+
             # /batch — Batch Runner phone app (no BMS auth required — uses field PIN + app_batch)
             if path in ('/batch', '/batch/'):
                 batch_page = PUBLIC_DIR / 'batch.html'
@@ -3486,6 +3495,19 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_rep_today_route(rep_id))
                 return
 
+            # ── UNIFIED PHONE APP — GET /api/app/me  (which sections this phone login has) ──
+            if path == '/api/app/me':
+                asess = _get_field_session(self, qs)
+                if not asess:
+                    send_json(self, {'error': 'Not logged in'}, 401); return
+                rep = qry1("SELECT name, COALESCE(app_field,1) AS f, COALESCE(app_batch,0) AS b "
+                           "FROM sales_reps WHERE id=?", (asess.get('repId'),))
+                if not rep:
+                    send_json(self, {'error': 'Not logged in'}, 401); return
+                send_json(self, {'name': rep.get('name') or '', 'field': bool(rep.get('f')),
+                                 'batch': bool(rep.get('b'))})
+                return
+
             # ── BATCH RUNNER (phone app) — GET /api/batch/board ─────────────
             # Active runs + work orders ready to start. NO ingredient quantities (recipe secret).
             if path == '/api/batch/board':
@@ -3900,6 +3922,29 @@ class Handler(BaseHTTPRequestHandler):
                     'ref':     result.get('orderCode') or result.get('orderId'),
                     'message': 'Order received! We will contact you to confirm delivery.',
                 }, 201)
+                return
+
+            # ── UNIFIED PHONE APP (launcher) — one login for Sales + Production ──
+            # POST /api/app/auth  (no BMS session) — phone+PIN, returns the person's app sections
+            if path == '/api/app/auth':
+                ip    = _get_client_ip(self)
+                phone = data.get('phone', '').strip()
+                pin   = str(data.get('pin', ''))
+                try:
+                    _check_rate_limit(ip)
+                    result = field_login(phone, pin)
+                    rep = qry1("SELECT COALESCE(app_field,1) AS f, COALESCE(app_batch,0) AS b "
+                               "FROM sales_reps WHERE id=?", (result['repId'],))
+                    if not rep or (not rep.get('f') and not rep.get('b')):
+                        run("DELETE FROM sessions WHERE token=?", (result['token'],))
+                        raise ValueError("No apps are enabled for this login. Ask the owner to turn one on.")
+                    _clear_rate_limit(ip)
+                    result['field'] = bool(rep.get('f'))
+                    result['batch'] = bool(rep.get('b'))
+                    send_field_login_response(self, result)
+                except ValueError as e:
+                    _record_failed_attempt(ip)
+                    send_json(self, {'error': str(e)}, 401)
                 return
 
             # ── BATCH RUNNER (phone app) — PIN login + stage actions ────────
@@ -4837,12 +4882,16 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, set_rep_zones(rep_id, data.get('zoneIds', [])), 200)
                 return
 
-            # POST /api/reps/:id/apps  (admin only) — grant/revoke Batch Runner phone-app access
+            # POST /api/reps/:id/apps  (admin only) — grant/revoke phone-app sections (Sales / Production)
             if path.startswith('/api/reps/') and path.endswith('/apps'):
                 if not require(sess, 'admin'):
                     send_error(self, 'Permission denied', 403); return
                 rep_id = int(path.split('/')[3])
-                send_json(self, set_rep_app_access(rep_id, bool((data or {}).get('batch'))), 200)
+                d = data or {}
+                send_json(self, set_rep_app_access(
+                    rep_id,
+                    batch=(bool(d.get('batch')) if 'batch' in d else None),
+                    field=(bool(d.get('field')) if 'field' in d else None)), 200)
                 return
 
             # POST /api/reps/:id/routes/:assign_id/unassign  (admin only)

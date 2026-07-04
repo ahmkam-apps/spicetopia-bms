@@ -1020,14 +1020,21 @@ def set_rep_zones(rep_id, zone_ids):
     return get_rep(rep_id)
 
 
-def set_rep_app_access(rep_id, batch):
-    """Grant/revoke the Batch Runner phone app for a rep's phone identity (Field app + Batch
-    Runner share one phone login; this flag gates which apps the person gets). batch: bool."""
+def set_rep_app_access(rep_id, batch=None, field=None):
+    """Grant/revoke the phone-app sections for a rep's phone identity (one login fronts both).
+    Pass batch and/or field as bools; only the ones provided are changed."""
     rep = qry1("SELECT id FROM sales_reps WHERE id=?", (rep_id,))
     if not rep:
         raise ValueError("Rep not found")
-    run("UPDATE sales_reps SET app_batch=? WHERE id=?", (1 if batch else 0, rep_id))
-    save_db()
+    sets, params = [], []
+    if batch is not None:
+        sets.append("app_batch=?"); params.append(1 if batch else 0)
+    if field is not None:
+        sets.append("app_field=?"); params.append(1 if field else 0)
+    if sets:
+        params.append(rep_id)
+        run("UPDATE sales_reps SET " + ", ".join(sets) + " WHERE id=?", params)
+        save_db()
     return get_rep(rep_id)
 
 

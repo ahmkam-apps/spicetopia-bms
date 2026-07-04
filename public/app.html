@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#9A4A24">
+<title>Spicetopia</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --terra:#9A4A24; --terra-deep:#7E3A1B; --terra-pale:#F1E4D8;
+  --green:#5E7245; --green-pale:#EAEEDD; --red:#B23A2E;
+  --paper:#F4F0E7; --surface:#FCFAF5; --surface-2:#F1EBE0;
+  --border:#E4DACA; --ink:#2A211A; --muted:#7C6F5E; --faint:#A89A85;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; --serif:'Fraunces',Georgia,serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--paper);font-family:var(--font);color:var(--ink);min-height:100vh}
+.wrap{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+.appbar{background:var(--terra);color:#fff;padding:16px 18px 14px;display:flex;justify-content:space-between;align-items:center}
+.appbar .t{font-family:var(--serif);font-size:18px;font-weight:500}
+.appbar .u{font-size:12px;opacity:.9;cursor:pointer}
+.scroll{flex:1;overflow-y:auto;padding:22px 16px 40px}
+.greet{font-family:var(--serif);font-size:25px;font-weight:500;color:var(--terra-deep);margin:4px 2px 2px}
+.q{font-size:13px;color:var(--muted);margin:0 2px 20px}
+.tile{display:flex;align-items:center;gap:15px;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px 18px;margin-bottom:15px;box-shadow:0 2px 8px rgba(42,33,26,.05);cursor:pointer}
+.tile:active{background:var(--surface-2)}
+.tile .ic{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ic-sales{background:var(--terra-pale);color:var(--terra-deep)}
+.ic-prod{background:var(--green-pale);color:var(--green)}
+.tile .nm{font-size:17px;font-weight:600}
+.tile .ds{font-size:12.5px;color:var(--faint);margin-top:2px}
+.tile .go{margin-left:auto;color:var(--terra);font-size:20px}
+/* login */
+.login{flex:1;display:flex;flex-direction:column;justify-content:center;padding:30px 26px}
+.login h1{font-family:var(--serif);font-weight:500;font-size:30px;margin:0 0 4px;color:var(--terra-deep)}
+.login p{color:var(--muted);font-size:14px;margin:0 0 26px}
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.fld input{width:100%;padding:14px 15px;border:1px solid var(--border);border-radius:12px;font-size:16px;font-family:var(--font);background:var(--surface)}
+.fld input:focus{outline:none;border-color:var(--terra)}
+.btn{width:100%;border:none;border-radius:13px;padding:15px;font-family:var(--font);font-size:15px;font-weight:600;cursor:pointer;background:var(--terra);color:#fff;margin-top:6px}
+.btn:disabled{opacity:.5}
+.msg{font-size:13px;margin-top:10px;min-height:18px}
+.msg.err{color:var(--red)}
+.hint{font-size:12px;color:var(--faint);margin-top:18px;line-height:1.5}
+.hidden{display:none!important}
+.spin{text-align:center;color:var(--faint);padding:60px 0;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="loading" class="spin">Loading…</div>
+
+  <!-- LOGIN -->
+  <div id="login" class="login hidden">
+    <h1>Spicetopia</h1>
+    <p>Log in to get started.</p>
+    <div class="fld"><label>Phone number</label><input id="lg-phone" type="tel" inputmode="tel" placeholder="03xxxxxxxxx" autocomplete="username"></div>
+    <div class="fld"><label>PIN</label><input id="lg-pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="current-password"></div>
+    <button class="btn" id="lg-btn" onclick="doLogin()">Log in</button>
+    <div id="lg-msg" class="msg"></div>
+    <div class="hint">Use the exact number your manager registered. If it says no apps are enabled, ask the owner to turn one on.</div>
+  </div>
+
+  <!-- HOME (both sections) -->
+  <div id="home" class="hidden" style="flex:1;display:flex;flex-direction:column">
+    <div class="appbar"><div class="t">🌶️ Spicetopia</div><div class="u" id="who" onclick="doLogout()">▾</div></div>
+    <div class="scroll">
+      <div class="greet" id="greet">Hi</div>
+      <div class="q">What are you working on?</div>
+      <div id="tiles"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ICON_SALES = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>';
+const ICON_PROD  = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11h16"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/><path d="M8 21h8"/><path d="M12 3v3"/><path d="M15 5l-3 1-3-1"/></svg>';
+
+async function api(method, path, body){
+  const opt = { method, credentials:'same-origin', headers:{} };
+  if (body !== undefined){ opt.headers['Content-Type']='application/json'; opt.body=JSON.stringify(body); }
+  const r = await fetch(path, opt);
+  let j = {}; try { j = await r.json(); } catch(e){}
+  if (!r.ok) throw new Error(j.error || ('Error '+r.status));
+  return j;
+}
+function show(id){ ['loading','login','home'].forEach(x=>document.getElementById(x).classList.toggle('hidden', x!==id)); }
+
+function go(section){ location.href = (section === 'field') ? '/field' : '/batch'; }
+
+function decide(caps){
+  const opts = [];
+  if (caps.field) opts.push('field');
+  if (caps.batch) opts.push('batch');
+  if (opts.length === 1){ location.replace(opts[0] === 'field' ? '/field' : '/batch'); return; }
+  renderHome(caps);
+}
+
+function renderHome(caps){
+  document.getElementById('greet').textContent = 'Hi ' + (caps.name ? caps.name.split(' ')[0] : '');
+  document.getElementById('who').textContent = (caps.name || '') + ' ▾';
+  let h = '';
+  if (caps.field){
+    h += '<div class="tile" onclick="go(\'field\')"><div class="ic ic-sales">'+ICON_SALES+'</div>'
+       + '<div><div class="nm">Sales</div><div class="ds">Take orders, send invoices</div></div><div class="go">→</div></div>';
+  }
+  if (caps.batch){
+    h += '<div class="tile" onclick="go(\'batch\')"><div class="ic ic-prod">'+ICON_PROD+'</div>'
+       + '<div><div class="nm">Production</div><div class="ds">Run today\'s batches</div></div><div class="go">→</div></div>';
+  }
+  document.getElementById('tiles').innerHTML = h;
+  show('home');
+}
+
+async function boot(){
+  try { const caps = await api('GET','/api/app/me'); decide(caps); }
+  catch(e){ show('login'); }
+}
+
+async function doLogin(){
+  const phone = document.getElementById('lg-phone').value.trim();
+  const pin   = document.getElementById('lg-pin').value.trim();
+  const msg   = document.getElementById('lg-msg');
+  const btn   = document.getElementById('lg-btn');
+  msg.className='msg'; msg.textContent='';
+  if(!phone || !pin){ msg.className='msg err'; msg.textContent='Enter your phone and PIN.'; return; }
+  btn.disabled=true; btn.textContent='Logging in…';
+  try {
+    const caps = await api('POST','/api/app/auth',{phone,pin});
+    document.getElementById('lg-pin').value='';
+    decide(caps);
+  } catch(e){
+    msg.className='msg err'; msg.textContent = e.message || 'Login failed';
+  } finally { btn.disabled=false; btn.textContent='Log in'; }
+}
+
+async function doLogout(){
+  try { await api('POST','/api/batch/logout',{}); } catch(e){}
+  show('login');
+}
+
+boot();
+</script>
+</body>
+</html>

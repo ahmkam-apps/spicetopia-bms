@@ -82,7 +82,7 @@ body{background:var(--paper);font-family:var(--font);color:var(--ink);min-height
 
   <!-- ── APP (board) ──────────────────────────────── -->
   <div id="app" class="hidden" style="flex:1;display:flex;flex-direction:column">
-    <div class="appbar"><div class="t">🌶️ Batch Runner</div><div class="u" onclick="doLogout()" id="who">▾</div></div>
+    <div class="appbar"><div class="back" onclick="location.href='/app'" title="Home" aria-label="Home">⌂</div><div class="t">Batch Runner</div><div class="u" onclick="doLogout()" id="who">▾</div></div>
     <div class="scroll" id="board"><div class="spin">Loading…</div></div>
   </div>
 
