@@ -8106,7 +8106,7 @@ async function renderProduction() {
         : '<span style="color:var(--text-3);font-size:11px">—</span>'}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-xs btn-outline" onclick="event.stopPropagation();showProcurementList(${wo.id},'${wo.wo_number}')" title="Ingredient &amp; Procurement List">📋 Cost &amp; Procure</button>
-        ${canConvert ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="event.stopPropagation();convertWoToBatch(${wo.id},'${wo.wo_number}',${wo.qty_units - (wo.produced_units||0)})" title="Record a batch — the full remaining amount, or a partial amount (e.g. a weekly run)">✓ Record batch</button>` : ''}
+        ${canConvert ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="event.stopPropagation();convertWoToBatch(${wo.id},'${wo.wo_number}',${wo.qty_units - (wo.produced_units||0)},${wo.product_variant_id})" title="Record a batch — the full remaining amount, or a partial amount (e.g. a weekly run)">✓ Record batch</button>` : ''}
         ${canStart   ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron)" onclick="event.stopPropagation();setWoStatus(${wo.id},'in_progress')" title="Mark this work order as In Progress — production has started">▶ Start Production</button>` : ''}
         ${canReset && isAdminRole() ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--saffron-deep)" onclick="event.stopPropagation();resetWoToPlanned(${wo.id},'${wo.wo_number}')" title="Reset back to Planned — production has not started yet">↩ Reset to Planned</button>` : ''}
         ${canConvert ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="event.stopPropagation();editWorkOrder(${wo.id},'${wo.wo_number}',${wo.qty_units},'${wo.target_date||''}','${(wo.notes||'').replace(/'/g,"\\'")}')">Edit</button>` : ''}
@@ -8893,7 +8893,7 @@ async function deleteWorkOrder(woId, woNum) {
   } catch (e) { alert('Could not delete: ' + e.message); }
 }
 
-async function convertWoToBatch(woId, woNum, remaining) {
+async function convertWoToBatch(woId, woNum, remaining, variantId) {
   remaining = remaining || 0;
   // Ask how much to make now — full remaining, or a partial (e.g. a weekly run).
   let qty = remaining;
@@ -8914,9 +8914,43 @@ async function convertWoToBatch(woId, woNum, remaining) {
       return;
     }
   }
+  // Recipe holders get a batch-impact preview modal; others get a plain confirm.
+  if (typeof canRecipe === 'function' && canRecipe() && variantId) {
+    return _woShowImpact(woId, woNum, qty, variantId);
+  }
   if (!confirm('Record a batch of ' + qty + ' packs for ' + woNum + '?\nThis will deduct ingredients from stock.')) return;
+  return _woDoConvert(woId, woNum, qty);
+}
+
+async function _woShowImpact(woId, woNum, qty, variantId) {
+  let r; try { r = await GET('/api/purchase-orders/bom-calculate?variantId=' + variantId + '&qty=' + qty); } catch (e) { r = null; }
+  if (!r || !r.ingredients) {
+    if (confirm('Record a batch of ' + qty + ' packs for ' + woNum + '?\nThis will deduct ingredients from stock.')) return _woDoConvert(woId, woNum, qty);
+    return;
+  }
+  const rows = r.ingredients.map(it => {
+    const share = it.availableKg > 0 ? Math.min(100, Math.round(it.neededKg / it.availableKg * 100)) : 100;
+    const after = Math.round((it.availableKg - it.neededKg) * 100) / 100;
+    const belowAfter = after <= (it.reorderKg || 0);
+    const bar = belowAfter ? 'var(--chili)' : 'var(--saffron)';
+    return '<div style="display:grid;grid-template-columns:100px 88px 1fr 122px;gap:8px;align-items:center;margin:6px 0">'
+      + '<div style="font-size:12px;font-family:monospace">' + esc(it.ingCode) + '</div>'
+      + '<div style="font-size:12px;color:var(--text-3)">uses ' + it.neededKg + ' kg</div>'
+      + '<div style="height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden"><div style="height:100%;width:' + share + '%;background:' + bar + '"></div></div>'
+      + '<div style="font-size:12px;text-align:right;color:' + (belowAfter ? 'var(--chili)' : 'var(--text-3)') + ';font-weight:600">' + share + '% · ' + after + ' kg left' + (belowAfter ? ' ⚠' : '') + '</div></div>';
+  }).join('');
+  _openProcModal(
+    '<div style="max-width:580px"><h3 style="margin:0 0 4px">Record batch — ' + esc(woNum) + '</h3>'
+    + '<div style="font-size:12px;color:var(--text-3);margin-bottom:10px">' + qty + ' packs · bar = share of your current stock this run uses</div>'
+    + rows
+    + (r.anyShort ? '<div style="margin-top:10px;color:var(--chili);font-size:13px;font-weight:600">⚠ Not enough stock for some ingredients — recording will fail unless you buy more first.</div>' : '')
+    + '<div style="margin-top:16px;display:flex;gap:8px"><button class="btn btn-primary" onclick="_woDoConvert(' + woId + ',\'' + woNum + '\',' + qty + ')">Record batch</button> <button class="btn btn-outline" onclick="_closeProcModal()">Cancel</button></div></div>'
+  );
+}
+
+async function _woDoConvert(woId, woNum, qty) {
   try {
-    const res = await POST(`/api/work-orders/${woId}/convert`, { qtyUnits: qty });
+    const res = await POST('/api/work-orders/' + woId + '/convert', { qtyUnits: qty });
     _openProcModal(
       '<div style="text-align:center;padding:24px 16px">'
       + '<div style="font-size:40px;margin-bottom:12px">✅</div>'
@@ -8928,7 +8962,7 @@ async function convertWoToBatch(woId, woNum, remaining) {
       + '<button class="btn btn-primary" style="margin-top:20px" onclick="_closeProcModal();nav(\'production\')">Done</button>'
       + '</div>'
     );
-  } catch(e) {
+  } catch (e) {
     _openProcModal(
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'
       + '<h3 style="color:var(--chili);margin:0">⚠ Production Failed</h3>'

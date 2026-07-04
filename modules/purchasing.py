@@ -831,7 +831,8 @@ def bom_calculate_ingredients(variant_id, qty_units):
         )
 
     bom_items_list = qry("""
-        SELECT bi.*, i.id as ing_id, i.code as ing_code
+        SELECT bi.*, i.id as ing_id, i.code as ing_code,
+               COALESCE(i.reorder_level,0) AS reorder_level
         FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
         WHERE bi.bom_version_id=?
     """, (bom_ver['id'],))
@@ -854,6 +855,7 @@ def bom_calculate_ingredients(variant_id, qty_units):
             'neededKg':    needed_kg,
             'availableKg': avail_kg,
             'toOrderKg':   to_order_kg,
+            'reorderKg':   r2(float(b['reorder_level'] or 0) / 1000),
             'sufficient':  to_order_kg < 0.001,
         })
     return {
