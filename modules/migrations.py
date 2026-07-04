@@ -54,6 +54,7 @@ __all__ = [
     'ensure_cost_lines',
     'ensure_wo_produced_units',
     'ensure_ingredient_target_grams',
+    'ensure_batch_stages',
 ]
 
 
@@ -1344,6 +1345,82 @@ def ensure_ingredient_target_grams():
         print("  ✓ ingredients.target_grams ready")
     except Exception as e:
         print(f"  ⚠ ensure_ingredient_target_grams: {e}")
+    finally:
+        c.close()
+
+
+def ensure_batch_stages():
+    """Granular batch execution.
+
+    A *batch run* is the staged making of (part of) a work order. Raw material is
+    consumed when the run starts (first stage); the run is advanced stage-by-stage
+    with a timestamped event log; on owner verification at the final stage it is
+    finalised into a production_batch (finished goods) at the ACTUAL yield — which
+    is what catches wastage (planned 500, got 485).
+
+    - batch_stage_defs : the process stages, seeded with a default 7, fully editable
+      (add/rename/reorder) without a code change.
+    - batch_runs       : one staged run (links to a work order + the FG batch it becomes).
+    - batch_run_events : the per-stage timeline (entered / note / cancelled).
+
+    Idempotent — creates tables if missing, seeds default stages only when empty.
+    """
+    c = _conn()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS batch_stage_defs (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                active     INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        if c.execute("SELECT COUNT(*) FROM batch_stage_defs").fetchone()[0] == 0:
+            for nm, so in (('Received', 10), ('Cleaning / prep', 20), ('Roasting', 30),
+                           ('Cooling', 40), ('Blending', 50), ('Packaging', 60), ('Done', 70)):
+                c.execute("INSERT INTO batch_stage_defs (name, sort_order, active) VALUES (?,?,1)", (nm, so))
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS batch_runs (
+                id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_code                 TEXT UNIQUE,
+                wo_id                    INTEGER,
+                product_id               INTEGER,
+                product_variant_id       INTEGER,
+                bom_version_id           INTEGER,
+                pack_size                TEXT,
+                qty_units                INTEGER NOT NULL,
+                qty_grams                REAL,
+                planned_ingredient_cost  REAL DEFAULT 0,
+                planned_unit_cost        REAL DEFAULT 0,
+                current_stage_id         INTEGER,
+                status                   TEXT NOT NULL DEFAULT 'in_progress',
+                actual_qty_units         INTEGER,
+                batch_id                 TEXT,
+                notes                    TEXT,
+                started_by               TEXT,
+                verified_by              TEXT,
+                started_at               TEXT DEFAULT (datetime('now')),
+                finished_at              TEXT
+            )
+        """)
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS batch_run_events (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id      INTEGER NOT NULL,
+                stage_id    INTEGER,
+                stage_name  TEXT,
+                event       TEXT,
+                note        TEXT,
+                by_user     TEXT,
+                at          TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        c.commit()
+        print("  ✓ batch_stages / batch_runs ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_batch_stages: {e}")
     finally:
         c.close()
 

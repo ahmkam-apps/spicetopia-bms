@@ -1591,7 +1591,7 @@ async function render(page, arg) {
       case 'inventory':   c.innerHTML = await renderInventory();   break;
       case 'bulk-stock':  c.innerHTML = await renderBulkStock();   break;
       case 'batch-planner': c.innerHTML = await renderBatchPlanner(); if(typeof _bpLoadReq==='function') await _bpLoadReq(); break;
-      case 'production':  c.innerHTML = await renderProduction();  break;
+      case 'production':  c.innerHTML = await renderProduction();  if(typeof _prodSwitchTab==='function') _prodSwitchTab(_prodTab); break;
       case 'bom':         c.innerHTML = await renderBomSetup();    break;
       case 'products':      c.innerHTML = await renderProducts();      break;
       case 'recipes':       c.innerHTML = await renderRecipes();       break;
@@ -7992,6 +7992,117 @@ async function renderBomSetup() {
 }
 
 
+let _prodTab = 'overview';
+function _prodSwitchTab(which) {
+  _prodTab = which;
+  ['overview','plan','wos','history'].forEach(t => {
+    const pane = document.getElementById('prodpane-' + t);
+    if (pane) pane.style.display = (t === which) ? '' : 'none';
+    const btn = document.getElementById('prodtab-' + t);
+    if (btn) {
+      btn.style.color             = (t === which) ? 'var(--saffron)' : 'var(--text-2)';
+      btn.style.borderBottomColor = (t === which) ? 'var(--saffron)' : 'transparent';
+      btn.style.fontWeight        = (t === which) ? '700' : '500';
+    }
+  });
+}
+
+// Horizontal stage stepper for a running batch. stageNum = 1-based position of the current stage.
+function _prodStepperHtml(stages, stageNum, status) {
+  return '<div style="display:flex;align-items:flex-start;margin:4px 0">' + (stages || []).map((s, i) => {
+    const pos  = i + 1;
+    const done = (status === 'completed') || pos < stageNum;
+    const now  = !done && pos === stageNum;
+    const dotBg = done ? 'var(--cardamom)' : (now ? 'var(--saffron)' : 'var(--surface)');
+    const dotBd = done ? 'var(--cardamom)' : (now ? 'var(--saffron)' : 'var(--border)');
+    const dotFg = (done || now) ? '#fff' : 'var(--text-3)';
+    const line  = i < stages.length - 1
+      ? '<div style="position:absolute;top:15px;left:50%;width:100%;height:2px;background:' + (pos < stageNum ? 'var(--cardamom)' : 'var(--surface-2)') + ';z-index:0"></div>' : '';
+    return '<div style="flex:1;text-align:center;position:relative">' + line
+      + '<div style="width:30px;height:30px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;position:relative;z-index:1;font-size:12px;border:2px solid ' + dotBd + ';background:' + dotBg + ';color:' + dotFg + (now ? ';box-shadow:0 0 0 4px var(--saffron-pale)' : '') + '">' + (done ? '✓' : pos) + '</div>'
+      + '<div style="font-size:10.5px;margin-top:5px;color:' + ((done || now) ? 'var(--text-1)' : 'var(--text-3)') + ';font-weight:' + ((done || now) ? '600' : '400') + '">' + esc(s.name) + '</div></div>';
+  }).join('') + '</div>';
+}
+
+function _prodOverviewHtml(dash, runs, stages, workOrders) {
+  const activeWoNums = new Set((runs || []).map(r => r.wo_number).filter(Boolean));
+
+  const runCards = (runs || []).map(r => {
+    const isVerify = r.status === 'awaiting_verification';
+    const nextName = (!isVerify && stages[r.stageNum]) ? stages[r.stageNum].name : 'next';
+    const pill = isVerify
+      ? '<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:11px;background:var(--saffron-pale);color:var(--saffron-deep)">awaiting your check</span>'
+      : '<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:11px;background:var(--surface-2);color:var(--text-2)">' + esc(r.stage_name || '') + ' · step ' + r.stageNum + '/' + r.stageTotal + '</span>';
+    const btn = isVerify
+      ? '<button class="btn btn-sm btn-primary" onclick="verifyBatchRun(' + r.id + ',' + r.qty_units + ')">✓ Verify &amp; finish</button>'
+      : '<button class="btn btn-sm btn-primary" onclick="advanceBatchRun(' + r.id + ')">✓ ' + esc(r.stage_name || '') + ' done → ' + esc(nextName) + '</button>';
+    return '<div class="card" style="padding:16px 18px;margin-bottom:12px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+      + '<div><span style="font-size:15px;font-weight:600">' + esc(r.product_name || '') + ' ' + esc(r.pack_size || '') + '</span> <span style="font-size:12px;color:var(--text-3);font-family:monospace;margin-left:6px">' + esc(r.run_code) + ' · ' + r.qty_units + ' packs</span></div>'
+      + pill + '</div>'
+      + _prodStepperHtml(stages, r.stageNum, r.status)
+      + '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;align-items:center">'
+      + '<span onclick="cancelBatchRun(' + r.id + ')" style="font-size:12px;color:var(--chili);cursor:pointer;margin-right:auto">Cancel run</span>'
+      + btn + '</div></div>';
+  }).join('');
+
+  const inProg = runCards
+    ? '<div style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:700;margin:6px 0 8px">Batch in progress</div>' + runCards
+    : '<div class="card" style="padding:16px 18px;margin-bottom:12px;color:var(--text-3);font-size:13px">No batch running right now. Start one from “Ready to make” below.</div>';
+
+  const upnext = (workOrders || []).filter(w =>
+      (w.status === 'planned' || w.status === 'in_progress')
+      && !activeWoNums.has(w.wo_number)
+      && (w.qty_units - (w.produced_units || 0)) > 0
+    ).map(w => {
+    const rem = w.qty_units - (w.produced_units || 0);
+    const canMake = !!w.feasibility_ok;
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-top:1px solid var(--border)">'
+      + '<div><span style="font-size:14px">' + esc(w.product_name || '') + ' ' + esc(w.pack_size || '') + '</span><div style="font-size:11px;color:var(--text-3);font-family:monospace">' + esc(w.wo_number) + ' · ' + rem + ' packs</div></div>'
+      + '<div style="display:flex;align-items:center;gap:10px">'
+      + '<span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;background:' + (canMake ? '#eafaf1' : '#fff5f5') + ';color:' + (canMake ? '#1aaa55' : '#e03131') + '">' + (canMake ? 'materials ready' : 'short on stock') + '</span>'
+      + '<button class="btn btn-sm btn-primary" onclick="startBatchRun(' + w.id + ')">▶ Start batch</button></div></div>';
+  }).join('') || '<div style="color:var(--text-3);font-size:12px;padding:10px 0">No work orders waiting. Create one under Work orders.</div>';
+
+  return (dash ? _prodDashHtml(dash) : '')
+    + inProg
+    + '<div style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:700;margin:18px 0 6px">Ready to make</div>'
+    + '<div class="card" style="padding:4px 18px">' + upnext + '</div>';
+}
+
+// ── Batch-run actions (the staged making of a work order) ──────────────
+async function startBatchRun(woId) {
+  if (!confirm('Start a batch for this work order?\n\nRaw material will be taken from stock now.')) return;
+  try {
+    const r = await POST('/api/work-orders/' + woId + '/start-batch', {});
+    alert('Batch ' + r.runCode + ' started (' + r.qtyUnits + ' packs). Advance it stage by stage as you go.');
+    nav('production');
+  } catch (e) { alert(e.message || 'Could not start batch'); }
+}
+async function advanceBatchRun(runId) {
+  try { await POST('/api/batch-runs/' + runId + '/advance', {}); nav('production'); }
+  catch (e) { alert(e.message || 'Could not advance batch'); }
+}
+async function verifyBatchRun(runId, plannedQty) {
+  const a = prompt('How many packs did this batch actually yield?\n(Enter the real count — this is what goes into finished-goods stock.)', plannedQty);
+  if (a === null) return;
+  const q = parseInt(a, 10);
+  if (!q || q <= 0) { alert('Please enter a valid number of packs.'); return; }
+  try {
+    const r = await POST('/api/batch-runs/' + runId + '/verify', { actualQty: q });
+    let msg = 'Done — batch ' + r.batchId + ': ' + r.qtyUnits + ' packs added to stock.';
+    if (r.yieldLoss > 0) msg += '\n(' + r.yieldLoss + ' packs short of the planned ' + r.plannedQty + ' — wastage recorded.)';
+    alert(msg);
+    nav('production');
+  } catch (e) { alert(e.message || 'Could not verify batch'); }
+}
+async function cancelBatchRun(runId) {
+  if (!confirm('Cancel this batch run?\n\nThe raw material taken at the start will be returned to stock.')) return;
+  const reason = prompt('Reason (optional):', '') || '';
+  try { await POST('/api/batch-runs/' + runId + '/cancel', { reason }); nav('production'); }
+  catch (e) { alert(e.message || 'Could not cancel batch'); }
+}
+
 function _prodDashHtml(d) {
   const pct = d.target > 0 ? Math.min(100, Math.round(d.madeThisMonth / d.target * 100)) : 0;
   const kpi = (label, val, sub, color) => '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px">'
@@ -8027,11 +8138,15 @@ function _prodDashHtml(d) {
 }
 
 async function renderProduction() {
-  const [batches, workOrders, prodDash] = await Promise.all([
+  const [batches, workOrders, prodDash, runsResp, stagesResp] = await Promise.all([
     GET('/api/production'),
     GET('/api/work-orders'),
-    GET('/api/production/dashboard').catch(() => null)
+    GET('/api/production/dashboard').catch(() => null),
+    GET('/api/batch-runs?status=active').catch(() => ({ runs: [] })),
+    GET('/api/batch-stages').catch(() => ({ stages: [] }))
   ]);
+  const batchRuns   = (runsResp && runsResp.runs)   || [];
+  const batchStages = (stagesResp && stagesResp.stages) || [];
 
   // Pre-load BOMs for all products (for BOM setup panel)
   const products = state.ref.products || [];
@@ -8137,15 +8252,37 @@ async function renderProduction() {
     </tr>`;
   }).join('');
 
+  const _subtab = (id, label) => '<span id="prodtab-' + id + '" onclick="_prodSwitchTab(\'' + id + '\')" style="font-size:13px;padding:9px 15px;cursor:pointer;color:var(--text-2);border-bottom:2px solid transparent;margin-bottom:-1px">' + label + '</span>';
+
   return `
-  <!-- ── KPI STRIP ─────────────────────────────────────── -->
+  <!-- ── HEADER + SUB-TABS ─────────────────────────────── -->
   <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
     <h2>Production</h2>
-    <button class="btn btn-primary btn-sm" onclick="showWoForm()">+ New Work Order</button>
+    <div style="display:flex;gap:8px">
+      ${canRecipe() ? '<button class="btn btn-outline btn-sm" onclick="nav(\'batch-planner\')">🎚 Plan a batch</button>' : ''}
+      <button class="btn btn-primary btn-sm" onclick="_prodSwitchTab('wos');showWoForm()">+ New Work Order</button>
+    </div>
   </div>
 
-  ${prodDash ? _prodDashHtml(prodDash) : ''}
+  <div style="display:flex;gap:2px;border-bottom:1px solid var(--border);margin:8px 0 16px">
+    ${_subtab('overview','Overview')}${_subtab('plan','Plan')}${_subtab('wos','Work orders')}${_subtab('history','Batch history')}
+  </div>
 
+  <!-- ══ OVERVIEW PANE ═════════════════════════════════ -->
+  <div id="prodpane-overview">
+    ${_prodOverviewHtml(prodDash, batchRuns, batchStages, workOrders)}
+  </div>
+
+  <!-- ══ PLAN PANE (Phase C placeholder) ═══════════════ -->
+  <div id="prodpane-plan" style="display:none">
+    <div class="card" style="padding:22px">
+      <h3 style="margin-top:0">Monthly plan</h3>
+      <p style="color:var(--text-2);font-size:13px;max-width:600px;line-height:1.6">Plan the month's batches week by week and get a single "raw material to buy" list — coming next. For now, use ${canRecipe() ? '<a onclick="nav(\'batch-planner\')" style="color:var(--saffron);cursor:pointer;font-weight:600">the batch planner</a>' : 'the batch planner'} to size a run against current stock, then create a work order under <a onclick="_prodSwitchTab('wos')" style="color:var(--saffron);cursor:pointer;font-weight:600">Work orders</a>.</p>
+    </div>
+  </div>
+
+  <!-- ══ WORK ORDERS PANE ══════════════════════════════ -->
+  <div id="prodpane-wos" style="display:none">
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px">
     <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="filterWoTable('planned')" title="Show Planned work orders">
       <div style="font-size:22px;font-weight:800;color:var(--mac-blue)">${woPlanned}</div>
@@ -8244,8 +8381,10 @@ async function renderProduction() {
 
   <!-- ── DETAIL PANELS (shown on demand) ─────────────────── -->
   <div id="procurement-panel"></div>
+  </div><!-- /prodpane-wos -->
 
-  <!-- ── BATCH HISTORY ────────────────────────────────────── -->
+  <!-- ══ BATCH HISTORY PANE ════════════════════════════ -->
+  <div id="prodpane-history" style="display:none">
   <div class="card" id="batch-history-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <h3>Batch History</h3>
@@ -8299,7 +8438,8 @@ async function renderProduction() {
         </tfoot>` : ''}
       </table>
     </div>
-  </div>`;
+  </div>
+  </div><!-- /prodpane-history -->`;
 }
 
 function filterWoTable(status) {

@@ -41,6 +41,13 @@ __all__ = [
     'create_production_batch',
     'create_or_update_bom',
     'import_bom_master',
+    'list_batch_stages',
+    'start_batch_run',
+    'advance_batch_run',
+    'verify_batch_run',
+    'cancel_batch_run',
+    'list_batch_runs',
+    'get_batch_run',
 ]
 
 
@@ -616,6 +623,361 @@ def create_production_batch(data, exclude_wo_id=None):
         'totalIngredientCost': total_ingredient_cost,
         'unitCostAtPosting':   unit_cost_at_posting,   # frozen — never changes after posting
     }
+
+
+# ─────────────────────────────────────────────────────────────────
+#  STAGED BATCH RUNS  (granular, stage-by-stage execution)
+# ─────────────────────────────────────────────────────────────────
+#
+#  A "batch run" is the making of (part of) a work order, tracked as a process:
+#     Received → Cleaning → Roasting → Cooling → Blending → Packaging → Done
+#  Raw material is consumed when the run STARTS (the floor has physically taken it).
+#  The run is advanced stage-by-stage (timestamped). On owner VERIFICATION at the
+#  final stage it becomes a finished-goods production_batch at the ACTUAL yield —
+#  which is what surfaces wastage (planned 500, verified 485).
+#
+#  production_batches stays exactly "verified finished goods" — an unverified run
+#  never counts as FG, so stock/dashboard/reports accounting is undisturbed.
+
+def list_batch_stages():
+    """Ordered active process stages (configurable via the batch_stage_defs table)."""
+    return qry("SELECT id, name, sort_order FROM batch_stage_defs "
+               "WHERE active=1 ORDER BY sort_order, id") or []
+
+
+def _bom_requirements(variant_id, qty_units, bom_version_id=None):
+    """BOM ingredient requirements (grams) + frozen cost for qty_units of a variant.
+    bom_version_id: pin to a specific BOM version (used at verify so consumption matches
+    exactly what was taken at start, even if the active BOM changed since).
+    Returns (var, bom_ver, requirements[], total_grams, total_ingredient_cost, unit_cost)."""
+    var = _lookup_variant_by_id(variant_id)
+    if not var:
+        raise ValueError("Product variant not found")
+    qty_units = int(qty_units)
+    if qty_units <= 0:
+        raise ValueError("Quantity must be positive")
+    total_grams = r2(qty_units * var['pack_grams'])
+    if bom_version_id:
+        bom_ver = qry1("SELECT * FROM bom_versions WHERE id=?", (bom_version_id,))
+    else:
+        bom_ver = qry1("""SELECT * FROM bom_versions WHERE product_id=? AND active_flag=1
+                          ORDER BY version_no DESC LIMIT 1""", (var['product_id'],))
+    if not bom_ver:
+        raise ValueError(f"No active BOM found for {var['product_name']}.")
+    items = qry("""SELECT bi.quantity_grams, i.code as ing_code, i.id as ingredient_id
+                   FROM bom_items bi JOIN ingredients i ON i.id=bi.ingredient_id
+                   WHERE bi.bom_version_id=?""", (bom_ver['id'],))
+    scale = total_grams / float(bom_ver['batch_size_grams']) if bom_ver['batch_size_grams'] else 0
+    reqs = []
+    for b in items:
+        needed  = r2(b['quantity_grams'] * scale)
+        ing_row = qry1("SELECT cost_per_kg FROM ingredients WHERE id=?", (b['ingredient_id'],))
+        cpk     = r2(ing_row['cost_per_kg']) if ing_row else 0.0
+        reqs.append({'ingredient_id': b['ingredient_id'], 'ing_code': b['ing_code'],
+                     'needed_grams': needed, 'cost_per_kg': cpk})
+    total_cost = r2(sum((rq['needed_grams'] / 1000.0) * rq['cost_per_kg'] for rq in reqs))
+    unit_cost  = r2(total_cost / qty_units) if qty_units else 0.0
+    return var, bom_ver, reqs, total_grams, total_cost, unit_cost
+
+
+def start_batch_run(wo_id, qty=None, user=None):
+    """Begin a staged batch run from a work order. Consumes raw material NOW, sets the run at
+    the first stage, logs the first event, and moves the WO to in_progress.
+    qty=None → the WO's full remaining quantity; qty=N → a partial (one weekly run).
+    Raises with a clear shortfall message if stock is insufficient (run NOT created)."""
+    from modules.inventory import get_stock_map, get_wo_reserved_stock_map
+
+    wo = qry1("SELECT * FROM work_orders WHERE id=?", (wo_id,))
+    if not wo:
+        raise ValueError("Work order not found")
+    if wo['status'] not in ('planned', 'in_progress'):
+        raise ValueError(f"Work order is {wo['status']} — cannot start a batch")
+
+    active = qry1("""SELECT id, run_code FROM batch_runs
+                     WHERE wo_id=? AND status IN ('in_progress','awaiting_verification')""", (wo_id,))
+    if active:
+        raise ValueError(f"This work order already has an active batch run ({active['run_code']}). "
+                         "Finish or cancel it first.")
+
+    target    = int(wo['qty_units'])
+    produced  = int(wo.get('produced_units') or 0)
+    remaining = target - produced
+    if remaining <= 0:
+        raise ValueError("Work order is already fully produced")
+    make_qty = remaining if qty is None else int(qty)
+    if make_qty <= 0:
+        raise ValueError("Quantity must be positive")
+    if make_qty > remaining:
+        make_qty = remaining
+
+    var, bom_ver, reqs, total_grams, total_cost, unit_cost = _bom_requirements(
+        wo['product_variant_id'], make_qty)
+
+    # stock guard — exclude this WO's own reservation (else it blocks itself)
+    stock_map    = get_stock_map()
+    reserved_map = get_wo_reserved_stock_map(exclude_wo_id=wo_id)
+    shortfalls = []
+    for req in reqs:
+        physical  = stock_map.get(req['ingredient_id'], 0)
+        reserved  = reserved_map.get(req['ingredient_id'], 0)
+        available = max(0.0, r2(physical - reserved))
+        if req['needed_grams'] > available + 0.001:
+            shortfalls.append(f"{req['ing_code']}: need {req['needed_grams']:.1f}g, "
+                              f"available {available:.1f}g")
+    if shortfalls:
+        raise ValueError("Insufficient stock:\n" + "\n".join(shortfalls))
+
+    stages = list_batch_stages()
+    if not stages:
+        raise ValueError("No batch stages configured")
+    first_stage = stages[0]
+
+    _sync_counter_to_max('batchrun', 'batch_runs', 'run_code', 'SP-RUN-')
+    run_code = next_id('batchrun', 'RUN')
+
+    c = _conn()
+    try:
+        c.execute("""INSERT INTO batch_runs
+            (run_code, wo_id, product_id, product_variant_id, bom_version_id, pack_size,
+             qty_units, qty_grams, planned_ingredient_cost, planned_unit_cost,
+             current_stage_id, status, started_by, notes)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,'in_progress',?,?)""",
+            (run_code, wo_id, var['product_id'], var['id'], bom_ver['id'], var['pack_size'],
+             make_qty, total_grams, total_cost, unit_cost, first_stage['id'],
+             user or '', f"From Work Order {wo['wo_number']}"))
+        run_db_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        for req in reqs:   # consume RM now (the floor has taken it)
+            c.execute("""INSERT INTO inventory_ledger
+                         (ingredient_id, movement_type, qty_grams, reference_id, notes)
+                         VALUES (?, 'PRODUCTION_USE', ?, ?, ?)""",
+                      (req['ingredient_id'], -req['needed_grams'], run_code,
+                       f"Batch run {run_code}"))
+
+        c.execute("""INSERT INTO batch_run_events (run_id, stage_id, stage_name, event, by_user)
+                     VALUES (?,?,?, 'entered', ?)""",
+                  (run_db_id, first_stage['id'], first_stage['name'], user or ''))
+        c.execute("UPDATE work_orders SET status='in_progress', updated_at=datetime('now') WHERE id=?",
+                  (wo_id,))
+        c.commit()
+    except Exception:
+        c.rollback(); raise
+    finally:
+        c.close()
+    save_db()
+    return {'runId': run_db_id, 'runCode': run_code, 'woNumber': wo['wo_number'],
+            'qtyUnits': make_qty, 'stage': first_stage['name'], 'status': 'in_progress'}
+
+
+def advance_batch_run(run_id, note=None, user=None):
+    """Complete the current stage and move to the next, with a timestamped event. Advancing
+    INTO the final stage flips the run to 'awaiting_verification' (owner confirms yield to finish)."""
+    r = qry1("SELECT * FROM batch_runs WHERE id=?", (run_id,))
+    if not r:
+        raise ValueError("Batch run not found")
+    if r['status'] != 'in_progress':
+        raise ValueError(f"Batch run is {r['status']} — cannot advance")
+    stages = list_batch_stages()
+    ids = [s['id'] for s in stages]
+    idx = ids.index(r['current_stage_id']) if r['current_stage_id'] in ids else 0
+    if idx >= len(stages) - 1:
+        raise ValueError("Batch is at the final stage — verify it to finish.")
+    cur = stages[idx]
+    nxt = stages[idx + 1]
+    new_status = 'awaiting_verification' if (idx + 1) == len(stages) - 1 else 'in_progress'
+    c = _conn()
+    try:
+        c.execute("""INSERT INTO batch_run_events (run_id, stage_id, stage_name, event, note, by_user)
+                     VALUES (?,?,?, 'completed', ?, ?)""",
+                  (run_id, cur['id'], cur['name'], note or '', user or ''))
+        c.execute("""INSERT INTO batch_run_events (run_id, stage_id, stage_name, event, by_user)
+                     VALUES (?,?,?, 'entered', ?)""",
+                  (run_id, nxt['id'], nxt['name'], user or ''))
+        c.execute("UPDATE batch_runs SET current_stage_id=?, status=? WHERE id=?",
+                  (nxt['id'], new_status, run_id))
+        c.commit()
+    except Exception:
+        c.rollback(); raise
+    finally:
+        c.close()
+    save_db()
+    return {'runCode': r['run_code'], 'stage': nxt['name'], 'status': new_status,
+            'stageNum': idx + 2, 'stageTotal': len(stages)}
+
+
+def verify_batch_run(run_id, actual_qty=None, user=None):
+    """Owner confirms the run → finalises it into a finished-goods production_batch at the ACTUAL
+    yield (defaults to planned qty). RM was already deducted at start, so this only ADDS finished
+    goods; it records consumption (for reporting) from the run's frozen BOM version, links the
+    batch, marks the run completed, and advances/completes the work order."""
+    r = qry1("SELECT * FROM batch_runs WHERE id=?", (run_id,))
+    if not r:
+        raise ValueError("Batch run not found")
+    if r['status'] not in ('awaiting_verification', 'in_progress'):
+        raise ValueError(f"Batch run is {r['status']} — cannot verify")
+    make_qty = int(actual_qty) if actual_qty not in (None, '') else int(r['qty_units'])
+    if make_qty <= 0:
+        raise ValueError("Actual quantity must be positive")
+
+    var = _lookup_variant_by_id(r['product_variant_id'])
+    if not var:
+        raise ValueError("Product variant not found")
+    actual_grams = r2(make_qty * var['pack_grams'])
+
+    # consumption from the run's FROZEN bom version + PLANNED qty (matches RM taken at start)
+    bom_ver = qry1("SELECT batch_size_grams FROM bom_versions WHERE id=?", (r['bom_version_id'],))
+    items   = qry("SELECT quantity_grams, ingredient_id FROM bom_items WHERE bom_version_id=?",
+                  (r['bom_version_id'],)) or []
+    planned_grams = r2(int(r['qty_units']) * var['pack_grams'])
+    scale = planned_grams / float(bom_ver['batch_size_grams']) if bom_ver and bom_ver['batch_size_grams'] else 0
+    consumption = [(b['ingredient_id'], r2(b['quantity_grams'] * scale)) for b in items]
+
+    _sync_counter_to_max('batch', 'production_batches', 'batch_id', 'SP-BATCH-')
+    batch_id = next_id('batch', 'BATCH')
+
+    c = _conn()
+    try:
+        c.execute("""INSERT INTO production_batches
+            (batch_id, batch_date, product_id, product_variant_id, bom_version_id,
+             qty_grams, qty_units, pack_size, mfg_date, best_before, notes, unit_cost_at_posting)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (batch_id, today(), r['product_id'], r['product_variant_id'], r['bom_version_id'],
+             actual_grams, make_qty, r['pack_size'], today(), '',
+             f"Batch run {r['run_code']}", r2(r['planned_unit_cost'] or 0)))
+        batch_db_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        for ing_id, g in consumption:   # reporting only — RM ledger deducted at start
+            c.execute("INSERT INTO production_consumption (batch_id, ingredient_id, qty_grams) VALUES (?,?,?)",
+                      (batch_db_id, ing_id, g))
+
+        c.execute("""UPDATE batch_runs SET status='completed', actual_qty_units=?, batch_id=?,
+                     verified_by=?, finished_at=datetime('now') WHERE id=?""",
+                  (make_qty, batch_id, user or '', run_id))
+
+        wo = c.execute("SELECT wo_number, qty_units, COALESCE(produced_units,0) FROM work_orders WHERE id=?",
+                       (r['wo_id'],)).fetchone() if r['wo_id'] else None
+        wo_status = None
+        if wo:
+            # Advance the WO by the run's PLANNED quantity (the RM was committed for it),
+            # not the actual yield — otherwise a wastage shortfall (made 485 of 500) would
+            # leave a phantom 15-unit remainder and prompt another run buying more RM.
+            # The actual yield is captured on the production_batch (finished goods) above.
+            target = int(wo[1]); produced = int(wo[2]) + int(r['qty_units'])
+            wo_status = 'completed' if produced >= target else 'in_progress'
+            c.execute("UPDATE work_orders SET status=?, produced_units=?, batch_id=?, updated_at=datetime('now') WHERE id=?",
+                      (wo_status, produced, batch_id, r['wo_id']))
+
+        c.execute("""INSERT INTO batch_run_events (run_id, stage_id, stage_name, event, note, by_user)
+                     VALUES (?,?,?, 'verified', ?, ?)""",
+                  (run_id, r['current_stage_id'], 'Done', f"Verified {make_qty} packs", user or ''))
+        c.execute("""INSERT INTO change_log (table_name, record_id, action, new_value)
+                     VALUES ('production_batches',?,'INSERT',?)""",
+                  (batch_id, json.dumps({'from_run': r['run_code'], 'qty_units': make_qty,
+                                         'pack_size': r['pack_size'], 'total_grams': actual_grams})))
+        c.commit()
+    except Exception:
+        c.rollback(); raise
+    finally:
+        c.close()
+    save_db()
+    return {'batchId': batch_id, 'runCode': r['run_code'], 'qtyUnits': make_qty,
+            'plannedQty': int(r['qty_units']), 'yieldLoss': int(r['qty_units']) - make_qty,
+            'woStatus': wo_status}
+
+
+def cancel_batch_run(run_id, reason=None, user=None):
+    """Cancel an unfinished run and RESTORE the raw material consumed at start (positive
+    ADJUSTMENT movements). The work order stays open so it can be re-run; produced_units is
+    untouched (nothing was verified)."""
+    r = qry1("SELECT * FROM batch_runs WHERE id=?", (run_id,))
+    if not r:
+        raise ValueError("Batch run not found")
+    if r['status'] not in ('in_progress', 'awaiting_verification'):
+        raise ValueError(f"Batch run is {r['status']} — cannot cancel")
+    consumed = qry("""SELECT ingredient_id, SUM(qty_grams) AS g FROM inventory_ledger
+                      WHERE reference_id=? AND movement_type='PRODUCTION_USE'
+                      GROUP BY ingredient_id""", (r['run_code'],)) or []
+    c = _conn()
+    try:
+        for row in consumed:
+            g = r2(row['g'] or 0)   # negative — add back the opposite
+            if g != 0:
+                c.execute("""INSERT INTO inventory_ledger
+                             (ingredient_id, movement_type, qty_grams, reference_id, notes)
+                             VALUES (?, 'ADJUSTMENT', ?, ?, ?)""",
+                          (row['ingredient_id'], -g, r['run_code'],
+                           f"Batch run {r['run_code']} cancelled — RM restored"))
+        c.execute("UPDATE batch_runs SET status='cancelled', finished_at=datetime('now') WHERE id=?",
+                  (run_id,))
+        c.execute("""INSERT INTO batch_run_events (run_id, stage_id, stage_name, event, note, by_user)
+                     VALUES (?,?,?, 'cancelled', ?, ?)""",
+                  (run_id, r['current_stage_id'], '', reason or '', user or ''))
+        c.commit()
+    except Exception:
+        c.rollback(); raise
+    finally:
+        c.close()
+    save_db()
+    return {'runCode': r['run_code'], 'status': 'cancelled', 'restored': len(consumed)}
+
+
+def list_batch_runs(status=None):
+    """Batch runs for the Production overview / Batch Runner. status='active' → in-progress +
+    awaiting-verification; otherwise filter by the exact status, or all."""
+    where, params = "", ()
+    if status == 'active':
+        where = "WHERE br.status IN ('in_progress','awaiting_verification')"
+    elif status:
+        where = "WHERE br.status=?"; params = (status,)
+    rows = qry(f"""
+        SELECT br.id, br.run_code, br.wo_id, br.qty_units, br.actual_qty_units, br.status,
+               br.batch_id, br.started_at, br.finished_at, br.current_stage_id,
+               p.name AS product_name, br.pack_size, sd.name AS stage_name, wo.wo_number
+        FROM batch_runs br
+        LEFT JOIN products p ON p.id = br.product_id
+        LEFT JOIN batch_stage_defs sd ON sd.id = br.current_stage_id
+        LEFT JOIN work_orders wo ON wo.id = br.wo_id
+        {where}
+        ORDER BY (br.status='completed'), br.started_at DESC
+    """, params) or []
+    stages = list_batch_stages()
+    total = len(stages)
+    out = []
+    for r in rows:
+        d = dict(r)
+        d['stageNum'] = next((i + 1 for i, s in enumerate(stages) if s['id'] == r['current_stage_id']), 0)
+        d['stageTotal'] = total
+        out.append(d)
+    return out
+
+
+def get_batch_run(run_id):
+    """One run with its stage timeline + event log. Exposes pack counts only — no ingredient
+    quantities (the recipe secret stays out of this view)."""
+    r = qry1("""SELECT br.*, p.name AS product_name, wo.wo_number
+                FROM batch_runs br
+                LEFT JOIN products p ON p.id=br.product_id
+                LEFT JOIN work_orders wo ON wo.id=br.wo_id
+                WHERE br.id=?""", (run_id,))
+    if not r:
+        raise ValueError("Batch run not found")
+    d = dict(r)
+    stages = list_batch_stages()
+    events = qry("""SELECT stage_id, stage_name, event, note, at, by_user
+                    FROM batch_run_events WHERE run_id=? ORDER BY id""", (run_id,)) or []
+    cur_pos = next((i for i, s in enumerate(stages) if s['id'] == r['current_stage_id']), -1)
+    completed = (r['status'] == 'completed')
+    timeline = []
+    for i, s in enumerate(stages):
+        state = 'done' if (completed or i < cur_pos) else ('now' if i == cur_pos else 'todo')
+        ev = next((e for e in events if e['stage_id'] == s['id']), None)
+        timeline.append({'id': s['id'], 'name': s['name'], 'state': state,
+                         'at': ev['at'] if ev else None})
+    d['stages'] = timeline
+    d['events'] = [dict(e) for e in events]
+    d['stageNum'] = cur_pos + 1 if cur_pos >= 0 else 0
+    d['stageTotal'] = len(stages)
+    return d
 
 
 # ─────────────────────────────────────────────────────────────────

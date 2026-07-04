@@ -2801,6 +2801,35 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_production_dashboard())
                 return
 
+            # GET /api/batch-stages  (admin, warehouse) — configurable process stages
+            if path == '/api/batch-stages':
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                send_json(self, {'stages': list_batch_stages()})
+                return
+
+            # GET /api/batch-runs[?status=active|in_progress|awaiting_verification|completed|cancelled]
+            if path == '/api/batch-runs':
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                st = qs.get('status', [None])[0]
+                send_json(self, {'runs': list_batch_runs(st)})
+                return
+
+            # GET /api/batch-runs/:id  — staged run detail (stage timeline; no recipe quantities)
+            if path.startswith('/api/batch-runs/'):
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                try:
+                    run_id = int(path.split('/')[3])
+                except (ValueError, IndexError):
+                    send_error(self, 'Invalid batch run id', 400); return
+                try:
+                    send_json(self, get_batch_run(run_id))
+                except ValueError as e:
+                    send_error(self, str(e), 404)
+                return
+
             # GET /api/production/:id  — batch detail with ingredient breakdown (consumption grams → recipe-gated)
             if path.startswith('/api/production/') and len(path.split('/')) == 4:
                 if not _can_recipe(sess):
@@ -4380,6 +4409,55 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result, 201)
                 return
 
+            # POST /api/work-orders/:id/start-batch  (admin, warehouse) — begin a staged batch run
+            if path.startswith('/api/work-orders/') and path.endswith('/start-batch'):
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                wo_id = int(path.split('/')[-2])
+                _q = data.get('qtyUnits') if isinstance(data, dict) else None
+                try:
+                    result = start_batch_run(wo_id, int(_q) if _q else None, sess.get('username'))
+                    send_json(self, result, 201)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
+            # POST /api/batch-runs/:id/advance  (admin, warehouse) — complete current stage → next
+            if path.startswith('/api/batch-runs/') and path.endswith('/advance'):
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                run_id = int(path.split('/')[-2])
+                try:
+                    result = advance_batch_run(run_id, (data or {}).get('note'), sess.get('username'))
+                    send_json(self, result)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
+            # POST /api/batch-runs/:id/verify  (admin, warehouse) — finalise to FG at actual yield
+            if path.startswith('/api/batch-runs/') and path.endswith('/verify'):
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                run_id = int(path.split('/')[-2])
+                try:
+                    result = verify_batch_run(run_id, (data or {}).get('actualQty'), sess.get('username'))
+                    send_json(self, result, 201)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
+            # POST /api/batch-runs/:id/cancel  (admin, warehouse) — cancel + restore RM
+            if path.startswith('/api/batch-runs/') and path.endswith('/cancel'):
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                run_id = int(path.split('/')[-2])
+                try:
+                    result = cancel_batch_run(run_id, (data or {}).get('reason'), sess.get('username'))
+                    send_json(self, result)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
             # POST /api/work-orders/:id/status  (admin, warehouse)
             if path.startswith('/api/work-orders/') and path.endswith('/status'):
                 if not require(sess, 'admin', 'warehouse'):
@@ -5817,6 +5895,7 @@ if __name__ == '__main__':
         ensure_scenario_type_cleanup, ensure_plan_forecast_zone, ensure_operating_costs,
         ensure_deactivate_spring_catalog, ensure_rep_zones, ensure_dedup_seed_suppliers,
         ensure_cost_lines, ensure_wo_produced_units, ensure_ingredient_target_grams,
+        ensure_batch_stages,
         backfill_customer_account_numbers,
     ):
         try:
