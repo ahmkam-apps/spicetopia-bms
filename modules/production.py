@@ -298,13 +298,29 @@ def create_work_order(data):
     }
 
 
-def convert_wo_to_batch(wo_id):
-    """Convert a planned work order into a production batch."""
+def convert_wo_to_batch(wo_id, qty=None):
+    """Convert all — or PART — of a work order into a production batch.
+
+    qty=None  → make the full remaining quantity and complete the WO (original behaviour).
+    qty=N     → make N units now; the WO stays 'in_progress' with the remainder, and only
+                completes once produced_units reaches its target (e.g. 250/week → 1000 WO).
+    """
     wo = qry1("SELECT * FROM work_orders WHERE id=?", (wo_id,))
     if not wo:
         raise ValueError("Work order not found")
     if wo['status'] not in ('planned', 'in_progress'):
         raise ValueError(f"Work order is {wo['status']} — cannot convert")
+
+    target    = int(wo['qty_units'])
+    produced  = int(wo.get('produced_units') or 0)
+    remaining = target - produced
+    if remaining <= 0:
+        raise ValueError("Work order is already fully produced")
+    make_qty = remaining if qty is None else int(qty)
+    if make_qty <= 0:
+        raise ValueError("Quantity must be positive")
+    if make_qty > remaining:
+        make_qty = remaining   # never overshoot the WO target
 
     var = _lookup_variant_by_id(wo['product_variant_id'])
     if not var:
@@ -317,17 +333,21 @@ def convert_wo_to_batch(wo_id):
     result = create_production_batch({
         'productCode': prod['code'],
         'packSize':    var['pack_size'],
-        'qtyUnits':    wo['qty_units'],
+        'qtyUnits':    make_qty,
         'batchDate':   today(),
         'mfgDate':     today(),
         'bestBefore':  '',
-        'notes':       f"From Work Order {wo['wo_number']}",
+        'notes':       f"From Work Order {wo['wo_number']}" + (f" (partial {make_qty}/{target})" if make_qty < remaining or produced else ''),
     }, exclude_wo_id=wo_id)
 
-    # Mark work order as completed
-    run("UPDATE work_orders SET status='completed', batch_id=?, updated_at=datetime('now') WHERE id=?",
-        (result['batchId'], wo_id))
-    result['woNumber'] = wo['wo_number']
+    new_produced = produced + make_qty
+    new_status   = 'completed' if new_produced >= target else 'in_progress'
+    run("UPDATE work_orders SET status=?, produced_units=?, batch_id=?, updated_at=datetime('now') WHERE id=?",
+        (new_status, new_produced, result['batchId'], wo_id))
+    result['woNumber']  = wo['wo_number']
+    result['produced']  = new_produced
+    result['remaining'] = target - new_produced
+    result['woStatus']  = new_status
     return result
 
 

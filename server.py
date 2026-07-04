@@ -4358,7 +4358,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not require(sess, 'admin', 'warehouse'):
                     send_error(self, 'Permission denied', 403); return
                 wo_id = int(path.split('/')[-2])
-                result = convert_wo_to_batch(wo_id)
+                _q = data.get('qtyUnits') if isinstance(data, dict) else None
+                result = convert_wo_to_batch(wo_id, int(_q) if _q else None)
                 send_json(self, result, 201)
                 return
 
@@ -5777,7 +5778,7 @@ if __name__ == '__main__':
         ensure_plan_m2_tables, ensure_plan_code, ensure_plan_release,
         ensure_scenario_type_cleanup, ensure_plan_forecast_zone, ensure_operating_costs,
         ensure_deactivate_spring_catalog, ensure_rep_zones, ensure_dedup_seed_suppliers,
-        ensure_cost_lines,
+        ensure_cost_lines, ensure_wo_produced_units,
         backfill_customer_account_numbers,
     ):
         try:

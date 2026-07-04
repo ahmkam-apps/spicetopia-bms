@@ -1343,7 +1343,14 @@ def release_to_manufacturing(version_id, period_month, changed_by):
 
     released = set()
     if _table_exists('plan_release'):
-        for r in qry("SELECT variant_id FROM plan_release WHERE plan_version_id=? AND period_month=?",
+        # A SKU-month counts as "already released" only if its released WO still exists and
+        # is NOT cancelled. So cancelling a WO frees that SKU-month to be re-released (and
+        # pick up an edited quantity). A missing or cancelled WO → re-release is allowed.
+        for r in qry("""SELECT r.variant_id
+                        FROM plan_release r
+                        LEFT JOIN work_orders w ON w.id = r.work_order_id
+                        WHERE r.plan_version_id=? AND r.period_month=?
+                          AND w.id IS NOT NULL AND w.status != 'cancelled'""",
                      (version_id, month)):
             released.add(r['variant_id'])
 
@@ -1373,7 +1380,7 @@ def release_to_manufacturing(version_id, period_month, changed_by):
         c = _conn()
         try:
             for item in created:
-                c.execute("""INSERT INTO plan_release
+                c.execute("""INSERT OR REPLACE INTO plan_release
                              (plan_version_id, period_month, variant_id, work_order_id, released_by)
                              VALUES (?,?,?,?,?)""",
                           (version_id, month, item['variant_id'], item['work_order_id'], changed_by))

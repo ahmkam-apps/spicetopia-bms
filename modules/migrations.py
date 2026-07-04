@@ -52,6 +52,7 @@ __all__ = [
     'ensure_rep_zones',
     'ensure_dedup_seed_suppliers',
     'ensure_cost_lines',
+    'ensure_wo_produced_units',
 ]
 
 
@@ -1309,6 +1310,23 @@ def ensure_operating_costs():
         c.execute("UPDATE costing_config SET value='600' WHERE key='normal_monthly_volume' AND value='1000'")
         c.commit()
         print("  ✓ Operating costs table ready")
+    finally:
+        c.close()
+
+
+def ensure_wo_produced_units():
+    """Add produced_units to work_orders so ONE work order can be made in several batches
+    (e.g. 250/week toward a 1000 WO). The WO stays in_progress until produced reaches the
+    target, then completes. Idempotent."""
+    c = _conn()
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(work_orders)").fetchall()]
+        if cols and 'produced_units' not in cols:
+            c.execute("ALTER TABLE work_orders ADD COLUMN produced_units INTEGER NOT NULL DEFAULT 0")
+            c.commit()
+        print("  ✓ work_orders.produced_units ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_wo_produced_units: {e}")
     finally:
         c.close()
 

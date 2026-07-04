@@ -1796,6 +1796,7 @@ async function renderHome() {
     + tile('🏭', 'Production', "nav('production')")
     + (canCostsU ? tile('🏷️', 'Pricing', "nav('pricing')") : '')
     + (canCostsU ? tile('📅', 'Cost Tracking', "nav('cost-tracking')") : '')
+    + (canPlan ? tile('🧭', 'Planning', "location.href='/planning.html'") : '')
     + tile('📊', 'Full dashboard', "nav('dashboard')")
     + tile('📈', 'Reports', "nav('pl-report')")
     + '</div>';
@@ -8054,7 +8055,7 @@ async function renderProduction() {
         ${wo.wo_number}
         ${wo.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="event.stopPropagation();nav('orders-invoices');setTimeout(()=>openOrderDetail(${wo.customer_order_id}),400)">📋 ${wo.customer_order_number}</span>` : ''}
       </td>
-      <td>${wo.product_name}<br><span style="font-size:11px;color:var(--text-3)">${wo.pack_size||''} · ${wo.qty_units} units</span></td>
+      <td>${wo.product_name}<br><span style="font-size:11px;color:var(--text-3)">${wo.pack_size||''} · ${wo.qty_units} units</span>${(wo.produced_units||0) > 0 ? `<br><span style="font-size:11px;color:var(--saffron-deep);font-weight:600">made ${wo.produced_units}/${wo.qty_units} · ${wo.qty_units - wo.produced_units} left</span>` : ''}</td>
       <td style="text-align:center">${woBadge(wo.status, !!wo.feasibility_ok)}</td>
       <td style="text-align:center">${fmtDate(wo.target_date)||'<span style="color:var(--text-3)">—</span>'}</td>
       <td style="text-align:center">${wo.batch_id
@@ -8062,7 +8063,7 @@ async function renderProduction() {
         : '<span style="color:var(--text-3);font-size:11px">—</span>'}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-xs btn-outline" onclick="event.stopPropagation();showProcurementList(${wo.id},'${wo.wo_number}')" title="Ingredient &amp; Procurement List">📋 Cost &amp; Procure</button>
-        ${canConvert ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="event.stopPropagation();convertWoToBatch(${wo.id},'${wo.wo_number}')" title="Mark production complete and record the batch">✓ Complete &amp; Record Batch</button>` : ''}
+        ${canConvert ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="event.stopPropagation();convertWoToBatch(${wo.id},'${wo.wo_number}',${wo.qty_units - (wo.produced_units||0)})" title="Record a batch — the full remaining amount, or a partial amount (e.g. a weekly run)">✓ Record batch</button>` : ''}
         ${canStart   ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron)" onclick="event.stopPropagation();setWoStatus(${wo.id},'in_progress')" title="Mark this work order as In Progress — production has started">▶ Start Production</button>` : ''}
         ${canReset && isAdminRole() ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--saffron-deep)" onclick="event.stopPropagation();resetWoToPlanned(${wo.id},'${wo.wo_number}')" title="Reset back to Planned — production has not started yet">↩ Reset to Planned</button>` : ''}
         ${canConvert ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="event.stopPropagation();editWorkOrder(${wo.id},'${wo.wo_number}',${wo.qty_units},'${wo.target_date||''}','${(wo.notes||'').replace(/'/g,"\\'")}')">Edit</button>` : ''}
@@ -8838,22 +8839,38 @@ function _procModalBox() {
   return document.getElementById('proc-modal-box');
 }
 
-async function convertWoToBatch(woId, woNum) {
-  // Step 1 — check feasibility first; show shortfall modal if needed
-  const feas = await GET(`/api/work-orders/${woId}/feasibility`);
-  if (!feas.feasible) {
-    showShortfallPanel(woId, woNum, feas.requirements);
-    return;
+async function convertWoToBatch(woId, woNum, remaining) {
+  remaining = remaining || 0;
+  // Ask how much to make now — full remaining, or a partial (e.g. a weekly run).
+  let qty = remaining;
+  if (remaining > 0) {
+    const ans = prompt('How many packs to record now for ' + woNum + '?\n' + remaining + ' remaining. Enter a smaller number for a partial batch (e.g. this week\'s run), or keep it for the full amount.', String(remaining));
+    if (ans === null) return;
+    qty = parseInt(ans, 10);
+    if (!(qty > 0)) { alert('Enter a positive quantity.'); return; }
+    if (qty > remaining) qty = remaining;
   }
-  if (!confirm(`Convert Work Order ${woNum} to a Production Batch?\nThis will deduct ingredients from stock.`)) return;
+  const isFull = qty >= remaining;
+  // Feasibility pre-check only for a FULL batch — a partial can be feasible even when the
+  // full remaining isn't; the backend still guards the partial amount's ingredient stock.
+  if (isFull) {
+    const feas = await GET(`/api/work-orders/${woId}/feasibility`);
+    if (!feas.feasible) {
+      showShortfallPanel(woId, woNum, feas.requirements);
+      return;
+    }
+  }
+  if (!confirm('Record a batch of ' + qty + ' packs for ' + woNum + '?\nThis will deduct ingredients from stock.')) return;
   try {
-    const res = await POST(`/api/work-orders/${woId}/convert`, {});
+    const res = await POST(`/api/work-orders/${woId}/convert`, { qtyUnits: qty });
     _openProcModal(
       '<div style="text-align:center;padding:24px 16px">'
       + '<div style="font-size:40px;margin-bottom:12px">✅</div>'
-      + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Batch Created!</div>'
-      + '<div style="font-size:14px;color:var(--text-2)">Batch <strong>' + res.batchId + '</strong> created from Work Order <strong>' + res.woNumber + '</strong></div>'
-      + '<div style="font-size:13px;color:var(--text-3);margin-top:4px">' + res.qtyUnits + ' units produced · ' + res.totalGrams + 'g total</div>'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Batch created</div>'
+      + '<div style="font-size:14px;color:var(--text-2)">Batch <strong>' + res.batchId + '</strong> · ' + res.qtyUnits + ' packs from <strong>' + res.woNumber + '</strong></div>'
+      + ((res.remaining || 0) > 0
+          ? '<div style="font-size:13px;color:var(--saffron-deep);margin-top:6px;font-weight:600">' + res.remaining + ' packs still to make on this work order</div>'
+          : '<div style="font-size:13px;color:var(--cardamom);margin-top:6px;font-weight:600">Work order complete ✓</div>')
       + '<button class="btn btn-primary" style="margin-top:20px" onclick="_closeProcModal();nav(\'production\')">Done</button>'
       + '</div>'
     );
