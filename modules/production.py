@@ -48,6 +48,7 @@ __all__ = [
     'cancel_batch_run',
     'list_batch_runs',
     'get_batch_run',
+    'get_month_material_plan',
 ]
 
 
@@ -978,6 +979,88 @@ def get_batch_run(run_id):
     d['stageNum'] = cur_pos + 1 if cur_pos >= 0 else 0
     d['stageTotal'] = len(stages)
     return d
+
+
+# ─────────────────────────────────────────────────────────────────
+#  MONTHLY MATERIAL PLAN  (plan the month's batches → one buy list)
+# ─────────────────────────────────────────────────────────────────
+
+def get_month_material_plan(month=None):
+    """Roll up a month's planned production into a single raw-material buy list.
+
+    The month's 'plan' = all planned/in-progress work orders targeted in that month.
+    For each, the active BOM gives the ingredient needs; summed across the month and
+    compared to current stock → exactly what to buy (buy once per month by capacity).
+
+    ⚠ Recipe-sensitive — returns per-ingredient quantities. Gate the endpoint with _can_recipe.
+    month: 'YYYY-MM' (defaults to the current month). WOs with no target_date fall in the
+    current month so nothing is missed.
+    """
+    from modules.inventory import get_stock_map
+    t = today()
+    month = month or t[:7]
+
+    wos = qry("""
+        SELECT wo.wo_number, wo.qty_units, wo.target_date, wo.status,
+               COALESCE(wo.produced_units,0) AS produced,
+               pv.product_id, ps.grams AS pack_grams,
+               p.name AS product_name, ps.label AS pack_size
+        FROM work_orders wo
+        JOIN product_variants pv ON pv.id = wo.product_variant_id
+        JOIN products p          ON p.id  = pv.product_id
+        LEFT JOIN pack_sizes ps  ON ps.id = pv.pack_size_id
+        WHERE wo.status IN ('planned','in_progress')
+          AND substr(COALESCE(NULLIF(wo.target_date,''), ?), 1, 7) = ?
+        ORDER BY wo.target_date ASC, wo.wo_number ASC
+    """, (t, month)) or []
+
+    need = {}  # ingredient_id -> grams needed across the month
+    for w in wos:
+        bom = qry1("""SELECT id, batch_size_grams FROM bom_versions
+                      WHERE product_id=? AND active_flag=1
+                      ORDER BY version_no DESC LIMIT 1""", (w['product_id'],))
+        if not bom or not bom['batch_size_grams']:
+            continue
+        total_g = int(w['qty_units']) * (w['pack_grams'] or 0)
+        scale   = total_g / float(bom['batch_size_grams'])
+        for bi in qry("SELECT ingredient_id, quantity_grams FROM bom_items WHERE bom_version_id=?", (bom['id'],)):
+            need[bi['ingredient_id']] = need.get(bi['ingredient_id'], 0) + bi['quantity_grams'] * scale
+
+    stock = get_stock_map()
+    materials, total_cost = [], 0.0
+    for ing_id, g in need.items():
+        ing     = qry1("SELECT code, name, cost_per_kg FROM ingredients WHERE id=?", (ing_id,)) or {}
+        stock_g = stock.get(ing_id, 0)
+        buy_g   = max(0.0, g - stock_g)
+        buy_kg  = r2(buy_g / 1000)
+        cpk     = r2(ing.get('cost_per_kg') or 0)
+        line    = r2(buy_kg * cpk)
+        total_cost += line
+        materials.append({
+            'code': ing.get('code', ''), 'name': ing.get('name', ''),
+            'needKg': r2(g / 1000), 'stockKg': r2(stock_g / 1000),
+            'buyKg': buy_kg, 'costPerKg': cpk, 'lineCost': line,
+            'short': buy_g > 0,
+        })
+    materials.sort(key=lambda m: (-m['buyKg'], m['name']))
+
+    try:
+        tv = qry1("SELECT value FROM costing_config WHERE key='normal_monthly_volume'")
+        target = int(float(tv['value'])) if tv and tv.get('value') else 2000
+    except (TypeError, ValueError):
+        target = 2000
+
+    return {
+        'month': month,
+        'batches': [{'woNumber': w['wo_number'], 'product': w['product_name'],
+                     'packSize': w['pack_size'], 'packs': int(w['qty_units']),
+                     'targetDate': w['target_date'], 'status': w['status']} for w in wos],
+        'totalPacks': sum(int(w['qty_units']) for w in wos),
+        'target': target,
+        'materials': materials,
+        'toBuyCount': sum(1 for m in materials if m['short']),
+        'totalBuyCost': r2(total_cost),
+    }
 
 
 # ─────────────────────────────────────────────────────────────────

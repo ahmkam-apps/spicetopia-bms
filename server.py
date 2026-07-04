@@ -2819,6 +2819,15 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_production_dashboard())
                 return
 
+            # GET /api/production/material-plan?month=YYYY-MM  — monthly buy list
+            # (exposes ingredient quantities → recipe-gated)
+            if path == '/api/production/material-plan':
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
+                mon = qs.get('month', [None])[0]
+                send_json(self, get_month_material_plan(mon))
+                return
+
             # GET /api/batch-stages  (admin, warehouse) — configurable process stages
             if path == '/api/batch-stages':
                 if not require(sess, 'admin', 'warehouse'):

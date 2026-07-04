@@ -1623,7 +1623,7 @@ async function render(page, arg) {
       case 'inventory':   c.innerHTML = await renderInventory();   break;
       case 'bulk-stock':  c.innerHTML = await renderBulkStock();   break;
       case 'batch-planner': c.innerHTML = await renderBatchPlanner(); if(typeof _bpLoadReq==='function') await _bpLoadReq(); break;
-      case 'production':  c.innerHTML = await renderProduction();  if(typeof _prodSwitchTab==='function') _prodSwitchTab(_prodTab); if(canRecipe() && typeof _bpLoadReq==='function'){ try{ await _bpLoadReq(); }catch(e){} } break;
+      case 'production':  c.innerHTML = await renderProduction();  if(typeof _prodSwitchTab==='function') _prodSwitchTab(_prodTab); if(canRecipe() && typeof _bpLoadReq==='function'){ try{ await _bpLoadReq(); }catch(e){} } if(typeof _loadMonthPlan==='function'){ try{ await _loadMonthPlan(); }catch(e){} } break;
       case 'bom':         c.innerHTML = await renderBomSetup();    break;
       case 'products':      c.innerHTML = await renderProducts();      break;
       case 'recipes':       c.innerHTML = await renderRecipes();       break;
@@ -8136,6 +8136,69 @@ async function cancelBatchRun(runId) {
   catch (e) { alert(e.message || 'Could not cancel batch'); }
 }
 
+// ── Monthly material plan (Plan tab) — plan the month's batches → one buy list ──
+let _planMonth = null;
+function _monthLabel(m) {
+  if (!m) return '';
+  const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const [y, mo] = m.split('-');
+  return names[parseInt(mo, 10) - 1] + ' ' + y;
+}
+function _monthPlanHtml(d) {
+  const pct = d.target > 0 ? Math.min(100, Math.round(d.totalPacks / d.target * 100)) : 0;
+  const batches = (d.batches || []).map(b =>
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border)">'
+    + '<div><span style="font-size:13px">' + esc(b.product || '') + ' ' + esc(b.packSize || '') + '</span>'
+    + '<span style="font-size:11px;color:var(--text-3);font-family:monospace;margin-left:8px">' + esc(b.woNumber) + (b.targetDate ? ' · ' + fmtDate(b.targetDate) : '') + '</span></div>'
+    + '<span style="font-size:13px;font-weight:600">' + b.packs + ' packs</span></div>'
+  ).join('') || '<div style="color:var(--text-3);font-size:12px;padding:10px 0">No batches planned for ' + _monthLabel(d.month) + '. Add one below — create a work order with a target date in this month.</div>';
+  const rows = (d.materials || []).map(m =>
+    '<tr' + (m.short ? ' style="background:#fdf3ee"' : '') + '>'
+    + '<td style="padding:6px 8px">' + esc(m.name || m.code) + '</td>'
+    + '<td style="text-align:right;padding:6px 8px;color:var(--text-3)">' + m.needKg + ' kg</td>'
+    + '<td style="text-align:right;padding:6px 8px;color:var(--text-3)">' + m.stockKg + ' kg</td>'
+    + '<td style="text-align:right;padding:6px 8px;font-weight:700;color:' + (m.short ? 'var(--chili)' : 'var(--cardamom)') + '">' + (m.buyKg > 0 ? m.buyKg + ' kg' : '—') + '</td>'
+    + '<td style="text-align:right;padding:6px 8px">' + (m.lineCost > 0 ? fmtPKR(m.lineCost) : '—') + '</td></tr>'
+  ).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:16px">No materials yet — plan a batch below.</td></tr>';
+  return '<div class="card" style="padding:16px 18px;margin-bottom:14px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+    + '<div style="display:flex;align-items:center;gap:10px"><button class="btn btn-xs btn-outline" onclick="_planShiftMonth(-1)" aria-label="Previous month">‹</button>'
+    + '<span style="font-family:var(--font-serif);font-size:17px;min-width:130px;text-align:center">' + _monthLabel(d.month) + '</span>'
+    + '<button class="btn btn-xs btn-outline" onclick="_planShiftMonth(1)" aria-label="Next month">›</button></div>'
+    + '<div style="font-size:12px;color:var(--text-2)">' + d.totalPacks.toLocaleString() + ' / ' + d.target.toLocaleString() + ' packs planned</div></div>'
+    + '<div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;margin-bottom:12px"><div style="height:100%;width:' + pct + '%;background:var(--cardamom)"></div></div>'
+    + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:700;margin-bottom:2px">This month’s batches</div>' + batches + '</div>'
+    + '<div class="card" style="padding:16px 18px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+    + '<div style="font-size:13px;font-weight:700">Raw material to buy this month</div>'
+    + '<div style="font-size:12px;color:var(--text-2)">' + d.toBuyCount + ' to buy · est ' + fmtPKR(d.totalBuyCost) + '</div></div>'
+    + '<div style="font-size:11.5px;color:var(--text-3);margin-bottom:10px">Everything the month’s batches need, minus what’s in stock. Buy once for the month.</div>'
+    + '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:var(--text-3);font-size:11px">'
+    + '<th style="text-align:left;padding:4px 8px">Ingredient</th><th style="text-align:right;padding:4px 8px">Need</th><th style="text-align:right;padding:4px 8px">In stock</th><th style="text-align:right;padding:4px 8px">Buy</th><th style="text-align:right;padding:4px 8px">Est cost</th></tr></thead>'
+    + '<tbody style="font-size:12.5px">' + rows + '</tbody></table></div>';
+}
+async function _loadMonthPlan() {
+  const box = document.getElementById('month-plan');
+  if (!box) return;
+  if (typeof canRecipe === 'function' && !canRecipe()) {
+    box.innerHTML = '<div class="card" style="padding:18px;color:var(--text-2);font-size:13px">The monthly buy-list shows recipe quantities, so it needs recipe access.</div>';
+    return;
+  }
+  if (!_planMonth) _planMonth = new Date().toISOString().slice(0, 7);
+  box.innerHTML = '<div style="color:var(--text-3);font-size:12px;padding:16px">Loading…</div>';
+  try { box.innerHTML = _monthPlanHtml(await GET('/api/production/material-plan?month=' + _planMonth)); }
+  catch (e) { box.innerHTML = '<div class="alert alert-error">' + (e.message || 'Could not load the plan') + '</div>'; }
+}
+function _planShiftMonth(delta) {
+  if (!_planMonth) _planMonth = new Date().toISOString().slice(0, 7);
+  let [y, m] = _planMonth.split('-').map(Number);
+  m += delta;
+  if (m < 1) { m = 12; y--; }
+  if (m > 12) { m = 1; y++; }
+  _planMonth = y + '-' + String(m).padStart(2, '0');
+  _loadMonthPlan();
+}
+
 function _prodDashHtml(d) {
   const pct = d.target > 0 ? Math.min(100, Math.round(d.madeThisMonth / d.target * 100)) : 0;
   const kpi = (label, val, sub, color) => '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px">'
@@ -8311,9 +8374,12 @@ async function renderProduction() {
     ${_prodOverviewHtml(prodDash, batchRuns, batchStages, workOrders)}
   </div>
 
-  <!-- ══ PLAN PANE (batch planner; full monthly schedule = Phase C) ═══════════════ -->
+  <!-- ══ PLAN PANE — monthly buy-list + batch planner ═══════════════ -->
   <div id="prodpane-plan" style="display:none">
-    <div style="background:#f8f9ff;border:1px solid #dde3f5;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text-2)">Size a batch against current stock, then create the work order. A full monthly schedule with one "raw material to buy" list is coming next.</div>
+    <div id="month-plan"><div style="color:var(--text-3);font-size:12px;padding:16px">Loading…</div></div>
+    <div style="border-top:1px solid var(--border);margin:24px 0 16px"></div>
+    <div style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:700;margin-bottom:4px">Add a batch to the plan</div>
+    <div style="font-size:11.5px;color:var(--text-3);margin-bottom:14px">Size a run against stock, then Create work order — give it a target date and it joins the month above and updates the buy-list.</div>
     ${planPaneHtml}
   </div>
 
