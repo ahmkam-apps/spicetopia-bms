@@ -732,7 +732,6 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-section" id="nav-section-recipe" style="display:none">Recipe / IP</div>
       <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon" data-icon="lock"></span> Ingredients</div>
       <div class="nav-item" onclick="nav('bom')" id="nav-bom" style="display:none"><span class="icon" data-icon="lock"></span> BOM (Formula)</div>
-      <div class="nav-item" onclick="nav('batch-planner')" id="nav-batch-planner" style="display:none"><span class="icon" data-icon="calculator"></span> Batch Planner</div>
 
       <div class="nav-section" id="nav-section-system" style="display:none">System</div>
       <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><span class="icon" data-icon="shield"></span> User Management</div>
@@ -1591,7 +1590,7 @@ async function render(page, arg) {
       case 'inventory':   c.innerHTML = await renderInventory();   break;
       case 'bulk-stock':  c.innerHTML = await renderBulkStock();   break;
       case 'batch-planner': c.innerHTML = await renderBatchPlanner(); if(typeof _bpLoadReq==='function') await _bpLoadReq(); break;
-      case 'production':  c.innerHTML = await renderProduction();  if(typeof _prodSwitchTab==='function') _prodSwitchTab(_prodTab); break;
+      case 'production':  c.innerHTML = await renderProduction();  if(typeof _prodSwitchTab==='function') _prodSwitchTab(_prodTab); if(canRecipe() && typeof _bpLoadReq==='function'){ try{ await _bpLoadReq(); }catch(e){} } break;
       case 'bom':         c.innerHTML = await renderBomSetup();    break;
       case 'products':      c.innerHTML = await renderProducts();      break;
       case 'recipes':       c.innerHTML = await renderRecipes();       break;
@@ -8254,12 +8253,17 @@ async function renderProduction() {
 
   const _subtab = (id, label) => '<span id="prodtab-' + id + '" onclick="_prodSwitchTab(\'' + id + '\')" style="font-size:13px;padding:9px 15px;cursor:pointer;color:var(--text-2);border-bottom:2px solid transparent;margin-bottom:-1px">' + label + '</span>';
 
+  // Plan tab embeds the batch planner (recipe-gated — it shows ingredient quantities).
+  const planPaneHtml = canRecipe()
+    ? await renderBatchPlanner()
+    : '<div class="card" style="padding:22px;color:var(--text-2);font-size:13px;line-height:1.6">Planning a batch shows recipe quantities, so it needs recipe access. Ask the owner to enable it — or just create a work order under <a onclick="_prodSwitchTab(\'wos\')" style="color:var(--saffron);cursor:pointer;font-weight:600">Work orders</a>.</div>';
+
   return `
   <!-- ── HEADER + SUB-TABS ─────────────────────────────── -->
   <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
     <h2>Production</h2>
     <div style="display:flex;gap:8px">
-      ${canRecipe() ? '<button class="btn btn-outline btn-sm" onclick="nav(\'batch-planner\')">🎚 Plan a batch</button>' : ''}
+      ${canRecipe() ? '<button class="btn btn-outline btn-sm" onclick="_prodSwitchTab(\'plan\')">🎚 Plan a batch</button>' : ''}
       <button class="btn btn-primary btn-sm" onclick="_prodSwitchTab('wos');showWoForm()">+ New Work Order</button>
     </div>
   </div>
@@ -8273,12 +8277,10 @@ async function renderProduction() {
     ${_prodOverviewHtml(prodDash, batchRuns, batchStages, workOrders)}
   </div>
 
-  <!-- ══ PLAN PANE (Phase C placeholder) ═══════════════ -->
+  <!-- ══ PLAN PANE (batch planner; full monthly schedule = Phase C) ═══════════════ -->
   <div id="prodpane-plan" style="display:none">
-    <div class="card" style="padding:22px">
-      <h3 style="margin-top:0">Monthly plan</h3>
-      <p style="color:var(--text-2);font-size:13px;max-width:600px;line-height:1.6">Plan the month's batches week by week and get a single "raw material to buy" list — coming next. For now, use ${canRecipe() ? '<a onclick="nav(\'batch-planner\')" style="color:var(--saffron);cursor:pointer;font-weight:600">the batch planner</a>' : 'the batch planner'} to size a run against current stock, then create a work order under <a onclick="_prodSwitchTab('wos')" style="color:var(--saffron);cursor:pointer;font-weight:600">Work orders</a>.</p>
-    </div>
+    <div style="background:#f8f9ff;border:1px solid #dde3f5;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text-2)">Size a batch against current stock, then create the work order. A full monthly schedule with one "raw material to buy" list is coming next.</div>
+    ${planPaneHtml}
   </div>
 
   <!-- ══ WORK ORDERS PANE ══════════════════════════════ -->
