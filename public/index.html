@@ -7633,6 +7633,67 @@ async function renderInventory() {
       ).join('')
     + '</div>';
 
+  // ── Gauge (tank) view — visual-first, worst-first. Table stays one click away ──
+  const gv = (_invView !== 'table');
+  const _statOrder = { OUT: 0, LOW: 1, OK: 2 };
+  const gaugeIngs = ings.slice().sort((a, b) => {
+    const oa = _statOrder[a.status] ?? 3, ob = _statOrder[b.status] ?? 3;
+    if (oa !== ob) return oa - ob;
+    const fa = (a.targetGrams > 0 ? a.balanceGrams / a.targetGrams : 1);
+    const fb = (b.targetGrams > 0 ? b.balanceGrams / b.targetGrams : 1);
+    return fa - fb;
+  });
+  const _tank = (i) => {
+    const onKg  = Math.round((i.balanceGrams / 1000) * 10) / 10;
+    const tgtKg = Math.round(((i.targetGrams || 0) / 1000) * 10) / 10;
+    const roKg  = Math.round(((i.reorder_level || 0) / 1000) * 10) / 10;
+    const top   = Math.max(tgtKg, onKg, roKg * 1.5, 1);
+    const fillPct = Math.max(3, Math.min(100, Math.round(onKg / top * 100)));
+    const roPct   = top > 0 ? Math.min(100, Math.round(roKg / top * 100)) : 0;
+    const st = i.status;
+    const fillColor = st === 'OUT' ? 'var(--chili)' : st === 'LOW' ? 'var(--cinnamon)' : 'var(--cardamom)';
+    const hint = st === 'OUT' ? (tgtKg > 0 ? ('fill ' + Math.max(0, Math.round((tgtKg - onKg) * 10) / 10) + ' kg') : 'out')
+               : (st === 'LOW' ? 'getting low' : 'good');
+    const hintColor = st === 'OUT' ? 'var(--chili)' : st === 'LOW' ? 'var(--cinnamon)' : 'var(--text-3)';
+    const sliderMax = Math.max(Math.ceil(Math.max(tgtKg * 2, onKg * 1.5, roKg * 3, 10)), 1);
+    return '<div class="inv-tank">'
+      + '<div class="inv-cyl" onclick="_invTapTank(' + i.id + ')" title="Tap to adjust stock">'
+      +   '<div class="inv-fill" style="height:' + fillPct + '%;background:' + fillColor + '"></div>'
+      +   (roKg > 0 ? '<div class="inv-reord" style="bottom:' + roPct + '%"></div>' : '')
+      + '</div>'
+      + '<div class="inv-nm">' + esc(i.name || i.code) + '</div>'
+      + '<div class="inv-kg">' + onKg + ' kg</div>'
+      + '<div class="inv-hint" style="color:' + hintColor + '">' + hint + '</div>'
+      + (isAdmin ? '<div class="inv-tset">'
+        + '<input type="range" min="0" max="' + sliderMax + '" step="0.5" value="' + tgtKg + '" '
+        + 'oninput="var e=document.getElementById(\'ivt-' + i.id + '\');if(e)e.textContent=(+this.value)" '
+        + 'onchange="_invSetTarget(' + i.id + ',this.value)" title="Set the full / acceptable level">'
+        + '<div class="inv-tlabel">Full: <b id="ivt-' + i.id + '">' + tgtKg + '</b> kg</div></div>' : '')
+      + '</div>';
+  };
+  const gaugeGrid = '<style>'
+    + '.inv-gauge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px}'
+    + '.inv-tank{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 10px 11px;text-align:center}'
+    + '.inv-cyl{position:relative;width:44px;height:86px;margin:2px auto 9px;border:2px solid var(--border);border-radius:9px;background:var(--surface-2);overflow:hidden;cursor:pointer}'
+    + '.inv-fill{position:absolute;left:0;right:0;bottom:0;border-radius:0 0 6px 6px;transition:height .2s}'
+    + '.inv-reord{position:absolute;left:-3px;right:-3px;height:0;border-top:2px dashed var(--text-3);opacity:.7}'
+    + '.inv-nm{font-size:12px;font-weight:600;line-height:1.2;min-height:28px;display:flex;align-items:center;justify-content:center}'
+    + '.inv-kg{font-size:14px;font-weight:700;font-family:monospace}'
+    + '.inv-hint{font-size:10.5px;margin-top:1px;font-weight:600}'
+    + '.inv-tset{margin-top:8px;border-top:1px solid var(--border);padding-top:7px}'
+    + '.inv-tset input[type=range]{width:100%;margin:0}'
+    + '.inv-tlabel{font-size:10px;color:var(--text-3);margin-top:3px}'
+    + '.seg-view{display:inline-flex;border:1px solid var(--border);border-radius:7px;overflow:hidden}'
+    + '.seg-view button{border:none;background:transparent;padding:6px 14px;font-size:12px;cursor:pointer;color:var(--text-2);font-weight:500}'
+    + '.seg-view button.on{background:var(--saffron);color:#fff}'
+    + '</style>'
+    + '<div class="inv-gauge-grid">' + gaugeIngs.map(_tank).join('') + '</div>';
+  const viewToggle = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);font-weight:700">'
+    + (gv ? 'Needs attention first' : '') + '</div>'
+    + '<div class="seg-view"><button id="inv-view-gauges" class="' + (gv ? 'on' : '') + '" onclick="_invSwitchView(\'gauges\')">Gauges</button>'
+    + '<button id="inv-view-table" class="' + (gv ? '' : 'on') + '" onclick="_invSwitchView(\'table\')">Table</button></div></div>';
+
   // ── FG data ───────────────────────────────────────────────────────
   const products = state.ref.products || [];
   const allVariants = products.flatMap(p => (p.variants||[]).map(v => ({ p, v })));
@@ -7729,6 +7790,9 @@ async function renderInventory() {
     + addIngCard
     + changeBanner
     + rmKpis
+    + viewToggle
+    + '<div id="inv-rm-gauges" style="display:' + (gv ? 'block' : 'none') + '">' + gaugeGrid + '</div>'
+    + '<div id="inv-rm-table" style="display:' + (gv ? 'none' : 'block') + '">'
     + rmChips
     + '<div class="card">'
     + '<div class="table-wrap">'
@@ -7746,6 +7810,7 @@ async function renderInventory() {
     + '</tr></thead>'
     + '<tbody id="rm-tbody">' + allRmRows + '</tbody>'
     + '</table></div></div>'
+    + '</div>'
     + '</div>'
 
     // ── Finished Goods pane ────────────────────────────────────────
@@ -7768,6 +7833,36 @@ async function renderInventory() {
 
 let _invTab   = 'rm';
 let _rmFilter = 'all';
+let _invView  = 'gauges';   // 'gauges' (visual, default) | 'table' (full detail)
+
+function _invSwitchView(v) {
+  _invView = v;
+  const g = document.getElementById('inv-rm-gauges');
+  const t = document.getElementById('inv-rm-table');
+  if (g) g.style.display = (v === 'gauges') ? 'block' : 'none';
+  if (t) t.style.display = (v === 'table')  ? 'block' : 'none';
+  const gb = document.getElementById('inv-view-gauges');
+  const tb = document.getElementById('inv-view-table');
+  if (gb) gb.classList.toggle('on', v === 'gauges');
+  if (tb) tb.classList.toggle('on', v === 'table');
+}
+
+// Tap a tank → jump to the table and open that ingredient's Adjust form
+function _invTapTank(id) {
+  _invSwitchView('table');
+  if (typeof rmShowAdj === 'function') rmShowAdj(id);
+  const row = document.getElementById('rm-adj-' + id);
+  if (row) setTimeout(() => row.scrollIntoView({ behavior: 'smooth', block: 'center' }), 40);
+}
+
+// Save an ingredient's full/acceptable level from the tank slider (reuses bulk-stock, target only)
+async function _invSetTarget(id, valKg) {
+  try {
+    await POST('/api/inventory/bulk-stock', { rows: [{ ingredientId: id, targetKg: parseFloat(valKg) || 0 }] });
+    if (typeof setStatus === 'function') setStatus('Full level saved');
+    render('inventory');   // re-render so gauge fill + colours reflect the new level (stays on Gauges view)
+  } catch (e) { alert('Could not save the level: ' + (e.message || e)); }
+}
 
 // Small KPI card used in Inventory header strips
 function _invKpi(label, value, sub, color) {
