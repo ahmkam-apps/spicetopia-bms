@@ -732,6 +732,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-section" id="nav-section-recipe" style="display:none">Recipe / IP</div>
       <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon" data-icon="lock"></span> Ingredients</div>
       <div class="nav-item" onclick="nav('bom')" id="nav-bom" style="display:none"><span class="icon" data-icon="lock"></span> BOM (Formula)</div>
+      <div class="nav-item" onclick="nav('batch-planner')" id="nav-batch-planner" style="display:none"><span class="icon" data-icon="calculator"></span> Batch Planner</div>
 
       <div class="nav-section" id="nav-section-system" style="display:none">System</div>
       <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><span class="icon" data-icon="shield"></span> User Management</div>
@@ -896,6 +897,7 @@ function canAccess(pageId) {
   if (pageId === 'home') return true;            // home is the universal landing
   if (pageId === 'section-hub') return true;     // hub itself is open; items inside are individually gated
   if (pageId === 'bom') return canRecipe();      // recipe is the secret: owner + granted only (even admins need the grant)
+  if (pageId === 'batch-planner') return canRecipe(); // batch planner shows quantities = recipe-gated
   if (pageId === 'prices-costs') return canCosts(); // admin or 'costs' permission
   if (pageId === 'cost-tracking' || pageId === 'pricing') return canCosts(); // new clean screens, same gate
   if (pageId === 'bulk-stock') return canAccess('inventory'); // bulk RM loader = same access as Inventory
@@ -938,6 +940,8 @@ function applyRoleUI(role) {
   // Recipe (BOM) — strict: visible only to super_user or 'recipe' holders (even admins need the grant).
   const navBom = document.getElementById('nav-bom');
   if (navBom) navBom.style.display = canRecipe() ? '' : 'none';
+  const navBp = document.getElementById('nav-batch-planner');
+  if (navBp) navBp.style.display = canRecipe() ? '' : 'none';
   // Prices & Costs — admin or 'costs' permission (overrides the admin-only default above).
   const navPc = document.getElementById('nav-prices-costs');
   if (navPc) navPc.style.display = canCosts() ? '' : 'none';
@@ -1586,6 +1590,7 @@ async function render(page, arg) {
       case 'ap-aging':    c.innerHTML = await renderAPAging();      break;
       case 'inventory':   c.innerHTML = await renderInventory();   break;
       case 'bulk-stock':  c.innerHTML = await renderBulkStock();   break;
+      case 'batch-planner': c.innerHTML = await renderBatchPlanner(); if(typeof _bpLoadReq==='function') await _bpLoadReq(); break;
       case 'production':  c.innerHTML = await renderProduction();  break;
       case 'bom':         c.innerHTML = await renderBomSetup();    break;
       case 'products':      c.innerHTML = await renderProducts();      break;
@@ -9402,6 +9407,78 @@ async function saveBatch() {
 // ═══════════════════════════════════════════════════════════════
 //  PRODUCTS
 // ═══════════════════════════════════════════════════════════════
+// ── Batch planner (slider, recipe-gated) ─────────────────────────
+let _bpVariantId = null;
+async function renderBatchPlanner() {
+  if (!canRecipe()) return '<div class="alert alert-error" style="margin-top:40px">Access denied — recipe access required</div>';
+  let costs = [];
+  try { costs = await GET('/api/costing/standard-costs'); } catch (e) { costs = []; }
+  const withBom = costs.filter(c => c.has_bom);
+  window._bpCosts = withBom;
+  if (!withBom.length) return '<div style="max-width:680px"><h2>Batch planner</h2><p style="color:var(--text-3);margin-top:12px">No products have a recipe (BOM) yet.</p></div>';
+  if (_bpVariantId == null || !withBom.find(c => c.variantId === _bpVariantId)) _bpVariantId = withBom[0].variantId;
+  const opts = withBom.map(c => '<option value="' + c.variantId + '"' + (c.variantId === _bpVariantId ? ' selected' : '') + '>' + esc((c.productName || c.productCode) + ' — ' + (c.packSize || '')) + '</option>').join('');
+  return '<div style="max-width:680px">'
+    + '<div class="section-header"><div><h2>Batch planner</h2><span style="font-size:12px;color:var(--text-3)">Slide the batch size to see ingredients needed, stock check and cost. Recipe view — owner only.</span></div></div>'
+    + '<div class="card">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><label style="font-size:13px;color:var(--text-2)">Product</label>'
+    + '<select id="bp-prod" onchange="_bpSelect(this.value)" class="form-input" style="width:250px">' + opts + '</select></div>'
+    + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><label style="font-size:13px;color:var(--text-2)">Packs</label>'
+    + '<input type="range" id="bp-sl" min="50" max="3000" step="50" value="300" oninput="_bpSlide()" style="flex:1">'
+    + '<span id="bp-packs" style="font-size:20px;font-weight:700;min-width:64px;text-align:right">300</span></div>'
+    + '<div id="bp-feas" style="font-size:12px;font-weight:600;margin-bottom:10px"></div>'
+    + '<div id="bp-rows"></div>'
+    + '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);margin-top:10px;padding-top:10px;font-size:13px"><span style="color:var(--text-3)">Raw material for this batch</span><span id="bp-tot" style="font-weight:700"></span></div>'
+    + '<div style="margin-top:14px"><button class="btn btn-primary" onclick="_bpCreateWO()">Create work order</button> <span id="bp-msg" style="font-size:12px;margin-left:10px"></span></div>'
+    + '</div></div>';
+}
+async function _bpSelect(vid) { _bpVariantId = parseInt(vid, 10); await _bpLoadReq(); }
+async function _bpLoadReq() {
+  try {
+    const r = await GET('/api/purchase-orders/bom-calculate?variantId=' + _bpVariantId + '&qty=1000');
+    window._bpReq = (r.ingredients || []).map(x => ({ code: x.ingCode, perPack: (x.neededKg || 0) / 1000, have: x.availableKg || 0 }));
+  } catch (e) { window._bpReq = []; }
+  _bpSlide();
+}
+function _bpSlide() {
+  const packs = parseInt((document.getElementById('bp-sl') || {}).value, 10) || 0;
+  const pk = document.getElementById('bp-packs'); if (pk) pk.textContent = packs.toLocaleString();
+  const req = window._bpReq || [];
+  const c = (window._bpCosts || []).find(x => x.variantId === _bpVariantId) || {};
+  let short = 0;
+  const rowsEl = document.getElementById('bp-rows'); if (!rowsEl) return;
+  rowsEl.innerHTML = req.length ? req.map(it => {
+    const need = Math.round(it.perPack * packs * 100) / 100;
+    const enough = need <= it.have + 0.001;
+    if (!enough) short++;
+    const pct = it.have > 0 ? Math.min(100, Math.round(need / it.have * 100)) : 100;
+    const col = enough ? 'var(--cardamom)' : 'var(--chili)';
+    return '<div style="display:grid;grid-template-columns:100px 92px 1fr 118px;gap:10px;align-items:center;margin:8px 0">'
+      + '<div style="font-size:13px;font-family:monospace">' + esc(it.code) + '</div>'
+      + '<div style="font-size:12px;color:var(--text-3)">need ' + need + ' kg</div>'
+      + '<div style="height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:' + col + '"></div></div>'
+      + '<div style="font-size:12px;text-align:right;color:' + (enough ? 'var(--text-3)' : 'var(--chili)') + ';font-weight:600">have ' + it.have + ' kg' + (enough ? '' : ' ⚠') + '</div></div>';
+  }).join('') : '<div style="color:var(--text-3);padding:10px 0">No recipe data for this product.</div>';
+  const tot = document.getElementById('bp-tot'); if (tot) tot.textContent = (c.rm_cost != null) ? fmtPKR((c.rm_cost || 0) * packs) : '—';
+  const f = document.getElementById('bp-feas');
+  if (f) {
+    if (short === 0) { f.textContent = '✓ You can make this batch'; f.style.color = 'var(--cardamom)'; }
+    else { f.textContent = '⚠ Short on ' + short + ' ingredient' + (short > 1 ? 's' : '') + ' — buy before running'; f.style.color = 'var(--chili)'; }
+  }
+}
+async function _bpCreateWO() {
+  const packs = parseInt((document.getElementById('bp-sl') || {}).value, 10) || 0;
+  const msg = document.getElementById('bp-msg');
+  if (!(packs > 0)) { if (msg) { msg.textContent = 'Set a batch size'; msg.style.color = 'var(--chili)'; } return; }
+  if (!confirm('Create a work order for ' + packs + ' packs?')) return;
+  if (msg) { msg.textContent = 'Creating…'; msg.style.color = 'var(--text-3)'; }
+  try {
+    const r = await POST('/api/work-orders', { productVariantId: _bpVariantId, qtyUnits: packs });
+    if (msg) { msg.textContent = '✓ Created ' + (r.woNumber || 'work order') + ' — see Production.'; msg.style.color = 'var(--cardamom)'; }
+    setTimeout(() => nav('production'), 1400);
+  } catch (e) { if (msg) { msg.textContent = 'Error: ' + e.message; msg.style.color = 'var(--chili)'; } }
+}
+
 // ── Bulk RM stock loader (slider tanks) ──────────────────────────
 async function renderBulkStock() {
   if (!isAdminRole()) return '<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>';
