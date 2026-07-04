@@ -2543,7 +2543,7 @@ async function saveEditCustomer(custId) {
 }
 
 async function toggleCustomerActive(custId, name, activate) {
-  if (!confirm(`${activate ? 'Reactivate' : 'Deactivate'} customer "${name}"?\n\n${activate ? 'They will appear in dropdowns and can receive new orders.' : 'They will be hidden from dropdowns. Historical data is preserved.'}`)) return;
+  if (!await uiConfirm(`${activate ? 'Reactivate' : 'Deactivate'} customer "${name}"?\n\n${activate ? 'They will appear in dropdowns and can receive new orders.' : 'They will be hidden from dropdowns. Historical data is preserved.'}`)) return;
   try {
     if (activate) {
       await POST('/api/customers/' + custId + '/reactivate', {});
@@ -2560,7 +2560,7 @@ async function toggleCustomerActive(custId, name, activate) {
 }
 
 async function toggleSupplierActive(id, name, activate) {
-  if (!confirm(`${activate ? 'Reactivate' : 'Deactivate'} supplier "${name}"?\n\n${activate ? 'They will appear in dropdowns.' : 'They will be hidden from dropdowns. Historical data is preserved.'}`)) return;
+  if (!await uiConfirm(`${activate ? 'Reactivate' : 'Deactivate'} supplier "${name}"?\n\n${activate ? 'They will appear in dropdowns.' : 'They will be hidden from dropdowns. Historical data is preserved.'}`)) return;
   try {
     if (activate) {
       await POST('/api/suppliers/' + id + '/reactivate', {});
@@ -4096,7 +4096,7 @@ async function saveEditOrder(btn) {
 }
 
 async function doCancelOrder(orderId) {
-  if (!confirm('Cancel this order?')) return;
+  if (!await uiConfirm('Cancel this order?')) return;
   try {
     await POST(`/api/customer-orders/${orderId}/cancel`, {});
     nav('orders-invoices');
@@ -4105,7 +4105,7 @@ async function doCancelOrder(orderId) {
 
 // Owner-only: permanently delete a submitted order (only if it has no invoice).
 async function doDeleteOrder(orderId) {
-  if (!confirm('Delete this order permanently? This cannot be undone.\n\n(Only works if the order has not been invoiced. If it has an invoice, void the invoice first.)')) return;
+  if (!await uiConfirm('Delete this order permanently? This cannot be undone.\n\n(Only works if the order has not been invoiced. If it has an invoice, void the invoice first.)')) return;
   try {
     await POST(`/api/customer-orders/${orderId}/delete`, {});
     alert('Order deleted.');
@@ -4620,7 +4620,7 @@ async function voidInvoice(invId, invNumber) {
   const note = prompt(`Void invoice ${invNumber}?\n\nEnter a reason (required):`);
   if (note === null) return;                      // cancelled
   if (!note.trim()) { alert('A void reason is required.'); return; }
-  if (!confirm(`This will VOID invoice ${invNumber} and reverse all associated stock movements.\n\nThis cannot be undone. Continue?`)) return;
+  if (!await uiConfirm(`This will VOID invoice ${invNumber} and reverse all associated stock movements.\n\nThis cannot be undone. Continue?`)) return;
   try {
     const res = await POST('/api/invoices/' + invId + '/void', { note: note.trim() });
     showMsg(document.getElementById('inv-msg') || document.body, res.message || 'Invoice voided', 'success');
@@ -4837,7 +4837,7 @@ async function addInvLine(invId) {
 }
 
 async function removeInvItem(itemId, invId) {
-  if (!confirm('Remove this line from the invoice?')) return;
+  if (!await uiConfirm('Remove this line from the invoice?')) return;
   try {
     const r = await fetch('/api/invoice-items/' + itemId, { method: 'DELETE', headers: { Authorization: 'Bearer ' + authToken() } });
     if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed'); }
@@ -6208,7 +6208,7 @@ function _renderPODetail(po) {
 }
 
 async function setPOStatus(poId, status) {
-  if (status === 'cancelled' && !confirm('Cancel this purchase order?')) return;
+  if (status === 'cancelled' && !await uiConfirm('Cancel this purchase order?')) return;
   try {
     const po = await POST(`/api/purchase-orders/${poId}/status`, { status });
     _renderPODetail(po);
@@ -6732,7 +6732,7 @@ async function voidBill(billId, billNumber) {
   const note = prompt(`Void bill ${billNumber}?\n\nEnter a reason (required):`);
   if (note === null) return;                      // cancelled
   if (!note.trim()) { alert('A void reason is required.'); return; }
-  if (!confirm(`This will VOID bill ${billNumber} and reverse all associated inventory receipts.\n\nThis cannot be undone. Continue?`)) return;
+  if (!await uiConfirm(`This will VOID bill ${billNumber} and reverse all associated inventory receipts.\n\nThis cannot be undone. Continue?`)) return;
   try {
     const res = await POST('/api/supplier-bills/' + billId + '/void', { note: note.trim() });
     showMsg(document.getElementById('bill-msg') || document.body, res.message || 'Bill voided', 'success');
@@ -6991,7 +6991,7 @@ async function payBillDirect(billId) {
 // ── Sprint P1: Payment Simplification ─────────────────────────────
 
 async function undoInvAllocation(allocId, invId) {
-  if (!confirm('Remove this payment allocation?\n\nThe payment amount will be returned to the unallocated pool and the invoice status will be updated.')) return;
+  if (!await uiConfirm('Remove this payment allocation?\n\nThe payment amount will be returned to the unallocated pool and the invoice status will be updated.')) return;
   try {
     const res = await DEL('/api/payment-allocations/' + allocId);
     await refreshAll();
@@ -7001,7 +7001,7 @@ async function undoInvAllocation(allocId, invId) {
 }
 
 async function undoBillAllocation(allocId, billId) {
-  if (!confirm('Remove this payment allocation?\n\nThe payment amount will be returned to the unallocated pool and the bill status will be updated.')) return;
+  if (!await uiConfirm('Remove this payment allocation?\n\nThe payment amount will be returned to the unallocated pool and the bill status will be updated.')) return;
   try {
     const res = await DEL('/api/supplier-payment-allocations/' + allocId);
     await refreshAll();
@@ -7667,7 +7667,7 @@ async function renderInventory() {
       + (isAdmin ? '<div class="inv-tset">'
         + '<input type="range" min="0" max="' + sliderMax + '" step="0.5" value="' + onKg + '" '
         + 'oninput="_invSlide(' + i.id + ',' + top + ',this.value)" '
-        + 'onchange="_invSetStock(' + i.id + ',this.value,' + onKg + ',' + top + ',this,\'' + esc(i.name || i.code).replace(/'/g, "\\'") + '\')" title="Drag to set how much is in stock">'
+        + 'onchange="_invSetStock(' + i.id + ',this.value,' + onKg + ',' + top + ',this,\'' + esc(i.name || i.code).replace(/'/g, "\\'") + '\',\'' + esc(i.code || '').replace(/'/g, "\\'") + '\')" title="Drag to set how much is in stock">'
         + '<div class="inv-tlabel">drag to set stock</div></div>' : '')
       + '</div>';
   };
@@ -7864,14 +7864,93 @@ function _invSlide(id, top, val) {
   if (f) f.style.height = Math.max(3, Math.min(100, top > 0 ? (val / top * 100) : 0)) + '%';
 }
 
-// Commit the new on-hand stock — CONFIRM first, revert the tank if cancelled.
+// Generic in-app confirm modal (matches the ERP) — drop-in async replacement for the browser confirm().
+// Usage: if (!(await uiConfirm(message))) return;   opts: {title, okText, danger}
+function uiConfirm(message, opts) {
+  opts = opts || {};
+  const m = String(message || '').toLowerCase();
+  // Auto-style destructive confirms (red button + fitting label) unless overridden via opts.
+  const danger = (opts.danger !== undefined) ? !!opts.danger
+    : (/\b(delete|void|remove|permanently)\b/.test(m) || m.indexOf('cannot be undone') >= 0);
+  const okText = opts.okText || (
+      /delete all/.test(m) ? 'Delete all'   :
+      /\bdelete\b/.test(m) ? 'Delete'        :
+      /\bvoid\b/.test(m)   ? 'Void'          :
+      /\bremove\b/.test(m) ? 'Remove'        :
+      /\bcancel\b/.test(m) ? 'Yes, cancel'   :
+      'Yes, continue');
+  const title  = opts.title || 'Please confirm';
+  const okBg   = danger ? 'var(--chili)' : 'var(--saffron)';
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(42,33,26,.42);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px';
+    ov.innerHTML =
+      '<div style="width:420px;max-width:100%;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 60px rgba(42,33,26,.35);overflow:hidden">'
+      + '<div style="padding:18px 22px 12px;display:flex;align-items:center;gap:11px">'
+      +   '<div style="width:38px;height:38px;border-radius:10px;background:' + (danger ? 'var(--chili-pale)' : 'var(--saffron-pale)') + ';color:' + (danger ? 'var(--chili)' : 'var(--saffron-deep)') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0">' + ic(danger ? 'alert-triangle' : 'message', 20) + '</div>'
+      +   '<h3 style="font-family:var(--font-serif);font-weight:500;font-size:18px;margin:0">' + esc(title) + '</h3></div>'
+      + '<div style="padding:2px 22px 18px;font-size:13.5px;color:var(--text-2);line-height:1.55;white-space:pre-line">' + esc(message || '') + '</div>'
+      + '<div style="display:flex;gap:10px;padding:0 22px 20px">'
+      +   '<button id="_uc-cancel" style="flex:1;padding:12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text-2);border:1px solid var(--border)">Cancel</button>'
+      +   '<button id="_uc-ok" style="flex:1;padding:12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:' + okBg + ';color:#fff;border:1px solid transparent">' + esc(okText) + '</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); if (e.key === 'Enter') done(true); };
+    ov.querySelector('#_uc-cancel').onclick = () => done(false);
+    ov.querySelector('#_uc-ok').onclick = () => done(true);
+    ov.onclick = (e) => { if (e.target === ov) done(false); };
+    document.addEventListener('keydown', onKey);
+    setTimeout(() => { const b = ov.querySelector('#_uc-ok'); if (b) b.focus(); }, 20);
+  });
+}
+
+// Clean in-app confirm modal (matches the ERP) → resolves true (Update) / false (Cancel/Esc/backdrop)
+function _stockConfirm(name, code, oldKg, newKg) {
+  return new Promise(resolve => {
+    const delta = Math.round((newKg - oldKg) * 10) / 10;
+    const up = delta > 0;
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(42,33,26,.42);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px';
+    ov.innerHTML =
+      '<div style="width:400px;max-width:100%;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 60px rgba(42,33,26,.35);overflow:hidden">'
+      + '<div style="padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:11px">'
+      +   '<div style="width:38px;height:38px;border-radius:10px;background:var(--saffron-pale);color:var(--saffron-deep);display:flex;align-items:center;justify-content:center;flex-shrink:0">' + ic('barrel', 20) + '</div>'
+      +   '<div><h3 style="font-family:var(--font-serif);font-weight:500;font-size:18px;margin:0">Update stock</h3>'
+      +   '<p style="font-size:12px;color:var(--text-3);margin:1px 0 0">' + esc(name || '') + (code ? ' · ' + esc(code) : '') + '</p></div></div>'
+      + '<div style="padding:20px 22px">'
+      +   '<div style="display:flex;align-items:center;justify-content:center;gap:16px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">'
+      +     '<div style="text-align:center"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:700;margin-bottom:4px">Currently</div><div style="font-family:monospace;font-size:20px;font-weight:600;color:var(--text-2)">' + oldKg + ' kg</div></div>'
+      +     '<div style="color:var(--text-3);font-size:20px">→</div>'
+      +     '<div style="text-align:center"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:700;margin-bottom:4px">New</div><div style="font-family:monospace;font-size:20px;font-weight:600;color:var(--saffron-deep)">' + newKg + ' kg</div></div>'
+      +   '</div>'
+      +   '<div style="text-align:center;font-size:12.5px;font-weight:600;margin-bottom:4px;color:' + (up ? 'var(--cardamom)' : 'var(--chili)') + '">' + (up ? '+ ' : '− ') + Math.abs(delta) + ' kg</div>'
+      +   '<div style="font-size:12px;color:var(--text-2);text-align:center;line-height:1.5">This records a stock adjustment for <b>' + esc(name || '') + '</b>. Do you want to proceed?</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:10px;padding:14px 22px 20px">'
+      +   '<button id="_sc-cancel" style="flex:1;padding:12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text-2);border:1px solid var(--border)">Cancel</button>'
+      +   '<button id="_sc-ok" style="flex:1;padding:12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:var(--saffron);color:#fff;border:1px solid transparent">Update stock</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); if (e.key === 'Enter') done(true); };
+    ov.querySelector('#_sc-cancel').onclick = () => done(false);
+    ov.querySelector('#_sc-ok').onclick = () => done(true);
+    ov.onclick = (e) => { if (e.target === ov) done(false); };
+    document.addEventListener('keydown', onKey);
+    setTimeout(() => { const b = ov.querySelector('#_sc-ok'); if (b) b.focus(); }, 20);
+  });
+}
+
+// Commit the new on-hand stock — in-app CONFIRM first, revert the tank if cancelled.
 // Reuses bulk-stock's stockKg = SET-to-value semantics (records the adjustment movement),
 // then re-renders so the tank + the table's In Stock stay in sync.
-async function _invSetStock(id, valKg, oldKg, top, inputEl, name) {
+async function _invSetStock(id, valKg, oldKg, top, inputEl, name, code) {
   const v   = parseFloat(valKg) || 0;
   const old = parseFloat(oldKg) || 0;
   if (v === old) return;   // nothing changed
-  if (!confirm('Set ' + (name || 'this ingredient') + ' stock to ' + v + ' kg?\n(currently ' + old + ' kg)')) {
+  const ok = await _stockConfirm(name, code, old, v);
+  if (!ok) {
     if (inputEl) inputEl.value = old;   // revert slider + tank display
     _invSlide(id, top, old);
     return;
@@ -8223,7 +8302,7 @@ function _prodOverviewHtml(dash, runs, stages, workOrders) {
 
 // ── Batch-run actions (the staged making of a work order) ──────────────
 async function startBatchRun(woId) {
-  if (!confirm('Start a batch for this work order?\n\nRaw material will be taken from stock now.')) return;
+  if (!await uiConfirm('Start a batch for this work order?\n\nRaw material will be taken from stock now.')) return;
   try {
     const r = await POST('/api/work-orders/' + woId + '/start-batch', {});
     alert('Batch ' + r.runCode + ' started (' + r.qtyUnits + ' packs). Advance it stage by stage as you go.');
@@ -8248,7 +8327,7 @@ async function verifyBatchRun(runId, plannedQty) {
   } catch (e) { alert(e.message || 'Could not verify batch'); }
 }
 async function cancelBatchRun(runId) {
-  if (!confirm('Cancel this batch run?\n\nThe raw material taken at the start will be returned to stock.')) return;
+  if (!await uiConfirm('Cancel this batch run?\n\nThe raw material taken at the start will be returned to stock.')) return;
   const reason = prompt('Reason (optional):', '') || '';
   try { await POST('/api/batch-runs/' + runId + '/cancel', { reason }); nav('production'); }
   catch (e) { alert(e.message || 'Could not cancel batch'); }
@@ -9246,7 +9325,7 @@ function _procModalBox() {
 }
 
 async function deleteWorkOrder(woId, woNum) {
-  if (!confirm('Delete Work Order ' + woNum + '?\nThis removes it entirely. Only allowed when no batch has been produced against it.')) return;
+  if (!await uiConfirm('Delete Work Order ' + woNum + '?\nThis removes it entirely. Only allowed when no batch has been produced against it.')) return;
   try {
     await api('DELETE', '/api/work-orders/' + woId);
     nav('production');
@@ -9278,14 +9357,14 @@ async function convertWoToBatch(woId, woNum, remaining, variantId) {
   if (typeof canRecipe === 'function' && canRecipe() && variantId) {
     return _woShowImpact(woId, woNum, qty, variantId);
   }
-  if (!confirm('Record a batch of ' + qty + ' packs for ' + woNum + '?\nThis will deduct ingredients from stock.')) return;
+  if (!await uiConfirm('Record a batch of ' + qty + ' packs for ' + woNum + '?\nThis will deduct ingredients from stock.')) return;
   return _woDoConvert(woId, woNum, qty);
 }
 
 async function _woShowImpact(woId, woNum, qty, variantId) {
   let r; try { r = await GET('/api/purchase-orders/bom-calculate?variantId=' + variantId + '&qty=' + qty); } catch (e) { r = null; }
   if (!r || !r.ingredients) {
-    if (confirm('Record a batch of ' + qty + ' packs for ' + woNum + '?\nThis will deduct ingredients from stock.')) return _woDoConvert(woId, woNum, qty);
+    if (await uiConfirm('Record a batch of ' + qty + ' packs for ' + woNum + '?\nThis will deduct ingredients from stock.')) return _woDoConvert(woId, woNum, qty);
     return;
   }
   const rows = r.ingredients.map(it => {
@@ -9522,7 +9601,7 @@ async function setWoStatus(woId, status) {
 }
 
 async function resetWoToPlanned(woId, woNum) {
-  if (!confirm(`Reset Work Order ${woNum} back to Planned?\nThis marks production as not yet started.`)) return;
+  if (!await uiConfirm(`Reset Work Order ${woNum} back to Planned?\nThis marks production as not yet started.`)) return;
   try {
     await POST(`/api/work-orders/${woId}/status`, { status: 'planned' });
     nav('production');
@@ -9538,7 +9617,7 @@ async function setWoStatusFromOrder(woId, status, orderId) {
 }
 
 async function resetWoFromOrder(woId, woNum, orderId) {
-  if (!confirm(`Reset Work Order ${woNum} back to Planned?`)) return;
+  if (!await uiConfirm(`Reset Work Order ${woNum} back to Planned?`)) return;
   try {
     await POST(`/api/work-orders/${woId}/status`, { status: 'planned' });
     openOrderDetail(orderId);
@@ -9552,7 +9631,7 @@ async function convertWoToBatchFromOrder(woId, woNum, orderId) {
     showShortfallPanel(woId, woNum, feas.requirements);
     return;
   }
-  if (!confirm(`Complete Work Order ${woNum} and record the production batch?\nThis will deduct ingredients from stock.`)) return;
+  if (!await uiConfirm(`Complete Work Order ${woNum} and record the production batch?\nThis will deduct ingredients from stock.`)) return;
   try {
     const res = await POST(`/api/work-orders/${woId}/convert`, {});
     showMsg('co-wo-msg', `✓ Batch ${res.batchId} created — ${res.qtyUnits} units produced.`, 'success');
@@ -9561,7 +9640,7 @@ async function convertWoToBatchFromOrder(woId, woNum, orderId) {
 }
 
 async function cancelWoFromOrder(woId, woNum, orderId) {
-  if (!confirm(`Cancel Work Order ${woNum}?`)) return;
+  if (!await uiConfirm(`Cancel Work Order ${woNum}?`)) return;
   try {
     await POST(`/api/work-orders/${woId}/status`, { status: 'cancelled' });
     openOrderDetail(orderId);
@@ -9901,7 +9980,7 @@ async function _bpCreateWO() {
   const packs = parseInt((document.getElementById('bp-sl') || {}).value, 10) || 0;
   const msg = document.getElementById('bp-msg');
   if (!(packs > 0)) { if (msg) { msg.textContent = 'Set a batch size'; msg.style.color = 'var(--chili)'; } return; }
-  if (!confirm('Create a work order for ' + packs + ' packs?')) return;
+  if (!await uiConfirm('Create a work order for ' + packs + ' packs?')) return;
   if (msg) { msg.textContent = 'Creating…'; msg.style.color = 'var(--text-3)'; }
   try {
     const r = await POST('/api/work-orders', { productVariantId: _bpVariantId, qtyUnits: packs });
@@ -10227,7 +10306,7 @@ async function saveNewProduct() {
 }
 
 async function removeVariant(variantId, name, packSize) {
-  if (!confirm(`Remove "${name} ${packSize}" from the system?\n\nHistorical sales data is preserved.`)) return;
+  if (!await uiConfirm(`Remove "${name} ${packSize}" from the system?\n\nHistorical sales data is preserved.`)) return;
   try {
     const r = await fetch('/api/variants/' + variantId, {
       method: 'DELETE',
@@ -10242,7 +10321,7 @@ async function removeVariant(variantId, name, packSize) {
 async function removeProductGroup(key, name) {
   const codes = (window._prodGroupCodes || {})[key] || [];
   if (!codes.length) { alert('Product not found — please refresh and try again.'); return; }
-  if (!confirm('Remove "' + name + '" and all its pack sizes?\n\nHistorical sales data is preserved. This cannot be undone.')) return;
+  if (!await uiConfirm('Remove "' + name + '" and all its pack sizes?\n\nHistorical sales data is preserved. This cannot be undone.')) return;
   try {
     for (const code of codes) {
       const r = await fetch('/api/products/' + code, {
@@ -10258,7 +10337,7 @@ async function removeProductGroup(key, name) {
 
 // Keep removeProduct for backward compatibility (used from other places)
 async function removeProduct(code, name) {
-  if (!confirm(`Remove all pack sizes of "${name}" (${code})?\n\nHistorical data is preserved.`)) return;
+  if (!await uiConfirm(`Remove all pack sizes of "${name}" (${code})?\n\nHistorical data is preserved.`)) return;
   try {
     const r = await fetch('/api/products/' + code, {
       method: 'DELETE',
@@ -10585,7 +10664,7 @@ async function saveRecipe() {
 }
 
 async function deleteRecipe(id) {
-  if (!confirm('Delete this recipe? It will be hidden from the website.')) return;
+  if (!await uiConfirm('Delete this recipe? It will be hidden from the website.')) return;
   await api('DELETE', '/api/recipes/' + id);
   nav('recipes');
 }
@@ -10808,7 +10887,7 @@ async function toggleShowOnline(variantId, currentVal) {
 
 async function toggleProductActive(variantId, currentVal) {
   const goingOff = currentVal === 1;
-  if (goingOff && !confirm('Turn this product OFF? It disappears from pricing, the dashboard and order forms. Past sales are kept, and you can turn it back on anytime.')) return;
+  if (goingOff && !await uiConfirm('Turn this product OFF? It disappears from pricing, the dashboard and order forms. Past sales are kept, and you can turn it back on anytime.')) return;
   try {
     await api('PUT', '/api/products/variants/' + variantId + '/active', { active: goingOff ? 0 : 1 });
     state.ref = await GET('/api/ref');
@@ -11069,7 +11148,7 @@ async function _ctAddLine() {
   catch (e) { if (msg) msg.textContent = e.message; }
 }
 async function _ctDeleteLine(id) {
-  if (!confirm('Remove this cost line? Recorded months are kept.')) return;
+  if (!await uiConfirm('Remove this cost line? Recorded months are kept.')) return;
   try { await api('DELETE', '/api/costing/cost-lines/' + id); nav('cost-tracking'); }
   catch (e) { alert('Could not remove: ' + e.message); }
 }
@@ -12484,7 +12563,7 @@ function _rqToggleExpand(id) {
 
 // ── Quick approve (no edits) ───────────────────────────────────
 async function _rqApprove(orderId) {
-  if (!confirm('Approve this order as-is?')) return;
+  if (!await uiConfirm('Approve this order as-is?')) return;
   try {
     await POST(`/api/review-queue/${orderId}/approve`, {});
     setStatus('Order approved ✓', 'var(--cardamom)');
@@ -12542,7 +12621,7 @@ async function _rqSubmitReject(orderId) {
 
 // ── Reopen ─────────────────────────────────────────────────────
 async function _rqReopen(orderId) {
-  if (!confirm('Re-enter this order into the review queue? A fresh 48-hour hold will be placed.')) return;
+  if (!await uiConfirm('Re-enter this order into the review queue? A fresh 48-hour hold will be placed.')) return;
   try {
     await POST(`/api/review-queue/${orderId}/reopen`, {});
     setStatus('Order re-queued ✓', 'var(--cardamom)');
@@ -12905,7 +12984,7 @@ async function toggleUserActive(id, username, isCurrentlyActive) {
   const msg    = isCurrentlyActive
     ? `Deactivate ${username}? They will not be able to log in until reactivated.`
     : `Activate ${username}? They will be able to log in again.`;
-  if (!confirm(msg)) return;
+  if (!await uiConfirm(msg)) return;
   try {
     await PUT('/api/users/' + id, { active: isCurrentlyActive ? 0 : 1 });
     await nav('users');
@@ -13690,7 +13769,7 @@ async function saveRepWaKey(repId) {
 }
 
 async function unassignRoute(assignId, repId) {
-  if (!confirm('Remove this route assignment?')) return;
+  if (!await uiConfirm('Remove this route assignment?')) return;
   try {
     await POST(`/api/reps/${repId}/routes/${assignId}/unassign`, {});
     viewRepDetail(repId);
@@ -13889,7 +13968,7 @@ async function renderFieldOrders() {
 }
 
 async function confirmOrder(orderId, source) {
-  if (!confirm('Confirm this order and create an invoice?')) return;
+  if (!await uiConfirm('Confirm this order and create an invoice?')) return;
   try {
     let res;
     if (source === 'portal') {
@@ -13899,7 +13978,7 @@ async function confirmOrder(orderId, source) {
       try {
         const invRes = await POST(`/api/customer-orders/${orderId}/invoice`, {invoiceDate: new Date().toISOString().slice(0,10)});
         const invId = invRes.id || invRes.invoiceId;
-        const doPrint = invId && confirm(`✅ Order confirmed — Invoice ${invRes.invoiceNumber || ''} created.\n\nPrint the invoice now?`);
+        const doPrint = invId && await uiConfirm(`✅ Order confirmed — Invoice ${invRes.invoiceNumber || ''} created.\n\nPrint the invoice now?`);
         if (doPrint) await printInvoice(invId);
       } catch(invErr) {
         alert(`✅ Order confirmed.\n\nNote: Could not auto-create invoice: ${invErr.message}\nYou can invoice it from Orders & Invoices.`);
@@ -13908,7 +13987,7 @@ async function confirmOrder(orderId, source) {
       // Legacy field_orders
       res = await POST(`/api/field-orders/${orderId}/confirm`, {});
       const invId = res.invoiceId || res.invoice_id || res.id;
-      const doPrint = invId && confirm(`✅ Order confirmed — Invoice ${res.invoiceNumber || res.invoice_number || ''} created.\n\nPrint the invoice now?`);
+      const doPrint = invId && await uiConfirm(`✅ Order confirmed — Invoice ${res.invoiceNumber || res.invoice_number || ''} created.\n\nPrint the invoice now?`);
       if (doPrint) await printInvoice(invId);
     }
     nav('field-orders');
@@ -13980,7 +14059,7 @@ async function renderPayroll() {
 async function runPayroll() {
   const period = document.getElementById('pay-run-period').value;
   if (!period) return alert('Select a period');
-  if (!confirm(`Run payroll for ${period}? This will calculate for ALL active reps.`)) return;
+  if (!await uiConfirm(`Run payroll for ${period}? This will calculate for ALL active reps.`)) return;
   try {
     await POST('/api/payroll/run', {period});
     loadPayrollPeriod();
@@ -14008,7 +14087,7 @@ async function loadPayrollPeriod() {
 }
 
 async function finalizePayslip(repId, period) {
-  if (!confirm(`Finalize payslip for period ${period}? This cannot be undone.`)) return;
+  if (!await uiConfirm(`Finalize payslip for period ${period}? This cannot be undone.`)) return;
   try {
     await POST('/api/payroll/finalize', {repId, period});
     loadPayrollPeriod();
@@ -14199,7 +14278,7 @@ async function ingSubmitEdit(id, code) {
 }
 
 async function ingDeactivate(code, displayCode) {
-  if (!confirm(`Deactivate ingredient ${displayCode}?\n\nThis will hide it from all dropdowns and purchase order forms. Any remaining stock must be zero.`)) return;
+  if (!await uiConfirm(`Deactivate ingredient ${displayCode}?\n\nThis will hide it from all dropdowns and purchase order forms. Any remaining stock must be zero.`)) return;
   try {
     const r = await fetch('/api/ingredients/' + code, {
       method: 'DELETE',
@@ -14211,7 +14290,7 @@ async function ingDeactivate(code, displayCode) {
 }
 
 async function ingReactivate(code) {
-  if (!confirm(`Reactivate ingredient ${code}?`)) return;
+  if (!await uiConfirm(`Reactivate ingredient ${code}?`)) return;
   try {
     await POST('/api/ingredients/' + code + '/reactivate', {});
     nav('ingredients-admin');
@@ -14501,7 +14580,7 @@ async function renderSystem() {
 
 async function devResetAll(btn) {
   const msgEl = document.getElementById('dev-reset-msg');
-  const confirmed = confirm(
+  const confirmed = await uiConfirm(
     '⚠️ WARNING: This will permanently delete ALL data including customers, suppliers, ingredients, products, orders, invoices, and production records.\n\nThis cannot be undone.\n\nType OK to confirm.'
   );
   if (!confirmed) return;
@@ -14527,7 +14606,7 @@ async function devResetAll(btn) {
 }
 
 async function truncateCustomers(btn) {
-  if (!confirm('⚠ This will DELETE ALL customers and reset the counter.\n\nOnly do this before reimporting clean master data.\n\nContinue?')) return;
+  if (!await uiConfirm('⚠ This will DELETE ALL customers and reset the counter.\n\nOnly do this before reimporting clean master data.\n\nContinue?')) return;
   const msgEl = document.getElementById('truncate-cust-msg');
   btn.disabled = true;
   btn.textContent = '⏳ Wiping…';
@@ -14550,7 +14629,7 @@ async function truncateCustomers(btn) {
 }
 
 async function truncateIngredients(btn) {
-  if (!confirm('⚠ This will DELETE ALL ingredients and reset the counter.\n\nOnly do this before reimporting clean master data.\n\nContinue?')) return;
+  if (!await uiConfirm('⚠ This will DELETE ALL ingredients and reset the counter.\n\nOnly do this before reimporting clean master data.\n\nContinue?')) return;
   const msgEl = document.getElementById('truncate-ing-msg');
   btn.disabled = true;
   btn.textContent = '⏳ Wiping…';
@@ -14573,7 +14652,7 @@ async function truncateIngredients(btn) {
 }
 
 async function truncateSuppliers(btn) {
-  if (!confirm('⚠ This will DELETE ALL suppliers and reset the counter.\n\nOnly do this before reimporting clean master data.\n\nContinue?')) return;
+  if (!await uiConfirm('⚠ This will DELETE ALL suppliers and reset the counter.\n\nOnly do this before reimporting clean master data.\n\nContinue?')) return;
   const msgEl = document.getElementById('truncate-sup-msg');
   btn.disabled = true;
   btn.textContent = '⏳ Wiping…';
