@@ -26,7 +26,56 @@ __all__ = [
     'get_pl_report',
     'get_rep_performance_report',
     'get_margin_report',
+    'reset_for_launch',
 ]
+
+
+# Transactional tables purged by the one-time launch reset (children before parents, FK-safe).
+_LAUNCH_PURGE_TABLES = [
+    'payment_allocations', 'customer_payments', 'invoice_items', 'invoices',
+    'order_hold_expiry', 'customer_order_items', 'customer_orders', 'sales',
+    'field_otp', 'field_order_items', 'field_orders', 'beat_visits',
+    'production_consumption', 'production_batches', 'work_orders',
+    'supplier_payment_allocations', 'supplier_payments', 'supplier_bill_items', 'supplier_bills',
+    'po_items', 'purchase_orders',
+    'inventory_ledger', 'margin_alerts', 'plan_release',
+]
+# Document counters reset to 0 so the first real doc is 0001. (rep / acct counters left alone.)
+_LAUNCH_RESET_COUNTERS = ['sale', 'batch', 'invoice', 'payment', 'bill', 'spay',
+                          'work_order', 'customer_order', 'purchase_order', 'field_order']
+
+
+def reset_for_launch():
+    """OWNER-ONLY one-time launch reset. Purges ALL test transactional data — orders,
+    invoices, payments, sales, work orders, batches, POs, bills, field orders, stock
+    movements, plan releases — and resets document numbering to 0001. KEEPS all master
+    data: products, customers, suppliers, zones, reps, ingredients, BOMs, costing, cost
+    lines, users, prices, plans. Idempotent (safe to run twice)."""
+    from modules.db import _conn, save_db
+    c = _conn()
+    purged = {}
+    try:
+        c.execute("PRAGMA foreign_keys=OFF")
+        for t in _LAUNCH_PURGE_TABLES:
+            if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (t,)).fetchone():
+                continue
+            n = c.execute(f"SELECT COUNT(*) FROM '{t}'").fetchone()[0]
+            if n:
+                c.execute(f"DELETE FROM '{t}'")
+                purged[t] = n
+            try:
+                c.execute("DELETE FROM sqlite_sequence WHERE name=?", (t,))
+            except Exception:
+                pass
+        ph = ','.join('?' * len(_LAUNCH_RESET_COUNTERS))
+        c.execute(f"UPDATE id_counters SET last_num=0 WHERE entity IN ({ph})",
+                  tuple(_LAUNCH_RESET_COUNTERS))
+        c.commit()
+    finally:
+        c.close()
+    save_db()
+    return {'ok': True, 'purged': purged, 'purged_total': sum(purged.values()),
+            'counters_reset': _LAUNCH_RESET_COUNTERS}
 
 
 # ─────────────────────────────────────────────────────────────────

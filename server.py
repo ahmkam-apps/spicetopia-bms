@@ -4041,6 +4041,15 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, str(e), 400)
                 return
 
+            # POST /api/admin/reset-for-launch  (OWNER / super_user ONLY) — one-time launch reset
+            if path == '/api/admin/reset-for-launch':
+                if not (sess and sess.get('role') == 'super_user'):
+                    send_error(self, 'Owner only', 403); return
+                if (data or {}).get('confirm') != 'RESET':
+                    send_error(self, 'Type RESET to confirm', 400); return
+                send_json(self, reset_for_launch())
+                return
+
             # POST /api/costing/cost-lines  (admin or 'costs') — add a cost line
             if path == '/api/costing/cost-lines':
                 if not _can_costs(sess):

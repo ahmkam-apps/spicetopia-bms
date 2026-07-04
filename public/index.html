@@ -13753,6 +13753,22 @@ async function uploadMaster(type) {
 //  SYSTEM — Admin backup status page (P2.1)
 // ═══════════════════════════════════════════════════════════════════
 
+async function resetForLaunch(btn) {
+  const ans = prompt('LAUNCH RESET\n\nThis permanently deletes ALL test transactions (orders, invoices, payments, sales, work orders, batches, POs, bills, field orders, stock movements) and restarts numbering at 0001. Master data is kept. This cannot be undone — make sure you have a backup.\n\nType RESET to confirm:');
+  if (ans !== 'RESET') { if (ans !== null) alert('Not confirmed — nothing was changed.'); return; }
+  const msg = document.getElementById('launch-reset-msg');
+  if (btn) btn.disabled = true;
+  if (msg) { msg.textContent = 'Resetting…'; msg.style.color = 'var(--text-3)'; }
+  try {
+    const res = await POST('/api/admin/reset-for-launch', { confirm: 'RESET' });
+    if (msg) { msg.textContent = '✓ Done — cleared ' + (res.purged_total || 0) + ' records; numbering reset to 0001.'; msg.style.color = 'var(--cardamom)'; }
+    setTimeout(() => nav('system'), 1600);
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    if (msg) { msg.textContent = 'Error: ' + e.message; msg.style.color = 'var(--chili)'; }
+  }
+}
+
 async function renderSystem() {
   if (!state.currentUser || !isAdminRole()) {
     return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
@@ -13824,6 +13840,18 @@ async function renderSystem() {
         ${tableSection}
       </div>
     </div>
+
+    ${(typeof isSuperUser === 'function' && isSuperUser()) ? `
+    <div class="card" style="max-width:720px;margin-top:20px;border-top:3px solid var(--chili)">
+      <div class="card-header"><b>🚀 Launch Reset — Owner only</b></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-2);line-height:1.6">One-time reset for go-live. <strong>Deletes all test transactional data</strong> — orders, invoices, payments, sales, work orders, batches, purchase orders, bills, field orders, stock movements, plan releases — and restarts all document numbering at <strong>0001</strong>. <strong style="color:var(--cardamom)">Keeps</strong> products, customers, suppliers, zones, reps, ingredients, BOMs, costing, cost lines, users, prices, and plans. Cannot be undone — download a backup first.</p>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
+          <button class="btn" style="background:var(--chili);color:#fff;border:none" onclick="resetForLaunch(this)">🚀 Reset for launch</button>
+          <span id="launch-reset-msg" style="font-size:0.9em"></span>
+        </div>
+      </div>
+    </div>` : ''}
 
     <div class="card" id="wa-settings-card" style="max-width:720px;margin-top:20px;border-top:3px solid #25D366">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
