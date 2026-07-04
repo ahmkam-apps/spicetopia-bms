@@ -36,6 +36,7 @@ __all__ = [
     'convert_wo_to_batch',
     'update_work_order',
     'update_work_order_status',
+    'delete_work_order',
     'create_production_batch',
     'create_or_update_bom',
     'import_bom_master',
@@ -389,6 +390,23 @@ def update_work_order_status(wo_id, status):
         raise ValueError("Work order not found")
     run("UPDATE work_orders SET status=?, updated_at=datetime('now') WHERE id=?", (status, wo_id))
     return {'id': wo_id, 'status': status}
+
+
+def delete_work_order(wo_id):
+    """Hard-delete a work order that has produced NOTHING (planned/in_progress with no batch,
+    or cancelled). Refuses if any batch was recorded against it — that would break production
+    history, so cancel those instead. Unlinks any plan release so the plan can re-release."""
+    wo = qry1("SELECT * FROM work_orders WHERE id=?", (wo_id,))
+    if not wo:
+        raise ValueError("Work order not found")
+    if wo['status'] == 'completed' or wo.get('batch_id') or int(wo.get('produced_units') or 0) > 0:
+        raise ValueError("This work order already has production against it — cancel it instead of deleting.")
+    try:
+        run("DELETE FROM plan_release WHERE work_order_id=?", (wo_id,))
+    except Exception:
+        pass
+    run("DELETE FROM work_orders WHERE id=?", (wo_id,))
+    return {'ok': True, 'id': wo_id}
 
 
 # ─────────────────────────────────────────────────────────────────

@@ -1320,7 +1320,7 @@ def release_to_manufacturing(version_id, period_month, changed_by):
     The team converts each WO → Batch through the normal two-step flow; inventory moves
     only there. Approved plans only. Idempotent per (plan, month, variant) via plan_release.
     """
-    from modules.production import create_work_order
+    from modules.production import create_work_order, check_wo_feasibility
     v = get_plan_version(version_id)
     if v.get('status') != 'approved':
         raise ValueError("Only an approved plan can release to manufacturing")
@@ -1341,18 +1341,19 @@ def release_to_manufacturing(version_id, period_month, changed_by):
     batch = (prim or {}).get('batch_size') or None
     moq = (prim or {}).get('moq') or None
 
-    released = set()
+    # Map each variant already in this plan-month's release log to its WO status.
+    #   WO active (exists, not cancelled) → skip (already released).
+    #   WO cancelled → REACTIVATE that same WO (reuse its number, update qty) — no new WO.
+    #   WO missing → create a new WO.
+    rel_wo = {}
     if _table_exists('plan_release'):
-        # A SKU-month counts as "already released" only if its released WO still exists and
-        # is NOT cancelled. So cancelling a WO frees that SKU-month to be re-released (and
-        # pick up an edited quantity). A missing or cancelled WO → re-release is allowed.
-        for r in qry("""SELECT r.variant_id
+        for r in qry("""SELECT r.variant_id, r.work_order_id, w.status AS wo_status, w.wo_number
                         FROM plan_release r
                         LEFT JOIN work_orders w ON w.id = r.work_order_id
-                        WHERE r.plan_version_id=? AND r.period_month=?
-                          AND w.id IS NOT NULL AND w.status != 'cancelled'""",
+                        WHERE r.plan_version_id=? AND r.period_month=?""",
                      (version_id, month)):
-            released.add(r['variant_id'])
+            rel_wo[r['variant_id']] = {'wo_id': r['work_order_id'],
+                                       'wo_status': r['wo_status'], 'wo_number': r['wo_number']}
 
     plan_code = v.get('plan_code') or f"PLAN-{version_id}"
     label = month[:7]
@@ -1360,7 +1361,9 @@ def release_to_manufacturing(version_id, period_month, changed_by):
     for vid_, units in units_by_variant.items():
         if units <= 0:
             continue
-        if vid_ in released:
+        ex = rel_wo.get(vid_)
+        # Already actively released (WO exists and not cancelled) → skip.
+        if ex and ex['wo_id'] and ex['wo_status'] and ex['wo_status'] != 'cancelled':
             skipped.append({'variant_id': vid_, 'reason': 'already released'})
             continue
         qty = units
@@ -1371,10 +1374,27 @@ def release_to_manufacturing(version_id, period_month, changed_by):
         qty = int(math.ceil(qty))
         if qty <= 0:
             continue
-        wo = create_work_order({'productVariantId': vid_, 'qtyUnits': qty,
-                                'targetDate': month, 'notes': f'Plan {plan_code} · {label}'})
-        created.append({'variant_id': vid_, 'qty': qty,
-                        'work_order_id': wo['id'], 'wo_number': wo['woNumber']})
+        notes = f'Plan {plan_code} · {label}'
+        if ex and ex['wo_id'] and ex['wo_status'] == 'cancelled':
+            # Reactivate the cancelled WO in place — same number, new quantity, reset progress.
+            feas = check_wo_feasibility(vid_, qty)
+            c2 = _conn()
+            try:
+                c2.execute("""UPDATE work_orders
+                              SET status='planned', qty_units=?, produced_units=0, batch_id=NULL,
+                                  target_date=?, notes=?, feasibility_ok=?, updated_at=datetime('now')
+                              WHERE id=?""",
+                           (qty, month, notes, 1 if feas['feasible'] else 0, ex['wo_id']))
+                c2.commit()
+            finally:
+                c2.close()
+            created.append({'variant_id': vid_, 'qty': qty, 'work_order_id': ex['wo_id'],
+                            'wo_number': ex['wo_number'], 'reactivated': True})
+        else:
+            wo = create_work_order({'productVariantId': vid_, 'qtyUnits': qty,
+                                    'targetDate': month, 'notes': notes})
+            created.append({'variant_id': vid_, 'qty': qty,
+                            'work_order_id': wo['id'], 'wo_number': wo['woNumber']})
 
     if created:
         c = _conn()

@@ -8067,7 +8067,8 @@ async function renderProduction() {
         ${canStart   ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron)" onclick="event.stopPropagation();setWoStatus(${wo.id},'in_progress')" title="Mark this work order as In Progress — production has started">▶ Start Production</button>` : ''}
         ${canReset && isAdminRole() ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--saffron-deep)" onclick="event.stopPropagation();resetWoToPlanned(${wo.id},'${wo.wo_number}')" title="Reset back to Planned — production has not started yet">↩ Reset to Planned</button>` : ''}
         ${canConvert ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="event.stopPropagation();editWorkOrder(${wo.id},'${wo.wo_number}',${wo.qty_units},'${wo.target_date||''}','${(wo.notes||'').replace(/'/g,"\\'")}')">Edit</button>` : ''}
-        ${canCancel  ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="event.stopPropagation();setWoStatus(${wo.id},'cancelled')">✕</button>` : ''}
+        ${canCancel  ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="event.stopPropagation();setWoStatus(${wo.id},'cancelled')" title="Cancel this work order">✕</button>` : ''}
+        ${(!wo.batch_id && (wo.produced_units||0) === 0 && wo.status !== 'completed') ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="event.stopPropagation();deleteWorkOrder(${wo.id},'${wo.wo_number}')" title="Delete this work order — only when no batch has been produced">🗑</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -8837,6 +8838,14 @@ function _closeProcModal() {
 }
 function _procModalBox() {
   return document.getElementById('proc-modal-box');
+}
+
+async function deleteWorkOrder(woId, woNum) {
+  if (!confirm('Delete Work Order ' + woNum + '?\nThis removes it entirely. Only allowed when no batch has been produced against it.')) return;
+  try {
+    await api('DELETE', '/api/work-orders/' + woId);
+    nav('production');
+  } catch (e) { alert('Could not delete: ' + e.message); }
 }
 
 async function convertWoToBatch(woId, woNum, remaining) {

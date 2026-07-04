@@ -5181,6 +5181,16 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, delete_cost_line(int(path.split('/')[4])))
                 return
 
+            # DELETE /api/work-orders/:id  (admin, warehouse) — remove a WO with no production
+            if path.startswith('/api/work-orders/') and len(path.split('/')) == 4 and path.split('/')[3].isdigit():
+                if not require(sess, 'admin', 'warehouse'):
+                    send_error(self, 'Permission denied', 403); return
+                try:
+                    send_json(self, delete_work_order(int(path.split('/')[3])))
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
             # DELETE /api/recipes/:id  → soft deactivate (admin only)
             if path.startswith('/api/recipes/') and len(path.split('/')) == 4:
                 if not require(sess, 'admin'):
