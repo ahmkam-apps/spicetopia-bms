@@ -7657,18 +7657,18 @@ async function renderInventory() {
     const hintColor = st === 'OUT' ? 'var(--chili)' : st === 'LOW' ? 'var(--cinnamon)' : 'var(--text-3)';
     const sliderMax = Math.max(Math.ceil(Math.max(tgtKg * 2, onKg * 1.5, roKg * 3, 10)), 1);
     return '<div class="inv-tank">'
-      + '<div class="inv-cyl" onclick="_invTapTank(' + i.id + ')" title="Tap to adjust stock">'
-      +   '<div class="inv-fill" style="height:' + fillPct + '%;background:' + fillColor + '"></div>'
+      + '<div class="inv-cyl" onclick="_invTapTank(' + i.id + ')" title="Tap for full detail / adjust with a reason">'
+      +   '<div class="inv-fill" id="ivf-' + i.id + '" style="height:' + fillPct + '%;background:' + fillColor + '"></div>'
       +   (roKg > 0 ? '<div class="inv-reord" style="bottom:' + roPct + '%"></div>' : '')
       + '</div>'
       + '<div class="inv-nm">' + esc(i.name || i.code) + '</div>'
-      + '<div class="inv-kg">' + onKg + ' kg</div>'
-      + '<div class="inv-hint" style="color:' + hintColor + '">' + hint + '</div>'
+      + '<div class="inv-kg" id="ivk-' + i.id + '">' + onKg + ' kg</div>'
+      + '<div class="inv-hint" style="color:' + hintColor + '">' + (tgtKg > 0 ? 'full ' + tgtKg + ' kg' : hint) + '</div>'
       + (isAdmin ? '<div class="inv-tset">'
-        + '<input type="range" min="0" max="' + sliderMax + '" step="0.5" value="' + tgtKg + '" '
-        + 'oninput="var e=document.getElementById(\'ivt-' + i.id + '\');if(e)e.textContent=(+this.value)" '
-        + 'onchange="_invSetTarget(' + i.id + ',this.value)" title="Set the full / acceptable level">'
-        + '<div class="inv-tlabel">Full: <b id="ivt-' + i.id + '">' + tgtKg + '</b> kg</div></div>' : '')
+        + '<input type="range" min="0" max="' + sliderMax + '" step="0.5" value="' + onKg + '" '
+        + 'oninput="_invSlide(' + i.id + ',' + top + ',this.value)" '
+        + 'onchange="_invSetStock(' + i.id + ',this.value,' + onKg + ',' + top + ',this,\'' + esc(i.name || i.code).replace(/'/g, "\\'") + '\')" title="Drag to set how much is in stock">'
+        + '<div class="inv-tlabel">drag to set stock</div></div>' : '')
       + '</div>';
   };
   const gaugeGrid = '<style>'
@@ -7855,13 +7855,36 @@ function _invTapTank(id) {
   if (row) setTimeout(() => row.scrollIntoView({ behavior: 'smooth', block: 'center' }), 40);
 }
 
-// Save an ingredient's full/acceptable level from the tank slider (reuses bulk-stock, target only)
-async function _invSetTarget(id, valKg) {
+// Live preview while dragging: update the tank's on-hand number + fill height (top = gauge full ref)
+function _invSlide(id, top, val) {
+  val = +val;
+  const k = document.getElementById('ivk-' + id);
+  if (k) k.textContent = val + ' kg';
+  const f = document.getElementById('ivf-' + id);
+  if (f) f.style.height = Math.max(3, Math.min(100, top > 0 ? (val / top * 100) : 0)) + '%';
+}
+
+// Commit the new on-hand stock — CONFIRM first, revert the tank if cancelled.
+// Reuses bulk-stock's stockKg = SET-to-value semantics (records the adjustment movement),
+// then re-renders so the tank + the table's In Stock stay in sync.
+async function _invSetStock(id, valKg, oldKg, top, inputEl, name) {
+  const v   = parseFloat(valKg) || 0;
+  const old = parseFloat(oldKg) || 0;
+  if (v === old) return;   // nothing changed
+  if (!confirm('Set ' + (name || 'this ingredient') + ' stock to ' + v + ' kg?\n(currently ' + old + ' kg)')) {
+    if (inputEl) inputEl.value = old;   // revert slider + tank display
+    _invSlide(id, top, old);
+    return;
+  }
   try {
-    await POST('/api/inventory/bulk-stock', { rows: [{ ingredientId: id, targetKg: parseFloat(valKg) || 0 }] });
-    if (typeof setStatus === 'function') setStatus('Full level saved');
-    render('inventory');   // re-render so gauge fill + colours reflect the new level (stays on Gauges view)
-  } catch (e) { alert('Could not save the level: ' + (e.message || e)); }
+    await POST('/api/inventory/bulk-stock', { rows: [{ ingredientId: id, stockKg: v }] });
+    if (typeof setStatus === 'function') setStatus('Stock updated');
+    render('inventory');
+  } catch (e) {
+    alert('Could not update stock: ' + (e.message || e));
+    if (inputEl) inputEl.value = old;
+    _invSlide(id, top, old);
+  }
 }
 
 // Small KPI card used in Inventory header strips
