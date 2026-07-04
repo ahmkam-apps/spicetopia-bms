@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#9A4A24">
+<title>Spicetopia — Batch Runner</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --terra:#9A4A24; --terra-deep:#7E3A1B; --terra-pale:#F1E4D8;
+  --green:#5E7245; --green-pale:#EAEEDD; --red:#B23A2E; --red-pale:#F6E7E2;
+  --gold:#A9863F; --paper:#F4F0E7; --surface:#FCFAF5; --surface-2:#F1EBE0;
+  --border:#E4DACA; --ink:#2A211A; --muted:#7C6F5E; --faint:#A89A85;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; --serif:'Fraunces',Georgia,serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--paper);font-family:var(--font);color:var(--ink);min-height:100vh}
+.wrap{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+.appbar{background:var(--terra);color:#fff;padding:16px 18px 14px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}
+.appbar .t{font-family:var(--serif);font-size:18px;font-weight:500}
+.appbar .u{font-size:12px;opacity:.9;cursor:pointer}
+.scroll{flex:1;overflow-y:auto;padding:16px 16px 40px}
+.h{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--faint);font-weight:700;margin:6px 2px 9px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:15px 16px;margin-bottom:13px;box-shadow:0 2px 8px rgba(42,33,26,.05)}
+.prod{font-size:16px;font-weight:600}
+.meta{font-size:12px;color:var(--faint);margin-top:1px;font-family:'Inter'}
+.pill{font-size:11px;font-weight:600;padding:4px 10px;border-radius:12px;white-space:nowrap}
+.pill-terra{background:var(--terra-pale);color:var(--terra-deep)}
+.pill-green{background:var(--green-pale);color:var(--green)}
+.pill-red{background:var(--red-pale);color:var(--red)}
+.btn{width:100%;border:none;border-radius:13px;padding:15px;font-family:var(--font);font-size:15px;font-weight:600;cursor:pointer;margin-top:12px}
+.btn-go{background:var(--terra);color:#fff}
+.btn-go:active{background:var(--terra-deep)}
+.btn-go:disabled{opacity:.45}
+.btn-lt{background:var(--surface-2);color:var(--terra-deep);font-weight:500}
+.bar{margin-top:10px;height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden}
+.bar>div{height:100%;background:var(--terra)}
+.row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+/* vertical stepper */
+.vstep{display:flex;gap:13px;position:relative}
+.vstep .line{position:absolute;left:15px;top:30px;bottom:-8px;width:2px;background:var(--surface-2)}
+.vstep.done .line{background:var(--green)}
+.vstep .dot{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;z-index:1;border:2px solid var(--surface-2);background:var(--surface);color:var(--faint);font-weight:600}
+.vstep.done .dot{background:var(--green);border-color:var(--green);color:#fff}
+.vstep.now .dot{background:var(--terra);border-color:var(--terra);color:#fff;box-shadow:0 0 0 5px var(--terra-pale)}
+.vstep .txt{padding-bottom:18px}
+.vstep .nm{font-size:14px;font-weight:500;color:var(--faint)}
+.vstep.done .nm,.vstep.now .nm{color:var(--ink)}
+.vstep.now .nm{color:var(--terra-deep);font-weight:600}
+/* login */
+.login{flex:1;display:flex;flex-direction:column;justify-content:center;padding:30px 26px}
+.login h1{font-family:var(--serif);font-weight:500;font-size:30px;margin:0 0 4px;color:var(--terra-deep)}
+.login p{color:var(--muted);font-size:14px;margin:0 0 26px}
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.fld input{width:100%;padding:14px 15px;border:1px solid var(--border);border-radius:12px;font-size:16px;font-family:var(--font);background:var(--surface)}
+.fld input:focus{outline:none;border-color:var(--terra)}
+.msg{font-size:13px;margin-top:10px;min-height:18px}
+.msg.err{color:var(--red)}
+.empty{color:var(--faint);font-size:13px;padding:16px 4px;text-align:center}
+.back{font-size:14px;color:#fff;opacity:.9;cursor:pointer}
+.note{background:var(--green-pale);border:1px solid #cdd8b4;border-radius:12px;padding:14px;font-size:13.5px;color:var(--green);margin-top:14px;line-height:1.5}
+.hidden{display:none!important}
+.spin{text-align:center;color:var(--faint);padding:40px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── LOGIN ─────────────────────────────────────── -->
+  <div id="login" class="login hidden">
+    <h1>Batch Runner</h1>
+    <p>Log in to run today's batches.</p>
+    <div class="fld"><label>Phone number</label><input id="lg-phone" type="tel" inputmode="tel" placeholder="03xxxxxxxxx" autocomplete="username"></div>
+    <div class="fld"><label>PIN</label><input id="lg-pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="current-password"></div>
+    <button class="btn btn-go" id="lg-btn" onclick="doLogin()">Log in</button>
+    <div id="lg-msg" class="msg"></div>
+    <div style="font-size:12px;color:var(--faint);margin-top:18px;line-height:1.5">Use the exact number your manager registered. If it says the app isn't enabled, ask the owner to turn on Batch Runner access.</div>
+  </div>
+
+  <!-- ── APP (board) ──────────────────────────────── -->
+  <div id="app" class="hidden" style="flex:1;display:flex;flex-direction:column">
+    <div class="appbar"><div class="t">🌶️ Batch Runner</div><div class="u" onclick="doLogout()" id="who">▾</div></div>
+    <div class="scroll" id="board"><div class="spin">Loading…</div></div>
+  </div>
+
+  <!-- ── RUN DETAIL ───────────────────────────────── -->
+  <div id="detail" class="hidden" style="flex:1;display:flex;flex-direction:column">
+    <div class="appbar"><div class="back" onclick="showBoard()">← Back</div><div class="t" id="dt-title" style="font-size:15px"></div><div style="width:40px"></div></div>
+    <div class="scroll" id="dt-body"></div>
+  </div>
+
+</div>
+
+<script>
+let BOARD = { runs:[], ready:[], stages:[], name:'' };
+let CUR_RUN = null;
+
+async function api(method, path, body){
+  const opt = { method, credentials:'same-origin', headers:{} };
+  if (body !== undefined){ opt.headers['Content-Type']='application/json'; opt.body=JSON.stringify(body); }
+  const r = await fetch(path, opt);
+  let j = {};
+  try { j = await r.json(); } catch(e){}
+  if (!r.ok) throw new Error(j.error || ('Error '+r.status));
+  return j;
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function show(id){ ['login','app','detail'].forEach(x=>document.getElementById(x).classList.toggle('hidden', x!==id)); }
+
+async function boot(){
+  try {
+    const d = await api('GET','/api/batch/board');
+    BOARD = d; renderBoard(); show('app');
+  } catch(e){
+    show('login');
+  }
+}
+
+async function doLogin(){
+  const phone = document.getElementById('lg-phone').value.trim();
+  const pin   = document.getElementById('lg-pin').value.trim();
+  const msg   = document.getElementById('lg-msg');
+  const btn   = document.getElementById('lg-btn');
+  msg.className='msg'; msg.textContent='';
+  if(!phone || !pin){ msg.className='msg err'; msg.textContent='Enter your phone and PIN.'; return; }
+  btn.disabled=true; btn.textContent='Logging in…';
+  try {
+    await api('POST','/api/batch/auth',{phone,pin});
+    document.getElementById('lg-pin').value='';
+    await boot();
+  } catch(e){
+    msg.className='msg err'; msg.textContent = e.message || 'Login failed';
+  } finally { btn.disabled=false; btn.textContent='Log in'; }
+}
+
+async function doLogout(){
+  try { await api('POST','/api/batch/logout',{}); } catch(e){}
+  show('login');
+}
+
+function renderBoard(){
+  document.getElementById('who').textContent = (BOARD.name || '') + ' ▾';
+  const total = (BOARD.stages||[]).length;
+  let html = '';
+
+  html += '<div class="h">Running now</div>';
+  if ((BOARD.runs||[]).length === 0){
+    html += '<div class="empty">No batch running. Start one below.</div>';
+  } else {
+    (BOARD.runs||[]).forEach(r=>{
+      const verify = r.status === 'awaiting_verification';
+      const pct = total ? Math.round((r.stageNum/total)*100) : 0;
+      const pill = verify
+        ? '<span class="pill pill-green">done — owner check</span>'
+        : '<span class="pill pill-terra">'+esc(r.stage_name||'')+'</span>';
+      html += '<div class="card" style="border-left:4px solid var(--terra)" onclick="openRun('+r.id+')">'
+        + '<div class="row-top"><div><div class="prod">'+esc(r.product_name||'')+' '+esc(r.pack_size||'')+'</div>'
+        + '<div class="meta">'+esc(r.run_code)+' · '+r.qty_units+' packs</div></div>'+pill+'</div>'
+        + '<div class="bar"><div style="width:'+pct+'%"></div></div>'
+        + '<div class="meta" style="margin-top:6px">Step '+r.stageNum+' of '+total+(verify?' · waiting for owner to confirm':'')+'</div>'
+        + '<button class="btn btn-lt" onclick="event.stopPropagation();openRun('+r.id+')">Open batch →</button></div>';
+    });
+  }
+
+  html += '<div class="h" style="margin-top:22px">Ready to start</div>';
+  if ((BOARD.ready||[]).length === 0){
+    html += '<div class="empty">Nothing waiting. New work orders show up here.</div>';
+  } else {
+    (BOARD.ready||[]).forEach(w=>{
+      const badge = w.canMake ? '<span class="pill pill-green">materials ready</span>' : '<span class="pill pill-red">waiting on stock</span>';
+      html += '<div class="card"><div class="row-top"><div><div class="prod">'+esc(w.product||'')+' '+esc(w.packSize||'')+'</div>'
+        + '<div class="meta">'+esc(w.woNumber)+' · '+w.remaining+' packs</div></div>'+badge+'</div>'
+        + '<button class="btn btn-go" onclick="startBatch('+w.woId+',this)">▶ Start batch</button></div>';
+    });
+  }
+  document.getElementById('board').innerHTML = html;
+}
+
+async function startBatch(woId, btn){
+  if(btn){ btn.disabled=true; btn.textContent='Starting…'; }
+  try {
+    const r = await api('POST','/api/batch/start',{woId});
+    BOARD = await api('GET','/api/batch/board');
+    // open the newly started run
+    const nr = (BOARD.runs||[]).find(x=>x.run_code===r.runCode);
+    if(nr){ openRun(nr.id); } else { renderBoard(); }
+  } catch(e){
+    alert(e.message || 'Could not start batch');
+    if(btn){ btn.disabled=false; btn.textContent='▶ Start batch'; }
+  }
+}
+
+function openRun(runId){
+  const r = (BOARD.runs||[]).find(x=>x.id===runId);
+  if(!r){ showBoard(); return; }
+  CUR_RUN = r;
+  const stages = BOARD.stages||[];
+  const verify = r.status === 'awaiting_verification';
+  document.getElementById('dt-title').textContent = (r.product_name||'') + ' ' + (r.pack_size||'');
+
+  let steps = '';
+  stages.forEach((s,i)=>{
+    const pos = i+1;
+    const done = verify || pos < r.stageNum;
+    const now  = !done && pos === r.stageNum;
+    const cls = done ? 'done' : (now ? 'now' : '');
+    const last = i === stages.length-1;
+    steps += '<div class="vstep '+cls+'">'+(last?'':'<div class="line"></div>')
+      + '<div class="dot">'+(done?'✓':pos)+'</div>'
+      + '<div class="txt"><div class="nm">'+esc(s.name)+'</div></div></div>';
+  });
+
+  let action;
+  if (verify){
+    action = '<div class="note">✔ All stages done. Sent to the owner to confirm the final pack count. Nothing more to do here.</div>'
+      + '<button class="btn btn-lt" onclick="showBoard()">Back to batches</button>';
+  } else {
+    const cur = stages[r.stageNum-1];
+    const nxt = stages[r.stageNum];
+    const label = nxt ? ('✓ '+esc(cur?cur.name:'')+' done → start '+esc(nxt.name)) : ('✓ '+esc(cur?cur.name:'')+' done');
+    action = '<button class="btn btn-go" id="adv-btn" onclick="advance('+r.id+',this)">'+label+'</button>';
+  }
+
+  document.getElementById('dt-body').innerHTML =
+      '<div class="meta" style="margin-bottom:10px">'+esc(r.run_code)+' · '+r.qty_units+' packs</div>'
+    + '<div class="card" style="padding:18px 16px 6px">'+steps+'</div>'
+    + action;
+  show('detail');
+}
+
+async function advance(runId, btn){
+  if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  try {
+    await api('POST','/api/batch/runs/'+runId+'/advance',{});
+    BOARD = await api('GET','/api/batch/board');
+    const r = (BOARD.runs||[]).find(x=>x.id===runId);
+    if(r){ openRun(runId); } else { showBoard(); }
+  } catch(e){
+    alert(e.message || 'Could not update the batch');
+    if(btn){ btn.disabled=false; }
+  }
+}
+
+function showBoard(){ renderBoard(); show('app'); }
+
+boot();
+</script>
+</body>
+</html>

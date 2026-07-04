@@ -55,6 +55,7 @@ __all__ = [
     'ensure_wo_produced_units',
     'ensure_ingredient_target_grams',
     'ensure_batch_stages',
+    'ensure_rep_app_access',
 ]
 
 
@@ -1421,6 +1422,24 @@ def ensure_batch_stages():
         print("  ✓ batch_stages / batch_runs ready")
     except Exception as e:
         print(f"  ⚠ ensure_batch_stages: {e}")
+    finally:
+        c.close()
+
+
+def ensure_rep_app_access():
+    """Grant flag for the Batch Runner phone app on a rep's phone identity. The Field app and
+    Batch Runner share ONE phone login (phone + PIN); this flag gates which apps a person gets.
+    app_batch defaults 0 — reps get the Field app by default; the owner grants Batch access to
+    the production people (e.g. FK + spouse). Idempotent."""
+    c = _conn()
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(sales_reps)").fetchall()]
+        if cols and 'app_batch' not in cols:
+            c.execute("ALTER TABLE sales_reps ADD COLUMN app_batch INTEGER NOT NULL DEFAULT 0")
+            c.commit()
+        print("  ✓ sales_reps.app_batch ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_rep_app_access: {e}")
     finally:
         c.close()
 

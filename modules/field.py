@@ -45,7 +45,7 @@ __all__ = [
     'list_reps', 'get_rep', 'create_rep', 'update_rep',
     'assign_rep_route', 'unassign_rep_route',
     # Targets & advances
-    'set_rep_target', 'record_advance', 'set_rep_zones',
+    'set_rep_target', 'record_advance', 'set_rep_zones', 'set_rep_app_access',
     # Beat visits
     'record_beat_visit',
     # Field orders
@@ -1016,6 +1016,17 @@ def set_rep_zones(rep_id, zone_ids):
         c.commit()
     finally:
         c.close()
+    save_db()
+    return get_rep(rep_id)
+
+
+def set_rep_app_access(rep_id, batch):
+    """Grant/revoke the Batch Runner phone app for a rep's phone identity (Field app + Batch
+    Runner share one phone login; this flag gates which apps the person gets). batch: bool."""
+    rep = qry1("SELECT id FROM sales_reps WHERE id=?", (rep_id,))
+    if not rep:
+        raise ValueError("Rep not found")
+    run("UPDATE sales_reps SET app_batch=? WHERE id=?", (1 if batch else 0, rep_id))
     save_db()
     return get_rep(rep_id)
 

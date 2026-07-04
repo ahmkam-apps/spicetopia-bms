@@ -13134,6 +13134,7 @@ async function renderSalesReps() {
       <td>
         <button class="btn-sm" onclick="viewRepDetail(${rep.id})" style="background:var(--saffron)">Detail</button>
         <button class="btn-sm" onclick="showAssignZone(${rep.id})" style="background:var(--turmeric)">Assign Zones</button>
+        <button class="btn-sm" onclick="toggleRepBatch(${rep.id}, ${rep.app_batch?0:1})" style="background:${rep.app_batch?'var(--cardamom)':'var(--text-3)'};color:#fff" title="Batch Runner phone app access">🏭 Batch: ${rep.app_batch?'On':'Off'}</button>
         <button class="btn-sm" onclick="resetPin(${rep.id})" style="background:var(--text-3);color:#fff">Reset PIN</button>
       </td>
     </tr>
@@ -13247,6 +13248,13 @@ async function resetPin(repId) {
     await PUT(`/api/reps/${repId}`, {pin});
     alert('PIN updated successfully');
   } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function toggleRepBatch(repId, enable) {
+  try {
+    await POST(`/api/reps/${repId}/apps`, { batch: !!enable });
+    if (typeof render === 'function') render();   // re-render the reps screen to reflect the new state
+  } catch(e) { alert('Could not update Batch Runner access: ' + e.message); }
 }
 
 async function viewRepDetail(repId) {

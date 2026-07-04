@@ -1760,6 +1760,15 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, "Field app not found", 404)
                 return
 
+            # /batch — Batch Runner phone app (no BMS auth required — uses field PIN + app_batch)
+            if path in ('/batch', '/batch/'):
+                batch_page = PUBLIC_DIR / 'batch.html'
+                if batch_page.exists():
+                    self._serve_file(batch_page, 'text/html; charset=utf-8')
+                else:
+                    send_error(self, "Batch Runner app not found", 404)
+                return
+
             # /order — B2B sales rep PWA (no BMS auth required — uses field PIN)
             if path in ('/order', '/order/'):
                 order_page = PUBLIC_DIR / 'order.html'
@@ -3477,6 +3486,33 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_rep_today_route(rep_id))
                 return
 
+            # ── BATCH RUNNER (phone app) — GET /api/batch/board ─────────────
+            # Active runs + work orders ready to start. NO ingredient quantities (recipe secret).
+            if path == '/api/batch/board':
+                bsess = _get_batch_session(self, qs)
+                if not bsess:
+                    send_json(self, {'error': 'Batch Runner access required'}, 401); return
+                runs = list_batch_runs('active')
+                active_wo = set(r.get('wo_number') for r in runs if r.get('wo_number'))
+                ready = []
+                for w in qry("""SELECT wo.id, wo.wo_number, wo.qty_units,
+                                       COALESCE(wo.produced_units,0) AS produced, wo.feasibility_ok,
+                                       p.name AS product_name, ps.label AS pack_size
+                                FROM work_orders wo
+                                JOIN product_variants pv ON pv.id = wo.product_variant_id
+                                JOIN products p ON p.id = pv.product_id
+                                LEFT JOIN pack_sizes ps ON ps.id = pv.pack_size_id
+                                WHERE wo.status IN ('planned','in_progress')
+                                ORDER BY wo.target_date ASC, wo.created_at ASC"""):
+                    rem = int(w['qty_units']) - int(w['produced'] or 0)
+                    if rem > 0 and w['wo_number'] not in active_wo:
+                        ready.append({'woId': w['id'], 'woNumber': w['wo_number'],
+                                      'product': w['product_name'], 'packSize': w['pack_size'],
+                                      'remaining': rem, 'canMake': bool(w['feasibility_ok'])})
+                send_json(self, {'name': _batch_rep_name(bsess), 'runs': runs, 'ready': ready,
+                                 'stages': list_batch_stages()})
+                return
+
             # ── B2B PORTAL — FIELD ENDPOINTS ────────────────────────────────
 
             # GET /api/field/customers/lookup?q=  (field rep session)
@@ -3864,6 +3900,66 @@ class Handler(BaseHTTPRequestHandler):
                     'ref':     result.get('orderCode') or result.get('orderId'),
                     'message': 'Order received! We will contact you to confirm delivery.',
                 }, 201)
+                return
+
+            # ── BATCH RUNNER (phone app) — PIN login + stage actions ────────
+            # POST /api/batch/auth  (no BMS session — reuses the field phone identity + PIN,
+            # then requires the Batch Runner grant, sales_reps.app_batch=1)
+            if path == '/api/batch/auth':
+                ip    = _get_client_ip(self)
+                phone = data.get('phone', '').strip()
+                pin   = str(data.get('pin', ''))
+                try:
+                    _check_rate_limit(ip)
+                    result = field_login(phone, pin)   # same phone+PIN identity as the field app
+                    rep = qry1("SELECT app_batch FROM sales_reps WHERE id=?", (result['repId'],))
+                    if not rep or not rep.get('app_batch'):
+                        run("DELETE FROM sessions WHERE token=?", (result['token'],))  # no orphan session
+                        raise ValueError("This login isn't enabled for the Batch Runner. Ask the owner to turn it on.")
+                    _clear_rate_limit(ip)
+                    send_field_login_response(self, result)
+                except ValueError as e:
+                    _record_failed_attempt(ip)
+                    send_json(self, {'error': str(e)}, 401)
+                return
+
+            # POST /api/batch/logout  — end the phone session + clear the cookie
+            if path == '/api/batch/logout':
+                _bs = _get_field_session(self, qs)
+                if _bs:
+                    try: run("DELETE FROM sessions WHERE user_id=? AND role='field_rep'", (_bs.get('repId'),))
+                    except Exception: pass
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Set-Cookie', 'field_token=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
+                _add_security_headers(self)
+                self.end_headers()
+                self.wfile.write(b'{"ok":true}')
+                return
+
+            # POST /api/batch/start  {woId}  (batch session) — begin a staged run from a WO
+            if path == '/api/batch/start':
+                bsess = _get_batch_session(self, qs)
+                if not bsess:
+                    send_json(self, {'error': 'Batch Runner access required'}, 401); return
+                try:
+                    result = start_batch_run(int(data.get('woId')), None, _batch_rep_name(bsess))
+                    send_json(self, result, 201)
+                except (ValueError, TypeError) as e:
+                    send_error(self, str(e), 400)
+                return
+
+            # POST /api/batch/runs/:id/advance  (batch session) — complete current stage → next
+            if path.startswith('/api/batch/runs/') and path.endswith('/advance'):
+                bsess = _get_batch_session(self, qs)
+                if not bsess:
+                    send_json(self, {'error': 'Batch Runner access required'}, 401); return
+                try:
+                    run_id = int(path.split('/')[-2])
+                    result = advance_batch_run(run_id, (data or {}).get('note'), _batch_rep_name(bsess))
+                    send_json(self, result)
+                except (ValueError, TypeError) as e:
+                    send_error(self, str(e), 400)
                 return
 
             # Auth gate for all other POST endpoints
@@ -4739,6 +4835,14 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, 'Permission denied', 403); return
                 rep_id = int(path.split('/')[3])
                 send_json(self, set_rep_zones(rep_id, data.get('zoneIds', [])), 200)
+                return
+
+            # POST /api/reps/:id/apps  (admin only) — grant/revoke Batch Runner phone-app access
+            if path.startswith('/api/reps/') and path.endswith('/apps'):
+                if not require(sess, 'admin'):
+                    send_error(self, 'Permission denied', 403); return
+                rep_id = int(path.split('/')[3])
+                send_json(self, set_rep_app_access(rep_id, bool((data or {}).get('batch'))), 200)
                 return
 
             # POST /api/reps/:id/routes/:assign_id/unassign  (admin only)
@@ -5804,6 +5908,23 @@ def _get_config_val(cfg, key, default):
 # ═══════════════════════════════════════════════════════════════════
 
 
+def _get_batch_session(handler, qs=None):
+    """A phone (field-rep) session that ALSO holds Batch Runner access (sales_reps.app_batch=1).
+    The Field app and Batch Runner share one phone login; this gates the Batch Runner. None if not."""
+    sess = _get_field_session(handler, qs)
+    if not sess:
+        return None
+    rep = qry1("SELECT app_batch FROM sales_reps WHERE id=?", (sess.get('repId'),))
+    if not rep or not rep.get('app_batch'):
+        return None
+    return sess
+
+
+def _batch_rep_name(sess):
+    rep = qry1("SELECT name FROM sales_reps WHERE id=?", (sess.get('repId'),)) if sess else None
+    return (rep or {}).get('name') or ''
+
+
 def send_field_login_response(handler, result):
     """Send field login response.
     Sets httpOnly cookie (field.html) AND includes token in body (order.html PWA / localStorage)."""
@@ -5895,7 +6016,7 @@ if __name__ == '__main__':
         ensure_scenario_type_cleanup, ensure_plan_forecast_zone, ensure_operating_costs,
         ensure_deactivate_spring_catalog, ensure_rep_zones, ensure_dedup_seed_suppliers,
         ensure_cost_lines, ensure_wo_produced_units, ensure_ingredient_target_grams,
-        ensure_batch_stages,
+        ensure_batch_stages, ensure_rep_app_access,
         backfill_customer_account_numbers,
     ):
         try:
