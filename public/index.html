@@ -664,7 +664,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
   <!-- Right: controls -->
   <div class="topbar-right" style="justify-content:flex-end">
     <span id="topbar-status" style="display:none"></span>
-    <button class="btn btn-primary btn-sm" onclick="howToOpen()" title="Step-by-step guidance for common tasks">💬 How do I…?</button>
+    <button class="btn btn-primary btn-sm" onclick="howToOpen()" title="Step-by-step guidance for common tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg> How do I…?</button>
     <button class="btn btn-outline btn-sm" onclick="helpOpen(state.page)" title="How this screen works + where it fits">? Help</button>
     <button class="btn btn-outline btn-sm" onclick="refreshAll()">↻ Refresh</button>
     <div class="user-chip">
@@ -799,15 +799,48 @@ const LUCIDE_ICONS = {
   'lock':             '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   'clipboard-list':   '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
   'monitor':          '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+  'plus':             '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'check':            '<path d="M20 6 9 17l-5-5"/>',
+  'check-circle':     '<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
+  'x':                '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'trash':            '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  'pencil':           '<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/>',
+  'printer':          '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/>',
+  'download':         '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  'upload':           '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+  'save':             '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+  'undo':             '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>',
+  'refresh':          '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  'alert-triangle':   '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  'clock':            '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  'coins':            '<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/>',
+  'message':          '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  'sliders':          '<line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/>',
+  'play':             '<polygon points="6 3 20 12 6 21 6 3"/>',
+  'barrel':           '<ellipse cx="12" cy="5" rx="7" ry="2.3"/><path d="M5 5v14a7 2.3 0 0 0 14 0V5"/><path d="M4.4 10.5h15.2"/><path d="M4.4 14h15.2"/>',
+  'flask':            '<path d="M10 2v6.5L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/>',
 };
 
-function initNavIcons() {
-  const SVG_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px">';
-  document.querySelectorAll('.icon[data-icon]').forEach(el => {
-    const paths = LUCIDE_ICONS[el.dataset.icon];
-    if (paths) el.innerHTML = SVG_OPEN + paths + '</svg>';
+function ic(name, size) {
+  const p = LUCIDE_ICONS[name];
+  if (!p) return '';
+  const s = size || 15;
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:' + s + 'px;height:' + s + 'px;vertical-align:-2px;display:inline-block;flex:none">' + p + '</svg>';
+}
+
+function renderIcons(root) {
+  (root || document).querySelectorAll('[data-icon]').forEach(el => {
+    if (el._iconDone) return;
+    const p = LUCIDE_ICONS[el.dataset.icon];
+    if (p) {
+      const s = el.dataset.iconSize || 16;
+      el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:' + s + 'px;height:' + s + 'px;vertical-align:-2px">' + p + '</svg>';
+      el._iconDone = true;
+    }
   });
 }
+
+function initNavIcons() { renderIcons(document); }
 
 // ═══════════════════════════════════════════════════════════════
 //  MODULE REGISTRY  (used for nav filtering + permission UI)
@@ -887,7 +920,7 @@ function canCosts() {
 function _gateBomCard() {
   if (canRecipe()) return;
   const card = document.getElementById('bom-setup-card');
-  if (card) card.outerHTML = '<div class="card mb-16" style="text-align:center;color:var(--text-3);padding:18px">🔒 The recipe (Bill of Materials) is managed by the recipe owner.</div>';
+  if (card) card.outerHTML = '<div class="card mb-16" style="text-align:center;color:var(--text-3);padding:18px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> The recipe (Bill of Materials) is managed by the recipe owner.</div>';
 }
 
 function canAccess(pageId) {
@@ -1312,8 +1345,8 @@ function askOpen() {
   ov.style.display='flex';
   ov.innerHTML = '<div style="background:var(--surface,#fff);max-width:560px;width:100%;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">'
     + '<div style="padding:16px 20px;border-bottom:1px solid var(--border,#eee);display:flex;justify-content:space-between;align-items:center">'
-    + '<strong style="font-size:16px">💬 Ask Spicetopia</strong>'
-    + '<button class="btn btn-outline btn-xs" onclick="askClose()">✕</button></div>'
+    + '<strong style="font-size:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg> Ask Spicetopia</strong>'
+    + '<button class="btn btn-outline btn-xs" onclick="askClose()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>'
     + '<div style="padding:18px 20px">'
     + '<p style="font-size:13px;color:var(--text-3,#888);margin:0 0 10px">Ask how to do something — e.g. <em>"how do I record a customer payment?"</em></p>'
     + '<div style="display:flex;gap:8px">'
@@ -1418,7 +1451,7 @@ function howToOpen() {
   ov.innerHTML = '<div style="background:var(--surface,#fff);max-width:640px;width:100%;max-height:84vh;display:flex;flex-direction:column;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">'
     + '<div style="padding:16px 20px;border-bottom:1px solid var(--border,#eee);display:flex;justify-content:space-between;align-items:center">'
     + '<strong style="font-size:16px">How do I…?</strong>'
-    + '<button class="btn btn-outline btn-xs" onclick="howToClose()">✕</button></div>'
+    + '<button class="btn btn-outline btn-xs" onclick="howToClose()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>'
     + '<div style="padding:14px 20px 0"><input id="howto-search" class="form-input" style="width:100%" placeholder="Search… e.g. payment, MRP, batch, markup" oninput="_howToFilter()"></div>'
     + '<div id="howto-list" style="padding:12px 20px 20px;overflow:auto">' + _howToListHtml() + '</div>'
     + '</div>';
@@ -1558,7 +1591,7 @@ async function render(page, arg) {
   if (!canAccess(page)) {
     c.innerHTML = `
       <div style="padding:60px;text-align:center">
-        <div style="font-size:48px;margin-bottom:16px">🔒</div>
+        <div style="font-size:48px;margin-bottom:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
         <h2 style="color:var(--text-3);margin-bottom:8px">Access Restricted</h2>
         <p style="color:var(--text-3)">You don't have permission to view this module.<br>Contact your administrator to request access.</p>
       </div>`;
@@ -1613,6 +1646,7 @@ async function render(page, arg) {
       case 'system':        c.innerHTML = await renderSystem(); _loadWaSettings(); break;
       default: c.innerHTML = '<p>Page not found</p>';
     }
+    if (typeof renderIcons === 'function') renderIcons(c);
   } catch(e) {
     c.innerHTML = `<div class="alert alert-error">Error loading page: ${e.message}</div>`;
   }
@@ -1794,17 +1828,17 @@ async function renderHome() {
 
   const tile = (icon, t, onclick) =>
     '<div onclick="' + onclick + '" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;cursor:pointer;text-align:center" onmouseover="this.style.borderColor=\'var(--saffron)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
-    + '<div style="font-size:22px;margin-bottom:6px">' + icon + '</div><div style="font-size:13px">' + t + '</div></div>';
+    + '<div style="margin-bottom:6px;color:var(--saffron);height:24px">' + (LUCIDE_ICONS[icon] ? ic(icon,22) : '<span style="font-size:22px">'+icon+'</span>') + '</div><div style="font-size:13px">' + t + '</div></div>';
   const tiles = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'
-    + tile('🧾', 'Take an order', "nav('orders-invoices','new')")
-    + tile('💵', 'Record payment', "nav('receipts-aging')")
-    + tile('📦', 'Inventory', "nav('inventory')")
-    + tile('🏭', 'Production', "nav('production')")
-    + (canCostsU ? tile('🏷️', 'Pricing', "nav('pricing')") : '')
-    + (canCostsU ? tile('📅', 'Cost Tracking', "nav('cost-tracking')") : '')
-    + (canPlan ? tile('🧭', 'Planning', "location.href='/planning.html'") : '')
-    + tile('📊', 'Full dashboard', "nav('dashboard')")
-    + tile('📈', 'Reports', "nav('pl-report')")
+    + tile('receipt', 'Take an order', "nav('orders-invoices','new')")
+    + tile('banknote', 'Record payment', "nav('receipts-aging')")
+    + tile('archive', 'Inventory', "nav('inventory')")
+    + tile('factory', 'Production', "nav('production')")
+    + (canCostsU ? tile('tag', 'Pricing', "nav('pricing')") : '')
+    + (canCostsU ? tile('coins', 'Cost Tracking', "nav('cost-tracking')") : '')
+    + (canPlan ? tile('map', 'Planning', "location.href='/planning.html'") : '')
+    + tile('layout-dashboard', 'Full dashboard', "nav('dashboard')")
+    + tile('trending-up', 'Reports', "nav('pl-report')")
     + '</div>';
 
   return '<div style="max-width:960px;margin:0 auto;padding-top:8px">'
@@ -1840,7 +1874,7 @@ async function renderHomeOld() {
   const task = (icon, t, d, onclick) =>
     '<div onclick="'+onclick+'" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;cursor:pointer;position:relative" '
     + 'onmouseover="this.style.borderColor=\'var(--saffron)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
-    + '<div style="font-size:24px;margin-bottom:12px">'+icon+'</div>'
+    + '<div style="margin-bottom:12px;color:var(--saffron);height:26px">'+(LUCIDE_ICONS[icon] ? ic(icon,24) : '<span style="font-size:24px">'+icon+'</span>')+'</div>'
     + '<div style="font-family:var(--font-serif);font-size:16px;margin-bottom:4px">'+t+'</div>'
     + '<div style="font-size:12.5px;color:var(--text-2);line-height:1.45">'+d+'</div>'
     + '<div style="position:absolute;top:18px;right:18px;color:var(--saffron)">→</div></div>';
@@ -1863,12 +1897,12 @@ async function renderHomeOld() {
 
   h += '<div style="font-family:var(--font-serif);font-size:18px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px">Common tasks</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px">'
-    + task('🧾','Take an order','Create a customer order and reserve stock.',"nav('orders-invoices','new')")
-    + task('💵','Record a payment','Log a receipt against an invoice.',"nav('receipts-aging')")
-    + task('🏭','Make a batch','Turn a work order into produced stock.',"nav('production')")
-    + task('🛒','Raise a purchase order','Order ingredients from a supplier.',"nav('purchase-orders')")
-    + task('✅','Review pending orders','Approve or reject the review queue.',"nav('review-queue')")
-    + (canPlan ? task('📈','Plan ahead','Forecast, cost, and release production.',"location.href='/planning.html'") : '')
+    + task('receipt','Take an order','Create a customer order and reserve stock.',"nav('orders-invoices','new')")
+    + task('banknote','Record a payment','Log a receipt against an invoice.',"nav('receipts-aging')")
+    + task('factory','Make a batch','Turn a work order into produced stock.',"nav('production')")
+    + task('shopping-cart','Raise a purchase order','Order ingredients from a supplier.',"nav('purchase-orders')")
+    + task('check-circle','Review pending orders','Approve or reject the review queue.',"nav('review-queue')")
+    + (canPlan ? task('trending-up','Plan ahead','Forecast, cost, and release production.',"location.href='/planning.html'") : '')
     + '</div>';
 
   h += '<div style="font-family:var(--font-serif);font-size:18px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px">Browse by area</div>';
@@ -1967,7 +2001,7 @@ async function renderDashboard() {
     ? att.map(a => '<div onclick="nav(\'' + a.nav + '\')" style="border-left:3px solid ' + a.c + ';background:' + a.bg + ';padding:7px 11px;margin-bottom:8px;cursor:pointer">'
         + '<div style="font-size:13px;font-weight:600;color:' + a.c + '">' + a.t + '</div>'
         + '<div style="font-size:12px;color:' + a.c + ';opacity:.85">' + a.s + '</div></div>').join('')
-    : '<div style="color:var(--cardamom);font-size:13px;padding:12px 0">✅ Nothing needs your attention right now.</div>';
+    : '<div style="color:var(--cardamom);font-size:13px;padding:12px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> Nothing needs your attention right now.</div>';
 
   // Sales by product (live)
   const sbp = d.salesByProduct || [];
@@ -2115,8 +2149,8 @@ async function renderDashboardOld() {
   // ── Tab switcher ───────────────────────────────────────────────
   const tabBar = `
   <div style="display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0">
-    <button id="dash-tab-owner" onclick="_dashSwitchTab('owner')" style="border:none;border-radius:6px 6px 0 0;padding:8px 18px;cursor:pointer;font-size:13px;background:var(--saffron);color:#fff;font-weight:700">📊 Owner</button>
-    <button id="dash-tab-operations" onclick="_dashSwitchTab('operations')" style="border:none;border-radius:6px 6px 0 0;padding:8px 18px;cursor:pointer;font-size:13px;background:transparent;color:var(--text-2);font-weight:500">🏭 Operations</button>
+    <button id="dash-tab-owner" onclick="_dashSwitchTab('owner')" style="border:none;border-radius:6px 6px 0 0;padding:8px 18px;cursor:pointer;font-size:13px;background:var(--saffron);color:#fff;font-weight:700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg> Owner</button>
+    <button id="dash-tab-operations" onclick="_dashSwitchTab('operations')" style="border:none;border-radius:6px 6px 0 0;padding:8px 18px;cursor:pointer;font-size:13px;background:transparent;color:var(--text-2);font-weight:500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg> Operations</button>
   </div>`;
 
   // ── OWNER pane: financial cockpit ──────────────────────────────
@@ -2233,7 +2267,7 @@ async function renderDashboardOld() {
         </table>
       </div>
       <div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="nav('inventory')">
-        <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>${alertRows ? '⚠️ Low Stock Alerts' : '✅ Stock Levels'}</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View inventory →</span></div>
+        <div class="section-header" style="display:flex;justify-content:space-between;align-items:center"><h2>${alertRows ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Low Stock Alerts' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> Stock Levels'}</h2><span style="font-size:11px;color:var(--text-3);opacity:.7">View inventory →</span></div>
         <table>
           <thead><tr><th>Code</th><th>Ingredient</th><th class="text-right">Balance</th><th>Reorder</th></tr></thead>
           <tbody>${alertRows || '<tr><td colspan="4" style="text-align:center;color:var(--cardamom)">All stock levels OK</td></tr>'}</tbody>
@@ -2277,7 +2311,7 @@ async function renderCustomers() {
       <span style="font-size:12px;color:var(--text-3)">${activeCount} active · ${inactiveCount} inactive · Total AR: <strong style="color:var(--chili)">${fmtPKR(totalBalance)}</strong></span>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary" onclick="downloadCSV('/api/customers/export','customers')" style="font-size:13px">⬇ Export CSV</button>
+      <button class="btn btn-secondary" onclick="downloadCSV('/api/customers/export','customers')" style="font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Export CSV</button>
       <button class="btn btn-primary" onclick="showNewCustomerForm()">+ New Customer</button>
     </div>
   </div>
@@ -2306,7 +2340,7 @@ async function renderCustomers() {
         <option value="inactive">Inactive Only</option>
         <option value="all">Active + Inactive</option>
       </select>
-      <button class="btn btn-outline btn-sm" onclick="clearCustomerFilters()">✕ Clear</button>
+      <button class="btn btn-outline btn-sm" onclick="clearCustomerFilters()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Clear</button>
       <span id="cf-count" style="font-size:12px;color:var(--text-3);white-space:nowrap"></span>
     </div>
   </div>
@@ -2357,10 +2391,10 @@ function _buildCustomerRows(custs) {
       <td>${c.payment_terms_days||30}d</td>
       <td class="num text-right" style="${balColor}">${bal > 0 ? fmtPKR(bal) : '—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-outline btn-xs" onclick="viewCustomerHistory(${c.id})">📋 Profile</button>
+        <button class="btn btn-outline btn-xs" onclick="viewCustomerHistory(${c.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Profile</button>
         <button class="btn btn-outline btn-xs" style="margin-left:3px" onclick="viewCustomerStatement(${c.id},'${c.name.replace(/'/g,"\\'")}')">📄 Statement</button>
         <button class="btn btn-outline btn-xs" style="margin-left:3px" onclick="editCustomer(${c.id})">Edit</button>
-        ${bal > 0 && c.active ? `<button class="btn btn-primary btn-xs" style="margin-left:3px" onclick="quickPay(${c.id},'${c.name.replace(/'/g,'&#39;')}',${bal})">💰 Pay</button>` : ''}
+        ${bal > 0 && c.active ? `<button class="btn btn-primary btn-xs" style="margin-left:3px" onclick="quickPay(${c.id},'${c.name.replace(/'/g,'&#39;')}',${bal})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg> Pay</button>` : ''}
         ${isAdminRole() ? (c.active
           ? `<button class="btn btn-xs" style="margin-left:3px;background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili)" onclick="toggleCustomerActive(${c.id},'${c.name.replace(/'/g,"\\'")}',false)">Deactivate</button>`
           : `<button class="btn btn-xs" style="margin-left:3px;background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="toggleCustomerActive(${c.id},'${c.name.replace(/'/g,"\\'")}',true)">Activate</button>`) : ''}
@@ -2617,7 +2651,7 @@ async function viewCustomerHistory(custId) {
   const area = document.getElementById('customer-form-area');
   if (!area) { nav('customers'); return; }
   area.innerHTML = `<div class="card mb-16" style="padding:24px;text-align:center;color:var(--text-3)">
-    <div style="font-size:22px;margin-bottom:8px">⏳</div>Loading customer profile…</div>`;
+    <div style="font-size:22px;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Loading customer profile…</div>`;
   area.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   try {
@@ -2696,13 +2730,13 @@ async function viewCustomerHistory(custId) {
         <td><a href="#" onclick="showOrderInvDetail(${inv.id},'cust-inv-detail-${custId}');return false;"
                style="color:var(--mac-blue);font-weight:600;text-decoration:none">${inv.invoice_number}</a></td>
         <td>${fmtDate(inv.invoice_date)}</td>
-        <td style="${overdue?'color:var(--chili);font-weight:600':''}">${inv.due_date ? fmtDate(inv.due_date) : '—'}${overdue?' ⚠':''}</td>
+        <td style="${overdue?'color:var(--chili);font-weight:600':''}">${inv.due_date ? fmtDate(inv.due_date) : '—'}${overdue?' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>':''}</td>
         <td class="num text-right">${fmtPKR(inv.total||0)}</td>
         <td class="num text-right" style="color:var(--cardamom)">${fmtPKR(inv.paid||0)}</td>
         <td class="num text-right" style="${bal>0?'color:var(--chili);font-weight:600':'color:var(--text-3)'}">${bal>0?fmtPKR(bal):'—'}</td>
         <td><span style="font-size:11px;font-weight:600;color:${statusColor[inv.status]||'var(--text-3)'}">${inv.status}</span></td>
         <td style="white-space:nowrap">
-          ${canPay ? `<button class="btn btn-xs btn-primary" onclick="showOrderInvPayForm(${inv.id},${bal},'cust-inv-detail-${custId}')">💳 Pay</button>` : ''}
+          ${canPay ? `<button class="btn btn-xs btn-primary" onclick="showOrderInvPayForm(${inv.id},${bal},'cust-inv-detail-${custId}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg> Pay</button>` : ''}
         </td>
       </tr>`;
     }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:18px">No invoices found</td></tr>';
@@ -2741,7 +2775,7 @@ async function viewCustomerHistory(custId) {
             ${statusBadge}
           </div>
           <div style="font-size:12px;color:var(--text-3);line-height:1.7">
-            <span style="margin-right:12px;font-weight:600;color:var(--mac-blue)">📋 ${cust.account_number||cust.code}</span>
+            <span style="margin-right:12px;font-weight:600;color:var(--mac-blue)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> ${cust.account_number||cust.code}</span>
             ${cust.customer_type ? `<span style="margin-right:12px">🏷 ${cust.customer_type}</span>` : ''}
             ${cust.city ? `<span style="margin-right:12px">📍 ${cust.city}</span>` : ''}
             ${cust.address ? `<span style="margin-right:12px">🏠 ${cust.address}</span>` : ''}
@@ -2751,9 +2785,9 @@ async function viewCustomerHistory(custId) {
           ${creditBar}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;margin-left:16px">
-          <button class="btn btn-outline btn-sm" onclick="editCustomer(${cust.id})">✏ Edit</button>
-          ${s.total_balance>0 ? `<button class="btn btn-primary btn-sm" onclick="quickPay(${cust.id},'${(cust.name||'').replace(/'/g,"\\'")}',${s.total_balance})">💰 Receive Payment</button>` : ''}
-          <button class="btn btn-outline btn-sm" onclick="document.getElementById('customer-form-area').innerHTML='';document.getElementById('customer-form-area').scrollIntoView()">✕ Close</button>
+          <button class="btn btn-outline btn-sm" onclick="editCustomer(${cust.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg> Edit</button>
+          ${s.total_balance>0 ? `<button class="btn btn-primary btn-sm" onclick="quickPay(${cust.id},'${(cust.name||'').replace(/'/g,"\\'")}',${s.total_balance})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg> Receive Payment</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('customer-form-area').innerHTML='';document.getElementById('customer-form-area').scrollIntoView()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button>
         </div>
       </div>
 
@@ -2878,7 +2912,7 @@ async function viewCustomerStatement(custId, custName) {
   const area = document.getElementById('customer-form-area');
   if (!area) { nav('customers'); return; }
   area.innerHTML = `<div class="card mb-16" style="padding:24px;text-align:center;color:var(--text-3)">
-    <div style="font-size:22px;margin-bottom:8px">⏳</div>Loading statement for ${custName}…</div>`;
+    <div style="font-size:22px;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Loading statement for ${custName}…</div>`;
   area.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   try {
@@ -2891,7 +2925,7 @@ async function viewCustomerStatement(custId, custName) {
       const isInv  = l.type === 'INVOICE';
       const rowCls = isInv ? '' : 'style="background:var(--surface-2)"';
       const overdueTag = isInv && l.days_overdue > 0
-        ? `<span style="font-size:10px;color:var(--chili);margin-left:5px">⚠ ${l.days_overdue}d overdue</span>` : '';
+        ? `<span style="font-size:10px;color:var(--chili);margin-left:5px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> ${l.days_overdue}d overdue</span>` : '';
       const statusTag = isInv
         ? `<span class="badge badge-${(l.status||'').toLowerCase()}" style="font-size:10px">${l.status}</span>` : '';
       const debitCell  = l.debit  > 0 ? fmtPKR(l.debit)  : '—';
@@ -2899,7 +2933,7 @@ async function viewCustomerStatement(custId, custName) {
       const balColor   = l.balance > 0.001 ? 'color:var(--chili);font-weight:700' : 'color:var(--cardamom)';
       return `<tr ${rowCls}>
         <td style="font-size:12px">${fmtDate(l.date)}</td>
-        <td style="font-size:12px">${isInv ? '🧾' : '💳'} <strong>${l.ref}</strong>
+        <td style="font-size:12px">${isInv ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8H8"/><path d="M16 12H8"/><path d="M12 16H8"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>'} <strong>${l.ref}</strong>
           ${isInv ? `<br><small style="color:var(--text-3)">Due: ${fmtDate(l.due_date)}${overdueTag}</small>` : `<br><small style="color:var(--text-3)">${l.mode||''}${l.notes ? ' · '+l.notes : ''}</small>`}
         </td>
         <td style="text-align:center">${statusTag}</td>
@@ -2942,9 +2976,9 @@ async function viewCustomerStatement(custId, custName) {
         </div>
         <div class="card" style="padding:10px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;flex-direction:column">
           <button class="btn btn-sm no-print" style="background:var(--chili);color:#fff;width:100%"
-            onclick="downloadStatementPDF(${custId})">⬇ Download PDF</button>
+            onclick="downloadStatementPDF(${custId})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Download PDF</button>
           <button class="btn btn-outline btn-sm no-print" style="width:100%"
-            onclick="document.getElementById('customer-form-area').innerHTML=''">✕ Close</button>
+            onclick="document.getElementById('customer-form-area').innerHTML=''"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button>
         </div>
       </div>
       <div class="table-wrap">
@@ -3046,7 +3080,7 @@ async function renderOrdersInvoices() {
   const orphanSection = orphanInvs.length > 0 ? `
   <div class="card mb-16">
     <div style="font-size:13px;font-weight:700;color:var(--chili);margin-bottom:12px">
-      ⚠️ Standalone Invoices <span style="font-weight:400;color:var(--text-3);font-size:12px">(not linked to an order — legacy or direct-entry)</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Standalone Invoices <span style="font-weight:400;color:var(--text-3);font-size:12px">(not linked to an order — legacy or direct-entry)</span>
     </div>
     <div class="table-wrap">
       <table>
@@ -3114,8 +3148,8 @@ async function renderOrdersInvoices() {
       ${canConfirm && !allInStock ? `<button class="btn btn-xs btn-outline" style="color:var(--mac-blue)" onclick="event.stopPropagation();_oiConfirmOrder(${o.id})">✓ Confirm</button>` : ''}
       ${allInStock ? `<button class="btn btn-xs btn-primary" onclick="event.stopPropagation();_oiConfirmAndInvoice(${o.id})" title="All items in stock — confirm and invoice in one step">⚡ Confirm & Invoice</button>` : ''}
       ${canAddItem ? `<button class="btn btn-xs btn-outline" style="color:var(--cardamom)" onclick="event.stopPropagation();openOrderDetail(${o.id}).then(()=>showAddItemForm(${o.id}))" title="Add another product to this order">+ Product</button>` : ''}
-      ${canInvoice ? `<button class="btn btn-xs" style="background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="event.stopPropagation();_oiOpenInvoiceForm(${o.id})">🧾 Invoice</button>` : ''}
-      ${inProd ? `<span style="font-size:11px;color:var(--cinnamon)">⚙ In Production</span>` : ''}
+      ${canInvoice ? `<button class="btn btn-xs" style="background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)" onclick="event.stopPropagation();_oiOpenInvoiceForm(${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8H8"/><path d="M16 12H8"/><path d="M12 16H8"/></svg> Invoice</button>` : ''}
+      ${inProd ? `<span style="font-size:11px;color:var(--cinnamon)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> In Production</span>` : ''}
     `;
 
     return `
@@ -3152,7 +3186,7 @@ async function renderOrdersInvoices() {
     const rowOpacity = isVoid ? 'opacity:0.5' : '';
     const strikeStyle = isVoid ? 'text-decoration:line-through;color:var(--text-3)' : '';
     const statusBadge = isVoid ? '<span class="badge badge-void">VOID</span>'
-      : isOverdue ? '<span class="badge" style="background:#fee2e2;color:#b91c1c">⚠ Overdue</span>'
+      : isOverdue ? '<span class="badge" style="background:#fee2e2;color:#b91c1c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Overdue</span>'
       : '<span class="badge badge-' + (inv.status||'').toLowerCase() + '">' + (inv.status||'') + '</span>';
     return '<tr style="' + rowOpacity + '">'
       + '<td><a href="#" style="font-family:monospace;font-weight:700;' + strikeStyle + ';color:var(--mac-blue);text-decoration:none" onclick="showOrderInvDetail(' + inv.id + ',\'global-inv-detail\');return false">' + inv.invoice_number + '</a></td>'
@@ -3166,7 +3200,7 @@ async function renderOrdersInvoices() {
         + (isVoid ? '—' : fmtPKR(inv.balance || 0)) + '</td>'
       + '<td>' + statusBadge + '</td>'
       + '<td style="white-space:nowrap">'
-        + (canPay  ? '<button class="btn btn-xs btn-primary" onclick="showOrderInvDetail(' + inv.id + ',\'global-inv-detail\')">💳 Pay</button> ' : '')
+        + (canPay  ? '<button class="btn btn-xs btn-primary" onclick="showOrderInvDetail(' + inv.id + ',\'global-inv-detail\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg> Pay</button> ' : '')
         + (canVoid ? '<button class="btn btn-xs" style="background:var(--chili);color:#fff" onclick="voidInvoice(' + inv.id + ',\'' + inv.invoice_number + '\')">Void</button>' : '')
         + (!canPay && !canVoid ? '<button class="btn btn-xs btn-outline" onclick="showOrderInvDetail(' + inv.id + ',\'global-inv-detail\')">View</button>' : '')
       + '</td>'
@@ -3201,8 +3235,8 @@ async function renderOrdersInvoices() {
 
   // ── Subtab bar ────────────────────────────────────────────────────
   const tabBar = '<div class="seg-tabs">'
-    + '<button class="seg-tab' + (_oiTab==='orders'?' active':'') + '" onclick="_setOiTab(\'orders\')">📦 Orders (' + orders.length + ')</button>'
-    + '<button class="seg-tab' + (_oiTab==='invoices'?' active':'') + '" onclick="_setOiTab(\'invoices\')">🧾 Invoices (' + invs.length + ')</button>'
+    + '<button class="seg-tab' + (_oiTab==='orders'?' active':'') + '" onclick="_setOiTab(\'orders\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg> Orders (' + orders.length + ')</button>'
+    + '<button class="seg-tab' + (_oiTab==='invoices'?' active':'') + '" onclick="_setOiTab(\'invoices\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8H8"/><path d="M16 12H8"/><path d="M12 16H8"/></svg> Invoices (' + invs.length + ')</button>'
     + '</div>';
 
   return `
@@ -3349,9 +3383,9 @@ async function renderCustomerOrders() {
 
   const rows = orders.map(o => {
     var srcBadge = '';
-    if (o.order_source === 'consumer_website')      srcBadge = '<span style="background:#EAF3FF;color:var(--mac-blue);font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px">🛒 Web</span>';
-    else if (o.order_source === 'retailer_self_service') srcBadge = '<span style="background:#F0FDF4;color:var(--cardamom);font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px">🏪 B2B</span>';
-    else if (o.order_source === 'field_rep')        srcBadge = '<span style="background:#FEF3E2;color:var(--saffron);font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px">👤 Rep</span>';
+    if (o.order_source === 'consumer_website')      srcBadge = '<span style="background:#EAF3FF;color:var(--mac-blue);font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg> Web</span>';
+    else if (o.order_source === 'retailer_self_service') srcBadge = '<span style="background:#F0FDF4;color:var(--cardamom);font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg> B2B</span>';
+    else if (o.order_source === 'field_rep')        srcBadge = '<span style="background:#FEF3E2;color:var(--saffron);font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Rep</span>';
     return '<tr onclick="openOrderDetail(' + o.id + ')" style="cursor:pointer" class="hover-row">' +
       '<td><strong>' + o.order_number + '</strong></td>' +
       '<td>' + o.customer_name + '</td>' +
@@ -3470,8 +3504,8 @@ function renderCoLines() {
       stock >= line.qty
         ? `<span style="font-size:10px;color:var(--cardamom);font-weight:600">✓ ${stock} in stock</span>`
         : stock > 0
-          ? `<span style="font-size:10px;color:var(--cinnamon);font-weight:600">⚠ ${stock} in stock — needs production</span>`
-          : `<span style="font-size:10px;color:var(--chili);font-weight:600">⚙ No stock — needs production</span>`
+          ? `<span style="font-size:10px;color:var(--cinnamon);font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> ${stock} in stock — needs production</span>`
+          : `<span style="font-size:10px;color:var(--chili);font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> No stock — needs production</span>`
     ) : '';
     return `
     <tr>
@@ -3487,7 +3521,7 @@ function renderCoLines() {
       <td><input type="number" min="0" step="0.01" value="${line.unitPrice}" style="width:90px;text-align:right"
           id="co-price-${line.id}" onchange="updateCoLine(${line.id},'unitPrice',this.value)"></td>
       <td style="text-align:right">${line.qty && line.unitPrice ? fmtPKR(line.qty * parseFloat(line.unitPrice)) : '—'}</td>
-      <td>${_coLines.length > 1 ? `<button class="btn btn-xs btn-outline" style="color:var(--chili)" onclick="removeCoLine(${line.id})">✕</button>` : ''}</td>
+      <td>${_coLines.length > 1 ? `<button class="btn btn-xs btn-outline" style="color:var(--chili)" onclick="removeCoLine(${line.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>` : ''}</td>
     </tr>`;
   }).join('');
 }
@@ -3564,7 +3598,7 @@ function _renderOrderDetail(o) {
     const remaining = item.qty_ordered - item.qty_invoiced;
     const pct       = item.qty_ordered > 0 ? Math.round((item.qty_invoiced / item.qty_ordered) * 100) : 0;
     const woBtn     = canCreateWO && remaining > 0
-      ? `<button class="btn btn-xs btn-outline" onclick="createWOFromItem(${o.id},${item.id})">⚙ Create WO</button>`
+      ? `<button class="btn btn-xs btn-outline" onclick="createWOFromItem(${o.id},${item.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> Create WO</button>`
       : '';
     const committed = (item.qty_in_production || 0) + (item.qty_invoiced || 0);
     const editBtn   = linesEditable
@@ -3607,11 +3641,11 @@ function _renderOrderDetail(o) {
       ${canStart   ? `<button class="btn btn-xs" style="background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron)"
           onclick="setWoStatusFromOrder(${w.id},'in_progress',${o.id})">▶ Start</button>` : ''}
       ${canReset   ? `<button class="btn btn-xs btn-outline" style="color:var(--saffron-deep)"
-          onclick="resetWoFromOrder(${w.id},'${w.wo_number}',${o.id})">↩ Reset</button>` : ''}
+          onclick="resetWoFromOrder(${w.id},'${w.wo_number}',${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Reset</button>` : ''}
       ${canConvert ? `<button class="btn btn-xs btn-primary"
           onclick="convertWoToBatchFromOrder(${w.id},'${w.wo_number}',${o.id})">✓ Complete</button>` : ''}
       ${canCancel  ? `<button class="btn btn-xs btn-outline" style="color:var(--chili)"
-          onclick="cancelWoFromOrder(${w.id},'${w.wo_number}',${o.id})">✕</button>` : ''}`;
+          onclick="cancelWoFromOrder(${w.id},'${w.wo_number}',${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>` : ''}`;
     return `<tr>
       <td><strong>${w.wo_number}</strong></td>
       <td>${w.product_name} ${w.pack_size}</td>
@@ -3638,7 +3672,7 @@ function _renderOrderDetail(o) {
       <td><span class="badge badge-${(inv.status||'').toLowerCase()}">${inv.status}</span></td>
       <td style="white-space:nowrap">
         <button class="btn btn-xs btn-outline" onclick="showOrderInvDetail(${inv.id},'co-inv-detail-${o.id}')">View</button>
-        ${canPay ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="showOrderInvPayForm(${inv.id},${inv.balance},'co-inv-detail-${o.id}')">💳 Pay</button>` : ''}
+        ${canPay ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="showOrderInvPayForm(${inv.id},${inv.balance},'co-inv-detail-${o.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg> Pay</button>` : ''}
         ${canVoid ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--chili);color:#fff" onclick="voidInvoice(${inv.id},'${inv.invoice_number}')">Void</button>` : ''}
       </td>
     </tr>`; }).join('')
@@ -3696,7 +3730,7 @@ function _renderOrderDetail(o) {
       <h5 style="margin:12px 0 8px">Order Lines</h5>
       ${o.workOrders && o.workOrders.some(w => w.status !== 'cancelled') ? `
       <div style="background:#fffbec;border-left:3px solid var(--saffron);padding:8px 12px;border-radius:4px;margin-bottom:10px;font-size:13px">
-        <strong>⚠ Active Work Orders exist</strong> — you can increase quantities freely.
+        <strong><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Active Work Orders exist</strong> — you can increase quantities freely.
         Decreasing below what's already in production will be blocked.
         A new Work Order will be needed for any quantity you add.
       </div>` : ''}
@@ -3721,7 +3755,7 @@ function _renderOrderDetail(o) {
         </tbody>
       </table>
       ` : `<p style="font-size:13px;color:var(--text-3);margin:8px 0 12px">
-        ⚠ Line items cannot be changed after invoicing has started.</p>`}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Line items cannot be changed after invoicing has started.</p>`}
       <div style="display:flex;gap:8px;margin-top:4px">
         <button class="btn btn-primary btn-sm"
           id="co-edit-save-${o.id}"
@@ -3752,11 +3786,11 @@ function _renderOrderDetail(o) {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${canConfirm  ? `<button class="btn btn-primary btn-sm" onclick="doConfirmOrder(${o.id})">✓ Confirm Order</button>` : ''}
-        ${canEdit     ? `<button class="btn btn-outline btn-sm" onclick="guardEditOrder(${o.id}, ${productionInProgress})">✏ Edit</button>` : ''}
+        ${canEdit     ? `<button class="btn btn-outline btn-sm" onclick="guardEditOrder(${o.id}, ${productionInProgress})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg> Edit</button>` : ''}
         ${linesEditable ? `<button class="btn btn-outline btn-sm" style="color:var(--cardamom)" onclick="showAddItemForm(${o.id})">+ Add Product</button>` : ''}
-        ${canInvoice  ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('co-inv-form').style.display='block';document.getElementById('co-edit-form-${o.id}').style.display='none'">🧾 Generate Invoice</button>` : ''}
-        ${canCancel   ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="doCancelOrder(${o.id})">✕ Cancel</button>` : ''}
-        ${isSuperUser() ? `<button class="btn btn-outline btn-sm" style="color:var(--chili);border-color:var(--chili)" onclick="doDeleteOrder(${o.id})">🗑 Delete</button>` : ''}
+        ${canInvoice  ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('co-inv-form').style.display='block';document.getElementById('co-edit-form-${o.id}').style.display='none'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8H8"/><path d="M16 12H8"/><path d="M12 16H8"/></svg> Generate Invoice</button>` : ''}
+        ${canCancel   ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="doCancelOrder(${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Cancel</button>` : ''}
+        ${isSuperUser() ? `<button class="btn btn-outline btn-sm" style="color:var(--chili);border-color:var(--chili)" onclick="doDeleteOrder(${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Delete</button>` : ''}
         <button class="btn btn-outline btn-sm" onclick="_closeProcModal()">Close</button>
       </div>
     </div>
@@ -3872,7 +3906,7 @@ function showOrderInvPayForm(invId, balance, containerId) {
   if (!container) return;
   container.innerHTML = `
   <div class="card" style="background:#f0faf4;border:1px solid #b2e8c8;margin-top:10px">
-    <div style="font-size:13px;font-weight:600;color:var(--cardamom);margin-bottom:10px">💳 Receive Payment — Invoice #${invId}</div>
+    <div style="font-size:13px;font-weight:600;color:var(--cardamom);margin-bottom:10px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg> Receive Payment — Invoice #${invId}</div>
     <div id="oi-pay-msg-${invId}"></div>
     <div class="form-row" style="gap:8px;align-items:flex-end">
       <div class="form-group"><label style="font-size:11px">Amount (PKR)</label>
@@ -3946,7 +3980,7 @@ function guardEditOrder(orderId, productionInProgress) {
     modal.innerHTML = `
       <div style="background:#fff;border-radius:10px;padding:32px 28px;max-width:440px;width:90%;
                   box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center">
-        <div style="font-size:48px;margin-bottom:12px">🏭</div>
+        <div style="font-size:48px;margin-bottom:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg></div>
         <h3 style="margin:0 0 10px;color:#b45309;font-size:18px">
           Order Is Currently In Production
         </h3>
@@ -4037,7 +4071,7 @@ async function saveEditOrder(btn) {
         </li>`
       ).join('');
       html += `<div style="margin-top:8px;padding:8px;background:#fffbec;border-radius:4px;border-left:3px solid var(--saffron)">
-        <strong>⚠ Quantity increased — new Work Orders needed:</strong>
+        <strong><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Quantity increased — new Work Orders needed:</strong>
         <ul style="margin:6px 0 0;padding-left:18px">${increases}</ul>
       </div>`;
     }
@@ -4115,7 +4149,7 @@ function createWOFromItem(orderId, itemId) {
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0">
       <label style="font-weight:600;font-size:13px">Target Date:</label>
       <input type="date" id="wo-target-date-${itemId}" class="form-input" style="width:160px" value="${today}">
-      <button class="btn btn-primary btn-sm" onclick="submitCreateWO(${orderId},${itemId})">⚙ Create Work Order</button>
+      <button class="btn btn-primary btn-sm" onclick="submitCreateWO(${orderId},${itemId})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> Create Work Order</button>
       <button class="btn btn-outline btn-sm" onclick="showMsg('co-wo-msg','','')">Cancel</button>
     </div>
   `, '');
@@ -4224,7 +4258,7 @@ async function renderSales() {
     </div>
 
     <div style="display:flex;gap:10px">
-      <button class="btn btn-primary" onclick="previewSale()">📋 Add to Invoice</button>
+      <button class="btn btn-primary" onclick="previewSale()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Add to Invoice</button>
       <button class="btn btn-outline" onclick="renderSales().then(h=>{document.getElementById('main-content').innerHTML=h;initSaleLines();})">Reset</button>
     </div>
   </div>
@@ -4294,7 +4328,7 @@ function renderSaleLines() {
         ${line.productKey && line.qty && line.unitPrice ? fmtPKR(line.qty * parseFloat(line.unitPrice)) : '—'}
       </td>
       <td style="padding:6px 6px;text-align:center">
-        ${_saleLines.length > 1 ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px" onclick="removeSaleLine(${line.id})">✕</button>` : ''}
+        ${_saleLines.length > 1 ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px" onclick="removeSaleLine(${line.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -4488,7 +4522,7 @@ function _renderInvoiceRows(invs) {
     <tr style="${inv.status === 'VOID' ? 'opacity:0.5' : ''}">
       <td>
         <a href="#" style="font-family:monospace;font-weight:700;color:var(--mac-blue);text-decoration:none${inv.status==='VOID'?';text-decoration:line-through;color:var(--text-3)':''}" onclick="showInvoiceDetail(${inv.id});return false">${inv.invoice_number}</a>
-        ${inv.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="nav('orders-invoices');setTimeout(()=>openOrderDetail(${inv.customer_order_id}),400)">📋 ${inv.customer_order_number}</span>` : ''}
+        ${inv.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="nav('orders-invoices');setTimeout(()=>openOrderDetail(${inv.customer_order_id}),400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> ${inv.customer_order_number}</span>` : ''}
       </td>
       <td>${fmtDate(inv.invoice_date)}</td>
       <td>${fmtDate(inv.due_date)}</td>
@@ -4570,7 +4604,7 @@ async function renderInvoices() {
         <option value="PAID">Paid</option>
         <option value="VOID">Void</option>
       </select>
-      <button class="btn btn-xs btn-outline" onclick="clearInvoiceFilters()" style="font-size:11px">✕ Clear</button>
+      <button class="btn btn-xs btn-outline" onclick="clearInvoiceFilters()" style="font-size:11px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Clear</button>
       <span id="inv-f-count" style="margin-left:auto;font-size:11px;color:var(--text-3)">${invs.length}</span>
     </div>
     <div class="table-wrap">
@@ -4618,7 +4652,7 @@ function _renderInvoiceDetail(inv) {
       <td style="padding:7px 10px;text-align:right;font-weight:600">${fmtPKR(i.line_total)}</td>
       <td style="padding:7px 6px;text-align:center">
         ${canEdit && (inv.items||[]).length > 1
-          ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px" onclick="removeInvItem(${i.id},${invId})" title="Remove this line">✕</button>`
+          ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px" onclick="removeInvItem(${i.id},${invId})" title="Remove this line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>`
           : ''}
       </td>
     </tr>`).join('');
@@ -4630,7 +4664,7 @@ function _renderInvoiceDetail(inv) {
       <td style="padding:6px 10px">${a.payment_mode === 'ADJUSTMENT' ? '<em style="color:var(--cinnamon)">Adjustment</em>' : a.payment_mode}</td>
       <td style="padding:6px 10px;text-align:right;color:${a.allocated_amount < 0 ? 'var(--chili)' : 'var(--cardamom)'};font-weight:600">${fmtPKR(a.allocated_amount)}</td>
       <td style="padding:4px 6px;text-align:center">
-        ${_canAdjustInv && inv.status !== 'VOID' ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px;font-size:11px" onclick="undoInvAllocation(${a.id},${invId})" title="Undo this allocation">↩ Undo</button>` : ''}
+        ${_canAdjustInv && inv.status !== 'VOID' ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px;font-size:11px" onclick="undoInvAllocation(${a.id},${invId})" title="Undo this allocation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo</button>` : ''}
       </td>
     </tr>`).join('');
 
@@ -4736,15 +4770,15 @@ function _renderInvoiceDetail(inv) {
     </div>` : `
     <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:13px;color:var(--cardamom);font-weight:600">✓ Fully Paid</span>
-      ${_canAdjustInv ? `<button class="btn btn-outline btn-sm" style="font-size:12px" onclick="showInvAdjustForm(${invId})">⚠ Record Adjustment</button>` : ''}
+      ${_canAdjustInv ? `<button class="btn btn-outline btn-sm" style="font-size:12px" onclick="showInvAdjustForm(${invId})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Record Adjustment</button>` : ''}
     </div>
     <div id="inv-adjust-area-${invId}"></div>`}
 
     <!-- Actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-sm" style="background:var(--chili);color:#fff"
-        onclick="downloadInvoicePDF(${invId})">⬇ Download PDF</button>
-      <button class="btn btn-outline btn-sm" onclick="document.getElementById('invoice-detail-area').innerHTML=''">✕ Close</button>
+        onclick="downloadInvoicePDF(${invId})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Download PDF</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('invoice-detail-area').innerHTML=''"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button>
     </div>
   </div>`;
 }
@@ -4956,7 +4990,7 @@ async function printInvoice(invId) {
   </div>
 
   <div class="footer">Thank you for your business! · Spicetopia · Generated ${new Date().toLocaleDateString()}</div>
-  <div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="background:#c0392b;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600">🖨️ Print</button></div>
+  <div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="background:#c0392b;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button></div>
   </body></html>`;
 
   const w = window.open('', '_blank', 'width=860,height=950');
@@ -5040,7 +5074,7 @@ async function renderReceiptsAging(tab) {
   const recRows = pays.map(p => {
     const appliedTo = (p.applied_to||[]).length
       ? p.applied_to.map(n => `<span style="font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px">${n}</span>`).join(' ')
-      : `<span style="color:var(--saffron);font-size:11px;font-weight:600">⚠ Unallocated</span>`;
+      : `<span style="color:var(--saffron);font-size:11px;font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Unallocated</span>`;
     return `<tr>
       <td><strong style="font-family:monospace">${p.payment_ref}</strong></td>
       <td>${fmtDate(p.payment_date)}</td>
@@ -5049,7 +5083,7 @@ async function renderReceiptsAging(tab) {
       <td class="num text-right"><strong>${fmtPKR(p.amount)}</strong></td>
       <td style="max-width:200px">${appliedTo}</td>
       <td class="num text-right" style="color:${p.unallocated>0.001?'var(--saffron)':'var(--cardamom)'};font-weight:${p.unallocated>0.001?'700':'400'}">${p.unallocated>0.001?fmtPKR(p.unallocated):'—'}</td>
-      <td style="padding:4px 8px"><button class="btn btn-xs btn-outline" onclick="printPaymentReceipt(${p.id},'ar')" title="Print receipt" style="font-size:11px">🖨</button></td>
+      <td style="padding:4px 8px"><button class="btn btn-xs btn-outline" onclick="printPaymentReceipt(${p.id},'ar')" title="Print receipt" style="font-size:11px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg></button></td>
     </tr>`;
   }).join('');
 
@@ -5108,7 +5142,7 @@ async function renderReceiptsAging(tab) {
   </div>
   <div class="card">
     <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-      <button class="btn btn-outline btn-sm no-print" onclick="window.print()">🖨️ Print Aging</button>
+      <button class="btn btn-outline btn-sm no-print" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print Aging</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -5121,7 +5155,7 @@ async function renderReceiptsAging(tab) {
   return `
   <div class="section-header"><h2>Receipts &amp; AR</h2></div>
   <div class="mod-tabs">
-    <div class="mod-tab ${_raTab==='receipts'?'active':''}" onclick="switchRaTab('receipts')">💰 Receipts</div>
+    <div class="mod-tab ${_raTab==='receipts'?'active':''}" onclick="switchRaTab('receipts')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg> Receipts</div>
     <div class="mod-tab ${_raTab==='aging'?'active':''}" onclick="switchRaTab('aging')">📆 Receivables Aging</div>
   </div>
   <div id="ra-receipts" class="mod-tab-pane ${_raTab==='receipts'?'active':''}">${receiptsPane}</div>
@@ -5149,7 +5183,7 @@ async function renderARPayments() {
   let rows = pays.map(p => {
     const appliedTo = (p.applied_to||[]).length
       ? p.applied_to.map(n => `<span style="font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px">${n}</span>`).join(' ')
-      : `<span style="color:var(--saffron);font-size:11px;font-weight:600">⚠ Unallocated</span>`;
+      : `<span style="color:var(--saffron);font-size:11px;font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Unallocated</span>`;
     return `<tr>
       <td><strong style="font-family:monospace">${p.payment_ref}</strong></td>
       <td>${fmtDate(p.payment_date)}</td>
@@ -5257,7 +5291,7 @@ async function renderARAging() {
   return `
   <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
     <h2>Receivables Aging</h2>
-    <button class="btn btn-outline btn-sm no-print" onclick="window.print()">🖨️ Print</button>
+    <button class="btn btn-outline btn-sm no-print" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>
   </div>
   <div class="grid-6 mb-24">
     <div class="card card-green"><div class="card-title">Current</div><div class="card-value" style="color:var(--cardamom);font-size:18px">${fmtPKR(buckets.current)}</div></div>
@@ -5345,7 +5379,7 @@ async function renderSuppliers() {
   return `
   <div class="section-header"><h2>Suppliers</h2>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary" onclick="downloadCSV('/api/suppliers/export','suppliers')" style="font-size:13px">⬇ Export CSV</button>
+      <button class="btn btn-secondary" onclick="downloadCSV('/api/suppliers/export','suppliers')" style="font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Export CSV</button>
       <button class="btn btn-primary" onclick="showNewSupplierForm()">+ New Supplier</button>
     </div>
   </div>
@@ -5525,7 +5559,7 @@ async function renderPurchaseOrders() {
     <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid var(--border)">
       <button id="po-tab-product" onclick="switchPOTab('product')"
         style="padding:8px 20px;font-size:13px;font-weight:600;background:var(--saffron);color:#fff;border:none;border-radius:4px 4px 0 0;cursor:pointer">
-        📦 By Product
+        ${ic('package',13)} By Product
       </button>
       <button id="po-tab-ingredient" onclick="switchPOTab('ingredient')"
         style="padding:8px 20px;font-size:13px;font-weight:600;background:var(--surface-2);color:var(--text-2);border:none;border-radius:4px 4px 0 0;cursor:pointer;margin-left:4px">
@@ -5623,7 +5657,7 @@ async function renderPurchaseOrders() {
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <button class="btn btn-primary" onclick="submitPO()">✓ Create Purchase Order</button>
-        <button class="btn btn-outline" onclick="resetPOForm()">✕ Clear</button>
+        <button class="btn btn-outline" onclick="resetPOForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Clear</button>
         <span id="po-grand-total" style="font-size:15px;font-weight:700;color:var(--saffron-deep);margin-left:8px"></span>
       </div>
     </div>
@@ -5852,7 +5886,7 @@ function _poIngRowHTML(lineId) {
           id="po-ing-line-${lineId}">—</td>
       <td style="padding:6px 8px;width:36px;text-align:center">
         <button class="btn btn-xs" style="color:var(--chili)" onclick="removePOIngLine(${lineId})"
-          id="po-ing-del-${lineId}">✕</button>
+          id="po-ing-del-${lineId}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </td>
     </tr>`;
 }
@@ -6062,9 +6096,9 @@ function _renderPODetail(po) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         <div style="display:flex;gap:6px">
-          ${['draft','sent'].includes(po.status) ? `<button class="btn btn-outline btn-sm" onclick="editPOHeader(${po.id})" style="font-size:12px">✏ Edit</button>` : ''}
-          <button class="btn btn-outline btn-sm" onclick="downloadPOPDF(${po.id})" style="font-size:12px">⬇ Download PO PDF</button>
-          <button class="btn btn-outline btn-sm" id="copy-po-btn-${po.id}" onclick="copyPOText(${po.id})" style="font-size:12px">📋 Copy for WhatsApp</button>
+          ${['draft','sent'].includes(po.status) ? `<button class="btn btn-outline btn-sm" onclick="editPOHeader(${po.id})" style="font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg> Edit</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="downloadPOPDF(${po.id})" style="font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Download PO PDF</button>
+          <button class="btn btn-outline btn-sm" id="copy-po-btn-${po.id}" onclick="copyPOText(${po.id})" style="font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Copy for WhatsApp</button>
         </div>
         <div style="text-align:right">
           <div style="font-size:11px;color:var(--text-3)">Total Value</div>
@@ -6096,14 +6130,14 @@ function _renderPODetail(po) {
     ${canSend ? `
     <div style="margin-bottom:14px">
       <button class="btn btn-primary btn-sm" onclick="setPOStatus(${po.id},'sent')">
-        📤 Mark as Sent to Supplier
+        ${ic('upload',13)} Mark as Sent to Supplier
       </button>
-      ${canCancel ? `<button class="btn btn-outline btn-sm" style="margin-left:8px;color:var(--chili)" onclick="setPOStatus(${po.id},'cancelled')">✕ Cancel PO</button>` : ''}
+      ${canCancel ? `<button class="btn btn-outline btn-sm" style="margin-left:8px;color:var(--chili)" onclick="setPOStatus(${po.id},'cancelled')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Cancel PO</button>` : ''}
     </div>` : ''}
 
     ${canReceive ? `
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:14px">
-      <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:12px">📦 Record Goods Receipt</div>
+      <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg> Record Goods Receipt</div>
       <div style="font-size:12px;color:#166534;margin-bottom:10px">
         Enter the quantity actually received for each ingredient. Leave as ordered if fully received.
       </div>
@@ -6124,7 +6158,7 @@ function _renderPODetail(po) {
         <button class="btn btn-outline btn-sm" style="color:#16a34a;border-color:#16a34a" onclick="quickReceiveAllPO(${po.id})" title="Pre-fill all quantities &amp; costs from this PO — then click Confirm">
           ⚡ Use PO Quantities &amp; Costs
         </button>
-        ${canCancel ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="setPOStatus(${po.id},'cancelled')">✕ Cancel PO</button>` : ''}
+        ${canCancel ? `<button class="btn btn-outline btn-sm" style="color:var(--chili)" onclick="setPOStatus(${po.id},'cancelled')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Cancel PO</button>` : ''}
       </div>
     </div>` : ''}
 
@@ -6167,7 +6201,7 @@ function _renderPODetail(po) {
       </table>
     </div>` : ''}` : ''}
 
-    <div><button class="btn btn-outline btn-sm" onclick="document.getElementById('po-detail-area').innerHTML=''">✕ Close</button></div>
+    <div><button class="btn btn-outline btn-sm" onclick="document.getElementById('po-detail-area').innerHTML=''"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button></div>
   </div>`;
 
   document.getElementById('po-detail-area').scrollIntoView({ behavior:'smooth', block:'start' });
@@ -6340,7 +6374,7 @@ async function printPO(poId) {
     </div>
     <div style="text-align:right">
       <div style="font-size:11px;color:#888">Spicetopia</div>
-      <button onclick="window.print()" style="margin-top:8px;padding:6px 16px;background:#c67c00;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px">🖨 Print</button>
+      <button onclick="window.print()" style="margin-top:8px;padding:6px 16px;background:#c67c00;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>
     </div>
   </div>
   <div class="meta">
@@ -6567,7 +6601,7 @@ async function renderBills() {
         <option value="PAID">Paid</option>
         <option value="VOID">Void</option>
       </select>
-      <button class="btn btn-xs btn-outline" onclick="clearBillFilters()" style="font-size:11px">✕ Clear</button>
+      <button class="btn btn-xs btn-outline" onclick="clearBillFilters()" style="font-size:11px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Clear</button>
       <span id="bill-f-count" style="margin-left:auto;font-size:11px;color:var(--text-3)">${bills.length}</span>
     </div>
     <div class="table-wrap">
@@ -6623,7 +6657,7 @@ function renderBillLines() {
       </td>
       <td style="padding:6px 6px;text-align:center">
         ${_billLines.length > 1
-          ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px" onclick="removeBillLine(${line.id})">✕</button>`
+          ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px" onclick="removeBillLine(${line.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>`
           : ''}
       </td>
     </tr>`).join('');
@@ -6733,7 +6767,7 @@ function _renderBillDetail(bill) {
       <td style="padding:6px 10px">${a.payment_mode === 'ADJUSTMENT' ? '<em style="color:var(--cinnamon)">Adjustment</em>' : (a.payment_mode||'—')}</td>
       <td style="padding:6px 10px;text-align:right;color:${a.allocated_amount < 0 ? 'var(--chili)' : 'var(--cardamom)'};font-weight:600">${fmtPKR(a.allocated_amount)}</td>
       <td style="padding:4px 6px;text-align:center">
-        ${_canAdjustBill && bill.status !== 'VOID' ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px;font-size:11px" onclick="undoBillAllocation(${a.id},${billId})" title="Undo this allocation">↩ Undo</button>` : ''}
+        ${_canAdjustBill && bill.status !== 'VOID' ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px;font-size:11px" onclick="undoBillAllocation(${a.id},${billId})" title="Undo this allocation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo</button>` : ''}
       </td>
     </tr>`).join('');
 
@@ -6753,9 +6787,9 @@ function _renderBillDetail(bill) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         <div style="display:flex;gap:6px">
-          ${['UNPAID','PARTIAL'].includes(bill.status) ? `<button class="btn btn-outline btn-sm" onclick="editBillHeader(${billId})" style="font-size:12px">✏ Edit</button>` : ''}
-          <button class="btn btn-outline btn-sm" onclick="printBill(${billId})" style="font-size:12px">🖨 Print</button>
-          <button class="btn btn-outline btn-sm" id="copy-bill-btn-${billId}" onclick="copyBillText(${billId})" style="font-size:12px">📋 Copy for WhatsApp</button>
+          ${['UNPAID','PARTIAL'].includes(bill.status) ? `<button class="btn btn-outline btn-sm" onclick="editBillHeader(${billId})" style="font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg> Edit</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="printBill(${billId})" style="font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>
+          <button class="btn btn-outline btn-sm" id="copy-bill-btn-${billId}" onclick="copyBillText(${billId})" style="font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Copy for WhatsApp</button>
         </div>
         <div style="text-align:right">
           <div style="font-size:11px;color:var(--text-3)">Balance Due</div>
@@ -6803,7 +6837,7 @@ function _renderBillDetail(bill) {
     ${(bill.status === 'UNPAID' || bill.status === 'PARTIAL') ? `
     <div style="background:#fff8e6;border:1px solid #f5dfa0;border-radius:6px;padding:14px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;color:var(--saffron-deep);margin-bottom:10px">Record Payment</div>
-      ${bill.balance <= 0 && bill.total <= 0 ? `<div style="font-size:12px;color:#b45309;margin-bottom:8px">⚠ Bill has no line-item costs on record. Enter the actual amount owed below.</div>` : ''}
+      ${bill.balance <= 0 && bill.total <= 0 ? `<div style="font-size:12px;color:#b45309;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Bill has no line-item costs on record. Enter the actual amount owed below.</div>` : ''}
       <div id="bill-pay-msg-${billId}"></div>
       <div class="form-row" style="gap:8px;align-items:flex-end">
         <div class="form-group"><label style="font-size:11px">Amount (PKR)</label>
@@ -6828,11 +6862,11 @@ function _renderBillDetail(bill) {
     </div>` : `
     <div style="background:#f0faf4;border:1px solid #b2e8c8;border-radius:6px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:13px;color:var(--cardamom);font-weight:600">✓ Fully Paid</span>
-      ${_canAdjustBill ? `<button class="btn btn-outline btn-sm" style="font-size:12px" onclick="showBillAdjustForm(${billId})">⚠ Record Adjustment</button>` : ''}
+      ${_canAdjustBill ? `<button class="btn btn-outline btn-sm" style="font-size:12px" onclick="showBillAdjustForm(${billId})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Record Adjustment</button>` : ''}
     </div>
     <div id="bill-adjust-area-${billId}"></div>`}
 
-    <div><button class="btn btn-outline btn-sm" onclick="document.getElementById('bill-detail-area').innerHTML=''">✕ Close</button></div>
+    <div><button class="btn btn-outline btn-sm" onclick="document.getElementById('bill-detail-area').innerHTML=''"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button></div>
   </div>`;
 
   document.getElementById('bill-detail-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -6872,7 +6906,7 @@ async function printBill(billId) {
     </div>
     <div style="text-align:right">
       <div style="font-size:11px;color:#888">Spicetopia</div>
-      <button onclick="window.print()" style="margin-top:8px;padding:6px 16px;background:#c67c00;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px">🖨 Print</button>
+      <button onclick="window.print()" style="margin-top:8px;padding:6px 16px;background:#c67c00;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>
     </div>
   </div>
   <div class="meta">
@@ -7159,7 +7193,7 @@ async function printPaymentReceipt(paymentId, type) {
 
   <div class="footer">Spicetopia · FLAVORS REDEFINED · Generated ${new Date().toLocaleDateString()}</div>
   <div style="text-align:center;margin-top:16px">
-    <button onclick="window.print()" style="background:#c0392b;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600">🖨️ Print</button>
+    <button onclick="window.print()" style="background:#c0392b;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>
   </div>
   </body></html>`;
 
@@ -7197,7 +7231,7 @@ async function renderAPPayments() {
   let rows = pays.map(p => {
     const appliedTo = (p.applied_to||[]).length
       ? p.applied_to.map(n => `<span style="font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px">${n}</span>`).join(' ')
-      : `<span style="color:var(--saffron);font-size:11px;font-weight:600">⚠ Unallocated</span>`;
+      : `<span style="color:var(--saffron);font-size:11px;font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Unallocated</span>`;
     return `<tr>
       <td><strong style="font-family:monospace">${p.payment_ref}</strong></td>
       <td>${fmtDate(p.payment_date)}</td>
@@ -7206,7 +7240,7 @@ async function renderAPPayments() {
       <td class="num text-right"><strong>${fmtPKR(p.amount)}</strong></td>
       <td style="max-width:200px">${appliedTo}</td>
       <td class="num text-right" style="color:${p.unallocated>0.001?'var(--saffron)':'var(--cardamom)'};font-weight:${p.unallocated>0.001?'700':'400'}">${p.unallocated>0.001?fmtPKR(p.unallocated):'—'}</td>
-      <td style="padding:4px 8px"><button class="btn btn-xs btn-outline" onclick="printPaymentReceipt(${p.id},'ap')" title="Print remittance" style="font-size:11px">🖨</button></td>
+      <td style="padding:4px 8px"><button class="btn btn-xs btn-outline" onclick="printPaymentReceipt(${p.id},'ap')" title="Print remittance" style="font-size:11px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg></button></td>
     </tr>`;
   }).join('');
 
@@ -7327,7 +7361,7 @@ async function renderAPAging() {
   return `
   <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
     <h2>Payables Aging</h2>
-    <button class="btn btn-outline btn-sm no-print" onclick="window.print()">🖨️ Print</button>
+    <button class="btn btn-outline btn-sm no-print" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>
   </div>
   <div class="grid-6 mb-24">
     <div class="card card-green"><div class="card-title">Current</div><div class="card-value" style="color:var(--cardamom);font-size:18px">${fmtPKR(buckets.current)}</div></div>
@@ -7369,7 +7403,7 @@ async function findIngredientDuplicates() {
       return;
     }
     let h = '<div class="card" style="padding:16px;border-left:3px solid var(--chili)">'
-      + '<div style="font-weight:700;margin-bottom:4px">⚠ ' + groups.length + ' duplicate ingredient' + (groups.length===1?'':'s') + ' found</div>'
+      + '<div style="font-weight:700;margin-bottom:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> ' + groups.length + ' duplicate ingredient' + (groups.length===1?'':'s') + ' found</div>'
       + '<div style="font-size:12px;color:var(--text-3);margin-bottom:12px">Same ingredient under different codes. <strong>ING-NNNSP</strong> is the canonical format; <strong>in recipes</strong> marks the one driving cost. Review, then tell me the keeper for each and I\'ll merge after a backup.</div>';
     groups.forEach(g => {
       h += '<div style="margin-bottom:14px"><div style="font-weight:600;margin-bottom:4px">' + esc(g.name) + '</div>'
@@ -7422,7 +7456,7 @@ async function findArchiveCandidates() {
     const intro = '<div style="font-size:12px;color:var(--text-3);margin-bottom:12px">'
       + 'Read-only — nothing is changed. ' + active.length + ' active · '
       + '<strong>' + cands.length + ' look unused</strong> (zero stock AND not in any recipe)'
-      + (recipeCodes.size ? '' : ' · ⚠ recipe data unavailable, showing zero-stock only') + '.</div>';
+      + (recipeCodes.size ? '' : ' · <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> recipe data unavailable, showing zero-stock only') + '.</div>';
 
     if (!cands.length) {
       panel.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--cardamom)">'
@@ -7430,7 +7464,7 @@ async function findArchiveCandidates() {
       return;
     }
     let h = '<div class="card" style="padding:16px;border-left:3px solid var(--saffron)">'
-      + '<div style="font-weight:700;margin-bottom:4px">🗂 ' + cands.length + ' ingredient' + (cands.length===1?'':'s') + ' look unused</div>'
+      + '<div style="font-weight:700;margin-bottom:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> ' + cands.length + ' ingredient' + (cands.length===1?'':'s') + ' look unused</div>'
       + intro
       + '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="color:var(--text-3);text-align:left">'
       + '<th style="padding:3px 6px">Code</th><th style="padding:3px 6px">Name</th><th style="padding:3px 6px">Scheme</th>'
@@ -7675,14 +7709,14 @@ async function renderInventory() {
     + (isAdmin
         ? '<button id="inv-tab-rm" class="seg-tab' + (rmActive?' active':'') + '" onclick="switchInvTab(\'rm\')">🧂 Raw Materials <span style="font-size:11px;opacity:.85">(' + rmTotal + ')</span></button>'
         : '')
-    + '<button id="inv-tab-fg" class="seg-tab' + (!rmActive?' active':'') + '" onclick="switchInvTab(\'fg\')">📦 Finished Goods <span style="font-size:11px;opacity:.85">(' + fgTotal + ')</span></button>'
+    + '<button id="inv-tab-fg" class="seg-tab' + (!rmActive?' active':'') + '" onclick="switchInvTab(\'fg\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg> Finished Goods <span style="font-size:11px;opacity:.85">(' + fgTotal + ')</span></button>'
     + '</div>';
 
   return '<div class="section-header"><h2>Inventory</h2>'
     + (isAdmin ? '<div style="display:flex;gap:8px">'
-        + '<button class="btn btn-primary btn-sm" onclick="nav(\'bulk-stock\')" title="Load or update raw-material stock in bulk with tank sliders">🛢 Bulk update stock</button>'
-        + '<button class="btn btn-outline btn-sm" onclick="findIngredientDuplicates()" title="Find ingredients entered twice under different codes">🔍 Find duplicates</button>'
-        + '<button class="btn btn-outline btn-sm" onclick="findArchiveCandidates()" title="Report: active ingredients safe to archive (zero stock, no recipe/movement/bill)">🗂 Archive candidates</button>'
+        + '<button class="btn btn-primary btn-sm" onclick="nav(\'bulk-stock\')" title="Load or update raw-material stock in bulk with tank sliders">' + ic('barrel') + ' Bulk update stock</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="findIngredientDuplicates()" title="Find ingredients entered twice under different codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Find duplicates</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="findArchiveCandidates()" title="Report: active ingredients safe to archive (zero stock, no recipe/movement/bill)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> Archive candidates</button>'
         + '<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById(\'ing-add-card\');if(c)c.style.display=c.style.display===\'none\'?\'\':\'none\';switchInvTab(\'rm\')">＋ Ingredient</button>'
         + '</div>' : '')
     + '</div>'
@@ -7923,7 +7957,7 @@ async function renderBomSetup() {
           ↑ Upload CSV
           <input type="file" accept=".csv,.xlsx" style="display:none" onchange="uploadBomCsv(this)">
         </label>
-        <button class="btn btn-xs btn-outline" onclick="toggleBomPanel()">⚙ Manage BOMs</button>
+        <button class="btn btn-xs btn-outline" onclick="toggleBomPanel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> Manage BOMs</button>
       </div>
     </div>
 
@@ -8033,8 +8067,8 @@ function _prodOverviewHtml(dash, runs, stages, workOrders) {
       ? '<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:11px;background:var(--saffron-pale);color:var(--saffron-deep)">awaiting your check</span>'
       : '<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:11px;background:var(--surface-2);color:var(--text-2)">' + esc(r.stage_name || '') + ' · step ' + r.stageNum + '/' + r.stageTotal + '</span>';
     const btn = isVerify
-      ? '<button class="btn btn-sm btn-primary" onclick="verifyBatchRun(' + r.id + ',' + r.qty_units + ')">✓ Verify &amp; finish</button>'
-      : '<button class="btn btn-sm btn-primary" onclick="advanceBatchRun(' + r.id + ')">✓ ' + esc(r.stage_name || '') + ' done → ' + esc(nextName) + '</button>';
+      ? '<button class="btn btn-sm btn-primary" onclick="verifyBatchRun(' + r.id + ',' + r.qty_units + ')">' + ic('check',13) + ' Verify &amp; finish</button>'
+      : '<button class="btn btn-sm btn-primary" onclick="advanceBatchRun(' + r.id + ')">' + ic('check',13) + ' ' + esc(r.stage_name || '') + ' done → ' + esc(nextName) + '</button>';
     return '<div class="card" style="padding:16px 18px;margin-bottom:12px">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
       + '<div><span style="font-size:15px;font-weight:600">' + esc(r.product_name || '') + ' ' + esc(r.pack_size || '') + '</span> <span style="font-size:12px;color:var(--text-3);font-family:monospace;margin-left:6px">' + esc(r.run_code) + ' · ' + r.qty_units + ' packs</span></div>'
@@ -8060,7 +8094,7 @@ function _prodOverviewHtml(dash, runs, stages, workOrders) {
       + '<div><span style="font-size:14px">' + esc(w.product_name || '') + ' ' + esc(w.pack_size || '') + '</span><div style="font-size:11px;color:var(--text-3);font-family:monospace">' + esc(w.wo_number) + ' · ' + rem + ' packs</div></div>'
       + '<div style="display:flex;align-items:center;gap:10px">'
       + '<span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;background:' + (canMake ? '#eafaf1' : '#fff5f5') + ';color:' + (canMake ? '#1aaa55' : '#e03131') + '">' + (canMake ? 'materials ready' : 'short on stock') + '</span>'
-      + '<button class="btn btn-sm btn-primary" onclick="startBatchRun(' + w.id + ')">▶ Start batch</button></div></div>';
+      + '<button class="btn btn-sm btn-primary" onclick="startBatchRun(' + w.id + ')">' + ic('play',12) + ' Start batch</button></div></div>';
   }).join('') || '<div style="color:var(--text-3);font-size:12px;padding:10px 0">No work orders waiting. Create one under Work orders.</div>';
 
   return (dash ? _prodDashHtml(dash) : '')
@@ -8210,7 +8244,7 @@ async function renderProduction() {
     return `<tr data-wo-status="${wo.status}" onclick="showWoDetail(${wo.id})" style="cursor:pointer">
       <td style="font-weight:700;white-space:nowrap">
         ${wo.wo_number}
-        ${wo.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="event.stopPropagation();nav('orders-invoices');setTimeout(()=>openOrderDetail(${wo.customer_order_id}),400)">📋 ${wo.customer_order_number}</span>` : ''}
+        ${wo.customer_order_number ? `<br><span style="font-size:10px;font-weight:600;color:var(--cardamom);background:var(--saffron-pale);padding:1px 6px;border-radius:8px;cursor:pointer" onclick="event.stopPropagation();nav('orders-invoices');setTimeout(()=>openOrderDetail(${wo.customer_order_id}),400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> ${wo.customer_order_number}</span>` : ''}
       </td>
       <td>${wo.product_name}<br><span style="font-size:11px;color:var(--text-3)">${wo.pack_size||''} · ${wo.qty_units} units</span>${(wo.produced_units||0) > 0 ? `<br><span style="font-size:11px;color:var(--saffron-deep);font-weight:600">made ${wo.produced_units}/${wo.qty_units} · ${wo.qty_units - wo.produced_units} left</span>` : ''}</td>
       <td style="text-align:center">${woBadge(wo.status, !!wo.feasibility_ok)}</td>
@@ -8219,13 +8253,13 @@ async function renderProduction() {
         ? `<span style="font-size:11px;color:var(--cardamom);font-weight:600">${wo.batch_id}</span>`
         : '<span style="color:var(--text-3);font-size:11px">—</span>'}</td>
       <td style="text-align:right;white-space:nowrap">
-        <button class="btn btn-xs btn-outline" onclick="event.stopPropagation();showProcurementList(${wo.id},'${wo.wo_number}')" title="Ingredient &amp; Procurement List">📋 Cost &amp; Procure</button>
-        ${canConvert ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="event.stopPropagation();convertWoToBatch(${wo.id},'${wo.wo_number}',${wo.qty_units - (wo.produced_units||0)},${wo.product_variant_id})" title="Record a batch — the full remaining amount, or a partial amount (e.g. a weekly run)">✓ Record batch</button>` : ''}
-        ${canStart   ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron)" onclick="event.stopPropagation();setWoStatus(${wo.id},'in_progress')" title="Mark this work order as In Progress — production has started">▶ Start Production</button>` : ''}
-        ${canReset && isAdminRole() ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--saffron-deep)" onclick="event.stopPropagation();resetWoToPlanned(${wo.id},'${wo.wo_number}')" title="Reset back to Planned — production has not started yet">↩ Reset to Planned</button>` : ''}
-        ${canConvert ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="event.stopPropagation();editWorkOrder(${wo.id},'${wo.wo_number}',${wo.qty_units},'${wo.target_date||''}','${(wo.notes||'').replace(/'/g,"\\'")}')">Edit</button>` : ''}
-        ${canCancel  ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="event.stopPropagation();setWoStatus(${wo.id},'cancelled')" title="Cancel this work order">✕</button>` : ''}
-        ${(!wo.batch_id && (wo.produced_units||0) === 0 && wo.status !== 'completed') ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="event.stopPropagation();deleteWorkOrder(${wo.id},'${wo.wo_number}')" title="Delete this work order — only when no batch has been produced">🗑</button>` : ''}
+        <button class="btn btn-xs btn-outline" onclick="event.stopPropagation();showProcurementList(${wo.id},'${wo.wo_number}')" title="Ingredient &amp; Procurement List">${ic('clipboard-list',13)} Cost &amp; Procure</button>
+        ${canConvert ? `<button class="btn btn-xs btn-primary" style="margin-left:4px" onclick="event.stopPropagation();convertWoToBatch(${wo.id},'${wo.wo_number}',${wo.qty_units - (wo.produced_units||0)},${wo.product_variant_id})" title="Record a batch — the full remaining amount, or a partial amount (e.g. a weekly run)">${ic('check',13)} Record batch</button>` : ''}
+        ${canStart   ? `<button class="btn btn-xs" style="margin-left:4px;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron)" onclick="event.stopPropagation();setWoStatus(${wo.id},'in_progress')" title="Mark this work order as In Progress — production has started">${ic('play',12)} Start Production</button>` : ''}
+        ${canReset && isAdminRole() ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--saffron-deep)" onclick="event.stopPropagation();resetWoToPlanned(${wo.id},'${wo.wo_number}')" title="Reset back to Planned — production has not started yet">${ic('undo',13)} Reset to Planned</button>` : ''}
+        ${canConvert ? `<button class="btn btn-xs btn-outline" style="margin-left:4px" onclick="event.stopPropagation();editWorkOrder(${wo.id},'${wo.wo_number}',${wo.qty_units},'${wo.target_date||''}','${(wo.notes||'').replace(/'/g,"\\'")}')">${ic('pencil',13)} Edit</button>` : ''}
+        ${canCancel  ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="event.stopPropagation();setWoStatus(${wo.id},'cancelled')" title="Cancel this work order">${ic('x',13)}</button>` : ''}
+        ${(!wo.batch_id && (wo.produced_units||0) === 0 && wo.status !== 'completed') ? `<button class="btn btn-xs btn-outline" style="margin-left:4px;color:var(--chili)" onclick="event.stopPropagation();deleteWorkOrder(${wo.id},'${wo.wo_number}')" title="Delete this work order — only when no batch has been produced">${ic('trash',13)}</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -8263,8 +8297,8 @@ async function renderProduction() {
   <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
     <h2>Production</h2>
     <div style="display:flex;gap:8px">
-      ${canRecipe() ? '<button class="btn btn-outline btn-sm" onclick="_prodSwitchTab(\'plan\')">🎚 Plan a batch</button>' : ''}
-      <button class="btn btn-primary btn-sm" onclick="_prodSwitchTab('wos');showWoForm()">+ New Work Order</button>
+      ${canRecipe() ? '<button class="btn btn-outline btn-sm" onclick="_prodSwitchTab(\'plan\')">' + ic('sliders') + ' Plan a batch</button>' : ''}
+      <button class="btn btn-primary btn-sm" onclick="_prodSwitchTab('wos');showWoForm()">${ic('plus')} New Work Order</button>
     </div>
   </div>
 
@@ -8314,7 +8348,7 @@ async function renderProduction() {
   <div id="wo-form-panel" style="display:none" class="card mb-16" style="border-left:4px solid var(--mac-blue)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <h3>New Work Order</h3>
-      <button class="btn btn-xs btn-outline" onclick="hideWoForm()">✕ Close</button>
+      <button class="btn btn-xs btn-outline" onclick="hideWoForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button>
     </div>
     <div id="wo-msg"></div>
     <div class="form-row">
@@ -8630,7 +8664,7 @@ function addBomIngRow(ingCode='', qtyG='', ingName='') {
     </td>
     <td style="padding:5px 4px;text-align:center">
       <button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px"
-        onclick="document.getElementById('bom-row-${idx}').remove();updateBomTotal()">✕</button>
+        onclick="document.getElementById('bom-row-${idx}').remove();updateBomTotal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     </td>`;
   tbody.appendChild(tr);
   updateBomTotal();
@@ -8699,8 +8733,8 @@ async function checkWoFeasibility() {
       const headerBg  = res.feasible ? '#eafaf1' : '#fff5f5';
       const headerBdr = res.feasible ? '#6fcf97' : 'var(--chili)';
       const headerMsg = res.feasible
-        ? `✅ <strong>All ${res.requirements.length} ingredients in stock</strong> — ready to produce`
-        : `⚠️ <strong>${res.shortfalls.length} ingredient(s) short</strong> — procurement needed`;
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> <strong>All ${res.requirements.length} ingredients in stock</strong> — ready to produce`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> <strong>${res.shortfalls.length} ingredient(s) short</strong> — procurement needed`;
 
       const ingRows = res.requirements.map(r => {
         const needBuy  = !r.ok;
@@ -8789,7 +8823,7 @@ async function showWoDetail(woId) {
     '<td style="padding:6px 10px;font-size:12px;text-align:center">' +
       (i.inStock
         ? '<span style="color:var(--cardamom)">✓ OK</span>'
-        : '<span style="color:var(--chili);font-weight:700">⚠ Short ' + (i.toProcureGrams||0).toFixed(1) + 'g</span>') +
+        : '<span style="color:var(--chili);font-weight:700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Short ' + (i.toProcureGrams||0).toFixed(1) + 'g</span>') +
     '</td>' +
     '</tr>'
   ).join('');
@@ -8814,7 +8848,7 @@ async function showWoDetail(woId) {
         '<h3 style="font-size:18px;font-weight:700;letter-spacing:-.3px;margin-bottom:6px">' + wo.wo_number + '</h3>' +
         badge +
       '</div>' +
-      '<button class="btn btn-outline btn-sm" onclick="_closeProcModal()">✕ Close</button>' +
+      '<button class="btn btn-outline btn-sm" onclick="_closeProcModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px">' +
       '<div class="card" style="padding:12px 14px">' +
@@ -8833,7 +8867,7 @@ async function showWoDetail(woId) {
     '</div>' +
     (wo.customer_order_number ? (
       '<div style="margin-bottom:14px;padding:8px 12px;background:var(--saffron-pale);border-radius:6px;font-size:13px">' +
-      '📋 Linked to Customer Order: <strong style="cursor:pointer;color:var(--saffron-deep)" onclick="_closeProcModal();nav(\'orders-invoices\');setTimeout(()=>openOrderDetail(' + wo.customer_order_id + '),400)">' + wo.customer_order_number + ' →</strong>' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Linked to Customer Order: <strong style="cursor:pointer;color:var(--saffron-deep)" onclick="_closeProcModal();nav(\'orders-invoices\');setTimeout(()=>openOrderDetail(' + wo.customer_order_id + '),400)">' + wo.customer_order_number + ' →</strong>' +
       '</div>'
     ) : '') +
     (wo.notes ? '<div style="margin-bottom:14px;padding:8px 12px;background:var(--surface-2);border-radius:6px;font-size:13px;color:var(--text-2)">📝 ' + wo.notes + '</div>' : '') +
@@ -8897,8 +8931,8 @@ async function showBatchDetail(batchDbId) {
     </table>
 
     <div style="margin-top:14px;display:flex;gap:8px">
-      <button class="btn btn-outline btn-sm" onclick="printBatchDetail(${batchDbId})">🖨️ Print</button>
-      <button class="btn btn-outline btn-sm" onclick="_closeProcModal()">✕ Close</button>
+      <button class="btn btn-outline btn-sm" onclick="printBatchDetail(${batchDbId})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>
+      <button class="btn btn-outline btn-sm" onclick="_closeProcModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button>
     </div>
   </div>`;
 }
@@ -8969,7 +9003,7 @@ async function printBatchDetail(batchDbId) {
     </tr></tfoot>
   </table>
   <div style="text-align:center;margin-top:18px">
-    <button onclick="window.print()" style="background:#c0392b;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600">🖨️ Print</button>
+    <button onclick="window.print()" style="background:#c0392b;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>
   </div>
   </body></html>`;
 
@@ -9079,13 +9113,13 @@ async function _woShowImpact(woId, woNum, qty, variantId) {
       + '<div style="font-size:12px;font-family:monospace">' + esc(it.ingCode) + '</div>'
       + '<div style="font-size:12px;color:var(--text-3)">uses ' + it.neededKg + ' kg</div>'
       + '<div style="height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden"><div style="height:100%;width:' + share + '%;background:' + bar + '"></div></div>'
-      + '<div style="font-size:12px;text-align:right;color:' + (belowAfter ? 'var(--chili)' : 'var(--text-3)') + ';font-weight:600">' + share + '% · ' + after + ' kg left' + (belowAfter ? ' ⚠' : '') + '</div></div>';
+      + '<div style="font-size:12px;text-align:right;color:' + (belowAfter ? 'var(--chili)' : 'var(--text-3)') + ';font-weight:600">' + share + '% · ' + after + ' kg left' + (belowAfter ? ' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>' : '') + '</div></div>';
   }).join('');
   _openProcModal(
     '<div style="max-width:580px"><h3 style="margin:0 0 4px">Record batch — ' + esc(woNum) + '</h3>'
     + '<div style="font-size:12px;color:var(--text-3);margin-bottom:10px">' + qty + ' packs · bar = share of your current stock this run uses</div>'
     + rows
-    + (r.anyShort ? '<div style="margin-top:10px;color:var(--chili);font-size:13px;font-weight:600">⚠ Not enough stock for some ingredients — recording will fail unless you buy more first.</div>' : '')
+    + (r.anyShort ? '<div style="margin-top:10px;color:var(--chili);font-size:13px;font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Not enough stock for some ingredients — recording will fail unless you buy more first.</div>' : '')
     + '<div style="margin-top:16px;display:flex;gap:8px"><button class="btn btn-primary" onclick="_woDoConvert(' + woId + ',\'' + woNum + '\',' + qty + ')">Record batch</button> <button class="btn btn-outline" onclick="_closeProcModal()">Cancel</button></div></div>'
   );
 }
@@ -9095,7 +9129,7 @@ async function _woDoConvert(woId, woNum, qty) {
     const res = await POST('/api/work-orders/' + woId + '/convert', { qtyUnits: qty });
     _openProcModal(
       '<div style="text-align:center;padding:24px 16px">'
-      + '<div style="font-size:40px;margin-bottom:12px">✅</div>'
+      + '<div style="font-size:40px;margin-bottom:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg></div>'
       + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Batch created</div>'
       + '<div style="font-size:14px;color:var(--text-2)">Batch <strong>' + res.batchId + '</strong> · ' + res.qtyUnits + ' packs from <strong>' + res.woNumber + '</strong></div>'
       + ((res.remaining || 0) > 0
@@ -9107,8 +9141,8 @@ async function _woDoConvert(woId, woNum, qty) {
   } catch (e) {
     _openProcModal(
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'
-      + '<h3 style="color:var(--chili);margin:0">⚠ Production Failed</h3>'
-      + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()">✕</button>'
+      + '<h3 style="color:var(--chili);margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Production Failed</h3>'
+      + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>'
       + '</div>'
       + '<p style="margin:0;font-size:13px">' + e.message + '</p>'
     );
@@ -9144,12 +9178,12 @@ function showShortfallPanel(woId, woNum, requirements) {
   _openProcModal(
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
     + '<div>'
-    + '<h3 style="margin:0 0 4px;color:var(--chili)">⚠ Ingredient Shortfall — ' + woNum + '</h3>'
+    + '<h3 style="margin:0 0 4px;color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Ingredient Shortfall — ' + woNum + '</h3>'
     + '<p style="margin:0;font-size:13px;color:var(--text-2)">'
     + short.length + ' ingredient' + (short.length>1?'s':'') + ' below required level. '
     + 'Raise a procurement order to restock before releasing this batch.</p>'
     + '</div>'
-    + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()">✕</button>'
+    + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>'
     + '</div>'
     + '<table class="data-table" style="margin-bottom:16px">'
     + '<thead><tr><th>Ingredient</th><th class="num">Required</th><th class="num">In Stock</th><th class="num">Shortfall</th></tr></thead>'
@@ -9157,7 +9191,7 @@ function showShortfallPanel(woId, woNum, requirements) {
     + '</table>'
     + '<div id="wo-shortfall-msg-' + woId + '" style="margin-bottom:8px"></div>'
     + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
-    + '<button class="btn btn-primary" onclick="showProcurementForm(' + woId + ', \'' + woNum + '\')">🛒 Create Procurement Order</button>'
+    + '<button class="btn btn-primary" onclick="showProcurementForm(' + woId + ', \'' + woNum + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg> Create Procurement Order</button>'
     + '<button class="btn btn-outline" onclick="_closeProcModal()">Cancel</button>'
     + '</div>'
     + '<div id="wo-procurement-form-' + woId + '" style="display:none;margin-top:16px"></div>'
@@ -9357,7 +9391,7 @@ function editWorkOrder(woId, woNum, qtyUnits, targetDate, notes) {
   <div class="card mb-16" style="border-left:4px solid var(--mac-blue)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <h3>Edit Work Order — ${woNum}</h3>
-      <button class="btn btn-xs btn-outline" onclick="document.getElementById('wo-edit-panel').innerHTML=''">✕ Close</button>
+      <button class="btn btn-xs btn-outline" onclick="document.getElementById('wo-edit-panel').innerHTML=''"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button>
     </div>
     <div id="wo-edit-msg"></div>
     <div class="form-row">
@@ -9403,8 +9437,8 @@ async function showProcurementList(woId, woNum) {
   // Show modal immediately with a loading state
   _openProcModal(
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
-    + '<h3 style="margin:0">📋 Cost &amp; Procure — ' + woNum + '</h3>'
-    + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()">✕</button>'
+    + '<h3 style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Cost &amp; Procure — ' + woNum + '</h3>'
+    + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>'
     + '</div>'
     + '<div style="color:var(--text-3);font-size:13px;padding:20px 0;text-align:center">Loading…</div>'
   );
@@ -9416,14 +9450,14 @@ async function showProcurementList(woId, woNum) {
     const box = _procModalBox();
     if (box) box.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:12px">'
       + '<h3 style="margin:0;color:var(--chili)">Error</h3>'
-      + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()">✕</button></div>'
+      + '<button class="btn btn-xs btn-outline" onclick="_closeProcModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>'
       + '<div class="alert alert-error">' + e.message + '</div>';
     return;
   }
 
   const statusIcon = pl.allInStock
-    ? '<span style="color:var(--cardamom)">✅ All in stock — no purchasing needed</span>'
-    : '<span style="color:var(--chili)">⚠️ ' + pl.itemsToProc + ' ingredient(s) need to be procured</span>';
+    ? '<span style="color:var(--cardamom)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> All in stock — no purchasing needed</span>'
+    : '<span style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> ' + pl.itemsToProc + ' ingredient(s) need to be procured</span>';
 
   const tableRows = pl.lines.map(l => {
     const needBuy = !l.inStock;
@@ -9449,7 +9483,7 @@ async function showProcurementList(woId, woNum) {
   box.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">'
     + '<div>'
-    + '<h3 style="margin:0 0 4px">📋 Procurement List — ' + pl.woNumber + '</h3>'
+    + '<h3 style="margin:0 0 4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Procurement List — ' + pl.woNumber + '</h3>'
     + '<div style="font-size:12px;color:var(--text-3)">'
     + pl.productName + ' · ' + pl.packSize + ' · ' + pl.qtyUnits + ' units (' + fmt(pl.totalGrams,0) + 'g)'
     + (pl.targetDate ? ' · Target: ' + fmtDate(pl.targetDate) : '')
@@ -9474,8 +9508,8 @@ async function showProcurementList(woId, woNum) {
     + '</table>'
     + '</div>'
     + '<div style="margin-top:16px;display:flex;gap:8px">'
-    + '<button class="btn btn-outline btn-sm" onclick="printProcurementList(' + woId + ')">🖨️ Print</button>'
-    + '<button class="btn btn-outline btn-sm" onclick="_closeProcModal()">✕ Close</button>'
+    + '<button class="btn btn-outline btn-sm" onclick="printProcurementList(' + woId + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>'
+    + '<button class="btn btn-outline btn-sm" onclick="_closeProcModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button>'
     + '</div>';
 }
 
@@ -9589,7 +9623,7 @@ async function printProcurementList(woId) {
 
   <div class="footer">Spicetopia BMS · Procurement List · ${pl.woNumber} · ${new Date().toLocaleString()}</div>
   <div style="text-align:center;margin-top:14px">
-    <button onclick="window.print()" style="background:#e67e22;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600">🖨️ Print</button>
+    <button onclick="window.print()" style="background:#e67e22;color:white;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg> Print</button>
   </div>
   </body></html>`;
 
@@ -9670,7 +9704,7 @@ function _bpSlide() {
       + '<div style="font-size:13px;font-family:monospace">' + esc(it.code) + '</div>'
       + '<div style="font-size:12px;color:var(--text-3)">need ' + need + ' kg</div>'
       + '<div style="height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:' + col + '"></div></div>'
-      + '<div style="font-size:12px;text-align:right;color:' + (enough ? 'var(--text-3)' : 'var(--chili)') + ';font-weight:600">have ' + it.have + ' kg' + (enough ? '' : ' ⚠') + '</div></div>';
+      + '<div style="font-size:12px;text-align:right;color:' + (enough ? 'var(--text-3)' : 'var(--chili)') + ';font-weight:600">have ' + it.have + ' kg' + (enough ? '' : ' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>') + '</div></div>';
   }).join('') : '<div style="color:var(--text-3);padding:10px 0">No recipe data for this product.</div>';
   const tot = document.getElementById('bp-tot'); if (tot) tot.textContent = (c.rm_cost != null) ? fmtPKR((c.rm_cost || 0) * packs) : '—';
   const f = document.getElementById('bp-feas');
@@ -9818,11 +9852,11 @@ async function renderProducts() {
             '<button onclick="skuShowEdit(' + v.id + ',\'' + v.sku_code + '\')" ' +
             'title="Edit SKU Code" ' +
             'style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);' +
-            'background:var(--surface-2);cursor:pointer;color:var(--text-2)">✏ SKU</button>' +
+            'background:var(--surface-2);cursor:pointer;color:var(--text-2)">' + ic('pencil',11) + ' SKU</button>' +
             '<button onclick="gtinShowEdit(' + v.id + ',\'' + (v.gtin||'') + '\')" ' +
             'title="Edit GTIN" ' +
             'style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);' +
-            'background:var(--surface-2);cursor:pointer;color:var(--text-2)">✏ GTIN</button>' +
+            'background:var(--surface-2);cursor:pointer;color:var(--text-2)">' + ic('pencil',11) + ' GTIN</button>' +
           '</div>'
         ) : ''}
       </div>
@@ -9871,7 +9905,7 @@ async function renderProducts() {
       : '';
     const editBtn = isAdmin
       ? '<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 10px" ' +
-        'onclick="editProductGroup(\'' + grp.code + '\',\'' + pNameSafe + '\',\'' + pNameUrdu + '\',\'' + pBlendSafe + '\')">✏ Edit</button>'
+        'onclick="editProductGroup(\'' + grp.code + '\',\'' + pNameSafe + '\',\'' + pNameUrdu + '\',\'' + pBlendSafe + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg> Edit</button>'
       : '';
     const addSizeBtn = (isAdmin && packOpts)
       ? '<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 10px" ' +
@@ -9881,7 +9915,7 @@ async function renderProducts() {
     window._prodGroupCodes[pKey] = grp.items.map(i => i.p.code);
     const removeBtn = isAdmin
       ? '<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 10px;color:var(--chili);border-color:var(--chili)" ' +
-        'onclick="removeProductGroup(\'' + pKey + '\',\'' + pNameSafe + '\')">🗑 Remove</button>'
+        'onclick="removeProductGroup(\'' + pKey + '\',\'' + pNameSafe + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Remove</button>'
       : '';
 
     const inlineEditForm = isAdmin
@@ -9957,12 +9991,12 @@ async function renderProducts() {
   const headerBtns = isAdmin
     ? '<div style="display:flex;gap:8px">' +
         '<button class="btn btn-primary btn-sm" onclick="toggleNewProductForm()">＋ New Product</button>' +
-        '<button class="btn btn-outline btn-sm" onclick="nav(\'master-data\')" style="font-size:12px">⚙ Master Data</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="nav(\'master-data\')" style="font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> Master Data</button>' +
       '</div>'
     : '';
   const emptyState = panels ? '' :
     '<div class="card" style="text-align:center;padding:40px;color:var(--text-3)">' +
-      '<div style="font-size:32px;margin-bottom:12px">📦</div>' +
+      '<div style="font-size:32px;margin-bottom:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>' +
       '<div style="font-size:14px;font-weight:600;margin-bottom:6px">No products loaded</div>' +
       '<div style="font-size:12px;margin-bottom:16px">Use ＋ New Product to create your first product.</div>' +
     '</div>';
@@ -10249,9 +10283,9 @@ function _showRecipeForm(r) {
       '</div>' +
       '<div id="rf-msg" style="margin-top:12px"></div>' +
       '<div style="display:flex;gap:10px;margin-top:16px">' +
-        '<button class="btn btn-primary" onclick="saveRecipe()">💾 Save Recipe</button>' +
+        '<button class="btn btn-primary" onclick="saveRecipe()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg> Save Recipe</button>' +
         '<button class="btn btn-outline" onclick="closeRecipeForm()">Cancel</button>' +
-        (isEdit ? '<button class="btn btn-outline" onclick="deleteRecipe(' + r.id + ')" style="margin-left:auto;color:var(--chili)">🗑 Delete</button>' : '') +
+        (isEdit ? '<button class="btn btn-outline" onclick="deleteRecipe(' + r.id + ')" style="margin-left:auto;color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Delete</button>' : '') +
       '</div>' +
     '</div>';
 
@@ -10286,7 +10320,7 @@ function _renderIngList() {
   el.innerHTML = _recipeIngLines.map(function(l) {
     return '<div style="display:flex;gap:6px;margin-bottom:6px" id="ing-row-' + l.id + '">' +
       '<input type="text" class="form-input" style="flex:1" placeholder="e.g. 2 cups yogurt" value="' + (l.item || '') + '" oninput="updateIngItem(' + l.id + ',this.value)">' +
-      '<button class="btn btn-xs btn-outline" onclick="removeRecipeIng(' + l.id + ')" style="padding:4px 8px">✕</button>' +
+      '<button class="btn btn-xs btn-outline" onclick="removeRecipeIng(' + l.id + ')" style="padding:4px 8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>' +
     '</div>';
   }).join('');
 }
@@ -10311,7 +10345,7 @@ function _renderStepList() {
     return '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start" id="step-row-' + l.id + '">' +
       '<span style="min-width:22px;height:22px;border-radius:50%;background:var(--saffron);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:8px">' + (i + 1) + '</span>' +
       '<textarea class="form-input" style="flex:1;min-height:56px" placeholder="Describe this step..." oninput="updateStepInstruction(' + l.id + ',this.value)">' + (l.instruction || '') + '</textarea>' +
-      '<button class="btn btn-xs btn-outline" onclick="removeRecipeStep(' + l.id + ')" style="padding:4px 8px;margin-top:4px">✕</button>' +
+      '<button class="btn btn-xs btn-outline" onclick="removeRecipeStep(' + l.id + ')" style="padding:4px 8px;margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>' +
     '</div>';
   }).join('');
 }
@@ -10477,7 +10511,7 @@ async function renderPrices() {
 
   const adminBanner = isAdmin ? `
   <div style="background:var(--saffron-pale);border:1px solid var(--saffron);border-radius:6px;padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
-    <span style="font-size:13px;color:var(--text-2)">💰 <strong>Costing &amp; cost editing</strong> has moved to the new <strong>Prices &amp; Costs</strong> module. This page is now read-only.</span>
+    <span style="font-size:13px;color:var(--text-2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg> <strong>Costing &amp; cost editing</strong> has moved to the new <strong>Prices &amp; Costs</strong> module. This page is now read-only.</span>
     <button class="btn btn-sm" style="background:var(--saffron);color:#fff;border:none;margin-left:16px;white-space:nowrap" onclick="nav('prices-costs')">Go to Prices &amp; Costs →</button>
   </div>` : '';
 
@@ -10486,7 +10520,7 @@ async function renderPrices() {
   <div class="card mb-20">
     <div class="section-header" style="margin-bottom:8px"><h2>Set / Update Price</h2></div>
     <div style="font-size:12px;color:var(--text-3);margin-bottom:14px">
-      ℹ️ Setting a price replaces the previous price for that SKU + price type. The old price is kept for historical records. Click <strong>✏ Update Price</strong> on any row below to pre-fill this form.
+      ℹ️ Setting a price replaces the previous price for that SKU + price type. The old price is kept for historical records. Click <strong><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg> Update Price</strong> on any row below to pre-fill this form.
     </div>
     <div id="price-msg"></div>
     <div class="form-row" style="align-items:flex-end">
@@ -10784,7 +10818,7 @@ async function renderCostTracking() {
     + '<span style="font-size:14px">' + esc(l.name) + '</span>'
     + '<span style="display:flex;align-items:center;gap:6px">₨ '
     + '<input id="ct-in-' + l.id + '" data-bucket="' + l.bucket + '" type="number" min="0" step="1" value="' + val(l.name) + '" oninput="_ctTotals()" class="form-input" style="width:120px;text-align:right">'
-    + '<button class="btn btn-xs btn-outline" title="Remove line" onclick="_ctDeleteLine(' + l.id + ')">✕</button></span></div>';
+    + '<button class="btn btn-xs btn-outline" title="Remove line" onclick="_ctDeleteLine(' + l.id + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></span></div>';
   const grp = (bucket, label, tint) => {
     const ls = lines.filter(l => l.bucket === bucket);
     return '<div style="margin:16px 0 6px"><span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;' + tint + '">' + label + '</span></div>'
@@ -10882,7 +10916,7 @@ function _prSelect(vid) { _prVariantId = parseInt(vid, 10); _prRenderWs(); }
 function _prRenderWs() {
   const c = (window._prCosts || []).find(x => x.variantId === _prVariantId);
   const box = document.getElementById('pr-ws'); if (!box || !c) return;
-  if (!c.has_bom) { box.innerHTML = '<div style="color:var(--text-3);font-size:14px">⚠ No recipe (BOM) set for this product yet — set it up to see its cost.</div>'; return; }
+  if (!c.has_bom) { box.innerHTML = '<div style="color:var(--text-3);font-size:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> No recipe (BOM) set for this product yet — set it up to see its cost.</div>'; return; }
   const ctm = c.cost_to_make || 0, price = c.selling_price || 0;
   const keep = Math.round(price - ctm), margin = price > 0 ? Math.round((price - ctm) / price * 100) : 0;
   const good = price > 0 && !c.actual_below_floor;
@@ -10983,7 +11017,7 @@ async function renderPricesCosts() {
       <td class="text-right">${c.has_bom ? fmtPKR(c.distributor) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.mrp) : '—'}</td>
       <td class="text-right" style="${flagStyle}">${c.has_bom ? (c.gross_margin_pct||0).toFixed(1)+'%' : '—'}</td>
-      <td>${c.has_bom && c.below_floor ? '<span style="color:var(--chili);font-size:13px">⚠ Below min profit margin</span>' : ''}</td>
+      <td>${c.has_bom && c.below_floor ? '<span style="color:var(--chili);font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Below min profit margin</span>' : ''}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="15" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>`;
 
@@ -11071,7 +11105,7 @@ async function renderPricesCosts() {
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <label class="btn btn-outline btn-sm" style="cursor:pointer">
-            📂 Upload CSV
+            ${ic('upload',13)} Upload CSV
             <input type="file" id="pc-csv-input" accept=".csv" style="display:none" onchange="pcHandleCsvUpload(this)">
           </label>
           <button class="btn btn-outline btn-sm" onclick="pcShowCsvHelp()">CSV Format</button>
@@ -11364,7 +11398,7 @@ SP-ING003,950.00</pre>
   const alertsTab = `
   <div id="pc-pane-alerts" style="display:none">
     ${alerts.length > 0 ? '<div class="alert" style="background:var(--chili-pale);border:1px solid var(--chili);color:var(--chili);margin-bottom:16px">' +
-      '⚠ <strong>' + alerts.length + ' SKU' + (alerts.length>1?'s':'') + ' below the Minimum Profit Margin.</strong> Review and either update costs or dismiss if acknowledged.' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> <strong>' + alerts.length + ' SKU' + (alerts.length>1?'s':'') + ' below the Minimum Profit Margin.</strong> Review and either update costs or dismiss if acknowledged.' +
     '</div>' : ''}
     <div class="card">
       <h3 style="margin-bottom:4px">Profit Margin Alerts</h3>
@@ -11435,13 +11469,13 @@ SP-ING003,950.00</pre>
   const ovCards = (costs.length ? costs : []).map(c => {
     if (!c.has_bom) {
       return '<div class="card" style="padding:16px 18px"><div style="font-weight:700">' + (c.productName || c.productCode) + ' — ' + (c.packSize || '') + '</div>'
-        + '<div style="color:var(--text-3);font-size:13px;margin-top:6px">⚠ No recipe set yet — set up the BOM to see its cost.</div></div>';
+        + '<div style="color:var(--text-3);font-size:13px;margin-top:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> No recipe set yet — set up the BOM to see its cost.</div></div>';
     }
     const hasPrice = (c.selling_price || 0) > 0;       // Model B: real margin vs the actual selling price
     const keep = Math.round((c.selling_price || 0) - (c.cost_to_make || 0));
     const good = hasPrice && !c.actual_below_floor;
     const badge = !hasPrice
-      ? '<span style="background:#fff8e6;color:#a9791b;border:1px solid #f0dca0;font-weight:700;font-size:12px;padding:3px 10px;border-radius:12px">⚠ No price set</span>'
+      ? '<span style="background:#fff8e6;color:#a9791b;border:1px solid #f0dca0;font-weight:700;font-size:12px;padding:3px 10px;border-radius:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> No price set</span>'
       : good
       ? '<span style="background:#eafaf1;color:#1aaa55;border:1px solid #b2e8c8;font-weight:700;font-size:12px;padding:3px 10px;border-radius:12px">🟢 Making money</span>'
       : '<span style="background:#fff5f5;color:#e03131;border:1px solid #f5c0c0;font-weight:700;font-size:12px;padding:3px 10px;border-radius:12px">🔴 Margin too low</span>';
@@ -11449,7 +11483,7 @@ SP-ING003,950.00</pre>
       ? '<div>What we sell it for: <b>' + fmtPKR(c.selling_price) + '</b> <span style="color:var(--text-3);font-size:12px">(' + (c.selling_channel || 'price book') + ')</span></div>'
         + '<div style="margin-top:4px;font-size:15px">You keep: <b style="color:' + (good ? '#1aaa55' : '#e03131') + '">' + fmtPKR(keep) + '</b> per pack <span style="color:var(--text-3)">(' + (c.actual_margin_pct == null ? '—' : c.actual_margin_pct.toFixed(0) + '%') + ')</span></div>'
         + '<div style="color:var(--text-3);font-size:12px;margin-top:4px">Suggested price (cost + markups): ' + fmtPKR(c.mrp) + '</div>'
-      : '<div style="color:var(--chili);font-size:13px;margin-top:2px">⚠ No selling price set — add one in the price book to see your margin.</div>'
+      : '<div style="color:var(--chili);font-size:13px;margin-top:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> No selling price set — add one in the price book to see your margin.</div>'
         + '<div style="color:var(--text-3);font-size:12px;margin-top:4px">Suggested price (cost + markups): <b>' + fmtPKR(c.mrp) + '</b></div>';
     return '<div class="card" style="padding:16px 18px">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><div style="font-weight:700;font-size:15px">' + (c.productName || c.productCode) + ' — ' + (c.packSize || '') + '</div>' + badge + '</div>'
@@ -11756,7 +11790,7 @@ async function renderPLReport(year) {
 
   return `
   <div class="section-header">
-    <h2>📊 P&amp;L Report — ${year}</h2>
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg> P&amp;L Report — ${year}</h2>
     <div style="display:flex;align-items:center;gap:8px">
       <label style="font-size:12px;color:var(--text-3)">Year:</label>
       <select onchange="nav('pl-report',this.value)" style="font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-1)">
@@ -12118,7 +12152,7 @@ function _rqStockBar(item) {
     <span style="color:var(--cinnamon)">Hard reserved:</span> ${fmt(hard,0)} &nbsp;
     <span style="color:#7c3aed">Soft hold:</span> ${fmt(soft,0)} &nbsp;
     <span style="color:${stockCol};font-weight:600">Available to use: ${fmt(avail,0)}</span>
-    ${ordered > avail ? `<span style="color:var(--chili);margin-left:8px">⚠ Short by ${fmt(ordered-avail,0)}</span>` : ''}
+    ${ordered > avail ? `<span style="color:var(--chili);margin-left:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Short by ${fmt(ordered-avail,0)}</span>` : ''}
   </div>`;
 }
 
@@ -12151,9 +12185,9 @@ function _rqRenderPendingRows(queue) {
           <button class="btn btn-xs" style="background:var(--cardamom-pale);color:var(--cardamom);border:1px solid var(--cardamom)"
             onclick="_rqApprove(${o.id})">✓ Approve</button>
           <button class="btn btn-xs" style="background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron-lt);margin-left:4px"
-            onclick="_rqOpenEditApprove(${o.id})">✏ Edit &amp; Approve</button>
+            onclick="_rqOpenEditApprove(${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg> Edit &amp; Approve</button>
           <button class="btn btn-xs" style="background:var(--chili-pale);color:var(--chili);border:1px solid var(--chili);margin-left:4px"
-            onclick="_rqOpenReject(${o.id})">✗ Reject</button>
+            onclick="_rqOpenReject(${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Reject</button>
         </td>
       </tr>
       <tr id="rq-expand-${o.id}" style="display:none">
@@ -12175,7 +12209,7 @@ function _rqRenderPendingRows(queue) {
             </div>
           </div>
           <div id="rq-edit-form-${o.id}" style="display:none;padding:14px 16px;background:var(--saffron-pale);border-top:1px solid var(--border)">
-            <p style="font-weight:600;margin-bottom:10px;color:var(--saffron-deep)">✏ Edit quantities before approving</p>
+            <p style="font-weight:600;margin-bottom:10px;color:var(--saffron-deep)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg> Edit quantities before approving</p>
             <table class="data-table" style="margin-bottom:12px;box-shadow:none">
               <thead><tr><th>Item</th><th class="text-right">Ordered</th><th class="text-right">Approve Qty</th></tr></thead>
               <tbody id="rq-edit-lines-${o.id}">
@@ -12229,7 +12263,7 @@ function _rqRenderRejectedRows(orders) {
       <td class="num text-right">${fmtPKR(o.order_value || 0)}</td>
       <td style="color:var(--chili);font-size:12px">${o.rejection_reason || '—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-xs btn-outline" onclick="_rqReopen(${o.id})">↩ Reopen</button>
+        <button class="btn btn-xs btn-outline" onclick="_rqReopen(${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Reopen</button>
       </td>
     </tr>`).join('');
   return `<div class="table-wrap"><table class="data-table">
@@ -12248,7 +12282,7 @@ function _rqRenderExpiredRows(orders) {
       <td class="num text-right">${fmtPKR(o.order_value || 0)}</td>
       <td style="color:var(--text-3);font-size:12px">Hold expired — stock released</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-xs btn-outline" onclick="_rqReopen(${o.id})">↩ Re-queue</button>
+        <button class="btn btn-xs btn-outline" onclick="_rqReopen(${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Re-queue</button>
       </td>
     </tr>`).join('');
   return `<div class="table-wrap"><table class="data-table">
@@ -12909,8 +12943,8 @@ async function renderPriceMaster() {
   <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
     <div><h2>Price Master</h2><p style="color:var(--text-3);font-size:13px;margin:0">Admin only · Edit inline or import/export CSV · Margin % based on Direct Sale vs Cost to Make</p></div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-outline btn-sm" onclick="pmExportCSV()">⬇ Export CSV</button>
-      <button class="btn btn-outline btn-sm" onclick="pmShowImport()">⬆ Import CSV</button>
+      <button class="btn btn-outline btn-sm" onclick="pmExportCSV()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Export CSV</button>
+      <button class="btn btn-outline btn-sm" onclick="pmShowImport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg> Import CSV</button>
     </div>
   </div>
 
@@ -13134,8 +13168,8 @@ async function renderSalesReps() {
       <td>
         <button class="btn-sm" onclick="viewRepDetail(${rep.id})" style="background:var(--saffron)">Detail</button>
         <button class="btn-sm" onclick="showAssignZone(${rep.id})" style="background:var(--turmeric)">Assign Zones</button>
-        <button class="btn-sm" onclick="toggleRepApp(${rep.id},'field', ${rep.app_field?0:1})" style="background:${rep.app_field?'var(--cardamom)':'var(--text-3)'};color:#fff" title="Sales phone app access">🛍 Sales: ${rep.app_field?'On':'Off'}</button>
-        <button class="btn-sm" onclick="toggleRepApp(${rep.id},'batch', ${rep.app_batch?0:1})" style="background:${rep.app_batch?'var(--cardamom)':'var(--text-3)'};color:#fff" title="Production (Batch Runner) phone app access">🏭 Production: ${rep.app_batch?'On':'Off'}</button>
+        <button class="btn-sm" onclick="toggleRepApp(${rep.id},'field', ${rep.app_field?0:1})" style="background:${rep.app_field?'var(--cardamom)':'var(--text-3)'};color:#fff" title="Sales phone app access">${ic('shopping-cart',13)} Sales: ${rep.app_field?'On':'Off'}</button>
+        <button class="btn-sm" onclick="toggleRepApp(${rep.id},'batch', ${rep.app_batch?0:1})" style="background:${rep.app_batch?'var(--cardamom)':'var(--text-3)'};color:#fff" title="Production (Batch Runner) phone app access">${ic('factory',13)} Production: ${rep.app_batch?'On':'Off'}</button>
         <button class="btn-sm" onclick="resetPin(${rep.id})" style="background:var(--text-3);color:#fff">Reset PIN</button>
       </td>
     </tr>
@@ -13288,8 +13322,8 @@ async function viewRepDetail(repId) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <h2 style="margin:0">${escQ(rep.name)}</h2>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn btn-primary" onclick="editRep(${rep.id})" style="font-size:12px;padding:6px 14px">✏️ Edit</button>
-        <button onclick="closeRepDetail()" style="background:none;border:none;font-size:20px;cursor:pointer">✕</button>
+        <button class="btn btn-primary" onclick="editRep(${rep.id})" style="font-size:12px;padding:6px 14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg> Edit</button>
+        <button onclick="closeRepDetail()" style="background:none;border:none;font-size:20px;cursor:pointer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
     </div>
 
@@ -13338,7 +13372,7 @@ async function viewRepDetail(repId) {
           <input class="form-input" type="number" step="0.1" id="edit-comm-${rep.id}" value="${comm.base_commission_pct||0}"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn btn-primary" onclick="saveRepEdit(${rep.id})">💾 Save Changes</button>
+        <button class="btn btn-primary" onclick="saveRepEdit(${rep.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg> Save Changes</button>
         <button class="btn" onclick="cancelRepEdit(${rep.id})">Cancel</button>
         <span id="edit-rep-status-${rep.id}" style="font-size:12px"></span>
       </div>
@@ -13636,7 +13670,7 @@ function _foRow(o) {
       <td style="white-space:nowrap">
         ${o.status==='pending' ? `<button class="btn-sm" onclick="confirmOrder(${o.id},'${o._source||'legacy'}')" style="background:var(--cardamom);color:#fff">Confirm</button>` : ''}
         ${o.status==='confirmed' && o.invoice_id ? `
-          <button class="btn-sm btn-outline" onclick="printInvoice(${o.invoice_id})" title="Print Invoice" style="margin-left:4px">🖨️</button>
+          <button class="btn-sm btn-outline" onclick="printInvoice(${o.invoice_id})" title="Print Invoice" style="margin-left:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/></svg></button>
           <button class="btn-sm btn-outline" onclick="emailInvoice(${o.invoice_id})" title="Email Invoice" style="margin-left:2px">✉️</button>` : ''}
       </td>
     </tr>
@@ -13823,11 +13857,11 @@ async function renderIngredientsAdmin() {
   };
 
   const renderRow = i => {
-    const volBadge = i.price_volatile ? '<span title="Price volatile — margin check runs on every update" style="margin-left:6px;font-size:11px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:4px;padding:1px 5px;vertical-align:middle">⚠ Volatile</span>' : '';
+    const volBadge = i.price_volatile ? '<span title="Price volatile — margin check runs on every update" style="margin-left:6px;font-size:11px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:4px;padding:1px 5px;vertical-align:middle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Volatile</span>' : '';
     // Audit: a real per-kg spice cost is never below ~₨10/kg. A tiny value almost
     // certainly means someone typed a PER-GRAM price (engine reads it as per-kg → ~1000x low).
     const lowCost = (i.cost_per_kg > 0 && i.cost_per_kg < 10)
-      ? '<span title="This looks like a per-gram price. Costs are entered PER KG — e.g. ₨1200/kg, not ₨1.20/g. Please check." style="margin-left:6px;font-size:11px;background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:1px 5px;vertical-align:middle">⚠ check ₨/kg</span>'
+      ? '<span title="This looks like a per-gram price. Costs are entered PER KG — e.g. ₨1200/kg, not ₨1.20/g. Please check." style="margin-left:6px;font-size:11px;background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:1px 5px;vertical-align:middle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> check ₨/kg</span>'
       : '';
     return `
   <tr id="ing-row-${i.id}" style="${!i.active ? 'opacity:0.5' : ''}">
@@ -13857,7 +13891,7 @@ async function renderIngredientsAdmin() {
           <div class="form-group" style="flex:0 0 auto">
             <label style="font-size:12px;display:block;margin-bottom:6px">Price Volatile</label>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-              <input type="checkbox" id="ie-volatile-${i.id}"> ⚠ Flag
+              <input type="checkbox" id="ie-volatile-${i.id}"> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Flag
             </label>
           </div>
           <div class="form-group" style="flex:0;display:flex;gap:8px">
@@ -13877,7 +13911,7 @@ async function renderIngredientsAdmin() {
       <p style="color:var(--text-3);font-size:13px;margin:0">Admin only · Codes visible, names never stored (IP protection)</p>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary" onclick="downloadCSV('/api/ingredients/export','ingredients')" style="font-size:13px">⬇ Export CSV</button>
+      <button class="btn btn-secondary" onclick="downloadCSV('/api/ingredients/export','ingredients')" style="font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Export CSV</button>
       <button class="btn btn-primary" onclick="ingShowAdd()">+ New Ingredient</button>
     </div>
   </div>
@@ -14093,10 +14127,10 @@ async function uploadMaster(type) {
       resultEl.innerHTML = html;
       await refreshAll();
     } else {
-      resultEl.innerHTML = `<span style="color:var(--chili)">✗ ${d.error}</span>`;
+      resultEl.innerHTML = `<span style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> ${d.error}</span>`;
     }
   } catch(e) {
-    resultEl.innerHTML = `<span style="color:var(--chili)">✗ ${e.message}</span>`;
+    resultEl.innerHTML = `<span style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> ${e.message}</span>`;
   }
 }
 
@@ -14167,23 +14201,23 @@ async function renderSystem() {
 
         <div style="margin-top:18px">
           <button class="btn btn-primary" onclick="runBackupNow(this)">▶ Run Backup Now</button>
-          <button class="btn" onclick="downloadBackup()">⬇ Download Backup</button>
+          <button class="btn" onclick="downloadBackup()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Download Backup</button>
           <span id="backup-run-msg" style="margin-left:12px;font-size:0.9em"></span>
         </div>
 
         <div style="margin-top:24px;padding:16px;background:var(--chili-pale);border:1px solid var(--chili);border-radius:6px">
-          <strong style="color:var(--chili)">⚠ Danger Zone — Master Data Reset</strong>
+          <strong style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Danger Zone — Master Data Reset</strong>
           <p style="font-size:13px;margin:8px 0">Deletes all records and resets counters. Use only before reimporting clean master data. Irreversible.</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-            <button class="btn btn-xs" style="background:var(--chili);color:#fff;border:none" onclick="truncateCustomers(this)">🗑 Wipe All Customers</button>
+            <button class="btn btn-xs" style="background:var(--chili);color:#fff;border:none" onclick="truncateCustomers(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Wipe All Customers</button>
             <span id="truncate-cust-msg" style="font-size:0.9em"></span>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px">
-            <button class="btn btn-xs" style="background:var(--chili);color:#fff;border:none" onclick="truncateSuppliers(this)">🗑 Wipe All Suppliers</button>
+            <button class="btn btn-xs" style="background:var(--chili);color:#fff;border:none" onclick="truncateSuppliers(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Wipe All Suppliers</button>
             <span id="truncate-sup-msg" style="font-size:0.9em"></span>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px">
-            <button class="btn btn-xs" style="background:var(--chili);color:#fff;border:none" onclick="truncateIngredients(this)">🗑 Wipe All Ingredients</button>
+            <button class="btn btn-xs" style="background:var(--chili);color:#fff;border:none" onclick="truncateIngredients(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Wipe All Ingredients</button>
             <span id="truncate-ing-msg" style="font-size:0.9em"></span>
           </div>
         </div>
@@ -14218,7 +14252,7 @@ async function renderSystem() {
 
       <!-- Step-by-step setup guide (collapsed when already configured) -->
       <details id="wa-setup-guide" style="margin-bottom:16px">
-        <summary style="font-size:12px;color:var(--text-2);cursor:pointer;font-weight:600">📋 How to get your CallMeBot API key</summary>
+        <summary style="font-size:12px;color:var(--text-2);cursor:pointer;font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> How to get your CallMeBot API key</summary>
         <ol style="margin:8px 0 0;padding-left:20px;font-size:12px;line-height:2;color:var(--text-2)">
           <li>Save <strong>+34 623 78 95 80</strong> in your WhatsApp contacts as "CallMeBot"</li>
           <li>Send this exact message to that number via WhatsApp:<br>
@@ -14247,8 +14281,8 @@ async function renderSystem() {
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="_saveWaSettings()" style="min-width:120px">💾 Save Settings</button>
-          <button class="btn btn-outline" onclick="_testWhatsApp()" style="min-width:140px">📤 Send Test Message</button>
+          <button class="btn btn-primary" onclick="_saveWaSettings()" style="min-width:120px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg> Save Settings</button>
+          <button class="btn btn-outline" onclick="_testWhatsApp()" style="min-width:140px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg> Send Test Message</button>
           <span id="wa-save-result" style="font-size:12px"></span>
         </div>
       </div>
@@ -14269,12 +14303,12 @@ async function renderSystem() {
           These tools are only available on the dev environment. They permanently delete data and cannot be undone.
         </p>
         <div style="border:1px solid var(--chili);border-radius:6px;padding:16px;background:#fff8f6">
-          <b style="color:var(--chili)">⚠️ Reset All Data</b>
+          <b style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Reset All Data</b>
           <p style="font-size:0.85em;color:var(--text-3);margin:6px 0 12px">
             Wipes all customers, suppliers, ingredients, products, orders, invoices, production batches, and payments.
             Keeps users, pack sizes, price types, and zones.
           </p>
-          <button class="btn btn-danger" onclick="devResetAll(this)">🗑 Reset All Data</button>
+          <button class="btn btn-danger" onclick="devResetAll(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Reset All Data</button>
           <span id="dev-reset-msg" style="margin-left:12px;font-size:0.9em"></span>
         </div>
       </div>
@@ -14301,7 +14335,7 @@ async function devResetAll(btn) {
     msgEl.innerHTML = `<span style="color:#4caf50">✓ Done — ${total.toLocaleString()} rows cleared</span>`;
     setTimeout(() => nav('dashboard'), 2000);
   } catch(e) {
-    msgEl.innerHTML = `<span style="color:var(--chili)">✗ ${e.message}</span>`;
+    msgEl.innerHTML = `<span style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> ${e.message}</span>`;
   } finally {
     btn.disabled = false;
     btn.textContent = '🗑 Reset All Data';
@@ -14324,7 +14358,7 @@ async function truncateCustomers(btn) {
     msgEl.innerHTML = '<span style="color:#4caf50">✓ ' + d.message + '</span>';
     await refreshAll();
   } catch(e) {
-    msgEl.innerHTML = '<span style="color:var(--chili)">✗ ' + e.message + '</span>';
+    msgEl.innerHTML = '<span style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> ' + e.message + '</span>';
   } finally {
     btn.disabled = false;
     btn.textContent = '🗑 Wipe All Customers';
@@ -14347,7 +14381,7 @@ async function truncateIngredients(btn) {
     msgEl.innerHTML = '<span style="color:#4caf50">✓ ' + d.message + '</span>';
     await refreshAll();
   } catch(e) {
-    msgEl.innerHTML = '<span style="color:var(--chili)">✗ ' + e.message + '</span>';
+    msgEl.innerHTML = '<span style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> ' + e.message + '</span>';
   } finally {
     btn.disabled = false;
     btn.textContent = '🗑 Wipe All Ingredients';
@@ -14370,7 +14404,7 @@ async function truncateSuppliers(btn) {
     msgEl.innerHTML = '<span style="color:#4caf50">✓ ' + d.message + '</span>';
     await refreshAll();
   } catch(e) {
-    msgEl.innerHTML = '<span style="color:var(--chili)">✗ ' + e.message + '</span>';
+    msgEl.innerHTML = '<span style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> ' + e.message + '</span>';
   } finally {
     btn.disabled = false;
     btn.textContent = '🗑 Wipe All Suppliers';
@@ -14393,7 +14427,7 @@ async function runBackupNow(btn) {
     // Refresh the page to show updated list
     setTimeout(() => nav('system'), 1200);
   } catch(e) {
-    msgEl.innerHTML = `<span style="color:var(--chili)">✗ ${e.message}</span>`;
+    msgEl.innerHTML = `<span style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> ${e.message}</span>`;
   } finally {
     btn.disabled = false;
     btn.textContent = '▶ Run Backup Now';
@@ -14417,7 +14451,7 @@ async function downloadBackup() {
     URL.revokeObjectURL(url);
     if (msgEl) msgEl.innerHTML = '<span style="color:#4caf50">✓ Backup downloaded</span>';
   } catch(e) {
-    if (msgEl) msgEl.innerHTML = '<span style="color:var(--chili)">✗ ' + e.message + '</span>';
+    if (msgEl) msgEl.innerHTML = '<span style="color:var(--chili)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> ' + e.message + '</span>';
   }
 }
 
@@ -14438,7 +14472,7 @@ function openWaParseModal() {
     + '<label class="form-label">Paste WhatsApp message</label>'
     + '<textarea id="wa-msg-input" class="form-input" rows="10" style="font-size:13px;font-family:monospace;width:100%;margin-bottom:12px" placeholder="Hi Chacha\'s! I\'d like to place an order.&#10;&#10;Name: Ahmed&#10;Phone: 0300-1234567&#10;Delivery Address: Block 5, Gulshan, Karachi&#10;&#10;Items:&#10;• Chaat Masala 50g — Qty: 2&#10;• Garam Masala 50g — Qty: 1"></textarea>'
     + '<div style="display:flex;gap:8px;margin-bottom:16px">'
-    + '<button class="btn btn-primary" id="wa-parse-btn" onclick="runWaParse()">🔍 Parse Order</button>'
+    + '<button class="btn btn-primary" id="wa-parse-btn" onclick="runWaParse()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Parse Order</button>'
     + '<button class="btn btn-outline" onclick="document.getElementById(\'wa-parse-overlay\').remove()">Cancel</button>'
     + '</div>'
     + '<div id="wa-parse-result" style="display:none"></div>'
@@ -14478,7 +14512,7 @@ function _renderWaParseResult(d) {
   var customerHtml = '';
   if (d.existing_customer) {
     customerHtml = '<div style="background:var(--cardamom-pale);border:1px solid var(--cardamom);padding:8px 12px;margin-bottom:8px;font-size:13px">'
-      + '✅ Existing customer found: <strong>' + d.existing_customer.name + '</strong> (' + d.existing_customer.code + ')'
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> Existing customer found: <strong>' + d.existing_customer.name + '</strong> (' + d.existing_customer.code + ')'
       + '</div>';
   } else if (d.name || d.phone) {
     customerHtml = '<div style="background:var(--saffron-pale);border:1px solid var(--saffron);padding:8px 12px;margin-bottom:8px;font-size:13px">'
