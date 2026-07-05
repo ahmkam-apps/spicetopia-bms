@@ -13474,7 +13474,7 @@ async function toggleRepApp(repId, which, enable) {
   const body = {}; body[which] = !!enable;
   try {
     await POST(`/api/reps/${repId}/apps`, body);
-    if (typeof render === 'function') render();   // re-render the reps screen to reflect the new state
+    if (typeof render === 'function') render('sales-reps');   // re-render the Team screen to reflect the new state
   } catch(e) { alert('Could not update phone-app access: ' + e.message); }
 }
 
