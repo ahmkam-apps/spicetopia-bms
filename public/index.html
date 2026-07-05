@@ -8371,8 +8371,9 @@ function _monthPlanHtml(d) {
     + '<td style="text-align:right;padding:6px 8px;color:var(--text-3)">' + m.needKg + ' kg</td>'
     + '<td style="text-align:right;padding:6px 8px;color:var(--text-3)">' + m.stockKg + ' kg</td>'
     + '<td style="text-align:right;padding:6px 8px;font-weight:700;color:' + (m.short ? 'var(--chili)' : 'var(--cardamom)') + '">' + (m.buyKg > 0 ? m.buyKg + ' kg' : '—') + '</td>'
-    + '<td style="text-align:right;padding:6px 8px">' + (m.lineCost > 0 ? fmtPKR(m.lineCost) : '—') + '</td></tr>'
-  ).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:16px">No materials yet — plan a batch below.</td></tr>';
+    + '<td style="text-align:right;padding:6px 8px;color:var(--text-2)">' + (m.costPerKg > 0 ? fmtPKR(m.costPerKg) + '<span style="font-size:10px;color:var(--text-3)">/kg</span>' : '—') + '</td>'
+    + '<td style="text-align:right;padding:6px 8px;font-weight:600">' + (m.lineCost > 0 ? fmtPKR(m.lineCost) : '—') + '</td></tr>'
+  ).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:16px">No materials yet — plan a batch below.</td></tr>';
   return '<div class="card" style="padding:16px 18px;margin-bottom:14px">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
     + '<div style="display:flex;align-items:center;gap:10px"><button class="btn btn-xs btn-outline" onclick="_planShiftMonth(-1)" aria-label="Previous month">‹</button>'
@@ -8384,10 +8385,10 @@ function _monthPlanHtml(d) {
     + '<div class="card" style="padding:16px 18px">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
     + '<div style="font-size:13px;font-weight:700">Raw material to buy this month</div>'
-    + '<div style="font-size:12px;color:var(--text-2)">' + d.toBuyCount + ' to buy · est ' + fmtPKR(d.totalBuyCost) + '</div></div>'
-    + '<div style="font-size:11.5px;color:var(--text-3);margin-bottom:10px">Everything the month’s batches need, minus what’s in stock. Buy once for the month.</div>'
+    + '<div style="font-size:12px;color:' + (d.toBuyCount > 0 ? 'var(--chili)' : 'var(--cardamom)') + ';font-weight:600">' + (d.toBuyCount > 0 ? (d.toBuyCount + ' to buy · est ' + fmtPKR(d.totalBuyCost)) : 'Nothing to buy — enough in stock') + '</div></div>'
+    + '<div style="font-size:11.5px;color:var(--text-3);margin-bottom:10px">Everything the month’s batches need, minus what’s in stock. Buy the amounts in the <b>Buy</b> column — once for the month.</div>'
     + '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:var(--text-3);font-size:11px">'
-    + '<th style="text-align:left;padding:4px 8px">Ingredient</th><th style="text-align:right;padding:4px 8px">Need</th><th style="text-align:right;padding:4px 8px">In stock</th><th style="text-align:right;padding:4px 8px">Buy</th><th style="text-align:right;padding:4px 8px">Est cost</th></tr></thead>'
+    + '<th style="text-align:left;padding:4px 8px">Ingredient</th><th style="text-align:right;padding:4px 8px">Need</th><th style="text-align:right;padding:4px 8px">In stock</th><th style="text-align:right;padding:4px 8px">Buy</th><th style="text-align:right;padding:4px 8px">Cost/kg</th><th style="text-align:right;padding:4px 8px">Est cost</th></tr></thead>'
     + '<tbody style="font-size:12.5px">' + rows + '</tbody></table></div>';
 }
 async function _loadMonthPlan() {
