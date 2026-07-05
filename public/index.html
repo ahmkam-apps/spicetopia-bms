@@ -1302,15 +1302,22 @@ const HELP = {
     { t:'Where it fits', b:'', flow:{ inn:['Invoices from Orders & Invoices'], out:['Settled invoices clear from AR aging'] } }
   ],
   inventory: [
-    { t:'Inventory — the single source of truth for stock', b:'What you have on hand: raw materials and finished goods.' },
-    { t:'Stock moves only through actions', b:'You never edit a stock number directly. It changes through movements — production adds finished goods and consumes raw materials; receiving a PO adds raw materials; an order/invoice draws finished goods down. This is exactly what keeps counts accurate.' },
-    { t:'Where it fits', b:'', flow:{ inn:['+ Finished goods from Production (Batch)','+ Raw materials from received Purchase Orders'], out:['− Finished goods consumed by Orders / Invoices','− Raw materials consumed by Production'] } }
+    { t:'Inventory — your raw material at a glance', b:'Opens on the tank view: each ingredient is a tank you can read by colour, worst first.' },
+    { t:'What the colours mean', b:'', list:['Green — good, plenty in stock','Amber — getting low, order soon','Red — below the reorder line, buy now'] },
+    { t:'The reorder line', b:'The dashed line on each tank is the reorder level. Try never to drop below it — that’s your signal to buy more.' },
+    { t:'Two views', b:'Use the <b>Gauges / Table</b> switch at the top. Gauges = the tanks (a quick read). Table = the full detail — reserved, available, cost per kg, price change.' },
+    { t:'Updating what you have', b:'Slide a tank to the amount you actually have (the number and fill move as you slide). Let go and a box shows “currently X → new Y” to confirm before saving. Or tap a tank to <b>Adjust</b> by a specific amount with a reason.' },
+    { t:'Loading a delivery', b:'Use the <b>Bulk update stock</b> button to set many ingredients at once, and to set each tank’s “full” level (the top of the gauge).' },
+    { t:'Where it fits', b:'Stock moves through actions, never by typing over a number — which is what keeps counts trustworthy.', flow:{ inn:['+ Raw materials from received Purchase Orders','+ stock counts / bulk updates you enter'], out:['− Raw materials taken when a batch starts'] } }
   ],
   production: [
-    { t:'Production — making the goods', b:'Always two steps: a Work Order (the plan to make X) becomes a Batch (it was actually made).' },
-    { t:'Work Order → Batch', b:'Create or release a Work Order, then “Complete &amp; Record Batch” when it’s made. Converting deducts the raw materials and adds the finished goods to stock.' },
-    { t:'Where Work Orders come from', b:'You can create one here directly, or they arrive automatically when you Release a month from an approved Plan.' },
-    { t:'Where it fits', b:'', flow:{ inn:['Work Orders — created here or released from a Plan','Raw materials from Inventory (consumed)'], out:['Finished goods → Inventory','…which then fulfil customer Orders'] } }
+    { t:'Production — plan, make, verify', b:'Four tabs across the top: <b>Overview</b> (make &amp; verify batches), <b>Plan</b> (the month + what to buy), <b>Work orders</b> (the “make this” jobs), and <b>Batch history</b>.' },
+    { t:'A batch is a process with stages', b:'Making is tracked step by step — Received → Cleaning → Roasting → Cooling → Blending → Packaging → Done. Raw material is taken when the batch <b>starts</b>; finished goods are added when you <b>verify</b> it at the end.' },
+    { t:'On the floor: the phone app', b:'Your production person opens the phone app, taps <b>Start batch</b> for a ready job, then taps to move it through each stage. The phone never shows recipe amounts.' },
+    { t:'Verify the result — the key ERP step', b:'When a batch reaches the end it waits under <b>Overview</b> as “awaiting your check”. Tap <b>✓ Verify &amp; finish</b> and type how many packs you <b>actually</b> made — this adds them to stock and records any wastage. Always enter the true count.' },
+    { t:'Plan the month &amp; what to buy', b:'The <b>Plan</b> tab shows the month’s batches and a “Raw material to buy this month” list — the <b>Buy</b> column is exactly how many kg to order. Buy once a month for your capacity.' },
+    { t:'Work orders', b:'A Work Order is a “make N packs” job. Create one under <b>Work orders</b> (or release from a Plan), and give it a target date so it lands in the right month’s buy-list. It then shows as “Ready to start” on the phone.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Work orders — created here or released from a Plan','Raw materials from Inventory (taken when a batch starts)'], out:['Verified batches → finished goods in Inventory','…which then fulfil customer Orders'] } }
   ],
   'purchase-orders': [
     { t:'Purchase Orders — buying raw materials', b:'Order ingredients and materials from a supplier.' },
@@ -1397,10 +1404,16 @@ const HOWTO = [
     steps:['Open Payments (Procurement).','Pick the supplier and enter the amount.','Allocate it to their open bills, then Save.'] },
 
   // Making
-  { cat:'Making (production)', q:'Make a batch / produce stock', nav:'production', kw:'produce batch work order manufacture make',
-    steps:['Make sure the recipe (BOM) is set up first (Admin → BOM).','Open Production and create a Work Order (product + quantity).','Click Start when production begins.','Click "Complete & Record Batch" when done — this adds the finished stock to inventory.'] },
-  { cat:'Making (production)', q:'See what ingredients I need to buy to produce an amount', nav:'production', kw:'procurement ingredients needed shortfall buy to make',
-    steps:['Open Production and create (or open) a Work Order for the quantity you want to make.','Open its procurement list.','It shows, per ingredient: how much is NEEDED, how much you HAVE, and how much to BUY.','How it\'s worked out: needed = recipe amount × your quantity; to-buy = needed − what\'s already in stock.'] },
+  { cat:'Making (production)', q:'Make a batch (start → run the stages)', nav:'production', kw:'produce batch work order manufacture make start stages phone',
+    steps:['First there must be a Work Order for it (Production → Work orders → + New Work Order).','On the phone app (or Production → Overview), find it under “Ready to start” and tap ▶ Start batch — the raw material is taken now.','Move it through the stages one by one (Received → … → Packaging), tapping the big “✓ … done → next” button.','At the end it says “awaiting your check” — go to Overview to verify it (next task).'] },
+  { cat:'Making (production)', q:'Verify a finished batch (confirm packs made)', nav:'production', kw:'verify confirm packs made actual yield wastage finish batch',
+    steps:['Open Production → Overview.','Find the batch marked “awaiting your check” and tap ✓ Verify & finish.','Type how many packs you ACTUALLY made (count them — e.g. 485 even if planned 500).','Confirm — the packs are added to finished-goods stock and any shortfall is recorded as wastage.'] },
+  { cat:'Making (production)', q:'Create a work order (a “make this” job)', nav:'production', kw:'work order create new make job production target date',
+    steps:['Open Production → Work orders → + New Work Order.','Pick the product and pack size, enter how many packs, and set a target date (the month you’ll make it in).','Save — it now shows as “Ready to start” on the phone and in the Plan.'] },
+  { cat:'Making (production)', q:'See what raw material to buy this month', nav:'production', kw:'buy list raw material month plan procurement what to buy ingredients',
+    steps:['Open Production → Plan. Use the ‹ › arrows to pick the month.','See “This month’s batches” (your work orders for that month) against the target.','Read the “Raw material to buy this month” table — the Buy column is exactly how many kg to order. It already subtracts what’s in stock.'] },
+  { cat:'Making (production)', q:'Let a worker use the Production phone app', nav:'sales-reps', kw:'phone app access batch runner grant production worker login pin',
+    steps:['Open Sales Representatives (add the person first if needed, with a phone + PIN).','On their row, turn the 🏭 Production toggle On.','They log in at /app with their phone + PIN and tap the Production tile.'] },
 
   // Costing & pricing (calculation-heavy — detailed)
   { cat:'Costing & pricing', q:'Check if I\'m making money on a product', nav:'prices-costs', kw:'profit margin making money cost price verdict overview',
@@ -1423,10 +1436,12 @@ const HOWTO = [
     steps:['For each sale: Revenue = selling price × quantity; COGS = cost to make × quantity (the BOM-computed cost).','Gross profit = Revenue − COGS.','Dashboard gross margin % = total gross profit ÷ total revenue × 100, over the period.','So the margin is only as accurate as your recipe, ingredient prices, and the cost constants you set.'] },
 
   // Inventory
-  { cat:'Inventory', q:'Check stock levels', nav:'inventory', kw:'stock inventory levels how much',
-    steps:['Open Inventory to see current stock for each ingredient and product.'] },
-  { cat:'Inventory', q:'Adjust stock (add or remove)', nav:'inventory', kw:'adjust stock add remove correction damage opening',
-    steps:['Open Inventory and choose the item to adjust.','Enter the amount in kg and a reason, then Save.','Stock only changes through these movements — it\'s never edited directly, so there\'s always a record.'] },
+  { cat:'Inventory', q:'Check raw-material stock (the tanks)', nav:'inventory', kw:'stock inventory levels how much tanks gauges low red',
+    steps:['Open Inventory — it shows each ingredient as a tank.','Colour tells you the state: green = good, amber = getting low, red = below reorder (buy now).','The dashed line on a tank is the reorder level. Switch to Table (top right) for full detail.'] },
+  { cat:'Inventory', q:'Update how much stock I have', nav:'inventory', kw:'update stock set quantity slider count received adjust',
+    steps:['On the tank, slide to the amount you actually have (the number moves as you slide).','Let go — a box shows “currently X → new Y”; check it and tap Update stock.','Or tap a tank to open the Adjust form to add/remove a specific amount with a reason.'] },
+  { cat:'Inventory', q:'Load a big delivery / set full levels', nav:'inventory', kw:'bulk update stock delivery full level target load many',
+    steps:['Open Inventory and click Bulk update stock.','Set the amount you have for each ingredient, and its “full” level (the top of the tank).','Save all — the tanks and gauges update.'] },
 
   // Admin
   { cat:'Setup & admin', q:'Add a new customer', nav:'customers', kw:'add customer new account',
@@ -7775,6 +7790,7 @@ async function renderInventory() {
 
   return '<div class="section-header"><h2>Inventory</h2>'
     + (isAdmin ? '<div style="display:flex;gap:8px">'
+        + '<button class="btn btn-outline btn-sm" onclick="helpOpen(\'inventory\')" title="How Inventory works">' + ic('message',13) + ' Guide</button>'
         + '<button class="btn btn-primary btn-sm" onclick="nav(\'bulk-stock\')" title="Load or update raw-material stock in bulk with tank sliders">' + ic('barrel') + ' Bulk update stock</button>'
         + '<button class="btn btn-outline btn-sm" onclick="findIngredientDuplicates()" title="Find ingredients entered twice under different codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Find duplicates</button>'
         + '<button class="btn btn-outline btn-sm" onclick="findArchiveCandidates()" title="Report: active ingredients safe to archive (zero stock, no recipe/movement/bill)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> Archive candidates</button>'
@@ -8557,6 +8573,7 @@ async function renderProduction() {
   <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
     <h2>Production</h2>
     <div style="display:flex;gap:8px">
+      <button class="btn btn-outline btn-sm" onclick="helpOpen('production')" title="How Production works">${ic('message',13)} Guide</button>
       ${canRecipe() ? '<button class="btn btn-outline btn-sm" onclick="_prodSwitchTab(\'plan\')">' + ic('sliders') + ' Plan a batch</button>' : ''}
       <button class="btn btn-primary btn-sm" onclick="_prodSwitchTab('wos');showWoForm()">${ic('plus')} New Work Order</button>
     </div>
