@@ -1311,13 +1311,13 @@ const HELP = {
     { t:'Where it fits', b:'Stock moves through actions, never by typing over a number — which is what keeps counts trustworthy.', flow:{ inn:['+ Raw materials from received Purchase Orders','+ stock counts / bulk updates you enter'], out:['− Raw materials taken when a batch starts'] } }
   ],
   production: [
-    { t:'Production — plan, make, verify', b:'Four tabs across the top: <b>Overview</b> (make &amp; verify batches), <b>Plan</b> (the month + what to buy), <b>Work orders</b> (the “make this” jobs), and <b>Batch history</b>.' },
-    { t:'A batch is a process with stages', b:'Making is tracked step by step — Received → Cleaning → Roasting → Cooling → Blending → Packaging → Done. Raw material is taken when the batch <b>starts</b>; finished goods are added when you <b>verify</b> it at the end.' },
-    { t:'On the floor: the phone app', b:'Your production person opens the phone app, taps <b>Start batch</b> for a ready job, then taps to move it through each stage. The phone never shows recipe amounts.' },
-    { t:'Verify the result — the key ERP step', b:'When a batch reaches the end it waits under <b>Overview</b> as “awaiting your check”. Tap <b>✓ Verify &amp; finish</b> and type how many packs you <b>actually</b> made — this adds them to stock and records any wastage. Always enter the true count.' },
+    { t:'Production — three tabs', b:'<b>Batches</b> is the live board — every batch and the exact stage it’s at, with one action (Start / Advance / Verify). <b>Plan</b> is the month: add a batch and see what to buy. <b>History</b> is finished batches.' },
+    { t:'A batch is a process with stages', b:'Making is tracked step by step — Received → Cleaning → Roasting → Cooling → Blending → Packaging → Done. Raw material is taken when the batch <b>starts</b>; finished goods are added when you <b>verify</b> it at the end. A batch moves through: planned → making → awaiting check → done.' },
+    { t:'Add a batch (the one creator)', b:'On the <b>Plan</b> tab, pick the product and drag the pack count — you see ingredient needs, stock and cost live — then Add. It appears on the <b>Batches</b> board ready to start. (A “work order” is simply a planned batch.)' },
+    { t:'On the floor: the phone app', b:'Your production person opens the phone app, taps <b>Start batch</b> for a ready one, then taps to move it through each stage. The phone never shows recipe amounts.' },
+    { t:'Verify the result — the key ERP step', b:'When a batch finishes all stages it turns green on the <b>Batches</b> board as “awaiting your check”. Tap <b>✓ Verify &amp; finish</b> and type how many packs you <b>actually</b> made — this adds them to stock and records any wastage. Always enter the true count.' },
     { t:'Plan the month &amp; what to buy', b:'The <b>Plan</b> tab shows the month’s batches and a “Raw material to buy this month” list — the <b>Buy</b> column is exactly how many kg to order. Buy once a month for your capacity.' },
-    { t:'Work orders', b:'A Work Order is a “make N packs” job. Create one under <b>Work orders</b> (or release from a Plan), and give it a target date so it lands in the right month’s buy-list. It then shows as “Ready to start” on the phone.' },
-    { t:'Where it fits', b:'', flow:{ inn:['Work orders — created here or released from a Plan','Raw materials from Inventory (taken when a batch starts)'], out:['Verified batches → finished goods in Inventory','…which then fulfil customer Orders'] } }
+    { t:'Where it fits', b:'', flow:{ inn:['Batches you add on the Plan tab','Raw materials from Inventory (taken when a batch starts)'], out:['Verified batches → finished goods in Inventory','…which then fulfil customer Orders'] } }
   ],
   'purchase-orders': [
     { t:'Purchase Orders — buying raw materials', b:'Order ingredients and materials from a supplier.' },
@@ -1405,11 +1405,11 @@ const HOWTO = [
 
   // Making
   { cat:'Making (production)', q:'Make a batch (start → run the stages)', nav:'production', kw:'produce batch work order manufacture make start stages phone',
-    steps:['First there must be a Work Order for it (Production → Work orders → + New Work Order).','On the phone app (or Production → Overview), find it under “Ready to start” and tap ▶ Start batch — the raw material is taken now.','Move it through the stages one by one (Received → … → Packaging), tapping the big “✓ … done → next” button.','At the end it says “awaiting your check” — go to Overview to verify it (next task).'] },
+    steps:['On the Batches board (or the phone app), find the batch under “Ready to make” and tap ▶ Start batch — the raw material is taken now.','Move it through the stages one by one (Received → … → Packaging), tapping the big “✓ … done → next” button.','At the end it turns green as “awaiting your check” — verify it (next task).'] },
   { cat:'Making (production)', q:'Verify a finished batch (confirm packs made)', nav:'production', kw:'verify confirm packs made actual yield wastage finish batch',
-    steps:['Open Production → Overview.','Find the batch marked “awaiting your check” and tap ✓ Verify & finish.','Type how many packs you ACTUALLY made (count them — e.g. 485 even if planned 500).','Confirm — the packs are added to finished-goods stock and any shortfall is recorded as wastage.'] },
-  { cat:'Making (production)', q:'Create a work order (a “make this” job)', nav:'production', kw:'work order create new make job production target date',
-    steps:['Open Production → Work orders → + New Work Order.','Pick the product and pack size, enter how many packs, and set a target date (the month you’ll make it in).','Save — it now shows as “Ready to start” on the phone and in the Plan.'] },
+    steps:['Open Production → Batches.','Find the batch marked “awaiting your check” and tap ✓ Verify & finish.','Type how many packs you ACTUALLY made (count them — e.g. 485 even if planned 500).','Confirm — the packs are added to finished-goods stock and any shortfall is recorded as wastage.'] },
+  { cat:'Making (production)', q:'Add a batch (plan what to make)', nav:'production', kw:'work order create new make job production target date plan add batch slider',
+    steps:['Open Production → Plan.','Under “Add a batch,” pick the product and drag the pack count — you’ll see the ingredient needs, stock and cost.','Give it a target date (the month you’ll make it in) and click Create.','It appears on the Batches board ready to start.'] },
   { cat:'Making (production)', q:'See what raw material to buy this month', nav:'production', kw:'buy list raw material month plan procurement what to buy ingredients',
     steps:['Open Production → Plan. Use the ‹ › arrows to pick the month.','See “This month’s batches” (your work orders for that month) against the target.','Read the “Raw material to buy this month” table — the Buy column is exactly how many kg to order. It already subtracts what’s in stock.'] },
   { cat:'Making (production)', q:'Let a worker use the Production phone app', nav:'sales-reps', kw:'phone app access batch runner grant production worker login pin',
@@ -8238,10 +8238,10 @@ async function renderBomSetup() {
 }
 
 
-let _prodTab = 'overview';
+let _prodTab = 'batches';
 function _prodSwitchTab(which) {
   _prodTab = which;
-  ['overview','plan','wos','history'].forEach(t => {
+  ['batches','plan','history'].forEach(t => {
     const pane = document.getElementById('prodpane-' + t);
     if (pane) pane.style.display = (t === which) ? '' : 'none';
     const btn = document.getElementById('prodtab-' + t);
@@ -8296,6 +8296,7 @@ function _prodOverviewHtml(dash, runs, stages, workOrders) {
     ? '<div style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:700;margin:6px 0 8px">Batch in progress</div>' + runCards
     : '<div class="card" style="padding:16px 18px;margin-bottom:12px;color:var(--text-3);font-size:13px">No batch running right now. Start one from “Ready to make” below.</div>';
 
+  const _mact = (label, color, onclick) => '<span onclick="' + onclick + '" style="font-size:11px;color:' + color + ';cursor:pointer">' + label + '</span>';
   const upnext = (workOrders || []).filter(w =>
       (w.status === 'planned' || w.status === 'in_progress')
       && !activeWoNums.has(w.wo_number)
@@ -8303,12 +8304,19 @@ function _prodOverviewHtml(dash, runs, stages, workOrders) {
     ).map(w => {
     const rem = w.qty_units - (w.produced_units || 0);
     const canMake = !!w.feasibility_ok;
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-top:1px solid var(--border)">'
-      + '<div><span style="font-size:14px">' + esc(w.product_name || '') + ' ' + esc(w.pack_size || '') + '</span><div style="font-size:11px;color:var(--text-3);font-family:monospace">' + esc(w.wo_number) + ' · ' + rem + ' packs</div></div>'
+    const nm = (w.notes || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    return '<div style="padding:11px 0;border-top:1px solid var(--border)">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center">'
+      + '<div><span style="font-size:14px">' + esc(w.product_name || '') + ' ' + esc(w.pack_size || '') + '</span><div style="font-size:11px;color:var(--text-3);font-family:monospace">' + esc(w.wo_number) + ' · ' + rem + ' packs' + (w.target_date ? ' · ' + fmtDate(w.target_date) : '') + '</div></div>'
       + '<div style="display:flex;align-items:center;gap:10px">'
       + '<span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;background:' + (canMake ? '#eafaf1' : '#fff5f5') + ';color:' + (canMake ? '#1aaa55' : '#e03131') + '">' + (canMake ? 'materials ready' : 'short on stock') + '</span>'
-      + '<button class="btn btn-sm btn-primary" onclick="startBatchRun(' + w.id + ')">' + ic('play',12) + ' Start batch</button></div></div>';
-  }).join('') || '<div style="color:var(--text-3);font-size:12px;padding:10px 0">No work orders waiting. Create one under Work orders.</div>';
+      + '<button class="btn btn-sm btn-primary" onclick="startBatchRun(' + w.id + ')">' + ic('play',12) + ' Start batch</button></div></div>'
+      + '<div style="display:flex;gap:16px;margin-top:6px">'
+      + _mact('Cost &amp; procure', 'var(--saffron)', 'showProcurementList(' + w.id + ',\'' + esc(w.wo_number) + '\')')
+      + _mact('Edit', 'var(--text-3)', 'editWorkOrder(' + w.id + ',\'' + esc(w.wo_number) + '\',' + w.qty_units + ',\'' + (w.target_date || '') + '\',\'' + nm + '\')')
+      + _mact('Cancel', 'var(--chili)', 'setWoStatus(' + w.id + ',\'cancelled\')')
+      + '</div></div>';
+  }).join('') || '<div style="color:var(--text-3);font-size:12px;padding:10px 0">No batches waiting. Add one on the <a onclick="_prodSwitchTab(\'plan\')" style="color:var(--saffron);cursor:pointer">Plan tab</a>.</div>';
 
   return (dash ? _prodDashHtml(dash) : '')
     + inProg
@@ -8567,7 +8575,7 @@ async function renderProduction() {
   // Plan tab embeds the batch planner (recipe-gated — it shows ingredient quantities).
   const planPaneHtml = canRecipe()
     ? await renderBatchPlanner()
-    : '<div class="card" style="padding:22px;color:var(--text-2);font-size:13px;line-height:1.6">Planning a batch shows recipe quantities, so it needs recipe access. Ask the owner to enable it — or just create a work order under <a onclick="_prodSwitchTab(\'wos\')" style="color:var(--saffron);cursor:pointer;font-weight:600">Work orders</a>.</div>';
+    : '<div class="card" style="padding:22px;color:var(--text-2);font-size:13px;line-height:1.6">Planning a batch shows recipe quantities, so it needs recipe access. Ask the owner to enable it.</div>';
 
   return `
   <!-- ── HEADER + SUB-TABS ─────────────────────────────── -->
@@ -8575,18 +8583,19 @@ async function renderProduction() {
     <h2>Production</h2>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" onclick="helpOpen('production')" title="How Production works">${ic('message',13)} Guide</button>
-      ${canRecipe() ? '<button class="btn btn-outline btn-sm" onclick="_prodSwitchTab(\'plan\')">' + ic('sliders') + ' Plan a batch</button>' : ''}
-      <button class="btn btn-primary btn-sm" onclick="_prodSwitchTab('wos');showWoForm()">${ic('plus')} New Work Order</button>
+      <button class="btn btn-primary btn-sm" onclick="_prodSwitchTab('plan')" title="Plan &amp; create a batch">${ic('plus')} Plan a batch</button>
     </div>
   </div>
 
   <div style="display:flex;gap:2px;border-bottom:1px solid var(--border);margin:8px 0 16px">
-    ${_subtab('overview','Overview')}${_subtab('plan','Plan')}${_subtab('wos','Work orders')}${_subtab('history','Batch history')}
+    ${_subtab('batches','Batches')}${_subtab('plan','Plan')}${_subtab('history','History')}
   </div>
 
-  <!-- ══ OVERVIEW PANE ═════════════════════════════════ -->
-  <div id="prodpane-overview">
+  <!-- ══ BATCHES BOARD (landing) — every batch + its current stage ═══════════ -->
+  <div id="prodpane-batches">
     ${_prodOverviewHtml(prodDash, batchRuns, batchStages, workOrders)}
+    <div id="wo-edit-panel"></div>
+    <div id="procurement-panel"></div>
   </div>
 
   <!-- ══ PLAN PANE — monthly buy-list + batch planner ═══════════════ -->
@@ -8598,107 +8607,6 @@ async function renderProduction() {
     ${planPaneHtml}
   </div>
 
-  <!-- ══ WORK ORDERS PANE ══════════════════════════════ -->
-  <div id="prodpane-wos" style="display:none">
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px">
-    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="filterWoTable('planned')" title="Show Planned work orders">
-      <div style="font-size:22px;font-weight:800;color:var(--mac-blue)">${woPlanned}</div>
-      <div style="font-size:11px;color:var(--text-3);margin-top:2px">Planned WOs</div>
-    </div>
-    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="filterWoTable('in_progress')" title="Show In Progress work orders">
-      <div style="font-size:22px;font-weight:800;color:var(--saffron)">${woInProgress}</div>
-      <div style="font-size:11px;color:var(--text-3);margin-top:2px">In Progress</div>
-    </div>
-    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="filterWoTable('completed')" title="Show Completed work orders">
-      <div style="font-size:22px;font-weight:800;color:var(--cardamom)">${woCompleted}</div>
-      <div style="font-size:11px;color:var(--text-3);margin-top:2px">Completed WOs</div>
-    </div>
-    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="document.getElementById('batch-history-card').scrollIntoView({behavior:'smooth',block:'start'})" title="Scroll to Batch History">
-      <div style="font-size:22px;font-weight:800;color:var(--cardamom)">${batchesThisMonth}</div>
-      <div style="font-size:11px;color:var(--text-3);margin-top:2px">Batches This Month</div>
-    </div>
-    <div class="card" style="padding:14px 16px;text-align:center;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''" onclick="document.getElementById('batch-history-card').scrollIntoView({behavior:'smooth',block:'start'})" title="Scroll to Batch History">
-      <div style="font-size:18px;font-weight:800;color:var(--chili)">${fmtPKR(totalBatchCost)}</div>
-      <div style="font-size:11px;color:var(--text-3);margin-top:2px">Total Ingredient Cost</div>
-    </div>
-  </div>
-
-  <!-- BOM (recipe) relocated to Admin/Owner → renderBomSetup() -->
-
-  <!-- ── NEW WORK ORDER FORM (collapsible) ───────────────── -->
-  <div id="wo-form-panel" style="display:none" class="card mb-16" style="border-left:4px solid var(--mac-blue)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <h3>New Work Order</h3>
-      <button class="btn btn-xs btn-outline" onclick="hideWoForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Close</button>
-    </div>
-    <div id="wo-msg"></div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Product &amp; Pack *</label>
-        <select id="wo-prod" onchange="checkWoFeasibility()" style="min-width:200px">${variantOptions}</select>
-      </div>
-      <div class="form-group">
-        <label>Qty Units *</label>
-        <input id="wo-qty" type="number" min="1" value="100" style="width:90px" oninput="checkWoFeasibility()">
-      </div>
-      <div class="form-group">
-        <label>Target Date</label>
-        <input id="wo-date" type="date" value="${today()}">
-      </div>
-      <div class="form-group">
-        <label>Notes</label>
-        <input id="wo-notes" placeholder="Optional">
-      </div>
-    </div>
-    <!-- Live BOM cost breakdown -->
-    <div id="wo-feasibility" style="margin:10px 0"></div>
-    <div style="display:flex;gap:10px;margin-top:4px">
-      <button class="btn btn-primary" onclick="saveWorkOrder()">Create Work Order</button>
-      <button class="btn btn-outline" onclick="hideWoForm()">Cancel</button>
-    </div>
-  </div>
-
-  <!-- ── PRODUCTION WORKFLOW GUIDE ───────────────────────── -->
-  <div style="background:#f8f9ff;border:1px solid #dde3f5;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <span style="font-size:12px;font-weight:600;color:var(--text-2);margin-right:4px">How to complete a production run:</span>
-    <span style="font-size:12px;background:#f5f0ff;color:#7c3aed;border:1px solid #d4c2f7;border-radius:4px;padding:2px 8px;white-space:nowrap;cursor:pointer" onclick="nav('bom')">0. Setup BOM (Admin → BOM (Formula))</span>
-    <span style="font-size:12px;color:var(--text-3)">→</span>
-    <span style="font-size:12px;background:#f0f4ff;color:#3563e9;border:1px solid #c7d4f7;border-radius:4px;padding:2px 8px;white-space:nowrap">1. Create Work Order</span>
-    <span style="font-size:12px;color:var(--text-3)">→</span>
-    <span style="font-size:12px;background:#fff8e6;color:#e6a817;border:1px solid #f5dfa0;border-radius:4px;padding:2px 8px;white-space:nowrap">2. Click <strong>Start</strong> when production begins</span>
-    <span style="font-size:12px;color:var(--text-3)">→</span>
-    <span style="font-size:12px;background:#eafaf1;color:#1aaa55;border:1px solid #b2e8c8;border-radius:4px;padding:2px 8px;white-space:nowrap">3. Click <strong>✓ Complete & Record Batch</strong> when done</span>
-  </div>
-
-  <!-- ── WORK ORDERS TABLE ────────────────────────────────── -->
-  <div class="card mb-16" id="wo-table-card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <h3>Work Orders <span id="wo-filter-badge" style="display:none;font-size:11px;font-weight:500;background:var(--saffron-pale);color:var(--saffron-deep);border:1px solid var(--saffron);border-radius:10px;padding:2px 8px;margin-left:6px;cursor:pointer" onclick="filterWoTable(null)" title="Clear filter">× Clear filter</span></h3>
-      <span style="font-size:12px;color:var(--text-3)">${workOrders.length} total</span>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>WO #</th>
-            <th>Product</th>
-            <th style="text-align:center">Status</th>
-            <th style="text-align:center">Target Date</th>
-            <th style="text-align:center">Batch</th>
-            <th style="text-align:right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>${woRows || '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:20px">No work orders yet — click <strong>+ New Work Order</strong> to plan a production run</td></tr>'}</tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- ── EDIT WORK ORDER PANEL (shown on demand) ─────────── -->
-  <div id="wo-edit-panel"></div>
-
-  <!-- ── DETAIL PANELS (shown on demand) ─────────────────── -->
-  <div id="procurement-panel"></div>
-  </div><!-- /prodpane-wos -->
 
   <!-- ══ BATCH HISTORY PANE ════════════════════════════ -->
   <div id="prodpane-history" style="display:none">
@@ -9773,18 +9681,22 @@ async function showProcurementList(woId, woNum) {
     + '<div style="margin-top:6px;font-size:13px;font-weight:600">' + statusIcon + '</div>'
     + '</div>'
     + '<div style="text-align:right;flex-shrink:0;margin-left:20px">'
-    + '<div style="font-size:11px;color:var(--text-3)">Est. Procurement Cost</div>'
-    + '<div style="font-size:22px;font-weight:800;color:' + summaryColor + '">' + fmtPKR(pl.totalProcureCostPKR) + '</div>'
-    + '<div style="font-size:11px;color:var(--text-3);margin-top:2px">Full ingredient cost: ' + fmtPKR(pl.totalNeededCostPKR) + '</div>'
+    + '<div style="font-size:11px;color:var(--text-3)">Cost to make this batch</div>'
+    + '<div style="font-size:22px;font-weight:800;color:var(--text-1)">' + fmtPKR(pl.totalNeededCostPKR) + '</div>'
+    + '<div style="font-size:12px;margin-top:4px;font-weight:600;color:' + summaryColor + '">' + (pl.allInStock ? 'All ingredients in stock — nothing to buy' : ('To buy now: ' + fmtPKR(pl.totalProcureCostPKR))) + '</div>'
     + '</div>'
     + '</div>'
     + '<div class="table-wrap">'
     + '<table>'
     + '<thead><tr><th>Code</th><th>Ingredient</th><th class="text-right">Required</th><th class="text-right">In Stock</th><th class="text-right">To Procure</th><th class="text-right">Est. Cost</th><th class="text-right">Rate</th></tr></thead>'
     + '<tbody>' + tableRows + '</tbody>'
-    + '<tfoot><tr style="border-top:2px solid var(--border);font-weight:700">'
-    + '<td colspan="5" style="text-align:right;padding-top:8px">Total Procurement Cost:</td>'
-    + '<td class="num text-right" style="padding-top:8px;color:' + summaryColor + '">' + fmtPKR(pl.totalProcureCostPKR) + '</td>'
+    + '<tfoot><tr style="font-weight:600;color:var(--text-2)">'
+    + '<td colspan="5" style="text-align:right;padding-top:8px">Total cost to make (all ingredients):</td>'
+    + '<td class="num text-right" style="padding-top:8px">' + fmtPKR(pl.totalNeededCostPKR) + '</td>'
+    + '<td></td></tr>'
+    + '<tr style="border-top:2px solid var(--border);font-weight:700">'
+    + '<td colspan="5" style="text-align:right;padding-top:8px">Total to buy now:</td>'
+    + '<td class="num text-right" style="padding-top:8px;color:' + summaryColor + '">' + (pl.allInStock ? '—' : fmtPKR(pl.totalProcureCostPKR)) + '</td>'
     + '<td></td></tr></tfoot>'
     + '</table>'
     + '</div>'
