@@ -104,8 +104,10 @@ def run():
     if ps.status_code == 200:
         d = ps.json()
         _pass("Projected units = 1700") if d["totals"]["units"] == 1700 else _fail("Projected units = 1700", str(d["totals"]))
-        _pass("No pricing yet → revenue null") if (d["has_pricing"] is False and d["totals"]["revenue"] is None) \
-            else _fail("No pricing yet → revenue null", str(d["totals"]))
+        # Model B: planning reuses ERP master prices, so a new version already has effective
+        # pricing → revenue is computed from master defaults (was null in the pre-integration model).
+        _pass("Master-default pricing → revenue computed") if (d["totals"]["revenue"] is not None and d["totals"]["revenue"] > 0) \
+            else _fail("Master-default pricing → revenue computed", str(d["totals"]))
 
     ps1 = GET(f"/api/planning/versions/{ver}/projected-sales?months=1", token=tok)
     if ps1.status_code == 200 and ps1.json()["totals"]["units"] == 1200:
@@ -216,8 +218,13 @@ def run():
         assert_status(DELETE(f"/api/planning/forecast/{fid}", token=tok), 200, "DELETE forecast row (200)")
     pl = GET(f"/api/planning/versions/{ver}/pricing", token=tok)
     if pl.status_code == 200 and pl.json():
-        pid = pl.json()[0]["id"]
-        assert_status(DELETE(f"/api/planning/pricing/{pid}", token=tok), 200, "DELETE pricing row (200)")
+        # Pricing rows are "effective prices" (master defaults + overrides); only stored
+        # override rows carry an id. Pick one with an id rather than assuming [0] has one.
+        stored = next((r for r in pl.json() if isinstance(r, dict) and r.get("id")), None)
+        if stored:
+            assert_status(DELETE(f"/api/planning/pricing/{stored['id']}", token=tok), 200, "DELETE pricing row (200)")
+        else:
+            _skip("DELETE pricing row", "no stored override rows (effective prices are computed)")
 
     logout(tok)
     print_summary()

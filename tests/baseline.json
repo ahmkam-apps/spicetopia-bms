@@ -1,10 +1,10 @@
 {
-  "captured_at": "2026-06-25T22:42:17.424091",
+  "captured_at": "2026-07-05T18:14:14.501902",
   "summary": {
-    "passed": 191,
-    "failed": 1,
-    "skipped": 8,
-    "total": 200
+    "passed": 189,
+    "failed": 0,
+    "skipped": 10,
+    "total": 199
   },
   "modules": [
     {
@@ -42,9 +42,9 @@
     {
       "module": "inventory",
       "label": "Inventory & Ingredients",
-      "total": 12,
+      "total": 11,
       "passed": 11,
-      "failed": 1,
+      "failed": 0,
       "skipped": 0
     },
     {
@@ -74,8 +74,8 @@
     {
       "module": "purchasing",
       "label": "Purchasing & AP",
-      "total": 16,
-      "passed": 15,
+      "total": 7,
+      "passed": 6,
       "failed": 0,
       "skipped": 1
     },
@@ -115,9 +115,17 @@
       "module": "planning",
       "label": "Planning Input System",
       "total": 36,
-      "passed": 36,
+      "passed": 35,
       "failed": 0,
-      "skipped": 0
+      "skipped": 1
+    },
+    {
+      "module": "phase0",
+      "label": "Phase 0 \u2014 GST / Security / Guards",
+      "total": 9,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 1
     }
   ]
 }
