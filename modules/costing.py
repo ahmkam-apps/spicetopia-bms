@@ -784,7 +784,11 @@ def get_margin_alerts(include_dismissed=False):
     for sku in all_costs:
         if not sku.get('has_bom'):
             continue
-        gm = sku.get('gross_margin_pct', 0)
+        # Model B: judge the REAL margin against the actual selling price, not the theoretical
+        # cost×markup MRP. SKUs with no selling price set can't be judged → skip (don't false-alarm).
+        gm = sku.get('actual_margin_pct')
+        if gm is None:
+            continue
         if gm < floor_pct:
             existing = qry1("""
                 SELECT * FROM margin_alerts

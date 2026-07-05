@@ -57,6 +57,7 @@ __all__ = [
     'ensure_batch_stages',
     'ensure_rep_app_access',
     'ensure_customer_gst',
+    'ensure_drop_qty_in_production',
 ]
 
 
@@ -1471,6 +1472,30 @@ def ensure_customer_gst():
         print("  ✓ customer GST (gst_applicable / invoices.gst_rate / config gst_rate) ready")
     except Exception as e:
         print(f"  ⚠ ensure_customer_gst: {e}")
+    finally:
+        c.close()
+
+
+def ensure_drop_qty_in_production():
+    """Remove the drifting cached customer_order_items.qty_in_production column.
+    It was only ever incremented (never decremented) → drifted high. The live truth is
+    orders._item_in_production() (active WOs net of produced_units), used everywhere it's read.
+    DROP COLUMN needs SQLite 3.35+; if unsupported this is a safe no-op (the column just sits
+    unused at its default, and nothing reads it). Idempotent."""
+    c = _conn()
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(customer_order_items)").fetchall()]
+        if cols and 'qty_in_production' in cols:
+            try:
+                c.execute("ALTER TABLE customer_order_items DROP COLUMN qty_in_production")
+                c.commit()
+                print("  ✓ dropped customer_order_items.qty_in_production (drift cache retired)")
+            except Exception as e:
+                print(f"  ⚠ qty_in_production drop skipped (SQLite < 3.35?): {e}")
+        else:
+            print("  ✓ qty_in_production already absent")
+    except Exception as e:
+        print(f"  ⚠ ensure_drop_qty_in_production: {e}")
     finally:
         c.close()
 

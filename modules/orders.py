@@ -1219,11 +1219,9 @@ def create_wo_from_order_item(order_id, item_id, data):
               data.get('notes', f"For {order['order_number']}"),
               1 if feasibility['feasible'] else 0,
               order_id, item_id))
-        c.execute("""
-            UPDATE customer_order_items
-            SET qty_in_production = qty_in_production + ?
-            WHERE id=?
-        """, (remaining, item_id))
+        # NOTE: the cached customer_order_items.qty_in_production column is deliberately NOT
+        # updated — it only ever incremented and drifted high. The live truth is computed by
+        # _item_in_production() (active WOs net of produced_units), used everywhere it's read.
         c.commit()
         wo_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     except Exception:

@@ -496,17 +496,25 @@ def get_rep_performance_report(period=None):
         route_coverage_pct = round(visited / total_stops * 100, 1) if total_stops else 0.0
         visit_hit_rate     = route_coverage_pct
 
+        # Rep revenue comes from the SAME `sales` table the dashboard/P&L use, attributed via
+        # sales → invoice → customer_order.created_by_rep_id. (The old field_orders path is retired;
+        # reading it made the rep report disagree with the dashboard for the same rep's sales.)
         orders_count = qry1("""
-            SELECT COUNT(id) as cnt FROM field_orders
-            WHERE rep_id=? AND strftime('%Y-%m', order_date)=?
+            SELECT COUNT(DISTINCT co.id) as cnt
+            FROM sales s
+            JOIN invoices inv       ON inv.id = s.invoice_id
+            JOIN customer_orders co ON co.id = inv.customer_order_id
+            WHERE co.created_by_rep_id=? AND COALESCE(s.voided,0)=0
+              AND strftime('%Y-%m', s.sale_date)=?
         """, (rid, period))['cnt'] or 0
 
         rev_actual = qry1("""
-            SELECT COALESCE(SUM(foi.quantity * foi.unit_price), 0) as total
-            FROM field_orders fo
-            JOIN field_order_items foi ON foi.order_id = fo.id
-            WHERE fo.rep_id=? AND fo.status='confirmed'
-              AND strftime('%Y-%m', fo.order_date)=?
+            SELECT COALESCE(SUM(s.total), 0) as total
+            FROM sales s
+            JOIN invoices inv       ON inv.id = s.invoice_id
+            JOIN customer_orders co ON co.id = inv.customer_order_id
+            WHERE co.created_by_rep_id=? AND COALESCE(s.voided,0)=0
+              AND strftime('%Y-%m', s.sale_date)=?
         """, (rid, period))['total'] or 0.0
 
         tgt_row    = qry1("SELECT revenue_target FROM rep_targets WHERE rep_id=? AND month=?", (rid, period))
@@ -514,13 +522,14 @@ def get_rep_performance_report(period=None):
         rev_vs_target_pct = round(rev_actual / rev_target * 100, 1) if rev_target else None
 
         trend_rows = qry("""
-            SELECT strftime('%Y-%m', fo.order_date) as month,
-                   COALESCE(SUM(foi.quantity * foi.unit_price), 0) as revenue,
-                   COUNT(DISTINCT fo.id) as orders
-            FROM field_orders fo
-            JOIN field_order_items foi ON foi.order_id = fo.id
-            WHERE fo.rep_id=? AND fo.status='confirmed'
-              AND fo.order_date >= date('now','-6 months')
+            SELECT strftime('%Y-%m', s.sale_date) as month,
+                   COALESCE(SUM(s.total), 0) as revenue,
+                   COUNT(DISTINCT co.id) as orders
+            FROM sales s
+            JOIN invoices inv       ON inv.id = s.invoice_id
+            JOIN customer_orders co ON co.id = inv.customer_order_id
+            WHERE co.created_by_rep_id=? AND COALESCE(s.voided,0)=0
+              AND s.sale_date >= date('now','-6 months')
             GROUP BY 1 ORDER BY 1
         """, (rid,))
 

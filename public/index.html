@@ -11203,9 +11203,11 @@ async function renderPricesCosts() {
   // --- KPI calculations ---
   const skusCosted   = costs.filter(c => c.has_bom).length;
   const skusTotal    = costs.length;
-  const belowFloor   = costs.filter(c => c.below_floor && c.has_bom).length;
-  const avgMargin    = skusCosted > 0
-    ? Math.round(costs.filter(c=>c.has_bom).reduce((s,c)=>s+(c.gross_margin_pct||0),0) / skusCosted * 10) / 10
+  // Model B: judge health on the REAL margin (actual selling price), not the suggested MRP.
+  const belowFloor   = costs.filter(c => c.actual_below_floor && c.has_bom).length;
+  const _pricedSkus  = costs.filter(c => c.has_bom && c.actual_margin_pct != null);
+  const avgMargin    = _pricedSkus.length > 0
+    ? Math.round(_pricedSkus.reduce((s,c)=>s+c.actual_margin_pct,0) / _pricedSkus.length * 10) / 10
     : 0;
   const floorPct     = parseFloat((cfg.margin_floor_pct||{}).value || 30);
 
@@ -11214,13 +11216,13 @@ async function renderPricesCosts() {
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
     ${_invKpi('SKUs Costed', skusCosted + ' / ' + skusTotal, 'with active BOMs', 'var(--cardamom)')}
     ${_invKpi('Below Min Profit Margin', belowFloor, 'margin < ' + floorPct + '%', belowFloor > 0 ? 'var(--chili)' : 'var(--cardamom)')}
-    ${_invKpi('Avg Gross Margin', avgMargin + '%', 'across all costed SKUs', avgMargin >= floorPct ? 'var(--cardamom)' : 'var(--chili)')}
+    ${_invKpi('Avg Gross Margin', avgMargin + '%', 'across priced SKUs (actual price)', avgMargin >= floorPct ? 'var(--cardamom)' : 'var(--chili)')}
     ${_invKpi('Config Keys', Object.keys(cfg).length, 'costing parameters set', 'var(--saffron)')}
   </div>`;
 
   // --- STANDARD COSTS TAB ---
   const costRows = costs.length ? costs.map(c => {
-    const flagStyle = c.below_floor ? 'color:var(--chili);font-weight:700' : 'color:var(--cardamom)';
+    const flagStyle = c.actual_below_floor ? 'color:var(--chili);font-weight:700' : 'color:var(--cardamom)';
     const bomBadge  = c.has_bom
       ? `<span class="badge badge-ok">BOM</span>`
       : `<span class="badge badge-out">No BOM</span>`;
@@ -11238,8 +11240,8 @@ async function renderPricesCosts() {
       <td class="text-right">${c.has_bom ? fmtPKR(c.direct_sale) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.distributor) : '—'}</td>
       <td class="text-right">${c.has_bom ? fmtPKR(c.mrp) : '—'}</td>
-      <td class="text-right" style="${flagStyle}">${c.has_bom ? (c.gross_margin_pct||0).toFixed(1)+'%' : '—'}</td>
-      <td>${c.has_bom && c.below_floor ? '<span style="color:var(--chili);font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Below min profit margin</span>' : ''}</td>
+      <td class="text-right" style="${flagStyle}">${c.has_bom ? (c.actual_margin_pct==null ? '<span style="color:var(--text-3)" title="No selling price set">—</span>' : c.actual_margin_pct.toFixed(1)+'%') : '—'}</td>
+      <td>${c.has_bom && c.actual_below_floor ? '<span style="color:var(--chili);font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Below min profit margin</span>' : ''}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="15" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>`;
 
