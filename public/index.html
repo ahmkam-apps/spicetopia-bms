@@ -719,7 +719,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('customers')" id="nav-customers" style="display:none"><span class="icon" data-icon="users"></span> Customers</div>
       <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers" style="display:none"><span class="icon" data-icon="factory"></span> Suppliers</div>
       <div class="nav-item" onclick="nav('products')" id="nav-products" style="display:none"><span class="icon" data-icon="package"></span> Products</div>
-      <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon" data-icon="briefcase"></span> Sales Reps</div>
+      <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon" data-icon="users"></span> Team</div>
       <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes" style="display:none"><span class="icon" data-icon="map"></span> Zones &amp; Routes</div>
       <div class="nav-item" onclick="nav('recipes')" id="nav-recipes" style="display:none"><span class="icon" data-icon="book-open"></span> Website Recipes</div>
 
@@ -1413,7 +1413,7 @@ const HOWTO = [
   { cat:'Making (production)', q:'See what raw material to buy this month', nav:'production', kw:'buy list raw material month plan procurement what to buy ingredients',
     steps:['Open Production → Plan. Use the ‹ › arrows to pick the month.','See “This month’s batches” (your work orders for that month) against the target.','Read the “Raw material to buy this month” table — the Buy column is exactly how many kg to order. It already subtracts what’s in stock.'] },
   { cat:'Making (production)', q:'Let a worker use the Production phone app', nav:'sales-reps', kw:'phone app access batch runner grant production worker login pin',
-    steps:['Open Sales Representatives (add the person first if needed, with a phone + PIN).','On their row, turn the 🏭 Production toggle On.','They log in at /app with their phone + PIN and tap the Production tile.'] },
+    steps:['Open Team (add the person first if needed, with a phone + PIN).','On their row, turn the 🏭 Production toggle On.','They log in at /app with their phone + PIN and tap the Production tile.'] },
 
   // Costing & pricing (calculation-heavy — detailed)
   { cat:'Costing & pricing', q:'Check if I\'m making money on a product', nav:'prices-costs', kw:'profit margin making money cost price verdict overview',
@@ -1722,7 +1722,7 @@ const SECTION_HUBS = {
     {id:'customers',     label:'Customers',       desc:'Customer accounts'},
     {id:'suppliers',     label:'Suppliers',       desc:'Supplier accounts'},
     {id:'products',      label:'Products',        desc:'Products and SKUs'},
-    {id:'sales-reps',    label:'Sales Reps',      desc:'Field reps'},
+    {id:'sales-reps',    label:'Team',      desc:'Phone-app staff — sales & production'},
     {id:'zones-routes',  label:'Zones & Routes',  desc:'Territories and beats'},
     {id:'recipes',       label:'Website Recipes', desc:'Cooking recipes for the website'},
   ]},
@@ -12196,7 +12196,7 @@ async function renderRepPerformance(period) {
 
     ${summaryCards}
 
-    ${reps.length === 0 ? '<div class="alert" style="background:#fff9c4;border:1px solid #f9a825;border-radius:8px;padding:16px">No active sales reps found. Add reps under Sales Team → Sales Reps.</div>' : `
+    ${reps.length === 0 ? '<div class="alert" style="background:#fff9c4;border:1px solid #f9a825;border-radius:8px;padding:16px">No active team members found. Add them under Team.</div>' : `
     <div class="card" style="overflow-x:auto">
       <table class="data-table">
         <thead>
@@ -13369,23 +13369,19 @@ async function renderSalesReps() {
   `).join('');
 
   return `
-    <div class="page-header"><h2>Sales Representatives</h2></div>
+    <div class="page-header"><h2>Team</h2></div>
+    <div style="font-size:12.5px;color:var(--text-2);margin:-6px 0 14px;max-width:640px">The people who use the phone apps — sales and production. Set up their login and which apps they can use here. <span style="color:var(--text-3)">(Pay &amp; commission are handled in Payroll, not here.)</span></div>
     <div class="card" style="margin-bottom:16px">
-      <h3 style="margin:0 0 12px">Add Sales Rep</h3>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
+      <h3 style="margin:0 0 12px">Add a team member</h3>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
         <div><label class="form-label">Full Name *</label><input class="form-input" id="rp-name" placeholder="Ahmed Khan"></div>
         <div><label class="form-label">Phone *</label><input class="form-input" id="rp-phone" placeholder="03001234567"></div>
         <div><label class="form-label">PIN (4 digits)</label><input class="form-input" id="rp-pin" type="password" maxlength="4" placeholder="1234"></div>
-        <div><label class="form-label">Designation</label><input class="form-input" id="rp-desig" placeholder="SR" value="SR"></div>
+        <div><label class="form-label">Role / designation</label><input class="form-input" id="rp-desig" placeholder="SR" value="SR"></div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
-        <div><label class="form-label">Basic Salary (PKR)</label><input class="form-input" id="rp-salary" type="number" placeholder="35000"></div>
-        <div><label class="form-label">Fuel Allowance</label><input class="form-input" id="rp-fuel" type="number" placeholder="3000"></div>
-        <div><label class="form-label">Mobile Allowance</label><input class="form-input" id="rp-mobile" type="number" placeholder="1000"></div>
-        <div><label class="form-label">Commission %</label><input class="form-input" id="rp-comm" type="number" step="0.1" placeholder="2.5"></div>
-      </div>
+      <div style="font-size:11.5px;color:var(--text-3);margin-bottom:10px">After adding, use the row buttons to turn on 🛍 Sales / 🏭 Production and assign zones. The phone + PIN is their login at /app.</div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="saveNewRep()">Save Rep</button>
+        <button class="btn btn-primary" onclick="saveNewRep()">Add to team</button>
       </div>
     </div>
 
@@ -13427,11 +13423,7 @@ async function saveNewRep() {
   if (!name || !phone) return alert('Name and Phone are required');
   const payload = {
     name, phone, pin,
-    designation:    document.getElementById('rp-desig').value.trim() || 'SR',
-    baseSalary:     parseFloat(document.getElementById('rp-salary').value)||0,
-    fuelAllowance:  parseFloat(document.getElementById('rp-fuel').value)||0,
-    mobileAllowance:parseFloat(document.getElementById('rp-mobile').value)||0,
-    commissionPct:  parseFloat(document.getElementById('rp-comm').value)||0,
+    designation: document.getElementById('rp-desig').value.trim() || 'SR',
   };
   try {
     await POST('/api/reps', payload);
@@ -14482,7 +14474,7 @@ async function renderSystem() {
 
       <div id="wa-test-result" style="margin-top:8px;font-size:12px"></div>
       <p style="margin:12px 0 0;font-size:11px;color:var(--text-3)">
-        Settings are saved to the database — no server restart needed. For per-rep notifications, open their profile in Sales Reps and enter their API key.
+        Settings are saved to the database — no server restart needed. For per-rep notifications, open their profile in Team and enter their API key.
       </p>
     </div>
 
