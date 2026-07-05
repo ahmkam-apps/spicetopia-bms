@@ -56,6 +56,7 @@ __all__ = [
     'ensure_ingredient_target_grams',
     'ensure_batch_stages',
     'ensure_rep_app_access',
+    'ensure_customer_gst',
 ]
 
 
@@ -1443,6 +1444,33 @@ def ensure_rep_app_access():
         print("  ✓ sales_reps.app_field / app_batch ready")
     except Exception as e:
         print(f"  ⚠ ensure_rep_app_access: {e}")
+    finally:
+        c.close()
+
+
+def ensure_customer_gst():
+    """Configurable per-customer GST.
+      - customers.gst_applicable (0/1): who is charged GST (default 0 → GST off until flagged).
+      - costing_config 'gst_rate' (default 18): the global rate, editable as needed.
+      - invoices.gst_rate: the rate SNAPSHOTTED onto each invoice at creation (0 for a
+        non-GST customer) so historical invoices stay stable if the flag/rate later change.
+    Idempotent."""
+    c = _conn()
+    try:
+        cc = [r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()]
+        if cc and 'gst_applicable' not in cc:
+            c.execute("ALTER TABLE customers ADD COLUMN gst_applicable INTEGER NOT NULL DEFAULT 0")
+        ic = [r[1] for r in c.execute("PRAGMA table_info(invoices)").fetchall()]
+        if ic and 'gst_rate' not in ic:
+            c.execute("ALTER TABLE invoices ADD COLUMN gst_rate REAL NOT NULL DEFAULT 0")
+        row = c.execute("SELECT 1 FROM costing_config WHERE key='gst_rate'").fetchone()
+        if not row:
+            c.execute("INSERT INTO costing_config (key, value, label) VALUES (?,?,?)",
+                      ('gst_rate', '18', 'GST Rate (%)'))
+        c.commit()
+        print("  ✓ customer GST (gst_applicable / invoices.gst_rate / config gst_rate) ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_customer_gst: {e}")
     finally:
         c.close()
 

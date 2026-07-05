@@ -20,6 +20,8 @@ __all__ = [
     '_pdf_colors', '_pkr',
     # Balance / status
     'compute_invoice_balance', '_compute_invoice_status', '_sync_invoice_status',
+    # GST (per-customer, configurable rate)
+    'gst_rate_for_customer',
     # AR aging
     'get_ar_aging',
     # Invoice CRUD
@@ -34,7 +36,33 @@ __all__ = [
 ]
 
 # ── Module-level config (synced from server.py at startup) ─────────
-GST_RATE = 0.18   # 18% GST
+GST_RATE = 0.18   # legacy fallback only; live GST is per-customer (see gst_rate_for_customer)
+
+
+def _global_gst_rate():
+    """The configurable global GST rate (percent) from costing_config 'gst_rate'. Default 18."""
+    try:
+        row = qry1("SELECT value FROM costing_config WHERE key='gst_rate'")
+        if row and row['value'] not in (None, ''):
+            return float(row['value'])
+    except Exception:
+        pass
+    return 18.0
+
+
+def gst_rate_for_customer(customer_id):
+    """GST % to apply to THIS customer's invoices: the global rate if the customer is
+    GST-applicable (customers.gst_applicable=1), else 0. Snapshotted onto invoices.gst_rate
+    at creation so the invoice is self-contained and stable if the flag/rate later change."""
+    if not customer_id:
+        return 0.0
+    try:
+        row = qry1("SELECT COALESCE(gst_applicable,0) AS g FROM customers WHERE id=?", (customer_id,))
+    except Exception:
+        return 0.0   # column not present yet (pre-migration) → no GST
+    if not row or not row['g']:
+        return 0.0
+    return _global_gst_rate()
 
 # ── Callback: _order_status wired after startup ────────────────────
 # Used by void_invoice to recompute order status post-commit.
@@ -75,13 +103,20 @@ def _pkr(v):
 # ═══════════════════════════════════════════════════════════════════
 
 def compute_invoice_balance(invoice_id):
-    """Returns (subtotal, tax, total, paid, balance)."""
+    """Returns (subtotal, tax, total, paid, balance).
+    GST is per-invoice: the rate is snapshotted onto invoices.gst_rate at creation
+    (0 when the customer is not GST-applicable), so this never applies a blanket rate."""
+    try:
+        _gr = qry1("SELECT COALESCE(gst_rate,0) AS r FROM invoices WHERE id=?", (invoice_id,))
+        gst_rate = float(_gr['r']) if _gr else 0.0
+    except Exception:
+        gst_rate = 0.0   # gst_rate column not present yet (pre-migration)
     subtotal_row = qry1(
         "SELECT COALESCE(SUM(line_total),0) as s FROM invoice_items WHERE invoice_id=?",
         (invoice_id,)
     )
     subtotal = r2(subtotal_row['s'])
-    tax      = r2(subtotal * GST_RATE)
+    tax      = r2(subtotal * gst_rate / 100.0)
     total    = r2(subtotal + tax)
     paid_row = qry1(
         "SELECT COALESCE(SUM(allocated_amount),0) as p FROM payment_allocations WHERE invoice_id=?",
@@ -178,12 +213,13 @@ def create_invoice(inv_data):
     except Exception:
         due_date = inv_date
 
+    _gst_rate = gst_rate_for_customer(cust['id'])   # snapshot: global rate if GST-applicable, else 0
     c = _conn()
     try:
         c.execute("""
-            INSERT INTO invoices (invoice_number, customer_id, invoice_date, due_date, status, notes)
-            VALUES (?,?,?,?,'UNPAID',?)
-        """, (inv_num, cust['id'], inv_date, due_date, inv_data.get('notes', '')))
+            INSERT INTO invoices (invoice_number, customer_id, invoice_date, due_date, status, notes, gst_rate)
+            VALUES (?,?,?,?,'UNPAID',?,?)
+        """, (inv_num, cust['id'], inv_date, due_date, inv_data.get('notes', ''), _gst_rate))
         c.commit()
         inv_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
         subtotal = 0.0
@@ -222,7 +258,7 @@ def create_invoice(inv_data):
                 VALUES (?,?,?,?,?,?,?,?)
             """, (inv_id, var['id'] if var else None, prod_code, prod_name,
                   pack_size, qty, uprice, line))
-        gst   = round(subtotal * GST_RATE, 2)
+        gst   = round(subtotal * _gst_rate / 100.0, 2)
         total = round(subtotal + gst, 2)
         c.commit()
     finally:
@@ -768,9 +804,10 @@ def generate_invoice_pdf(inv_id: int) -> bytes:
                                       leading=14, alignment=TA_RIGHT,
                                       textColor=clr['chili'] if bal > 0 else clr['cardamom'])
 
+    _gst_pct = round((t / s) * 100) if (s and s > 0 and t) else 0
     totals_data = [
         [Paragraph('Subtotal (excl. GST):', s_tot_lbl), Paragraph(_pkr(s), s_tot_val)],
-        [Paragraph('GST 18%:',             s_tot_lbl), Paragraph(_pkr(t), s_tot_val)],
+        [Paragraph('GST ' + str(_gst_pct) + '%:', s_tot_lbl), Paragraph(_pkr(t), s_tot_val)],
         [Paragraph('<b>Invoice Total:</b>', s_tot_grand_lbl),
          Paragraph('<b>' + _pkr(total) + '</b>', s_tot_grand_val)],
         [Paragraph('Amount Paid:',         s_tot_lbl), Paragraph(_pkr(paid), s_tot_val)],

@@ -2319,13 +2319,23 @@ async function renderCustomers() {
   const inactiveCount = custs.length - activeCount;
   const totalBalance  = Object.values(_custBalances).reduce((s,v) => s+v, 0);
 
+  // Global GST rate control (admins / costs holders only). GST applies per-customer
+  // (the "Charge GST" checkbox); this sets the rate used for GST-registered customers.
+  let _gstRate = '18';
+  const _showGst = (typeof canCosts === 'function') ? canCosts() : (typeof isAdmin === 'function' && isAdmin());
+  if (_showGst) {
+    try { const _cfg = await GET('/api/costing/config'); if (_cfg && _cfg.gst_rate && _cfg.gst_rate.value != null) _gstRate = _cfg.gst_rate.value; } catch(e){}
+  }
+  const _gstCtl = _showGst ? `<span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3);border:1px solid var(--border);border-radius:6px;padding:3px 8px" title="GST rate applied to customers marked 'Charge GST'">GST <input id="gst-rate-input" type="number" min="0" step="0.5" value="${_gstRate}" style="width:52px;padding:2px 6px;text-align:right"> % <button id="gst-rate-btn" class="btn btn-outline" style="font-size:11px;padding:2px 8px" onclick="saveGstRate()">Save</button></span>` : '';
+
   return `
   <div class="section-header">
     <div>
       <h2>Customers</h2>
       <span style="font-size:12px;color:var(--text-3)">${activeCount} active · ${inactiveCount} inactive · Total AR: <strong style="color:var(--chili)">${fmtPKR(totalBalance)}</strong></span>
     </div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center">
+      ${_gstCtl}
       <button class="btn btn-secondary" onclick="downloadCSV('/api/customers/export','customers')" style="font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Export CSV</button>
       <button class="btn btn-primary" onclick="showNewCustomerForm()">+ New Customer</button>
     </div>
@@ -2522,6 +2532,9 @@ function editCustomer(custId) {
       </div>
       <div class="form-group"><label>Payment Terms (days)</label><input id="ec-terms" type="number" value="${cust.payment_terms_days}" style="width:80px"></div>
       <div class="form-group"><label>Credit Limit (PKR)</label><input id="ec-credit" type="number" min="0" step="1000" value="${parseFloat(cust.credit_limit)||0}" placeholder="0 = no limit" title="Set to 0 to disable credit limit checking"></div>
+      <div class="form-group"><label>GST</label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;white-space:nowrap"><input id="ec-gst" type="checkbox" ${cust.gst_applicable?'checked':''} style="width:auto"> Charge GST (registered)</label>
+      </div>
       <div class="form-group"><label>Status</label>
         <select id="ec-active">
           <option value="1" ${cust.active?'selected':''}>Active</option>
@@ -2549,6 +2562,7 @@ async function saveEditCustomer(custId) {
       defaultPack:      document.getElementById('ec-pack').value,
       paymentTermsDays: parseInt(document.getElementById('ec-terms').value)||30,
       creditLimit:      parseFloat(document.getElementById('ec-credit').value)||0,
+      gstApplicable:    document.getElementById('ec-gst').checked,
       active:           parseInt(document.getElementById('ec-active').value),
     });
     showMsg('edit-cust-msg', '✓ Customer updated', 'success');
@@ -2889,6 +2903,9 @@ function showNewCustomerForm() {
         <select id="cn-pack">${packOptions}</select>
       </div>
       <div class="form-group"><label>Payment Terms (days)</label><input id="cn-terms" type="number" value="30" style="width:80px"></div>
+      <div class="form-group"><label>GST</label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;white-space:nowrap"><input id="cn-gst" type="checkbox" style="width:auto"> Charge GST (registered)</label>
+      </div>
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn btn-primary" onclick="saveNewCustomer()">Save Customer</button>
@@ -2896,6 +2913,17 @@ function showNewCustomerForm() {
     </div>
   </div>`;
   document.getElementById('customer-form-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function saveGstRate() {
+  const el = document.getElementById('gst-rate-input'); if (!el) return;
+  const v = parseFloat(el.value);
+  if (isNaN(v) || v < 0) { alert('Enter a valid GST rate (0 or more).'); return; }
+  try {
+    await PUT('/api/costing/config', { key: 'gst_rate', value: String(v) });
+    const btn = document.getElementById('gst-rate-btn');
+    if (btn) { const t = btn.textContent; btn.textContent = '✓ Saved'; setTimeout(() => { btn.textContent = t; }, 1200); }
+  } catch(e) { alert(e.message); }
 }
 
 async function saveNewCustomer() {
@@ -2913,6 +2941,7 @@ async function saveNewCustomer() {
       email: document.getElementById('cn-email').value,
       defaultPack: document.getElementById('cn-pack').value,
       paymentTermsDays: parseInt(document.getElementById('cn-terms').value)||30,
+      gstApplicable: (document.getElementById('cn-gst')||{}).checked || false,
     });
     showMsg('cust-msg', `✓ Customer created — Account # ${res.account_number||res.code} — ${res.name}`, 'success');
     await refreshAll();

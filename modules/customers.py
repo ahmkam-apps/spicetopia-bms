@@ -96,14 +96,15 @@ def create_customer(data):
     ops = [("""
         INSERT INTO customers
             (code, account_number, name, customer_type, city, address,
-             phone, email, default_pack, payment_terms_days)
-        VALUES (?,?,?,?,?,?,?,?,?,?)
+             phone, email, default_pack, payment_terms_days, gst_applicable)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
     """, (code, account_number, data['name'].strip(), ctype,
           city,
           data.get('address', '').strip(),
           data.get('phone', ''), data.get('email', ''),
           data.get('defaultPack', '50g'),
-          int(data.get('paymentTermsDays', 30))))]
+          int(data.get('paymentTermsDays', 30)),
+          1 if data.get('gstApplicable') else 0))]
     audit_log(ops, 'customers', code, 'INSERT', new_val=data)
     run_many(ops)
     _refresh_ref()
@@ -126,12 +127,13 @@ def update_customer(cust_id, data):
         'paymentTermsDays': 'payment_terms_days',
         'creditLimit':      'credit_limit',
         'active':           'active',
+        'gstApplicable':    'gst_applicable',
     }
     set_parts, vals = [], []
     for js_key, db_col in mapping.items():
         if js_key in data:
             set_parts.append(f"{db_col}=?")
-            vals.append(data[js_key])
+            vals.append((1 if data[js_key] else 0) if js_key == 'gstApplicable' else data[js_key])
     if not set_parts:
         return existing
     vals.append(cust_id)

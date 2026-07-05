@@ -1310,13 +1310,18 @@ def generate_invoice_from_order(order_id, data):
     inv_number   = next_id('invoice', 'INV')
     sale_ids_pre = [next_id('sale', 'SALE') for _ in resolved]
 
+    # GST snapshot: global rate if this customer is GST-applicable, else 0. Computed BEFORE the
+    # write transaction (read-only). Sales rows stay ex-GST, so dashboard margin is unaffected.
+    from modules.invoices import gst_rate_for_customer
+    _inv_gst_rate = gst_rate_for_customer(order['customer_id'])
+
     c = _conn()
     try:
         c.execute("""
             INSERT INTO invoices
-                (invoice_number, customer_id, invoice_date, due_date, status, customer_order_id)
-            VALUES (?, ?, ?, ?, 'UNPAID', ?)
-        """, (inv_number, order['customer_id'], inv_date, due_date, order_id))
+                (invoice_number, customer_id, invoice_date, due_date, status, customer_order_id, gst_rate)
+            VALUES (?, ?, ?, ?, 'UNPAID', ?, ?)
+        """, (inv_number, order['customer_id'], inv_date, due_date, order_id, _inv_gst_rate))
         inv_db_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         sale_ids = []

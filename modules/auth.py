@@ -374,8 +374,16 @@ def _create_field_session(rep):
 
 
 def _get_field_session(handler, qs=None):
-    """Get session and verify it is a field rep. Returns session dict or None."""
+    """Get session and verify it is a field rep WITH Sales-app access (sales_reps.app_field=1).
+    Mirrors _get_batch_session's app_batch check so launcher gating is enforced at the API,
+    not just the UI. Reps predating the app_field column (COALESCE default 1) keep Sales access."""
     sess = get_session(handler, qs)
     if not sess or sess.get('role') != 'field_rep':
+        return None
+    try:
+        rep = qry1("SELECT COALESCE(app_field, 1) AS f FROM sales_reps WHERE id=?", (sess.get('repId'),))
+    except Exception:
+        return sess  # app_field column not present yet (pre-migration) → default Sales access on
+    if not rep or not rep.get('f'):
         return None
     return sess

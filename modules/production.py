@@ -321,6 +321,15 @@ def convert_wo_to_batch(wo_id, qty=None):
     if wo['status'] not in ('planned', 'in_progress'):
         raise ValueError(f"Work order is {wo['status']} — cannot convert")
 
+    # Guard: don't allow the instant convert path while a staged batch run is live on this WO.
+    # start_batch_run already consumed the RM; converting too would double-consume it and
+    # over-credit produced_units. Mirrors the active-run check in start_batch_run.
+    active_run = qry1("""SELECT id, run_code FROM batch_runs
+                         WHERE wo_id=? AND status IN ('in_progress','awaiting_verification')""", (wo_id,))
+    if active_run:
+        raise ValueError(f"This work order has an active batch run ({active_run['run_code']}). "
+                         "Finish or cancel it before recording a batch directly.")
+
     target    = int(wo['qty_units'])
     produced  = int(wo.get('produced_units') or 0)
     remaining = target - produced

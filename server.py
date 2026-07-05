@@ -3412,22 +3412,35 @@ class Handler(BaseHTTPRequestHandler):
             # GET /api/reps
             if path == '/api/reps':
                 show_all = qs.get('all', [None])[0] == '1'
-                send_json(self, list_reps(active_only=not show_all))
+                _rsess = get_session(self, qs)
+                _is_admin = require(_rsess, 'admin')
+                _reps = list_reps(active_only=not show_all)
+                for _r in _reps:
+                    _r.pop('pin_hash', None)   # never expose PIN hashes to any client
+                    if not _is_admin:          # pay is admin/owner-only
+                        for _k in ('salary', 'commission', 'advances', 'base_salary',
+                                   'basic_salary', 'salary_components', 'commission_rules'):
+                            _r.pop(_k, None)
+                send_json(self, _reps)
                 return
 
             # GET /api/reps/:id
             if path.startswith('/api/reps/') and len(path.split('/')) == 4:
                 _rsess = get_session(self, qs)
                 rep_id = int(path.split('/')[3])
-                # A field rep may only read their OWN profile, and never sees pay info.
+                # A field rep may only read their OWN profile.
                 if _rsess and _rsess.get('role') == 'field_rep':
                     rep_id = _rsess.get('repId')
                 rep = get_rep(rep_id)
                 if not rep:
                     send_error(self, "Rep not found", 404); return
-                if _rsess and _rsess.get('role') == 'field_rep':
-                    for _k in ('salary_components', 'commission_rules', 'advances',
-                               'targets', 'base_salary', 'basic_salary'):
+                # Pay is admin/owner-only. Strip for EVERY non-admin session (was field_rep only,
+                # which leaked salary to viewers/accountants). Use the real keys get_rep returns
+                # ('salary','commission','advances') plus legacy names.
+                if not require(_rsess, 'admin'):
+                    for _k in ('salary', 'commission', 'advances', 'targets',
+                               'base_salary', 'basic_salary',
+                               'salary_components', 'commission_rules'):
                         rep.pop(_k, None)
                 send_json(self, rep)
                 return
@@ -6074,7 +6087,7 @@ if __name__ == '__main__':
         ensure_scenario_type_cleanup, ensure_plan_forecast_zone, ensure_operating_costs,
         ensure_deactivate_spring_catalog, ensure_rep_zones, ensure_dedup_seed_suppliers,
         ensure_cost_lines, ensure_wo_produced_units, ensure_ingredient_target_grams,
-        ensure_batch_stages, ensure_rep_app_access,
+        ensure_batch_stages, ensure_rep_app_access, ensure_customer_gst,
         backfill_customer_account_numbers,
     ):
         try:
