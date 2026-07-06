@@ -724,10 +724,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('recipes')" id="nav-recipes" style="display:none"><span class="icon" data-icon="book-open"></span> Cooking Recipes</div>
 
       <div class="nav-section" id="nav-section-pricing" style="display:none">Pricing &amp; Costing</div>
-      <div class="nav-item" onclick="nav('cost-tracking')" id="nav-cost-tracking" style="display:none"><span class="icon" data-icon="calendar"></span> Cost Tracking</div>
-      <div class="nav-item" onclick="nav('pricing')" id="nav-pricing" style="display:none"><span class="icon" data-icon="tag"></span> Pricing</div>
-      <div class="nav-item" onclick="nav('price-master')" id="nav-price-master" style="display:none"><span class="icon" data-icon="tags"></span> Price Master</div>
-      <div class="nav-item" onclick="nav('prices-costs')" id="nav-prices-costs" style="display:none"><span class="icon" data-icon="dollar-sign"></span> Prices &amp; Costs (advanced)</div>
+      <div class="nav-item" onclick="nav('prices-costs')" id="nav-prices-costs" style="display:none"><span class="icon" data-icon="dollar-sign"></span> Prices &amp; Costs</div>
 
       <div class="nav-section" id="nav-section-recipe" style="display:none">Recipe / IP</div>
       <div class="nav-item" onclick="nav('ingredients-admin')" id="nav-ingredients-admin" style="display:none"><span class="icon" data-icon="lock"></span> Ingredients</div>
@@ -931,12 +928,12 @@ function canAccess(pageId) {
   if (pageId === 'bom') return canRecipe();      // recipe is the secret: owner + granted only (even admins need the grant)
   if (pageId === 'batch-planner') return canRecipe(); // batch planner shows quantities = recipe-gated
   if (pageId === 'prices-costs') return canCosts(); // admin or 'costs' permission
-  if (pageId === 'cost-tracking' || pageId === 'pricing') return canCosts(); // new clean screens, same gate
+  if (pageId === 'cost-tracking' || pageId === 'pricing' || pageId === 'price-master') return canCosts(); // consolidated into prices-costs; same gate for legacy redirects
   if (pageId === 'bulk-stock') return canAccess('inventory'); // bulk RM loader = same access as Inventory
   if (u.role === 'admin' || u.role === 'super_user') return true;   // admin/owner have full access
   // Admin/Owner-only pages
   const adminPages = new Set([
-    'users','price-master','master-data','payroll','audit',
+    'users','master-data','payroll','audit',
     'customers','suppliers','products','sales-reps','zones-routes',
     'prices-costs','ingredients-admin','system'
   ]);
@@ -961,7 +958,7 @@ function applyRoleUI(role) {
   const adminOnlyIds = [
     'nav-section-master','nav-section-pricing','nav-section-recipe','nav-section-system',
     'nav-customers','nav-suppliers','nav-products','nav-recipes','nav-sales-reps','nav-zones-routes',
-    'nav-cost-tracking','nav-pricing','nav-price-master','nav-prices-costs',
+    'nav-prices-costs',
     'nav-users','nav-payroll','nav-master-data','nav-ingredients-admin','nav-audit','nav-system'
   ];
   adminOnlyIds.forEach(id => {
@@ -977,7 +974,6 @@ function applyRoleUI(role) {
   // Prices & Costs — admin or 'costs' permission (overrides the admin-only default above).
   const navPc = document.getElementById('nav-prices-costs');
   if (navPc) navPc.style.display = canCosts() ? '' : 'none';
-  ['nav-cost-tracking','nav-pricing'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = canCosts() ? '' : 'none'; });
   // If a non-admin holds recipe/costs, reveal the relevant sub-section header so the item isn't orphaned.
   if (!isAdmin) {
     if (canRecipe()) { const s = document.getElementById('nav-section-recipe');  if (s) s.style.display = ''; }
@@ -1583,7 +1579,7 @@ function nav(page, arg) {
     inventory:'Inventory', production:'Production',
     products:'Products & SKUs', prices:'Price Management',
     'pl-report':'P&L Report', margins:'Margin Report', audit:'Audit Log',
-    users:'User Management', 'price-master':'Price Master',
+    users:'User Management',
   };
   document.getElementById('page-title').textContent = titles[page] || page;
   render(page, arg);
@@ -1642,16 +1638,17 @@ async function render(page, arg) {
       case 'bom':         c.innerHTML = await renderBomSetup();    break;
       case 'products':      c.innerHTML = await renderProducts();      break;
       case 'recipes':       c.innerHTML = await renderRecipes();       break;
-      case 'prices-costs':  c.innerHTML = await renderPricesCosts();  if(typeof _pcSwitchTab==='function') _pcSwitchTab(_pcTab);  if(typeof _pcOvPreview==='function') _pcOvPreview();  break;
-      case 'cost-tracking': c.innerHTML = await renderCostTracking(); if(typeof _ctTotals==='function') _ctTotals(); break;
-      case 'pricing':       c.innerHTML = await renderPricing();      if(typeof _prRenderWs==='function') _prRenderWs(); break;
+      case 'prices-costs':  c.innerHTML = await renderPricesCosts();  if(typeof _pcSwitchTab==='function') _pcSwitchTab(_pcTab);  break;
+      // 'cost-tracking', 'pricing', 'price-master' consolidated into 'prices-costs' (2026-07-06) — redirect legacy links
+      case 'cost-tracking':
+      case 'pricing':
+      case 'price-master':  _pcTab = (page === 'price-master' ? 'sell' : (page === 'pricing' ? 'sell' : 'costs')); return nav('prices-costs');
       case 'pl-report':       c.innerHTML = await renderPLReport(arg);    break;
       case 'margins':         c.innerHTML = await renderMargins();         break;
       case 'rep-performance': c.innerHTML = await renderRepPerformance(); break;
       case 'review-queue':    await renderReviewQueue(); break;
       case 'audit':           c.innerHTML = await renderAudit();          break;
       case 'users':         c.innerHTML = await renderUsers();        break;
-      case 'price-master':  c.innerHTML = await renderPriceMaster();  break;
       case 'master-data':   c.innerHTML = renderMasterData();         break;
       case 'ingredients-admin': c.innerHTML = await renderIngredientsAdmin(); break;
       case 'sales-reps':    c.innerHTML = await renderSalesReps();    break;
@@ -1727,8 +1724,7 @@ const SECTION_HUBS = {
     {id:'recipes',       label:'Cooking Recipes', desc:'Cooking recipes for the website'},
   ]},
   admin: { title:'Admin & System', items:[
-    {id:'price-master',     label:'Price Master',      desc:'Manual price grid'},
-    {id:'prices-costs',     label:'Prices & Costs',    desc:'Standard costing and margins'},
+    {id:'prices-costs',     label:'Prices & Costs',    desc:'Selling prices, costs & margins'},
     {id:'ingredients-admin',label:'Ingredients',       desc:'Ingredient master and costs'},
     {id:'bom',              label:'BOM (Formula)',     desc:'The secret recipe (gated)'},
     {id:'users',            label:'User Management',   desc:'Users and permissions'},
@@ -1849,8 +1845,7 @@ async function renderHome() {
     + tile('banknote', 'Record payment', "nav('receipts-aging')")
     + tile('archive', 'Inventory', "nav('inventory')")
     + tile('factory', 'Production', "nav('production')")
-    + (canCostsU ? tile('tag', 'Pricing', "nav('pricing')") : '')
-    + (canCostsU ? tile('coins', 'Cost Tracking', "nav('cost-tracking')") : '')
+    + (canCostsU ? tile('dollar-sign', 'Prices & Costs', "nav('prices-costs')") : '')
     + (canPlan ? tile('map', 'Planning', "location.href='/planning.html'") : '')
     + tile('layout-dashboard', 'Full dashboard', "nav('dashboard')")
     + tile('trending-up', 'Reports', "nav('pl-report')")
@@ -11063,7 +11058,7 @@ function editPrice(btn) {
 // ═══════════════════════════════════════════════════════════════
 //  PRICES & COSTS MODULE
 // ═══════════════════════════════════════════════════════════════
-let _pcTab = 'overview'; // 'overview' | 'standard' | 'ingredients' | 'config' | 'history' | 'alerts' | 'variance'
+let _pcTab = 'sell'; // 'sell' | 'costs' | 'margins'
 
 function canEditCosts() {
   return canCosts();   // admins/super_user OR anyone granted the 'costs' permission
@@ -11071,18 +11066,18 @@ function canEditCosts() {
 
 function _pcSwitchTab(tab) {
   _pcTab = tab;
-  // Two top-level views: Overview and Advanced (a hub). All detail panes are reached
-  // from the Advanced hub's cards; the top "Advanced" button returns to the hub.
-  ['overview','advhub','standard','ingredients','config','opcosts','variance','history','markups','alerts'].forEach(t => {
+  ['sell','costs','margins'].forEach(t => {
     const pane = document.getElementById('pc-pane-' + t);
     if (pane) pane.style.display = (t === tab) ? 'block' : 'none';
   });
   const A = 'padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--saffron);color:var(--saffron);margin-bottom:-2px';
   const I = 'padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-3);margin-bottom:-2px';
-  const ov = document.getElementById('pc-tab-overview');
-  const ad = document.getElementById('pc-tab-advanced');
-  if (ov) ov.style.cssText = (tab === 'overview') ? A : I;
-  if (ad) ad.style.cssText = (tab === 'overview') ? I : A;
+  ['sell','costs','margins'].forEach(t => {
+    const b = document.getElementById('pc-tab-' + t);
+    if (b) b.style.cssText = (t === tab) ? A : I;
+  });
+  if (tab === 'sell'  && typeof _prRenderWs === 'function') _prRenderWs();
+  if (tab === 'costs' && typeof _ctTotals   === 'function') _ctTotals();
 }
 
 // Show/hide the advanced cost & price tabs (kept collapsed by default to reduce clutter).
@@ -11180,46 +11175,7 @@ async function _pcOvSave() {
 //  COST TRACKING screen — record actual monthly spend by cost line
 // ═══════════════════════════════════════════════════════════════════
 let _ctMonth = new Date().toISOString().slice(0, 7);
-async function renderCostTracking() {
-  if (!canCosts()) return '<div class="alert alert-error" style="margin-top:40px">Access denied — costing permission required</div>';
-  let lines = [], oc = {};
-  try { lines = await GET('/api/costing/cost-lines'); } catch (e) { lines = []; }
-  try { oc = await GET('/api/costing/operating-costs'); } catch (e) { oc = {}; }
-  window._ctLines = lines;
-  const months = oc.months || [];
-  const cur = (months.find(m => m.month === _ctMonth) || {}).categories || {};
-  const val = nm => { const v = cur[(nm || '').toLowerCase()]; return v != null ? v : ''; };
-  const mset = new Set(months.map(m => m.month)); mset.add(_ctMonth);
-  const monthOpts = [...mset].sort().reverse().map(m => '<option value="' + m + '"' + (m === _ctMonth ? ' selected' : '') + '>' + m + '</option>').join('');
-  const row = l => '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:6px 0">'
-    + '<span style="font-size:14px">' + esc(l.name) + '</span>'
-    + '<span style="display:flex;align-items:center;gap:6px">₨ '
-    + '<input id="ct-in-' + l.id + '" data-bucket="' + l.bucket + '" type="number" min="0" step="1" value="' + val(l.name) + '" oninput="_ctTotals()" class="form-input" style="width:120px;text-align:right">'
-    + '<button class="btn btn-xs btn-outline" title="Remove line" onclick="_ctDeleteLine(' + l.id + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></span></div>';
-  const grp = (bucket, label, tint) => {
-    const ls = lines.filter(l => l.bucket === bucket);
-    return '<div style="margin:16px 0 6px"><span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;' + tint + '">' + label + '</span></div>'
-      + (ls.map(row).join('') || '<div style="color:var(--text-3);font-size:12px">No lines yet.</div>');
-  };
-  return '<div style="max-width:640px">'
-    + '<h2 style="margin:0 0 2px">Cost Tracking</h2>'
-    + '<p style="color:var(--text-3);font-size:13px;margin:0 0 16px">Record what you actually spent, month by month.</p>'
-    + '<div class="card">'
-    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><label style="font-size:13px;color:var(--text-2)">Month</label>'
-    + '<select id="ct-month" onchange="_ctChangeMonth(this.value)" class="form-input" style="width:150px">' + monthOpts + '</select></div>'
-    + grp('variable', 'Variable — scales with production', 'background:#e8f0fe;color:#1a73e8')
-    + grp('fixed', 'Fixed — roughly the same every month', 'background:#fff3e0;color:#e65100')
-    + grp('tracking', 'Other tracked — not in product cost', 'background:#eee;color:#555')
-    + '<div id="ct-addbox" style="margin-top:12px"></div>'
-    + '<button class="btn btn-sm btn-outline" style="margin-top:10px" onclick="_ctShowAdd()">+ Add cost line</button>'
-    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px">'
-    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Variable</div><div id="ct-t-var" style="font-size:20px;font-weight:700">₨0</div></div>'
-    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Fixed</div><div id="ct-t-fix" style="font-size:20px;font-weight:700">₨0</div></div>'
-    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Total this month</div><div id="ct-t-all" style="font-size:20px;font-weight:700">₨0</div></div>'
-    + '</div>'
-    + '<div style="margin-top:14px"><button class="btn btn-primary" onclick="_ctSaveMonth()">Save month</button> <span id="ct-msg" style="font-size:12px;margin-left:8px"></span></div>'
-    + '</div></div>';
-}
+// (consolidated into renderPricesCosts 2026-07-06)
 function _ctTotals() {
   let v = 0, f = 0, all = 0;
   document.querySelectorAll('input[id^="ct-in-"]').forEach(el => {
@@ -11271,24 +11227,7 @@ async function _ctDeleteLine(id) {
 //  PRICING screen — pick a product, set its price against cost-to-make
 // ═══════════════════════════════════════════════════════════════════
 let _prVariantId = null;
-async function renderPricing() {
-  if (!canCosts()) return '<div class="alert alert-error" style="margin-top:40px">Access denied — costing permission required</div>';
-  let costs = [];
-  try { costs = await GET('/api/costing/standard-costs'); } catch (e) { costs = []; }
-  window._prCosts = costs;
-  window._prDistTypeId = ((state.ref.priceTypes || []).find(t => t.code === 'distributor') || {}).id || null;
-  if (!costs.length) return '<div style="max-width:640px"><h2>Pricing</h2><p style="color:var(--text-3)">No products found.</p></div>';
-  if (_prVariantId == null || !costs.find(c => c.variantId === _prVariantId)) { const f = costs.find(c => c.has_bom) || costs[0]; _prVariantId = f.variantId; }
-  const opts = costs.map(c => '<option value="' + c.variantId + '"' + (c.variantId === _prVariantId ? ' selected' : '') + '>' + esc((c.productName || c.productCode) + ' — ' + (c.packSize || '')) + '</option>').join('');
-  return '<div style="max-width:640px">'
-    + '<h2 style="margin:0 0 2px">Pricing</h2>'
-    + '<p style="color:var(--text-3);font-size:13px;margin:0 0 16px">Pick a product and work on its price.</p>'
-    + '<div class="card">'
-    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><label style="font-size:13px;color:var(--text-2)">Product</label>'
-    + '<select id="pr-sel" onchange="_prSelect(this.value)" class="form-input" style="width:260px">' + opts + '</select></div>'
-    + '<div id="pr-ws"></div>'
-    + '</div></div>';
-}
+// (consolidated into renderPricesCosts 2026-07-06)
 function _prSelect(vid) { _prVariantId = parseInt(vid, 10); _prRenderWs(); }
 function _prRenderWs() {
   const c = (window._prCosts || []).find(x => x.variantId === _prVariantId);
@@ -11342,607 +11281,401 @@ async function renderPricesCosts() {
     return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
   }
 
-  let costs = [], cfg = {}, ings = [], history = [], alerts = [], variances = [];
-  try { costs    = await GET('/api/costing/standard-costs'); } catch(e) { costs = []; }
+  let costs = [], cfg = {}, history = [], alerts = [], variances = [], opcosts = {}, clines = [], pmRows = [];
+  try { costs     = await GET('/api/costing/standard-costs'); }        catch(e) { costs = []; }
+  try { cfg       = await GET('/api/costing/config'); }                catch(e) { cfg = {}; }
+  try { history   = await GET('/api/costing/price-history?limit=150'); } catch(e) { history = []; }
+  try { alerts    = await GET('/api/costing/margin-alerts'); }         catch(e) { alerts = []; }
+  try { variances = await GET('/api/costing/batch-variances?days=90'); } catch(e) { variances = []; }
+  try { opcosts   = await GET('/api/costing/operating-costs'); }       catch(e) { opcosts = {}; }
+  try { clines    = await GET('/api/costing/cost-lines'); }            catch(e) { clines = []; }
+  try { pmRows    = await GET('/api/admin/price-master'); }            catch(e) { pmRows = []; }
   window._pcCostsCache = costs;
-  try { cfg      = await GET('/api/costing/config'); } catch(e) { cfg = {}; }
-  try { ings     = await GET('/api/admin/ingredients'); } catch(e) { ings = []; }
-  try { history  = await GET('/api/costing/price-history?limit=150'); } catch(e) { history = []; }
-  try { alerts   = await GET('/api/costing/margin-alerts'); } catch(e) { alerts = []; }
-  try { variances= await GET('/api/costing/batch-variances?days=90'); } catch(e) { variances = []; }
-  let opcosts = {}; try { opcosts = await GET('/api/costing/operating-costs'); } catch(e) { opcosts = {}; }
-  window._pcOpData = opcosts;
+  window._prCosts      = costs;
+  window._ctLines      = clines;
+  window._pcOpData     = opcosts;
+  window._prDistTypeId = ((state.ref.priceTypes || []).find(t => t.code === 'distributor') || {}).id || null;
+  window._pcDistTypeId = window._prDistTypeId;
 
-  const activeIngs = ings.filter(i => i.active !== 0);
+  const floorPct = parseFloat((cfg.margin_floor_pct||{}).value || 30);
 
-  // --- KPI calculations ---
-  const skusCosted   = costs.filter(c => c.has_bom).length;
-  const skusTotal    = costs.length;
-  // Model B: judge health on the REAL margin (actual selling price), not the suggested MRP.
-  const belowFloor   = costs.filter(c => c.actual_below_floor && c.has_bom).length;
-  const _pricedSkus  = costs.filter(c => c.has_bom && c.actual_margin_pct != null);
-  const avgMargin    = _pricedSkus.length > 0
-    ? Math.round(_pricedSkus.reduce((s,c)=>s+c.actual_margin_pct,0) / _pricedSkus.length * 10) / 10
-    : 0;
-  const floorPct     = parseFloat((cfg.margin_floor_pct||{}).value || 30);
+  // ══════════════════════════════════════════════════════════════════
+  //  TAB 1 — SELLING PRICES  (guided single-SKU setter + full price matrix)
+  // ══════════════════════════════════════════════════════════════════
+  // (a) Guided setter — pick a product, set its price against cost-to-make (verdict).
+  if (_prVariantId == null || !costs.find(c => c.variantId === _prVariantId)) {
+    const f = costs.find(c => c.has_bom) || costs[0]; _prVariantId = f ? f.variantId : null;
+  }
+  const prOpts = costs.map(c => '<option value="' + c.variantId + '"' + (c.variantId === _prVariantId ? ' selected' : '') + '>' + esc((c.productName || c.productCode) + ' — ' + (c.packSize || '')) + '</option>').join('');
+  const guidedCard = costs.length
+    ? '<div class="card" style="margin-bottom:16px">'
+      + '<h3 style="margin:0 0 2px">Set a price</h3>'
+      + '<p style="color:var(--text-3);font-size:13px;margin:0 0 14px">Pick a product and work on its price against what it costs to make.</p>'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><label style="font-size:13px;color:var(--text-2)">Product</label>'
+      + '<select id="pr-sel" onchange="_prSelect(this.value)" class="form-input" style="width:280px">' + prOpts + '</select></div>'
+      + '<div id="pr-ws"></div>'
+      + '</div>'
+    : '<div class="card" style="margin-bottom:16px"><p style="color:var(--text-3)">No products found — add products with a BOM to set prices.</p></div>';
 
-  // --- KPI row ---
-  const kpiRow = `
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
-    ${_invKpi('SKUs Costed', skusCosted + ' / ' + skusTotal, 'with active BOMs', 'var(--cardamom)')}
-    ${_invKpi('Below Min Profit Margin', belowFloor, 'margin < ' + floorPct + '%', belowFloor > 0 ? 'var(--chili)' : 'var(--cardamom)')}
-    ${_invKpi('Avg Gross Margin', avgMargin + '%', 'across priced SKUs (actual price)', avgMargin >= floorPct ? 'var(--cardamom)' : 'var(--chili)')}
-    ${_invKpi('Config Keys', Object.keys(cfg).length, 'costing parameters set', 'var(--saffron)')}
-  </div>`;
+  // (b) Full price matrix (all SKUs × price types) — inline edit + CSV import/export.
+  const costByVariant = {};
+  costs.forEach(sc => { if (sc.variantId) costByVariant[sc.variantId] = sc; });
+  const ptCodes  = [...new Set(pmRows.map(r => r.price_type_code))];
+  const ptLabels = {};
+  pmRows.forEach(r => { ptLabels[r.price_type_code] = r.price_type_label; });
+  const byVariant = {};
+  pmRows.forEach(r => {
+    const key = r.product_code + '|' + r.pack_size;
+    if (!byVariant[key]) byVariant[key] = { product_code: r.product_code, product_name: r.product_name, pack_size: r.pack_size, variant_id: r.variant_id, prices: {} };
+    byVariant[key].prices[r.price_type_code] = { price: r.price, price_id: r.price_id, price_type_id: r.price_type_id };
+  });
+  const pmVariants = Object.values(byVariant);
+  const ptHeaders = ptCodes.map(pt => '<th style="padding:8px 12px;text-align:right;font-weight:600;min-width:110px">' + ptLabels[pt] + '</th>').join('');
+  let _lastProd = '';
+  const matrixRows = pmVariants.map(function(v) {
+    const isNew = v.product_code !== _lastProd; _lastProd = v.product_code;
+    const priceCells = ptCodes.map(function(pt) {
+      const entry = v.prices[pt] || {};
+      const val   = entry.price || 0;
+      const pvId  = v.variant_id;
+      const ptId  = entry.price_type_id || (pmRows.find(r => r.price_type_code === pt) || {}).price_type_id;
+      return '<td style="padding:6px 8px;text-align:right"><div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">'
+        + '<input type="number" min="0" step="0.01" id="pm-' + pvId + '-' + ptId + '" value="' + (val > 0 ? val : '') + '" placeholder="—" style="width:95px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:13px" onchange="pmMarkChanged(this,\'' + pvId + '\',\'' + ptId + '\')"></div></td>';
+    }).join('');
+    const sc = costByVariant[v.variant_id];
+    let costCell, marginCell;
+    if (!sc || sc.has_bom === false) {
+      costCell   = '<td style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:12px">— no BOM</td>';
+      marginCell = '<td style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:12px">—</td>';
+    } else {
+      const ctm = sc.cost_to_make || 0;
+      costCell = '<td style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text-2)">' + fmtPKR(ctm) + '</td>';
+      const dsPrice = (v.prices['ex_factory'] && v.prices['ex_factory'].price) || 0;
+      if (dsPrice > 0 && ctm > 0) {
+        const marginPct = ((dsPrice - ctm) / dsPrice * 100);
+        const mColor = marginPct >= floorPct ? '#2F855A' : (marginPct >= 0 ? '#C05621' : '#C53030');
+        const mBg    = marginPct >= floorPct ? '#F0FFF4' : (marginPct >= 0 ? '#FFFAF0' : '#FFF5F5');
+        marginCell = '<td style="padding:8px 10px;text-align:right"><span style="font-weight:600;font-size:12px;color:' + mColor + ';background:' + mBg + ';border-radius:4px;padding:2px 6px">' + marginPct.toFixed(1) + '%</span></td>';
+      } else {
+        marginCell = '<td style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:12px">—</td>';
+      }
+    }
+    const productCell = isNew
+      ? '<td style="padding:8px 10px;font-weight:700;color:var(--text-1);border-top:2px solid var(--border)">' + v.product_name + '<br><span style="font-size:11px;font-weight:400;color:var(--text-3)">' + v.product_code + '</span></td>'
+      : '<td style="padding:8px 10px;color:var(--text-3)"></td>';
+    return '<tr style="' + (isNew ? 'border-top:2px solid var(--border)' : 'border-top:1px solid #f0f0f0') + '">'
+      + productCell
+      + '<td style="padding:8px 10px;color:var(--text-2);font-size:13px">' + v.pack_size + '</td>'
+      + priceCells + costCell + marginCell
+      + '<td style="padding:6px 8px;text-align:center"><button class="btn btn-xs btn-outline" id="pm-save-' + v.variant_id + '" onclick="pmSaveRow(\'' + v.variant_id + '\')" style="display:none;color:var(--cardamom);border-color:var(--cardamom)">Save</button></td>'
+      + '</tr>';
+  }).join('');
+  const matrixCard = '<div class="card">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+      + '<div><h3 style="margin:0">Price matrix</h3><p style="font-size:12px;color:var(--text-3);margin:2px 0 0">All SKUs × price types. Edit inline (Save appears per row) or import/export CSV. Margin % = Direct Sale vs Cost to Make.</p></div>'
+      + '<div style="display:flex;gap:8px">'
+        + '<button class="btn btn-outline btn-sm" onclick="pmExportCSV()">' + ic('download',13) + ' Export CSV</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="pmShowImport()">' + ic('upload',13) + ' Import CSV</button>'
+      + '</div>'
+    + '</div>'
+    + '<div id="pm-import-panel" style="display:none;background:var(--saffron-pale);border:1px solid var(--saffron);border-radius:8px;padding:14px;margin-bottom:14px">'
+      + '<h4 style="margin:0 0 8px">Import prices from CSV</h4>'
+      + '<p style="font-size:13px;color:var(--text-2);margin:0 0 10px">Columns: <code>product_code, pack_size, price_type, price</code> (optional <code>effective_from</code>). Price types: <strong>' + ptCodes.join(', ') + '</strong>.</p>'
+      + '<textarea id="pm-csv-input" rows="8" placeholder="Paste CSV here, or use Export CSV for the template…" style="width:100%;font-family:monospace;font-size:12px;border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical"></textarea>'
+      + '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary btn-sm" onclick="pmParseCSV()">Preview changes</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="document.getElementById(\'pm-import-panel\').style.display=\'none\'">Cancel</button></div>'
+      + '<div id="pm-import-preview" style="margin-top:12px"></div>'
+    + '</div>'
+    + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">'
+      + '<thead><tr style="background:var(--surface-2)">'
+        + '<th style="padding:8px 10px;text-align:left;font-weight:600">Product</th>'
+        + '<th style="padding:8px 10px;text-align:left;font-weight:600">Pack Size</th>'
+        + ptHeaders
+        + '<th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--text-2);min-width:90px">Cost to Make</th>'
+        + '<th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--text-2);min-width:80px" title="Direct Sale margin vs Cost to Make. Green ≥ ' + floorPct + '%, orange ≥ 0%, red = loss.">Margin %</th>'
+        + '<th style="padding:8px 10px;width:60px"></th>'
+      + '</tr></thead>'
+      + '<tbody id="pm-table-body">' + (matrixRows || '<tr><td colspan="' + (ptCodes.length + 5) + '" style="text-align:center;color:var(--text-3);padding:20px">No price rows yet.</td></tr>') + '</tbody>'
+      + '</table></div>'
+    + '<div id="pm-save-msg" style="margin-top:10px"></div>'
+    + '</div>';
+  const sellPane = '<div id="pc-pane-sell">' + guidedCard + matrixCard + '</div>';
 
-  // --- STANDARD COSTS TAB ---
-  const costRows = costs.length ? costs.map(c => {
-    const flagStyle = c.actual_below_floor ? 'color:var(--chili);font-weight:700' : 'color:var(--cardamom)';
-    const bomBadge  = c.has_bom
-      ? `<span class="badge badge-ok">BOM</span>`
-      : `<span class="badge badge-out">No BOM</span>`;
-    return `<tr>
-      <td><strong style="font-family:monospace">${c.productCode||'—'}</strong></td>
-      <td>${c.productName||'—'}</td>
-      <td>${c.packSize||'—'}</td>
-      <td>${bomBadge}</td>
-      <td class="text-right">${c.has_bom ? fmtPKR(c.rm_cost) : '—'}</td>
-      <td class="text-right">${c.has_bom && c.wastage_adj > 0 ? fmtPKR(c.wastage_adj) : '—'}</td>
-      <td class="text-right">${c.has_bom ? fmtPKR(c.overhead||0) + ' <span style="color:var(--text-3);font-size:11px">(' + (c.overhead_pct_of_cost||0) + '% of cost)</span>' : '—'}</td>
-      <td class="text-right"><strong>${c.has_bom ? fmtPKR(c.cost_to_make) : '—'}</strong></td>
-      <td class="text-right">${c.has_bom ? (c.has_live ? fmtPKR(c.live_cost_to_make) : '<span style="color:var(--text-3)" title="No monthly costs recorded yet">—</span>') : '—'}</td>
-      <td class="text-right">${c.has_bom && c.has_live ? '<span style="color:' + ((c.live_variance_pct||0) > 0 ? 'var(--chili)' : 'var(--cardamom)') + ';font-weight:700">' + ((c.live_variance_pct||0) > 0 ? '+' : '') + (c.live_variance_pct||0).toFixed(1) + '%</span>' : '—'}</td>
-      <td class="text-right">${c.has_bom ? fmtPKR(c.direct_sale) : '—'}</td>
-      <td class="text-right">${c.has_bom ? fmtPKR(c.distributor) : '—'}</td>
-      <td class="text-right">${c.has_bom ? fmtPKR(c.mrp) : '—'}</td>
-      <td class="text-right" style="${flagStyle}">${c.has_bom ? (c.actual_margin_pct==null ? '<span style="color:var(--text-3)" title="No selling price set">—</span>' : c.actual_margin_pct.toFixed(1)+'%') : '—'}</td>
-      <td>${c.has_bom && c.actual_below_floor ? '<span style="color:var(--chili);font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Below min profit margin</span>' : ''}</td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="15" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>`;
+  // ══════════════════════════════════════════════════════════════════
+  //  TAB 2 — COSTS  (cost lines + monthly actuals, normal volume, wastage, ingredient link)
+  // ══════════════════════════════════════════════════════════════════
+  const ocMonths = opcosts.months || [];
+  const ctCur = (ocMonths.find(m => m.month === _ctMonth) || {}).categories || {};
+  const ctVal = nm => { const v = ctCur[(nm || '').toLowerCase()]; return v != null ? v : ''; };
+  const ctMset = new Set(ocMonths.map(m => m.month)); ctMset.add(_ctMonth);
+  const ctMonthOpts = [...ctMset].sort().reverse().map(m => '<option value="' + m + '"' + (m === _ctMonth ? ' selected' : '') + '>' + m + '</option>').join('');
+  const ctRow = l => '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:6px 0">'
+    + '<span style="font-size:14px">' + esc(l.name) + '</span>'
+    + '<span style="display:flex;align-items:center;gap:6px">₨ '
+    + '<input id="ct-in-' + l.id + '" data-bucket="' + l.bucket + '" type="number" min="0" step="1" value="' + ctVal(l.name) + '" oninput="_ctTotals()" class="form-input" style="width:120px;text-align:right">'
+    + '<button class="btn btn-xs btn-outline" title="Remove line" onclick="_ctDeleteLine(' + l.id + ')">' + ic('x',13) + '</button></span></div>';
+  const ctGrp = (bucket, label, tint) => {
+    const ls = clines.filter(l => l.bucket === bucket);
+    return '<div style="margin:16px 0 6px"><span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;' + tint + '">' + label + '</span></div>'
+      + (ls.map(ctRow).join('') || '<div style="color:var(--text-3);font-size:12px">No lines yet.</div>');
+  };
+  const opNormal = (opcosts.normal_monthly_volume != null ? opcosts.normal_monthly_volume : 600);
+  const costsLinesCard = '<div class="card" style="margin-bottom:16px">'
+    + '<h3 style="margin:0 0 2px">Monthly spend</h3>'
+    + '<p style="color:var(--text-3);font-size:13px;margin:0 0 12px">Record what you actually spent, month by month. Variable lines feed cost-per-pack; fixed lines are absorbed over your normal volume; tracked lines are logged only.</p>'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><label style="font-size:13px;color:var(--text-2)">Month</label>'
+    + '<select id="ct-month" onchange="_ctChangeMonth(this.value)" class="form-input" style="width:150px">' + ctMonthOpts + '</select></div>'
+    + ctGrp('variable', 'Variable — scales with production', 'background:#e8f0fe;color:#1a73e8')
+    + ctGrp('fixed', 'Fixed — roughly the same every month', 'background:#fff3e0;color:#e65100')
+    + ctGrp('tracking', 'Other tracked — not in product cost', 'background:#eee;color:#555')
+    + '<div id="ct-addbox" style="margin-top:12px"></div>'
+    + '<button class="btn btn-sm btn-outline" style="margin-top:10px" onclick="_ctShowAdd()">+ Add cost line</button>'
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px">'
+    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Variable</div><div id="ct-t-var" style="font-size:20px;font-weight:700">₨0</div></div>'
+    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Fixed</div><div id="ct-t-fix" style="font-size:20px;font-weight:700">₨0</div></div>'
+    + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Total this month</div><div id="ct-t-all" style="font-size:20px;font-weight:700">₨0</div></div>'
+    + '</div>'
+    + '<div style="margin-top:14px"><button class="btn btn-primary" onclick="_ctSaveMonth()">Save month</button> <span id="ct-msg" style="font-size:12px;margin-left:8px"></span></div>'
+    + '</div>';
+  const volCard = '<div class="card" style="margin-bottom:16px">'
+    + '<h3 style="margin:0 0 2px">Normal monthly volume</h3>'
+    + '<p style="color:var(--text-3);font-size:13px;margin:0 0 10px">Fixed monthly costs are spread over this many packs to get a per-pack figure. Make more packs → per-pack fixed cost falls.</p>'
+    + '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px">Packs / month:</span>'
+    + '<input id="pc-op-volume" type="number" min="1" step="1" value="' + opNormal + '" class="form-input" style="width:120px;text-align:right">'
+    + '<button class="btn btn-sm btn-outline" onclick="_pcOpSaveVolume()">Save</button> <span id="pc-op-vol-msg" style="font-size:11px"></span></div>'
+    + '</div>';
+  const ingLinkCard = '<div class="card" style="margin-bottom:16px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">'
+      + '<div><h3 style="margin:0 0 2px">Ingredient prices</h3><p style="color:var(--text-3);font-size:13px;margin:0">Raw-material ₨/kg drives the recipe cost. Edit them on the Ingredients screen.</p></div>'
+      + '<button class="btn btn-outline btn-sm" onclick="nav(\'ingredients-admin\')">Edit ingredient prices →</button>'
+    + '</div></div>';
+  const wastageRows = costs.map(c => {
+    const wpct = ((c.wastage_pct||0)*100).toFixed(1);
+    return '<tr id="pc-wst-row-' + c.skuCode + '">'
+      + '<td><strong>' + (c.productName||'—') + '</strong></td>'
+      + '<td style="font-family:monospace;font-size:12px">' + (c.skuCode||'—') + '</td>'
+      + '<td>' + (c.packSize||'—') + '</td>'
+      + '<td class="text-right"><strong>' + wpct + '%</strong></td>'
+      + '<td><button class="btn btn-xs btn-outline" onclick="pcWastageEdit(\'' + c.skuCode + '\',' + (c.wastage_pct||0) + ')">Edit</button></td>'
+      + '</tr>'
+      + '<tr id="pc-wst-edit-' + c.skuCode + '" style="display:none"><td colspan="5" style="padding:0">'
+        + '<div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">'
+          + '<div id="pc-wst-msg-' + c.skuCode + '" style="margin-bottom:6px"></div>'
+          + '<div style="display:flex;align-items:flex-end;gap:12px">'
+            + '<div><label style="font-size:12px;display:block;margin-bottom:4px">Wastage % for ' + (c.productName||c.skuCode) + '</label>'
+              + '<div style="display:flex;align-items:center;gap:6px"><input id="pc-wst-val-' + c.skuCode + '" type="number" min="0" max="99" step="0.1" class="form-input" style="width:100px" value="' + wpct + '"><span style="font-size:13px">%</span></div>'
+              + '<span style="font-size:11px;color:var(--text-3);display:block;margin-top:2px">0 = no wastage · stored as decimal internally</span></div>'
+            + '<button class="btn btn-primary btn-sm" onclick="pcWastageSave(\'' + c.skuCode + '\')">Save</button>'
+            + '<button class="btn btn-outline btn-sm" onclick="pcWastageCancel(\'' + c.skuCode + '\')">Cancel</button>'
+          + '</div></div>'
+      + '</td></tr>';
+  }).join('');
+  const wastageCard = '<div class="card">'
+    + '<h3 style="margin:0 0 4px">Wastage % by product</h3>'
+    + '<p style="font-size:12px;color:var(--text-3);margin-bottom:12px">Raw material lost per batch (roasting, blending, handling), applied to RM cost. Enter e.g. <strong>12</strong> for 12%. Update as you collect real batch data.</p>'
+    + '<div class="table-wrap"><table><thead><tr><th>Product</th><th>SKU</th><th>Pack Size</th><th class="text-right">Wastage %</th><th>Action</th></tr></thead>'
+    + '<tbody>' + (wastageRows || '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:16px">No SKUs yet.</td></tr>') + '</tbody></table></div>'
+    + '</div>';
+  const costsPane = '<div id="pc-pane-costs" style="display:none">' + costsLinesCard + volCard + ingLinkCard + wastageCard + '</div>';
+
+  // ══════════════════════════════════════════════════════════════════
+  //  TAB 3 — MARGINS  (health: standard costs, markups, alerts, variance, history)
+  // ══════════════════════════════════════════════════════════════════
+  const skusCosted = costs.filter(c => c.has_bom).length;
+  const skusTotal  = costs.length;
+  const belowFloor = costs.filter(c => c.actual_below_floor && c.has_bom).length;
+  const _pricedSkus = costs.filter(c => c.has_bom && c.actual_margin_pct != null);
+  const avgMargin = _pricedSkus.length > 0 ? Math.round(_pricedSkus.reduce((s,c)=>s+c.actual_margin_pct,0) / _pricedSkus.length * 10) / 10 : 0;
+  const kpiRow = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">'
+    + _invKpi('SKUs Costed', skusCosted + ' / ' + skusTotal, 'with active BOMs', 'var(--cardamom)')
+    + _invKpi('Below Min Profit Margin', belowFloor, 'margin < ' + floorPct + '%', belowFloor > 0 ? 'var(--chili)' : 'var(--cardamom)')
+    + _invKpi('Avg Gross Margin', avgMargin + '%', 'across priced SKUs (actual price)', avgMargin >= floorPct ? 'var(--cardamom)' : 'var(--chili)')
+    + _invKpi('Config Keys', Object.keys(cfg).length, 'costing parameters set', 'var(--saffron)')
+    + '</div>';
 
   const _mfr  = parseFloat((cfg.margin_mfr  || {}).value || 1.30);
   const _dist = parseFloat((cfg.margin_dist || {}).value || 1.10);
   const _mrpM = parseFloat((cfg.margin_mrp  || {}).value || 1.22);
   const _combo = (_mfr * _dist * _mrpM).toFixed(2);
-  const standardTab = `
-  <div id="pc-pane-standard" style="display:none">
-    ${kpiRow}
-    <div class="card">
-      <h3 style="margin-bottom:12px">Standard Cost Breakdown — All SKUs</h3>
-      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">Computed from active BOMs + current ingredient costs + costing parameters. Read-only — update costs in the Ingredient Costs tab.</p>
-      <details style="margin-bottom:14px;border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--surface)">
-        <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--saffron-deep)">How is MRP calculated?</summary>
-        <div style="font-size:13px;color:var(--text-2);line-height:1.7;margin-top:8px">
-          MRP is built up from the cost to make a pack, adding a markup at each trade level. The three multipliers are set in <b>Markups</b> (Advanced).
-          <ol style="margin:8px 0 6px 18px;padding:0">
-            <li><b>Cost to Make</b> = raw materials (from the BOM) + packaging + conversion + overhead</li>
-            <li><b>Direct Sale</b> = Cost to Make × <b>${_mfr}</b> &nbsp;<span style="color:var(--text-3)">(Direct Sale Margin)</span></li>
-            <li><b>Distributor</b> = Direct Sale × <b>${_dist}</b> &nbsp;<span style="color:var(--text-3)">(Distributor Margin)</span></li>
-            <li><b>MRP</b> = Distributor × <b>${_mrpM}</b> &nbsp;<span style="color:var(--text-3)">(MRP Margin)</span></li>
-          </ol>
-          Net effect: <b>MRP ≈ Cost to Make × ${_combo}</b>. &nbsp; Gross Margin shown = (MRP − Cost to Make) ÷ MRP.
-          <br><span style="color:var(--text-3)">MRP here is pre-tax — GST is added at invoicing, not in this figure.</span>
-        </div>
-      </details>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>Code</th><th>Product</th><th>Pack Size</th><th>BOM</th>
-            <th class="text-right">RM Cost</th>
-            <th class="text-right">Wastage Adj</th>
-            <th class="text-right">Fixed/pack</th>
-            <th class="text-right">Cost to Make</th>
-            <th class="text-right" title="LIVE cost = raw materials + packaging + your ACTUAL monthly conversion/overhead ÷ normal volume. A reference so you can set the MRP against reality — it does NOT change the price.">Live Cost</th>
-            <th class="text-right" title="How far the live (actual) cost is from the standard. + = actual running above standard.">&Delta;</th>
-            <th class="text-right">Direct Sale</th>
-            <th class="text-right">Distributor</th>
-            <th class="text-right">MRP</th>
-            <th class="text-right">Gross Margin</th>
-            <th>Alert</th>
-          </tr></thead>
-          <tbody>${costRows}</tbody>
-        </table>
-      </div>
-    </div>
-  </div>`;
+  const costRows = costs.length ? costs.map(c => {
+    const flagStyle = c.actual_below_floor ? 'color:var(--chili);font-weight:700' : 'color:var(--cardamom)';
+    const bomBadge  = c.has_bom ? '<span class="badge badge-ok">BOM</span>' : '<span class="badge badge-out">No BOM</span>';
+    return '<tr>'
+      + '<td><strong style="font-family:monospace">' + (c.productCode||'—') + '</strong></td>'
+      + '<td>' + (c.productName||'—') + '</td>'
+      + '<td>' + (c.packSize||'—') + '</td>'
+      + '<td>' + bomBadge + '</td>'
+      + '<td class="text-right">' + (c.has_bom ? fmtPKR(c.rm_cost) : '—') + '</td>'
+      + '<td class="text-right">' + (c.has_bom && c.wastage_adj > 0 ? fmtPKR(c.wastage_adj) : '—') + '</td>'
+      + '<td class="text-right">' + (c.has_bom ? fmtPKR(c.overhead||0) + ' <span style="color:var(--text-3);font-size:11px">(' + (c.overhead_pct_of_cost||0) + '% of cost)</span>' : '—') + '</td>'
+      + '<td class="text-right"><strong>' + (c.has_bom ? fmtPKR(c.cost_to_make) : '—') + '</strong></td>'
+      + '<td class="text-right">' + (c.has_bom ? (c.has_live ? fmtPKR(c.live_cost_to_make) : '<span style="color:var(--text-3)" title="No monthly costs recorded yet">—</span>') : '—') + '</td>'
+      + '<td class="text-right">' + (c.has_bom && c.has_live ? '<span style="color:' + ((c.live_variance_pct||0) > 0 ? 'var(--chili)' : 'var(--cardamom)') + ';font-weight:700">' + ((c.live_variance_pct||0) > 0 ? '+' : '') + (c.live_variance_pct||0).toFixed(1) + '%</span>' : '—') + '</td>'
+      + '<td class="text-right">' + (c.has_bom ? fmtPKR(c.direct_sale) : '—') + '</td>'
+      + '<td class="text-right">' + (c.has_bom ? fmtPKR(c.distributor) : '—') + '</td>'
+      + '<td class="text-right">' + (c.has_bom ? fmtPKR(c.mrp) : '—') + '</td>'
+      + '<td class="text-right" style="' + flagStyle + '">' + (c.has_bom ? (c.actual_margin_pct==null ? '<span style="color:var(--text-3)" title="No selling price set">—</span>' : c.actual_margin_pct.toFixed(1)+'%') : '—') + '</td>'
+      + '<td>' + (c.has_bom && c.actual_below_floor ? '<span style="color:var(--chili);font-size:13px">' + ic('alert-triangle',13) + ' Below min profit margin</span>' : '') + '</td>'
+      + '</tr>';
+  }).join('') : '<tr><td colspan="15" style="text-align:center;color:var(--text-3);padding:24px">No SKUs found — add products with BOMs to see costs here</td></tr>';
+  const standardCard = '<div class="card">'
+    + '<h3 style="margin-bottom:12px">Standard cost breakdown — all SKUs</h3>'
+    + '<p style="font-size:12px;color:var(--text-3);margin-bottom:12px">Computed from active BOMs + current ingredient costs + your cost lines. Read-only — update inputs on the Costs tab.</p>'
+    + '<details style="margin-bottom:14px;border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--surface)">'
+      + '<summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--saffron-deep)">How is MRP calculated?</summary>'
+      + '<div style="font-size:13px;color:var(--text-2);line-height:1.7;margin-top:8px">MRP is built up from the cost to make a pack, adding a markup at each trade level (multipliers set in the Markups section below).'
+        + '<ol style="margin:8px 0 6px 18px;padding:0">'
+        + '<li><b>Cost to Make</b> = raw materials (BOM) + packaging + conversion + overhead</li>'
+        + '<li><b>Direct Sale</b> = Cost to Make × <b>' + _mfr + '</b></li>'
+        + '<li><b>Distributor</b> = Direct Sale × <b>' + _dist + '</b></li>'
+        + '<li><b>MRP</b> = Distributor × <b>' + _mrpM + '</b></li>'
+        + '</ol>Net effect: <b>MRP ≈ Cost to Make × ' + _combo + '</b>. Gross Margin = (MRP − Cost to Make) ÷ MRP.'
+        + '<br><span style="color:var(--text-3)">MRP here is pre-tax — GST is added at invoicing.</span></div>'
+    + '</details>'
+    + '<div class="table-wrap"><table><thead><tr>'
+      + '<th>Code</th><th>Product</th><th>Pack Size</th><th>BOM</th>'
+      + '<th class="text-right">RM Cost</th><th class="text-right">Wastage Adj</th><th class="text-right">Fixed/pack</th>'
+      + '<th class="text-right">Cost to Make</th>'
+      + '<th class="text-right" title="LIVE cost = raw materials + packaging + your ACTUAL monthly conversion/overhead ÷ normal volume. A reference — it does NOT change the price.">Live Cost</th>'
+      + '<th class="text-right" title="How far the live (actual) cost is from the standard. + = actual running above standard.">&Delta;</th>'
+      + '<th class="text-right">Direct Sale</th><th class="text-right">Distributor</th><th class="text-right">MRP</th>'
+      + '<th class="text-right">Gross Margin</th><th>Alert</th>'
+    + '</tr></thead><tbody>' + costRows + '</tbody></table></div>'
+    + '</div>';
 
-  // --- INGREDIENT COSTS TAB ---
-  const ingRows = activeIngs.map(i => `
-  <tr id="pc-ing-row-${i.id}">
-    <td><strong style="font-family:monospace">${i.code}</strong>${i.name ? `<br><span style="font-size:11px;color:var(--text-2)">${i.name}</span>` : ''}</td>
-    <td class="text-right"><strong>${fmtPKR(i.cost_per_kg)}/kg</strong></td>
-    <td>${i.unit||'kg'}</td>
-    <td style="white-space:nowrap">
-      <button class="btn btn-xs btn-outline" onclick="pcIngShowEdit(${i.id},'${i.code}',${i.cost_per_kg||0})">Edit Cost</button>
-    </td>
-  </tr>
-  <tr id="pc-ing-edit-${i.id}" style="display:none">
-    <td colspan="4" style="padding:0">
-      <div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">
-        <div id="pc-ing-msg-${i.id}" style="margin-bottom:6px"></div>
-        <div style="display:flex;align-items:flex-end;gap:12px">
-          <div><label style="font-size:12px;display:block;margin-bottom:4px">New Cost/kg (PKR)</label>
-            <input id="pc-ie-cost-${i.id}" type="number" min="0" step="0.01" class="form-input" style="width:140px" value="${i.cost_per_kg||0}">
-          </div>
-          <div><label style="font-size:12px;display:block;margin-bottom:4px">Note (optional)</label>
-            <input id="pc-ie-note-${i.id}" type="text" class="form-input" style="width:220px" placeholder="e.g. Supplier price increase">
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="pcIngSaveCost(${i.id},'${i.code}')">Save</button>
-          <button class="btn btn-outline btn-sm" onclick="pcIngCancelEdit(${i.id})">Cancel</button>
-        </div>
-      </div>
-    </td>
-  </tr>`).join('');
-
-  const ingredientsTab = `
-  <div id="pc-pane-ingredients" style="display:none">
-    <div class="card mb-16">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div>
-          <h3 style="margin:0">Ingredient Costs (${activeIngs.length})</h3>
-          <p style="font-size:12px;color:var(--text-3);margin:4px 0 0">Edit individual costs inline, or upload a CSV for bulk update.</p>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <label class="btn btn-outline btn-sm" style="cursor:pointer">
-            ${ic('upload',13)} Upload CSV
-            <input type="file" id="pc-csv-input" accept=".csv" style="display:none" onchange="pcHandleCsvUpload(this)">
-          </label>
-          <button class="btn btn-outline btn-sm" onclick="pcShowCsvHelp()">CSV Format</button>
-        </div>
-      </div>
-      <div id="pc-csv-msg" style="margin-bottom:8px"></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Code</th><th class="text-right">Cost/kg</th><th>Unit</th><th>Actions</th></tr></thead>
-          <tbody>${ingRows || '<tr><td colspan="4" style="text-align:center;color:var(--text-3)">No active ingredients</td></tr>'}</tbody>
-        </table>
-      </div>
-    </div>
-
-    <div id="pc-csv-help" class="card" style="display:none;background:var(--saffron-pale);border:1px solid var(--saffron)">
-      <h4 style="margin-bottom:8px">CSV Format for Bulk Cost Upload</h4>
-      <p style="font-size:13px;margin-bottom:8px">File must have a header row with columns: <code>code</code>, <code>cost_per_kg</code></p>
-      <pre style="background:#fff;border:1px solid var(--border);padding:10px;border-radius:4px;font-size:12px">code,cost_per_kg
-SP-ING001,1850.00
-SP-ING002,2100.50
-SP-ING003,950.00</pre>
-      <p style="font-size:12px;color:var(--text-3);margin-top:8px">Codes not found in the system are skipped. Each change is logged with your username and timestamp.</p>
-      <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="document.getElementById('pc-csv-help').style.display='none'">Close</button>
-    </div>
-  </div>`;
-
-  // --- COST PARAMETERS TAB ---
-  // Color tag helper: Per Unit=blue, % Based=orange, Pricing=green
+  // Markups editor (reuses pcCfg* helpers + _cfgRowsFor)
   const _cfgTag = (type) => {
-    const tags = {
-      'per-unit': { label: 'Per Unit',  bg: '#e8f0fe', color: '#1a73e8' },
-      'variable': { label: 'Variable',  bg: '#e8f0fe', color: '#1a73e8' },
-      'fixed':    { label: 'Fixed/mo',  bg: '#fff3e0', color: '#e65100' },
-      'pct':      { label: '% Based',  bg: '#fff3e0', color: '#e65100' },
-      'pricing':  { label: 'Pricing',  bg: '#e8f5e9', color: '#2e7d32' },
-    };
+    const tags = { 'pricing': { label: 'Pricing', bg: '#e8f5e9', color: '#2e7d32' } };
     const t = tags[type] || tags['pricing'];
     return '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:' + t.bg + ';color:' + t.color + '">' + t.label + '</span>';
   };
-
-  // VARIABLE standards (₨ per pack — scale with each pack made). Drive the standard cost directly.
-  const varCfgLabels = {
-    pkg_pouch:        { label: 'Packaging — Pouch',          unit: 'PKR', note: 'Cost of the pouch, per pack', tag: 'variable' },
-    pkg_label:        { label: 'Packaging — Adhesive Label', unit: 'PKR', note: 'Label cost, per pack', tag: 'variable' },
-    pkg_carton:       { label: 'Packaging — Master Carton',  unit: 'PKR', note: 'Per-pack share of the master carton', tag: 'variable' },
-    conv_labour:      { label: 'Labour (temp/production)',   unit: 'PKR', note: 'Temp/casual labour paid per run, per pack', tag: 'variable' },
-    conv_gas:         { label: 'Gas',                        unit: 'PKR', note: 'Gas used in production, per pack', tag: 'variable' },
-    conv_electricity: { label: 'Electricity',               unit: 'PKR', note: 'Electricity used in production, per pack', tag: 'variable' },
-  };
-  // FIXED standards (₨ per MONTH — don't move with output). Absorbed ÷ normal volume → per pack.
-  const fixCfgLabels = {
-    fix_salaries:     { label: 'Salaries (permanent staff)', unit: 'PKR/mo', note: 'Monthly permanent payroll', tag: 'fixed', monthly: true },
-    fix_rent:         { label: 'Rent',                       unit: 'PKR/mo', note: 'Monthly rent', tag: 'fixed', monthly: true },
-    fix_transport:    { label: 'Transport (own vehicle)',    unit: 'PKR/mo', note: 'Monthly vehicle cost (fuel, upkeep)', tag: 'fixed', monthly: true },
-    fix_admin:        { label: 'Admin',                      unit: 'PKR/mo', note: 'Monthly admin / overhead', tag: 'fixed', monthly: true },
-  };
-
-  // Markups live in the Pricing tab (not Cost Parameters) — cost and price kept separate.
   const markupLabels = {
     margin_mfr:       { label: 'Direct Sale Margin',    unit: '×', note: 'Direct Sale = Cost to Make × this multiplier', tag: 'pricing' },
     margin_dist:      { label: 'Distributor Margin',    unit: '×', note: 'Distributor price = Direct Sale × this', tag: 'pricing' },
     margin_mrp:       { label: 'MRP Margin',            unit: '×', note: 'MRP = Distributor × this', tag: 'pricing' },
     margin_floor_pct: { label: 'Minimum Profit Margin', unit: '%', note: 'Profit Margin Alert fires if gross margin drops below this', tag: 'pricing' },
   };
-
-  const _cfgRowsFor = (labels, normVol) => Object.entries(labels).map(([key, meta]) => {
+  const markupRows = Object.entries(markupLabels).map(([key, meta]) => {
     const row    = cfg[key] || {};
     const rawVal = parseFloat(row.value || 0);
-    const dispVal = meta.scale ? (rawVal * meta.scale).toFixed(1) : rawVal;
     const updatedAt = row.updated_at ? ' · updated ' + fmtDate(row.updated_at) + (row.updated_by ? ' by ' + row.updated_by : '') : '';
-    // Fixed (monthly) lines show the monthly figure PLUS the derived per-pack (÷ normal volume).
-    const valueCell = (meta.monthly && normVol)
-      ? '<strong style="font-size:15px">' + fmtPKR(rawVal) + '/mo</strong><br><span style="font-size:12px;color:var(--saffron-deep)">= ' + fmtPKR(rawVal / normVol) + '/pack</span><br><span style="font-size:10px;color:var(--text-3)">÷ ' + normVol + updatedAt + '</span>'
-      : '<strong style="font-size:16px">' + dispVal + ' ' + meta.unit + '</strong><br><span style="font-size:11px;color:var(--text-3)">' + updatedAt + '</span>';
-    return `
-    <tr id="pc-cfg-row-${key}">
-      <td>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
-          <strong>${meta.label}</strong>${_cfgTag(meta.tag)}
-        </div>
-        <span style="font-size:11px;color:var(--text-3)">${meta.note}</span>
-      </td>
-      <td class="text-right">${valueCell}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-xs btn-outline" onclick="pcCfgShowEdit('${key}',${rawVal})">Edit</button>
-      </td>
-    </tr>
-    <tr id="pc-cfg-edit-${key}" style="display:none">
-      <td colspan="3" style="padding:0">
-        <div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">
-          <div id="pc-cfg-msg-${key}" style="margin-bottom:6px"></div>
-          <div style="display:flex;align-items:flex-end;gap:12px">
-            <div>
-              <label style="font-size:12px;display:block;margin-bottom:4px">${meta.label} (${meta.unit})</label>
-              <input id="pc-cfg-val-${key}" type="number" min="0" step="${meta.unit==='%'?'0.1':'0.01'}" class="form-input" style="width:140px" value="${dispVal}">
-              ${meta.scale ? '<span style="font-size:11px;color:var(--text-3);display:block;margin-top:2px">Stored as decimal (' + dispVal + ' ' + meta.unit + ' = ' + rawVal + ')</span>' : ''}
-            </div>
-            <button class="btn btn-primary btn-sm" onclick="pcCfgSave('${key}',${meta.scale||1})">Save</button>
-            <button class="btn btn-outline btn-sm" onclick="pcCfgCancelEdit('${key}')">Cancel</button>
-          </div>
-        </div>
-      </td>
-    </tr>`;
+    return '<tr id="pc-cfg-row-' + key + '">'
+      + '<td><div style="display:flex;align-items:center;gap:8px;margin-bottom:2px"><strong>' + meta.label + '</strong>' + _cfgTag(meta.tag) + '</div>'
+        + '<span style="font-size:11px;color:var(--text-3)">' + meta.note + '</span></td>'
+      + '<td class="text-right"><strong style="font-size:16px">' + rawVal + ' ' + meta.unit + '</strong><br><span style="font-size:11px;color:var(--text-3)">' + updatedAt + '</span></td>'
+      + '<td style="white-space:nowrap"><button class="btn btn-xs btn-outline" onclick="pcCfgShowEdit(\'' + key + '\',' + rawVal + ')">Edit</button></td>'
+      + '</tr>'
+      + '<tr id="pc-cfg-edit-' + key + '" style="display:none"><td colspan="3" style="padding:0">'
+        + '<div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">'
+          + '<div id="pc-cfg-msg-' + key + '" style="margin-bottom:6px"></div>'
+          + '<div style="display:flex;align-items:flex-end;gap:12px">'
+            + '<div><label style="font-size:12px;display:block;margin-bottom:4px">' + meta.label + ' (' + meta.unit + ')</label>'
+              + '<input id="pc-cfg-val-' + key + '" type="number" min="0" step="' + (meta.unit==='%'?'0.1':'0.01') + '" class="form-input" style="width:140px" value="' + rawVal + '"></div>'
+            + '<button class="btn btn-primary btn-sm" onclick="pcCfgSave(\'' + key + '\',1)">Save</button>'
+            + '<button class="btn btn-outline btn-sm" onclick="pcCfgCancelEdit(\'' + key + '\')">Cancel</button>'
+          + '</div></div>'
+      + '</td></tr>';
   }).join('');
-
-  const varCfgRows = _cfgRowsFor(varCfgLabels);
-  const markupRows = _cfgRowsFor(markupLabels);
-
-  const markupsTab = `
-  <div id="pc-pane-markups" style="display:none">
-    <div class="card">
-      <h3 style="margin:0 0 4px">Markups (Pricing)</h3>
-      <p style="font-size:12px;color:var(--text-3);margin-bottom:16px">How selling prices are built up from cost — each markup adds margin at a trade level (Direct Sale → Distributor → MRP). For an easier percentage view, use the <b>Overview</b> tab. Changes are logged.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Setting</th><th class="text-right">Current Value</th><th>Action</th></tr></thead>
-          <tbody>${markupRows}</tbody>
-        </table>
-      </div>
-    </div>
-  </div>`;
-
-  // ── Operating Costs (monthly) — record actuals, derive per-pack rates ──
-  const _OPCATS = [['labour','Labour (temp)'],['gas','Gas'],['electricity','Electricity'],['salaries','Salaries'],['rent','Rent'],['transport','Transport'],['admin','Admin']];
-  const opNormal  = (opcosts.normal_monthly_volume != null ? opcosts.normal_monthly_volume : 600);
-  const fixCfgRows = _cfgRowsFor(fixCfgLabels, opNormal);   // fixed monthly standards → per-pack ÷ opNormal
-  const opMonths  = opcosts.months || [];
-  const opDerived = opcosts.derived_per_pack || {};
-  const _opThisMonth = new Date().toISOString().slice(0, 7);
-  const _opCur = (opMonths.find(m => m.month === _opThisMonth) || {}).categories || {};
-  const opInputs = _OPCATS.map(function(p){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:4px 0;font-size:13px"><span>' + p[1] + '</span><span>₨ <input id="pc-op-' + p[0] + '" type="number" min="0" step="1" value="' + (_opCur[p[0]] != null ? _opCur[p[0]] : '') + '" class="form-input" style="width:110px;text-align:right"></span></div>'; }).join('');
-  const opHistRows = opMonths.map(function(m){ return '<tr><td>' + m.month + '</td>' + _OPCATS.map(function(p){ return '<td class="text-right">' + (m.categories[p[0]] != null ? fmtPKR(m.categories[p[0]]) : '—') + '</td>'; }).join('') + '<td class="text-right"><b>' + fmtPKR(m.total) + '</b></td></tr>'; }).join('') || ('<tr><td colspan="9" style="text-align:center;color:var(--text-3);padding:16px">No months recorded yet.</td></tr>');
-  const opDerivedRows = _OPCATS.filter(function(p){ return opDerived[p[0]] != null; }).map(function(p){ return '<div style="display:flex;justify-content:space-between;font-size:13px;margin:2px 0"><span>' + p[1] + '</span><b>' + fmtPKR(opDerived[p[0]]) + '/pack</b></div>'; }).join('');
-  const opcostsTab = '<div id="pc-pane-opcosts" style="display:none">'
-    + '<div class="card"><h3 style="margin:0 0 4px">Operating Costs (monthly)</h3>'
-      + '<p style="font-size:12px;color:var(--text-3);margin:0 0 14px">Record what you <b>actually</b> spent each month — variable lines first (Labour temp, Gas, Electricity — these scale with production), then fixed (Salaries, Rent, Transport, Admin). Divided by your <b>normal monthly volume</b> to show real cost per pack. <i>Used for tracking + the live-cost reference in Standard Costs — it does <b>not</b> set your price. Your selling price is driven by the standards in Cost Parameters.</i></p>'
-      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="font-size:13px">Normal monthly volume (packs):</span>'
-        + '<input id="pc-op-volume" type="number" min="1" step="1" value="' + opNormal + '" class="form-input" style="width:120px;text-align:right">'
-        + '<button class="btn btn-xs btn-outline" onclick="_pcOpSaveVolume()">Save</button> <span id="pc-op-vol-msg" style="font-size:11px"></span></div>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">'
-        + '<div><div style="font-weight:700;font-size:13px;margin-bottom:6px">Enter a month\'s costs</div>'
-          + '<div style="margin-bottom:8px"><span style="font-size:13px">Month: </span><input id="pc-op-month" type="month" value="' + _opThisMonth + '" onchange="_pcOpLoadMonth()" class="form-input" style="width:160px"></div>'
-          + opInputs
-          + '<div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="_pcOpSaveMonth()">Save month</button> <span id="pc-op-msg" style="font-size:11px;margin-left:8px"></span></div></div>'
-        + '<div><div style="font-weight:700;font-size:13px;margin-bottom:6px">Derived cost per pack <span style="color:var(--text-3);font-weight:400">(latest month ÷ ' + opNormal + ')</span></div>'
-          + (opDerivedRows || '<div style="color:var(--text-3);font-size:13px">Record a month to see derived rates.</div>')
-          + (opDerivedRows ? '<div style="display:flex;justify-content:space-between;font-size:14px;margin-top:6px;border-top:1px solid var(--border);padding-top:6px"><b>Total</b><b>' + fmtPKR(opcosts.derived_total_per_pack || 0) + '/pack</b></div>' : '')
-          + '</div>'
-      + '</div></div>'
-    + '<div class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">Recorded months</h3><div class="table-wrap"><table>'
-      + '<thead><tr><th>Month</th>' + _OPCATS.map(function(p){ return '<th class="text-right">' + p[1] + '</th>'; }).join('') + '<th class="text-right">Total</th></tr></thead>'
-      + '<tbody>' + opHistRows + '</tbody></table></div></div>'
+  const markupsCard = '<div class="card" style="margin-top:16px">'
+    + '<h3 style="margin:0 0 4px">Markups</h3>'
+    + '<p style="font-size:12px;color:var(--text-3);margin-bottom:16px">How the suggested selling price is built up from cost — each markup adds margin at a trade level (Direct Sale → Distributor → MRP). Changes are logged.</p>'
+    + '<div class="table-wrap"><table><thead><tr><th>Setting</th><th class="text-right">Current Value</th><th>Action</th></tr></thead>'
+    + '<tbody>' + markupRows + '</tbody></table></div>'
     + '</div>';
 
-  const configTab = `
-  <div id="pc-pane-config" style="display:none">
-    <div class="card">
-      <h3 style="margin:0 0 4px">Standard Cost Parameters</h3>
-      <p style="font-size:12px;color:var(--text-3);margin-bottom:6px">Your <b>standard</b> cost inputs — they drive the suggested MRP and stay stable until you change them. Your actual monthly spend is recorded separately in <b>Operating Costs</b> and shown as a live reference in Standard Costs. All changes are logged.</p>
+  // Margin alerts (reuses pcDismissAlert)
+  const alertRows = alerts.length ? alerts.map(a => {
+    const gapClr = a.gap > 10 ? 'var(--chili)' : 'var(--saffron)';
+    return '<tr id="pc-alert-row-' + a.alertId + '">'
+      + '<td><strong style="font-family:monospace">' + (a.productCode||'—') + '</strong></td>'
+      + '<td>' + (a.productName||'—') + '</td>'
+      + '<td>' + (a.packSize||'—') + '</td>'
+      + '<td class="text-right" style="color:var(--chili);font-weight:700">' + (a.margin_pct||0).toFixed(1) + '%</td>'
+      + '<td class="text-right">' + (a.floor_pct||0).toFixed(1) + '%</td>'
+      + '<td class="text-right" style="color:' + gapClr + ';font-weight:700">−' + (a.gap||0).toFixed(1) + '%</td>'
+      + '<td>' + (a.direct_sale != null ? fmtPKR(a.direct_sale) : (a.exFactory != null ? fmtPKR(a.exFactory) : '—')) + '</td>'
+      + '<td>' + fmtDate(a.detectedAt) + '</td>'
+      + '<td><button class="btn btn-xs btn-outline" style="color:var(--cardamom);border-color:var(--cardamom)" onclick="pcDismissAlert(' + a.alertId + ')">Dismiss</button></td>'
+      + '</tr>';
+  }).join('') : '<tr><td colspan="9" style="text-align:center;padding:24px"><span style="font-size:28px">✓</span><br><strong style="color:var(--cardamom)">All margins are above the floor</strong><br><span style="font-size:12px;color:var(--text-3)">No active alerts · Minimum Profit Margin is ' + floorPct.toFixed(0) + '%</span></td></tr>';
+  const alertsCard = '<div class="card" style="margin-top:16px">'
+    + (alerts.length > 0 ? '<div class="alert" style="background:var(--chili-pale);border:1px solid var(--chili);color:var(--chili);margin-bottom:16px">' + ic('alert-triangle',13) + ' <strong>' + alerts.length + ' SKU' + (alerts.length>1?'s':'') + ' below the Minimum Profit Margin.</strong> Review and either update costs or dismiss if acknowledged.</div>' : '')
+    + '<h3 style="margin-bottom:4px">Profit Margin Alerts</h3>'
+    + '<p style="font-size:12px;color:var(--text-3);margin-bottom:12px">SKUs where computed gross margin falls below the configured Minimum Profit Margin. Dismiss to acknowledge.</p>'
+    + '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Product</th><th>Pack Size</th><th class="text-right">Margin</th><th class="text-right">Min Profit Margin</th><th class="text-right">Gap</th><th>Direct Sale</th><th>Detected</th><th>Action</th></tr></thead>'
+    + '<tbody id="pc-alerts-tbody">' + alertRows + '</tbody></table></div>'
+    + '</div>';
 
-      <div style="display:flex;align-items:center;gap:8px;margin:16px 0 4px">
-        <span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:10px;background:#e8f0fe;color:#1a73e8">Variable</span>
-        <span style="font-size:13px;font-weight:700">Cost per pack — scales with each pack made</span>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Parameter</th><th class="text-right">Current Value</th><th>Action</th></tr></thead>
-          <tbody>${varCfgRows}</tbody>
-        </table>
-      </div>
+  // Batch variance
+  const varRows = variances.length ? variances.map(v => {
+    const hasStd = v.standard_mfg != null;
+    const varPct = v.variance_pct;
+    const varClr = !hasStd ? 'var(--text-3)' : v.favourable ? 'var(--cardamom)' : v.flag ? 'var(--chili)' : 'var(--text-2)';
+    const varTxt = !hasStd ? '—' : (varPct >= 0 ? '+' : '') + varPct.toFixed(1) + '%';
+    const flagBadge = v.flag ? '<span style="font-size:10px;background:var(--chili-pale);color:var(--chili);padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px">FLAG</span>' : '';
+    const favBadge  = v.favourable ? '<span style="font-size:10px;background:var(--cardamom-pale);color:var(--cardamom);padding:1px 5px;border-radius:4px;font-weight:600;margin-left:4px">FAV</span>' : '';
+    return '<tr>'
+      + '<td>' + fmtDate(v.batchDate) + '</td>'
+      + '<td style="font-family:monospace;font-size:12px">' + (v.batchId||'—') + '</td>'
+      + '<td><strong>' + (v.productCode||'—') + '</strong><br><span style="font-size:11px;color:var(--text-3)">' + (v.productName||'') + '</span></td>'
+      + '<td>' + (v.packSize||'—') + '</td>'
+      + '<td class="text-right">' + fmt(v.qtyUnits,0) + '</td>'
+      + '<td class="text-right">' + (hasStd ? fmtPKR(v.standard_mfg) : '<span style="color:var(--text-3)">No BOM</span>') + '</td>'
+      + '<td class="text-right">' + (v.actual_mfg > 0 ? fmtPKR(v.actual_mfg) : '—') + '</td>'
+      + '<td class="text-right" style="color:' + varClr + ';font-weight:700">' + (v.variance != null ? fmtPKR(v.variance) : '—') + flagBadge + favBadge + '</td>'
+      + '<td class="text-right" style="color:' + varClr + ';font-weight:700">' + varTxt + '</td>'
+      + '</tr>';
+  }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-3);padding:24px">No production batches in the last 90 days</td></tr>';
+  const varianceCard = '<div class="card" style="margin-top:16px">'
+    + '<h3 style="margin-bottom:4px">Batch cost variance — last 90 days</h3>'
+    + '<p style="font-size:12px;color:var(--text-3);margin-bottom:12px">Compares actual cost recorded at posting vs computed standard cost. FLAG = adverse variance &gt;5%.</p>'
+    + '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Batch ID</th><th>Product</th><th>Pack</th><th class="text-right">Units</th><th class="text-right">Standard</th><th class="text-right">Actual</th><th class="text-right">Variance (PKR)</th><th class="text-right">Var %</th></tr></thead>'
+    + '<tbody>' + varRows + '</tbody></table></div>'
+    + '</div>';
 
-      <div style="display:flex;align-items:center;gap:8px;margin:22px 0 4px">
-        <span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:10px;background:#fff3e0;color:#e65100">Fixed</span>
-        <span style="font-size:13px;font-weight:700">Monthly cost — spread over ${opNormal} packs/month</span>
-      </div>
-      <p style="font-size:11px;color:var(--text-3);margin:0 0 6px">Enter the <b>monthly</b> figure; it's divided by your normal monthly volume (<b>${opNormal}</b>, set in Operating Costs) to get the per-pack cost. Make more packs → per-pack fixed cost falls.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Parameter</th><th class="text-right">Monthly &rarr; per pack</th><th>Action</th></tr></thead>
-          <tbody>${fixCfgRows}</tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <h3 style="margin-bottom:4px">Wastage % by Product</h3>
-      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">
-        Total raw material lost per batch (roasting, blending, handling). Applied to RM cost in standard cost calculation.
-        <br>Enter as a percentage e.g. <strong>12</strong> means 12% of RM is lost per batch.
-        Update as you collect real batch data.
-      </p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>Product</th><th>SKU</th><th>Pack Size</th>
-            <th class="text-right">Wastage %</th><th>Action</th>
-          </tr></thead>
-          <tbody>
-            ${costs.map(c => {
-              const wpct = ((c.wastage_pct||0)*100).toFixed(1);
-              const vid  = costs.indexOf(c); // placeholder — use skuCode as key
-              return '<tr id="pc-wst-row-' + c.skuCode + '">' +
-                '<td><strong>' + (c.productName||'—') + '</strong></td>' +
-                '<td style="font-family:monospace;font-size:12px">' + (c.skuCode||'—') + '</td>' +
-                '<td>' + (c.packSize||'—') + '</td>' +
-                '<td class="text-right"><strong>' + wpct + '%</strong></td>' +
-                '<td><button class="btn btn-xs btn-outline" onclick="pcWastageEdit(\'' + c.skuCode + '\',' + (c.wastage_pct||0) + ')">Edit</button></td>' +
-              '</tr>' +
-              '<tr id="pc-wst-edit-' + c.skuCode + '" style="display:none">' +
-                '<td colspan="5" style="padding:0">' +
-                  '<div style="background:var(--saffron-pale);padding:12px 16px;border-top:2px solid var(--saffron)">' +
-                    '<div id="pc-wst-msg-' + c.skuCode + '" style="margin-bottom:6px"></div>' +
-                    '<div style="display:flex;align-items:flex-end;gap:12px">' +
-                      '<div><label style="font-size:12px;display:block;margin-bottom:4px">Wastage % for ' + (c.productName||c.skuCode) + '</label>' +
-                        '<div style="display:flex;align-items:center;gap:6px">' +
-                          '<input id="pc-wst-val-' + c.skuCode + '" type="number" min="0" max="99" step="0.1" class="form-input" style="width:100px" value="' + wpct + '">' +
-                          '<span style="font-size:13px">%</span>' +
-                        '</div>' +
-                        '<span style="font-size:11px;color:var(--text-3);display:block;margin-top:2px">0 = no wastage · stored as decimal internally</span>' +
-                      '</div>' +
-                      '<button class="btn btn-primary btn-sm" onclick="pcWastageSave(\'' + c.skuCode + '\')">Save</button>' +
-                      '<button class="btn btn-outline btn-sm" onclick="pcWastageCancel(\'' + c.skuCode + '\')">Cancel</button>' +
-                    '</div>' +
-                  '</div>' +
-                '</td>' +
-              '</tr>';
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>`;
-
-  // --- COST HISTORY TAB ---
+  // Cost history
   const _histTypeLabel = { ingredient: 'Ingredient', config: 'Config' };
   const _histTypeColor = { ingredient: 'var(--saffron)', config: 'var(--cardamom)' };
   const histRows = history.length ? history.map(h => {
     const pct    = h.pct_change != null ? (h.pct_change >= 0 ? '+' : '') + h.pct_change.toFixed(1) + '%' : '—';
     const pctClr = h.pct_change > 0 ? 'var(--chili)' : h.pct_change < 0 ? 'var(--cardamom)' : 'var(--text-3)';
     const typeClr= _histTypeColor[h.change_type] || 'var(--text-3)';
-    return `<tr>
-      <td>${fmtDate(h.changed_at)}<br><span style="font-size:11px;color:var(--text-3)">${(h.changed_at||'').slice(11,16)}</span></td>
-      <td><span style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;background:${typeClr}22;color:${typeClr}">${_histTypeLabel[h.change_type]||h.change_type}</span></td>
-      <td><strong style="font-family:monospace">${h.entity_code||'—'}</strong>${h.entity_name ? '<br><span style="font-size:11px;color:var(--text-3)">'+h.entity_name+'</span>' : ''}</td>
-      <td class="text-right">${h.old_value != null ? fmtPKR(h.old_value) : '—'}</td>
-      <td class="text-right">${h.new_value != null ? fmtPKR(h.new_value) : '—'}</td>
-      <td class="text-right" style="color:${pctClr};font-weight:700">${pct}</td>
-      <td>${h.changed_by||'—'}</td>
-      <td style="color:var(--text-3);font-size:12px">${h.note||''}</td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:24px">No cost changes recorded yet</td></tr>`;
-
-  const historyTab = `
-  <div id="pc-pane-history" style="display:none">
-    <div class="card">
-      <h3 style="margin-bottom:4px">Cost Change History</h3>
-      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">All ingredient cost updates and costing parameter changes — most recent first.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Date</th><th>Type</th><th>Item</th><th class="text-right">Old Value</th><th class="text-right">New Value</th><th class="text-right">Change</th><th>Changed By</th><th>Note</th></tr></thead>
-          <tbody>${histRows}</tbody>
-        </table>
-      </div>
-    </div>
-  </div>`;
-
-  // --- MARGIN ALERTS TAB ---
-  const alertBadge = alerts.length > 0
-    ? ` <span style="background:var(--chili);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px">${alerts.length}</span>`
-    : '';
-  const alertRows = alerts.length ? alerts.map(a => {
-    const gapClr = a.gap > 10 ? 'var(--chili)' : 'var(--saffron)';
-    return `<tr id="pc-alert-row-${a.alertId}">
-      <td><strong style="font-family:monospace">${a.productCode||'—'}</strong></td>
-      <td>${a.productName||'—'}</td>
-      <td>${a.packSize||'—'}</td>
-      <td class="text-right" style="color:var(--chili);font-weight:700">${(a.margin_pct||0).toFixed(1)}%</td>
-      <td class="text-right">${(a.floor_pct||0).toFixed(1)}%</td>
-      <td class="text-right" style="color:${gapClr};font-weight:700">−${(a.gap||0).toFixed(1)}%</td>
-      <td>${a.direct_sale != null ? fmtPKR(a.direct_sale) : (a.exFactory != null ? fmtPKR(a.exFactory) : '—')}</td>
-      <td>${fmtDate(a.detectedAt)}</td>
-      <td><button class="btn btn-xs btn-outline" style="color:var(--cardamom);border-color:var(--cardamom)" onclick="pcDismissAlert(${a.alertId})">Dismiss</button></td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="9" style="text-align:center;padding:24px">
-    <span style="font-size:28px">✓</span><br>
-    <strong style="color:var(--cardamom)">All margins are above the floor</strong><br>
-    <span style="font-size:12px;color:var(--text-3)">No active alerts · Minimum Profit Margin is ${parseFloat((cfg.margin_floor_pct||{}).value||30)*100>=1 ? parseFloat((cfg.margin_floor_pct||{}).value||30).toFixed(0) : (parseFloat((cfg.margin_floor_pct||{}).value||0.30)*100).toFixed(0)}%</span>
-  </td></tr>`;
-
-  const alertsTab = `
-  <div id="pc-pane-alerts" style="display:none">
-    ${alerts.length > 0 ? '<div class="alert" style="background:var(--chili-pale);border:1px solid var(--chili);color:var(--chili);margin-bottom:16px">' +
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> <strong>' + alerts.length + ' SKU' + (alerts.length>1?'s':'') + ' below the Minimum Profit Margin.</strong> Review and either update costs or dismiss if acknowledged.' +
-    '</div>' : ''}
-    <div class="card">
-      <h3 style="margin-bottom:4px">Profit Margin Alerts</h3>
-      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">SKUs where computed gross margin falls below the configured Minimum Profit Margin. Dismiss to acknowledge.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Code</th><th>Product</th><th>Pack Size</th><th class="text-right">Margin</th><th class="text-right">Min Profit Margin</th><th class="text-right">Gap</th><th>Direct Sale</th><th>Detected</th><th>Action</th></tr></thead>
-          <tbody id="pc-alerts-tbody">${alertRows}</tbody>
-        </table>
-      </div>
-    </div>
-  </div>`;
-
-  // --- BATCH VARIANCE TAB ---
-  const varRows = variances.length ? variances.map(v => {
-    const hasStd  = v.standard_mfg != null;
-    const varPct  = v.variance_pct;
-    const varClr  = !hasStd ? 'var(--text-3)' : v.favourable ? 'var(--cardamom)' : v.flag ? 'var(--chili)' : 'var(--text-2)';
-    const varTxt  = !hasStd ? '—' : (varPct >= 0 ? '+' : '') + varPct.toFixed(1) + '%';
-    const flagBadge = v.flag ? '<span style="font-size:10px;background:var(--chili-pale);color:var(--chili);padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px">FLAG</span>' : '';
-    const favBadge  = v.favourable ? '<span style="font-size:10px;background:var(--cardamom-pale);color:var(--cardamom);padding:1px 5px;border-radius:4px;font-weight:600;margin-left:4px">FAV</span>' : '';
-    return `<tr>
-      <td>${fmtDate(v.batchDate)}</td>
-      <td style="font-family:monospace;font-size:12px">${v.batchId||'—'}</td>
-      <td><strong>${v.productCode||'—'}</strong><br><span style="font-size:11px;color:var(--text-3)">${v.productName||''}</span></td>
-      <td>${v.packSize||'—'}</td>
-      <td class="text-right">${fmt(v.qtyUnits,0)}</td>
-      <td class="text-right">${hasStd ? fmtPKR(v.standard_mfg) : '<span style="color:var(--text-3)">No BOM</span>'}</td>
-      <td class="text-right">${v.actual_mfg > 0 ? fmtPKR(v.actual_mfg) : '—'}</td>
-      <td class="text-right" style="color:${varClr};font-weight:700">${v.variance != null ? fmtPKR(v.variance) : '—'}${flagBadge}${favBadge}</td>
-      <td class="text-right" style="color:${varClr};font-weight:700">${varTxt}</td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="9" style="text-align:center;color:var(--text-3);padding:24px">No production batches in the last 90 days</td></tr>`;
-
-  const varianceTab = `
-  <div id="pc-pane-variance" style="display:none">
-    <div class="card">
-      <h3 style="margin-bottom:4px">Batch Cost Variance — Last 90 Days</h3>
-      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">Compares actual cost recorded at posting vs computed standard cost. FLAG = adverse variance &gt;5%.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Date</th><th>Batch ID</th><th>Product</th><th>Pack</th><th class="text-right">Units</th><th class="text-right">Standard</th><th class="text-right">Actual</th><th class="text-right">Variance (PKR)</th><th class="text-right">Var %</th></tr></thead>
-          <tbody>${varRows}</tbody>
-        </table>
-      </div>
-    </div>
-  </div>`;
-
-  const TS = 'padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;margin-bottom:-2px';
-  const activeStyle   = TS + ';border-bottom:3px solid var(--saffron);color:var(--saffron)';
-  const inactiveStyle = TS + ';border-bottom:2px solid transparent;color:var(--text-3)';
-
-  // ── Manager Overview (default tab) — plain-language verdict + easy setup ──
-  const _gv = (k, d) => parseFloat((cfg[k] || {}).value || d);
-  const ovMfr  = Math.round((_gv('margin_mfr', 1.30) - 1) * 100);
-  const ovDist = Math.round((_gv('margin_dist', 1.10) - 1) * 100);
-  const ovMrp  = Math.round((_gv('margin_mrp', 1.22) - 1) * 100);
-  const ovFloor = _gv('margin_floor_pct', 30);
-  const _ovBase = costs.find(c => c.has_bom);
-  window._pcOvBase = {
-    rm:   _ovBase ? (_ovBase.rm_cost || 0) : 0,
-    // STANDARD conversion (variable) + absorbed fixed per pack — decoupled from monthly actuals.
-    op:   _ovBase ? ((_ovBase.labour || 0) + (_ovBase.overhead || 0)) : 0,
-    name: _ovBase ? ((_ovBase.productName || _ovBase.productCode) + ' ' + _ovBase.packSize) : 'a product',
-    floor: ovFloor,
-  };
-  window._pcDistTypeId = ((state.ref.priceTypes || []).find(t => t.code === 'distributor') || {}).id || null;
-  const ovCards = (costs.length ? costs : []).map(c => {
-    if (!c.has_bom) {
-      return '<div class="card" style="padding:16px 18px"><div style="font-weight:700">' + (c.productName || c.productCode) + ' — ' + (c.packSize || '') + '</div>'
-        + '<div style="color:var(--text-3);font-size:13px;margin-top:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> No recipe set yet — set up the BOM to see its cost.</div></div>';
-    }
-    const hasPrice = (c.selling_price || 0) > 0;       // Model B: real margin vs the actual selling price
-    const keep = Math.round((c.selling_price || 0) - (c.cost_to_make || 0));
-    const good = hasPrice && !c.actual_below_floor;
-    const badge = !hasPrice
-      ? '<span style="background:#fff8e6;color:#a9791b;border:1px solid #f0dca0;font-weight:700;font-size:12px;padding:3px 10px;border-radius:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> No price set</span>'
-      : good
-      ? '<span style="background:#eafaf1;color:#1aaa55;border:1px solid #b2e8c8;font-weight:700;font-size:12px;padding:3px 10px;border-radius:12px">🟢 Making money</span>'
-      : '<span style="background:#fff5f5;color:#e03131;border:1px solid #f5c0c0;font-weight:700;font-size:12px;padding:3px 10px;border-radius:12px">🔴 Margin too low</span>';
-    const sellLine = hasPrice
-      ? '<div>What we sell it for: <b>' + fmtPKR(c.selling_price) + '</b> <span style="color:var(--text-3);font-size:12px">(' + (c.selling_channel || 'price book') + ')</span></div>'
-        + '<div style="margin-top:4px;font-size:15px">You keep: <b style="color:' + (good ? '#1aaa55' : '#e03131') + '">' + fmtPKR(keep) + '</b> per pack <span style="color:var(--text-3)">(' + (c.actual_margin_pct == null ? '—' : c.actual_margin_pct.toFixed(0) + '%') + ')</span></div>'
-        + '<div style="color:var(--text-3);font-size:12px;margin-top:4px">Suggested price (cost + markups): ' + fmtPKR(c.mrp) + '</div>'
-      : '<div style="color:var(--chili);font-size:13px;margin-top:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> No selling price set — add one in the price book to see your margin.</div>'
-        + '<div style="color:var(--text-3);font-size:12px;margin-top:4px">Suggested price (cost + markups): <b>' + fmtPKR(c.mrp) + '</b></div>';
-    return '<div class="card" style="padding:16px 18px">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><div style="font-weight:700;font-size:15px">' + (c.productName || c.productCode) + ' — ' + (c.packSize || '') + '</div>' + badge + '</div>'
-      + '<div style="font-size:14px;line-height:1.85">'
-      + '<div>What it costs to make: <b>' + fmtPKR(c.cost_to_make) + '</b></div>'
-      + '<div style="color:var(--text-3);font-size:12px;margin:1px 0 6px 8px">ingredients ' + fmtPKR(c.rm_cost) + ' · packaging ' + fmtPKR(c.packaging) + ' · making ' + fmtPKR(c.labour) + ' · overhead ' + fmtPKR(c.overhead) + '</div>'
-      + sellLine
-      + '<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
-        + '<span style="font-size:12px;color:var(--text-3)">Set selling price (distributor): ₨</span>'
-        + '<input id="pc-ov-price-' + c.variantId + '" type="number" min="0" step="1" value="' + (c.selling_price || '') + '" class="form-input" style="width:96px;text-align:right">'
-        + '<button class="btn btn-xs btn-primary" onclick="_pcOvSetPrice(' + c.variantId + ')">Save price</button>'
-        + '<span id="pc-ov-price-msg-' + c.variantId + '" style="font-size:11px"></span>'
-      + '</div>'
-      + '</div></div>';
-  }).join('');
-  const _ni = (id, v) => '<input id="' + id + '" type="number" min="0" step="0.01" value="' + v + '" oninput="_pcOvPreview()" class="form-input" style="width:90px;text-align:right">';
-  const _row = (lbl, id, v) => '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:5px 0;font-size:13px"><span>' + lbl + '</span>' + _ni(id, v) + '</div>';
-  const _pctRow = (lbl, id, v) => '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:5px 0;font-size:13px"><span>' + lbl + '</span><span>+ <input id="' + id + '" type="number" min="0" step="1" value="' + v + '" oninput="_pcOvPreview()" class="form-input" style="width:64px;text-align:right"> %</span></div>';
-  const setup = '<div class="card" style="margin-top:18px">'
-    + '<h3 style="margin:0 0 4px">Set up your costs</h3>'
-    + '<p style="font-size:12px;color:var(--text-3);margin:0 0 14px">Enter what each pack costs you and your markups. The example at the bottom updates as you type — then click Save.</p>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px">'
-    + '<div><div style="font-weight:700;font-size:13px;margin-bottom:4px">Packaging (₨ per pack)</div>'
-      + _row('Pouch', 'pc-ov-pkg_pouch', _gv('pkg_pouch',0)) + _row('Label', 'pc-ov-pkg_label', _gv('pkg_label',0)) + _row('Carton', 'pc-ov-pkg_carton', _gv('pkg_carton',0)) + '</div>'
-    + '<div><div style="font-weight:700;font-size:13px;margin-bottom:4px">Labour, utilities &amp; overhead</div>'
-      + '<div style="font-size:13px;color:var(--text-2)">From <b>Operating Costs</b>: <b>' + fmtPKR(opcosts.derived_total_per_pack || 0) + '</b>/pack' + ((opcosts.months_used || 0) ? ' <span style="color:var(--text-3)">(' + opcosts.months_used + '-mo avg)</span>' : '') + '</div>'
-      + '<div style="font-size:11px;color:var(--text-3);margin-top:6px">Recorded monthly, then averaged ÷ normal volume — not typed here. <a href="#" onclick="_pcSwitchTab(\'opcosts\');return false">Edit in Operating Costs →</a></div></div>'
-    + '<div><div style="font-weight:700;font-size:13px;margin-bottom:4px">Markup (add %)</div>'
-      + _pctRow('To direct sale', 'pc-ov-mfr', ovMfr) + _pctRow('To distributor', 'pc-ov-dist', ovDist) + _pctRow('To MRP', 'pc-ov-mrp', ovMrp) + '</div>'
-    + '</div>'
-    + '<div id="pc-ov-preview" style="margin-top:16px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>'
-    + '<div style="margin-top:12px"><button class="btn btn-primary" onclick="_pcOvSave()">Save</button> <span id="pc-ov-msg" style="margin-left:10px;font-size:13px"></span></div>'
+    return '<tr>'
+      + '<td>' + fmtDate(h.changed_at) + '<br><span style="font-size:11px;color:var(--text-3)">' + (h.changed_at||'').slice(11,16) + '</span></td>'
+      + '<td><span style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;background:' + typeClr + '22;color:' + typeClr + '">' + (_histTypeLabel[h.change_type]||h.change_type) + '</span></td>'
+      + '<td><strong style="font-family:monospace">' + (h.entity_code||'—') + '</strong>' + (h.entity_name ? '<br><span style="font-size:11px;color:var(--text-3)">'+h.entity_name+'</span>' : '') + '</td>'
+      + '<td class="text-right">' + (h.old_value != null ? fmtPKR(h.old_value) : '—') + '</td>'
+      + '<td class="text-right">' + (h.new_value != null ? fmtPKR(h.new_value) : '—') + '</td>'
+      + '<td class="text-right" style="color:' + pctClr + ';font-weight:700">' + pct + '</td>'
+      + '<td>' + (h.changed_by||'—') + '</td>'
+      + '<td style="color:var(--text-3);font-size:12px">' + (h.note||'') + '</td>'
+      + '</tr>';
+  }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:24px">No cost changes recorded yet</td></tr>';
+  const historyCard = '<div class="card" style="margin-top:16px">'
+    + '<h3 style="margin-bottom:4px">Cost change history</h3>'
+    + '<p style="font-size:12px;color:var(--text-3);margin-bottom:12px">All ingredient cost updates and costing parameter changes — most recent first.</p>'
+    + '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th class="text-right">Old Value</th><th class="text-right">New Value</th><th class="text-right">Change</th><th>Changed By</th><th>Note</th></tr></thead>'
+    + '<tbody>' + histRows + '</tbody></table></div>'
     + '</div>';
-  const overviewTab = '<div id="pc-pane-overview">'
-    + '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="_pcSwitchTab(\'ingredients\')">Update ingredient prices →</button></div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">' + (ovCards || '<div class="card">No products yet — add products and a BOM to see costs.</div>') + '</div>'
-    + setup + '</div>';
+  const marginsPane = '<div id="pc-pane-margins" style="display:none">' + kpiRow + standardCard + markupsCard + alertsCard + varianceCard + historyCard + '</div>';
 
-  // ── Advanced hub — grouped cards (Set up / Review), not a tab pile ──
-  const _advCard = (pane, title, desc) => '<div class="card" style="padding:14px 16px;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,.12)\'" onmouseleave="this.style.boxShadow=\'\'" onclick="_pcSwitchTab(\'' + pane + '\')"><div style="font-weight:700;margin-bottom:2px">' + title + ' <span style="color:var(--text-3)">→</span></div><div style="font-size:12px;color:var(--text-3)">' + desc + '</div></div>';
-  const advHubTab = '<div id="pc-pane-advhub" style="display:none">'
-    + '<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-3);text-transform:uppercase;margin:2px 0 8px">Set up — what you enter</div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:22px">'
-      + _advCard('ingredients','Ingredient Costs','Price per kg of each ingredient')
-      + _advCard('config','Packaging &amp; Wastage','Packaging per pack + wastage %')
-      + _advCard('opcosts','Operating Costs','Monthly salaries, utilities, rent…')
-      + _advCard('markups','Markups','Margin % at each trade level')
+  // ══════════════════════════════════════════════════════════════════
+  //  ASSEMBLY — one screen, three tabs
+  // ══════════════════════════════════════════════════════════════════
+  const alertBadge = alerts.length > 0 ? ' <span style="background:var(--chili);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px">' + alerts.length + '</span>' : '';
+  const TS = 'padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;margin-bottom:-2px';
+  const AS = TS + ';border-bottom:3px solid var(--saffron);color:var(--saffron)';
+  const IS = TS + ';border-bottom:2px solid transparent;color:var(--text-3)';
+  return '<div class="section-header"><div>'
+      + '<h2>Prices &amp; Costs</h2>'
+      + '<p style="color:var(--text-3);font-size:13px;margin:0">Set selling prices, track costs, and watch margins — in one place.</p>'
+    + '</div><button class="btn btn-outline" onclick="nav(\'prices-costs\')">↺ Refresh</button></div>'
+    + '<div style="border-bottom:2px solid var(--border);margin-bottom:20px">'
+      + '<button id="pc-tab-sell" onclick="_pcSwitchTab(\'sell\')" style="' + AS + '">Selling prices</button>'
+      + '<button id="pc-tab-costs" onclick="_pcSwitchTab(\'costs\')" style="' + IS + '">Costs</button>'
+      + '<button id="pc-tab-margins" onclick="_pcSwitchTab(\'margins\')" style="' + IS + '">Margins' + alertBadge + '</button>'
     + '</div>'
-    + '<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-3);text-transform:uppercase;margin:2px 0 8px">Review — what you read</div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px">'
-      + _advCard('standard','Standard Costs','Full cost & price table per SKU')
-      + _advCard('alerts','Profit Margin Alerts' + alertBadge,'Products below your minimum margin')
-      + _advCard('variance','Batch Variance','Actual vs standard cost per batch')
-      + _advCard('history','Cost History','Log of cost & parameter changes')
-    + '</div></div>';
-
-  return `
-  <div class="section-header">
-    <div>
-      <h2>Prices &amp; Costs</h2>
-      <p style="color:var(--text-3);font-size:13px;margin:0">Admin only · Standard costs, ingredient pricing &amp; costing parameters</p>
-    </div>
-    <button class="btn btn-outline" onclick="nav('prices-costs')">↺ Refresh</button>
-  </div>
-
-  <div style="border-bottom:2px solid var(--border);margin-bottom:20px">
-    <button id="pc-tab-overview" onclick="_pcSwitchTab('overview')" style="${activeStyle}">Overview</button>
-    <button id="pc-tab-advanced" onclick="_pcSwitchTab('advhub')" style="${inactiveStyle}">Advanced${alertBadge}</button>
-  </div>
-
-  ${overviewTab}
-  ${advHubTab}
-  ${standardTab}
-  ${ingredientsTab}
-  ${configTab}
-  ${opcostsTab}
-  ${markupsTab}
-  ${historyTab}
-  ${alertsTab}
-  ${varianceTab}`;
+    + sellPane + costsPane + marginsPane;
 }
 
 // --- Prices & Costs — Ingredient cost inline edit ---
@@ -13214,157 +12947,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 let _pmImportRows = [];    // parsed CSV rows pending import confirmation
 
-async function renderPriceMaster() {
-  // Fetch price matrix + standard costs in parallel; costs degrade gracefully
-  const stdCostsRaw = await GET('/api/costing/standard-costs').catch(() => []);
-  const rows = await GET('/api/admin/price-master');
-
-  // Build cost lookup by variantId (API returns camelCase)
-  const costByVariant = {};
-  (stdCostsRaw || []).forEach(function(sc) {
-    if (sc.variantId) costByVariant[sc.variantId] = sc;
-  });
-
-  // Margin floor (mirrors costing_config seed value)
-  const MARGIN_FLOOR = 30;
-
-  // Collect unique price types from the data
-  const ptCodes  = [...new Set(rows.map(r => r.price_type_code))];
-  const ptLabels = {};
-  rows.forEach(r => { ptLabels[r.price_type_code] = r.price_type_label; });
-
-  // Group rows by product + pack_size into a matrix
-  const byVariant = {};
-  rows.forEach(r => {
-    const key = r.product_code + '|' + r.pack_size;
-    if (!byVariant[key]) byVariant[key] = {
-      product_code: r.product_code, product_name: r.product_name,
-      pack_size: r.pack_size, variant_id: r.variant_id, prices: {}
-    };
-    byVariant[key].prices[r.price_type_code] = {
-      price: r.price, price_id: r.price_id, price_type_id: r.price_type_id
-    };
-  });
-
-  const variants = Object.values(byVariant);
-
-  // Header columns for each price type
-  const ptHeaders = ptCodes.map(pt =>
-    '<th style="padding:8px 12px;text-align:right;font-weight:600;min-width:110px">' + ptLabels[pt] + '</th>'
-  ).join('');
-
-  // Build table rows
-  let lastProduct = '';
-  const tableRows = variants.map(function(v) {
-    const isNewProduct = v.product_code !== lastProduct;
-    lastProduct = v.product_code;
-
-    const priceCells = ptCodes.map(function(pt) {
-      const entry = v.prices[pt] || {};
-      const val   = entry.price || 0;
-      const pvId  = v.variant_id;
-      const ptId  = entry.price_type_id || rows.find(r => r.price_type_code === pt)?.price_type_id;
-      return '<td style="padding:6px 8px;text-align:right">' +
-        '<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">' +
-          '<input type="number" min="0" step="0.01"' +
-            ' id="pm-' + pvId + '-' + ptId + '"' +
-            ' value="' + (val > 0 ? val : '') + '" placeholder="—"' +
-            ' style="width:95px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:13px"' +
-            ' onchange="pmMarkChanged(this,\'' + pvId + '\',\'' + ptId + '\')">' +
-        '</div>' +
-      '</td>';
-    }).join('');
-
-    // Cost to Make + Margin columns
-    const sc = costByVariant[v.variant_id];
-    let costCell, marginCell;
-    if (!sc || sc.hasBom === false) {
-      costCell  = '<td style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:12px">— no BOM</td>';
-      marginCell = '<td style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:12px">—</td>';
-    } else {
-      const ctm = sc.costToMake || 0;
-      costCell = '<td style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text-2)">₨' + ctm.toFixed(2) + '</td>';
-      // Margin based on Direct Sale price (price_type_code = 'ex_factory') in Price Master
-      const dsPrice = (v.prices['ex_factory'] && v.prices['ex_factory'].price) || 0;
-      if (dsPrice > 0 && ctm > 0) {
-        const marginPct = ((dsPrice - ctm) / dsPrice * 100);
-        const mColor = marginPct >= MARGIN_FLOOR ? '#2F855A' : (marginPct >= 0 ? '#C05621' : '#C53030');
-        const mBg    = marginPct >= MARGIN_FLOOR ? '#F0FFF4' : (marginPct >= 0 ? '#FFFAF0' : '#FFF5F5');
-        marginCell = '<td style="padding:8px 10px;text-align:right">' +
-          '<span style="font-weight:600;font-size:12px;color:' + mColor + ';background:' + mBg + ';border-radius:4px;padding:2px 6px">' +
-            marginPct.toFixed(1) + '%' +
-          '</span>' +
-        '</td>';
-      } else {
-        marginCell = '<td style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:12px">—</td>';
-      }
-    }
-
-    const productCell = isNewProduct
-      ? '<td style="padding:8px 10px;font-weight:700;color:var(--text-1);border-top:2px solid var(--border)">' + v.product_name + '<br>' +
-          '<span style="font-size:11px;font-weight:400;color:var(--text-3)">' + v.product_code + '</span></td>'
-      : '<td style="padding:8px 10px;color:var(--text-3)"></td>';
-
-    return '<tr style="' + (isNewProduct ? 'border-top:2px solid var(--border)' : 'border-top:1px solid #f0f0f0') + '">' +
-      productCell +
-      '<td style="padding:8px 10px;color:var(--text-2);font-size:13px">' + v.pack_size + '</td>' +
-      priceCells +
-      costCell +
-      marginCell +
-      '<td style="padding:6px 8px;text-align:center">' +
-        '<button class="btn btn-xs btn-outline" id="pm-save-' + v.variant_id + '"' +
-          ' onclick="pmSaveRow(\'' + v.variant_id + '\')" style="display:none;color:var(--cardamom);border-color:var(--cardamom)">Save</button>' +
-      '</td>' +
-    '</tr>';
-  }).join('');
-
-  return `
-  <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
-    <div><h2>Price Master</h2><p style="color:var(--text-3);font-size:13px;margin:0">Admin only · Edit inline or import/export CSV · Margin % based on Direct Sale vs Cost to Make</p></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-outline btn-sm" onclick="pmExportCSV()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Export CSV</button>
-      <button class="btn btn-outline btn-sm" onclick="pmShowImport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg> Import CSV</button>
-    </div>
-  </div>
-
-  <!-- Import panel (hidden by default) -->
-  <div id="pm-import-panel" style="display:none" class="card mb-16" style="border-top:3px solid var(--saffron)">
-    <h3 style="margin-bottom:10px">Import Prices from CSV</h3>
-    <p style="font-size:13px;color:var(--text-2);margin-bottom:12px">
-      CSV must have columns: <code>product_code, pack_size, price_type, price</code>
-      (optional: <code>effective_from</code>). Price type values: <strong>${ptCodes.join(', ')}</strong>.
-    </p>
-    <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:12px">
-      <textarea id="pm-csv-input" rows="10" placeholder="Paste CSV here, or use Export CSV to download the template…"
-        style="flex:1;font-family:monospace;font-size:12px;border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical"></textarea>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-primary btn-sm" onclick="pmParseCSV()">Preview Changes</button>
-      <button class="btn btn-outline btn-sm" onclick="document.getElementById('pm-import-panel').style.display='none'">Cancel</button>
-    </div>
-    <div id="pm-import-preview" style="margin-top:14px"></div>
-  </div>
-
-  <!-- Price matrix -->
-  <div class="card">
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead>
-          <tr style="background:var(--surface-2)">
-            <th style="padding:8px 10px;text-align:left;font-weight:600">Product</th>
-            <th style="padding:8px 10px;text-align:left;font-weight:600">Pack Size</th>
-            ${ptHeaders}
-            <th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--text-2);min-width:90px">Cost to Make</th>
-            <th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--text-2);min-width:80px" title="Direct Sale margin vs Cost to Make. Green ≥ 30%, orange ≥ 0%, red = loss.">Margin %</th>
-            <th style="padding:8px 10px;width:60px"></th>
-          </tr>
-        </thead>
-        <tbody id="pm-table-body">${tableRows}</tbody>
-      </table>
-    </div>
-    <div id="pm-save-msg" style="margin-top:10px"></div>
-  </div>`;
-}
+// (consolidated into renderPricesCosts 2026-07-06)
 
 // Store pending edits: "variantId|priceTypeId" → price value
 const _pmPending = {};

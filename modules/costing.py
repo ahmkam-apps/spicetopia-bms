@@ -289,15 +289,6 @@ def compute_standard_cost(product_code, pack_size_label, cfg=None):
     margin_mrp   = _get_config_val(cfg, 'margin_mrp', 1.22)
     floor_pct    = _get_config_val(cfg, 'margin_floor_pct', 30.0)
 
-    # Itemized cost lines (₨/pack) → category totals. If the itemized keys are
-    # present (post-migration) we use their sum even when 0 (deliberate zero);
-    # only fall back to the legacy lumped key when the itemized keys are absent.
-    def _sum_cfg(keys, fallback_key=None, fallback_default=0.0):
-        present = [k for k in keys if k in cfg]
-        if present:
-            return round(sum(_get_config_val(cfg, k, 0.0) for k in keys), 2)
-        return _get_config_val(cfg, fallback_key, fallback_default) if fallback_key else 0.0
-
     # ── TWO-ENGINE MODEL: standard cost from USER-MANAGED cost lines (see cost_line_rates) ──
     # Variable lines are ₨/pack; fixed lines are ₨/month absorbed ÷ normal volume; tracking
     # lines (e.g. Raw materials, Marketing) never touch product cost. RM comes from the BOM
