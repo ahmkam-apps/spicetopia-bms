@@ -6174,6 +6174,7 @@ if __name__ == '__main__':
         ensure_cost_lines, ensure_wo_produced_units, ensure_ingredient_target_grams,
         ensure_batch_stages, ensure_rep_app_access, ensure_customer_gst,
         ensure_drop_qty_in_production, ensure_bill_vendor_capture, ensure_ledger_po_link,
+        ensure_purchase_in_po_trigger,
         backfill_customer_account_numbers,
     ):
         try:

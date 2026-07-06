@@ -1,2 +1,2 @@
-build: 2026-06-29 fix-missing-esc-helper
+build: 2026-07-06 track-A-complete
 has_gtin: true

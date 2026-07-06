@@ -60,6 +60,7 @@ __all__ = [
     'ensure_drop_qty_in_production',
     'ensure_bill_vendor_capture',
     'ensure_ledger_po_link',
+    'ensure_purchase_in_po_trigger',
 ]
 
 
@@ -1528,6 +1529,36 @@ def ensure_ledger_po_link():
         print("  ✓ inventory_ledger.po_id (procurement funnel PO link) ready")
     except Exception as e:
         print(f"  ⚠ ensure_ledger_po_link: {e}")
+    finally:
+        c.close()
+
+
+def ensure_purchase_in_po_trigger():
+    """Enforce the procurement-funnel invariant at the DATABASE level: a PURCHASE_IN stock
+    movement must carry a po_id. The single `inventory.post_movement()` emitter already enforces
+    this in Python; this additive trigger makes it impossible to bypass — any INSERT of a
+    PURCHASE_IN row with a NULL po_id is rejected by SQLite itself. ADJUSTMENT / OPENING /
+    PRODUCTION_USE are deliberately unaffected (they live outside the funnel). Fires only on NEW
+    inserts, so historical grandfathered rows (null po_id) are untouched. A CHECK would need a
+    full table rebuild; a BEFORE-INSERT trigger is additive + idempotent (DROP + re-CREATE)."""
+    c = _conn()
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(inventory_ledger)").fetchall()]
+        if cols and 'po_id' in cols:   # requires the column from ensure_ledger_po_link
+            c.execute("DROP TRIGGER IF EXISTS trg_purchase_in_requires_po")
+            c.execute("""
+                CREATE TRIGGER trg_purchase_in_requires_po
+                BEFORE INSERT ON inventory_ledger
+                FOR EACH ROW
+                WHEN NEW.movement_type = 'PURCHASE_IN' AND NEW.po_id IS NULL
+                BEGIN
+                    SELECT RAISE(ABORT, 'PURCHASE_IN stock movement requires a purchase order (po_id)');
+                END
+            """)
+            c.commit()
+            print("  ✓ inventory_ledger PURCHASE_IN→po_id trigger ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_purchase_in_po_trigger: {e}")
     finally:
         c.close()
 
