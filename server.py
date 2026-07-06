@@ -4297,6 +4297,24 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, reset_for_launch())
                 return
 
+            # POST /api/admin/seed-demo  (OWNER / super_user ONLY) — seed reversible demo data
+            if path == '/api/admin/seed-demo':
+                if not (sess and sess.get('role') == 'super_user'):
+                    send_error(self, 'Owner only', 403); return
+                from modules.demo_seed import seed_demo_data
+                send_json(self, seed_demo_data())
+                return
+
+            # POST /api/admin/clear-demo  (OWNER / super_user ONLY) — remove demo data
+            if path == '/api/admin/clear-demo':
+                if not (sess and sess.get('role') == 'super_user'):
+                    send_error(self, 'Owner only', 403); return
+                if (data or {}).get('confirm') != 'CLEAR':
+                    send_error(self, 'Type CLEAR to confirm', 400); return
+                from modules.demo_seed import clear_demo_data
+                send_json(self, clear_demo_data())
+                return
+
             # POST /api/costing/cost-lines  (admin or 'costs') — add a cost line
             if path == '/api/costing/cost-lines':
                 if not _can_costs(sess):

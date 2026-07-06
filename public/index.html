@@ -13816,6 +13816,37 @@ async function resetForLaunch(btn) {
   }
 }
 
+async function seedDemoData(btn) {
+  if (!await uiConfirm('Add demo data so the dashboard shows realistic numbers (about 6 months of orders, invoices, payments, batches). It uses your real customers and products, and only adds transactions. You can remove it any time with “Clear demo data”.')) return;
+  const msg = document.getElementById('demo-msg');
+  if (btn) btn.disabled = true;
+  if (msg) { msg.textContent = 'Seeding demo data…'; msg.style.color = 'var(--text-3)'; }
+  try {
+    const r = await POST('/api/admin/seed-demo', {});
+    if (btn) btn.disabled = false;
+    if (!r.ok) { if (msg) { msg.textContent = r.msg || 'Could not seed.'; msg.style.color = 'var(--chili)'; } return; }
+    if (msg) { msg.textContent = '✓ ' + (r.msg || 'Seeded.') + ' Open the Dashboard to see it.'; msg.style.color = 'var(--cardamom)'; }
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    if (msg) { msg.textContent = 'Error: ' + e.message; msg.style.color = 'var(--chili)'; }
+  }
+}
+
+async function clearDemoData(btn) {
+  if (!await uiConfirm('Remove ALL demo data and return to the clean pre-launch state? This deletes every order, invoice, payment, sale, work order and batch, and resets numbering to 0001. Master data (customers, products, prices) is kept.', { danger: true })) return;
+  const msg = document.getElementById('demo-msg');
+  if (btn) btn.disabled = true;
+  if (msg) { msg.textContent = 'Clearing demo data…'; msg.style.color = 'var(--text-3)'; }
+  try {
+    const r = await POST('/api/admin/clear-demo', { confirm: 'CLEAR' });
+    if (btn) btn.disabled = false;
+    if (msg) { msg.textContent = '✓ ' + (r.msg || 'Cleared.') + ' (' + (r.purged_total || 0) + ' records removed)'; msg.style.color = 'var(--cardamom)'; }
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    if (msg) { msg.textContent = 'Error: ' + e.message; msg.style.color = 'var(--chili)'; }
+  }
+}
+
 async function renderSystem() {
   if (!state.currentUser || !isAdminRole()) {
     return `<div class="alert alert-error" style="margin-top:40px">Access denied — admin only</div>`;
@@ -13889,6 +13920,18 @@ async function renderSystem() {
     </div>
 
     ${(typeof isSuperUser === 'function' && isSuperUser()) ? `
+    <div class="card" style="max-width:720px;margin-top:20px;border-top:3px solid var(--saffron)">
+      <div class="card-header"><b>🎬 Demo data — Owner only</b></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-2);line-height:1.6">Fill the dashboard with <strong>realistic sample data</strong> (about 6 months of orders, invoices, payments, batches and work orders) so you can see how the Executive Dashboard looks in use. It uses your real customers and products and <strong>only adds transactions</strong> — nothing about your master data changes. Remove it any time with <strong>Clear demo data</strong> to return to the clean pre-launch state. Run Clear before you go live.</p>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="seedDemoData(this)">🎬 Seed demo data</button>
+          <button class="btn btn-outline" onclick="clearDemoData(this)">Clear demo data</button>
+          <span id="demo-msg" style="font-size:0.9em"></span>
+        </div>
+      </div>
+    </div>
+
     <div class="card" style="max-width:720px;margin-top:20px;border-top:3px solid var(--chili)">
       <div class="card-header"><b>🚀 Launch Reset — Owner only</b></div>
       <div class="card-body">
