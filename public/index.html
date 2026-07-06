@@ -1581,7 +1581,7 @@ function nav(page, arg) {
     'pl-report':'P&L Report', margins:'Margin Report', audit:'Audit Log',
     users:'User Management',
   };
-  document.getElementById('page-title').textContent = titles[page] || page;
+  document.getElementById('page-title').innerHTML = _breadcrumbHtml(navPage, titles[navPage] || titles[page] || page);
   render(page, arg);
 }
 
@@ -1734,6 +1734,35 @@ const SECTION_HUBS = {
     {id:'system',           label:'System',            desc:'Settings and backup'},
   ]},
 };
+
+// Workspace one-line descriptions (shown at the top of each workspace overview).
+const _HUB_BLURB = {
+  sales:'Take orders, raise invoices, and collect what you\'re owed.',
+  operations:'Buy raw materials, hold stock, and make the batches.',
+  procurement:'Capture supplier bills and pay what you owe.',
+  reports:'See how the business is doing.',
+  master:'The accounts and records everything else builds on.',
+  admin:'Pricing, recipes, users, and system settings.',
+};
+// Reverse index: page id -> its workspace (drives the breadcrumb trail).
+const _PAGE_WS = {};
+Object.entries(SECTION_HUBS).forEach(([key, cfg]) => { cfg.items.forEach(it => { _PAGE_WS[it.id] = { key, title: cfg.title, label: it.label }; }); });
+function _crumbSep() { return '<span style="color:var(--text-3);margin:0 5px">›</span>'; }
+function _crumbLink(text, onclick) { return '<a onclick="' + onclick + '" style="color:var(--text-3);cursor:pointer">' + text + '</a>'; }
+// Breadcrumb for the topbar: Dashboard > Workspace > Page (each clickable).
+function _breadcrumbHtml(page, title) {
+  const cur = 'color:var(--text-1);font-weight:600';
+  if (page === 'home' || page === 'dashboard') return '<span style="' + cur + '">Dashboard</span>';
+  if (page === 'section-hub') {
+    const cfg = SECTION_HUBS[state.hubKey];
+    return _crumbLink('Dashboard', "nav('home')") + _crumbSep() + '<span style="' + cur + '">' + (cfg ? cfg.title : 'Workspace') + '</span>';
+  }
+  const ws = _PAGE_WS[page];
+  let html = _crumbLink('Dashboard', "nav('home')");
+  if (ws) html += _crumbSep() + _crumbLink(ws.title, "openHub('" + ws.key + "')") + _crumbSep() + '<span style="' + cur + '">' + ws.label + '</span>';
+  else html += _crumbSep() + '<span style="' + cur + '">' + (title || page) + '</span>';
+  return html;
+}
 function _hubAccessible(key) {
   const cfg = SECTION_HUBS[key];
   return cfg ? cfg.items.filter(it => canAccess(it.id)) : [];
@@ -1747,7 +1776,6 @@ function openHub(key) {
 function renderSectionHub(key) {
   const cfg = SECTION_HUBS[key];
   if (!cfg) return '<div class="card" style="padding:32px;text-align:center;color:var(--text-3)">Section not found.</div>';
-  const pt = document.getElementById('page-title'); if (pt) pt.textContent = cfg.title;
   const items = _hubAccessible(key);
   if (!items.length) return '<div class="card" style="padding:32px;text-align:center;color:var(--text-3)">You don\'t have access to anything in this area.</div>';
   const cards = items.map(it =>
@@ -1757,8 +1785,9 @@ function renderSectionHub(key) {
     + '<div style="font-weight:700;margin-bottom:3px">' + it.label + ' <span style="color:var(--text-3)">→</span></div>'
     + '<div style="font-size:12px;color:var(--text-3)">' + it.desc + '</div></div>'
   ).join('');
-  return '<div class="section-header"><h2>' + cfg.title + '</h2>'
-    + '<button class="btn btn-outline btn-sm" onclick="nav(\'home\')">← Home</button></div>'
+  const blurb = _HUB_BLURB[key] ? '<p style="color:var(--text-3);font-size:13px;margin:2px 0 0">' + _HUB_BLURB[key] + '</p>' : '';
+  return '<div class="section-header"><div><h2 style="margin:0">' + cfg.title + '</h2>' + blurb + '</div>'
+    + '<button class="btn btn-outline btn-sm" onclick="nav(\'home\')">← Dashboard</button></div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">' + cards + '</div>';
 }
 
@@ -11689,7 +11718,7 @@ async function renderMargins() {
 
 async function reloadMargins(month) {
   const rows = await GET('/api/reports/margins?month=' + month);
-  document.getElementById('page-title').textContent = 'Margin Report — ' + month;
+  document.getElementById('page-title').innerHTML = _breadcrumbHtml('margins', 'Margin Report');
   document.getElementById('content').innerHTML = await renderMargins();
 }
 
