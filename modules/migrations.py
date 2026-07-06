@@ -58,6 +58,7 @@ __all__ = [
     'ensure_rep_app_access',
     'ensure_customer_gst',
     'ensure_drop_qty_in_production',
+    'ensure_bill_vendor_capture',
 ]
 
 
@@ -1472,6 +1473,33 @@ def ensure_customer_gst():
         print("  ✓ customer GST (gst_applicable / invoices.gst_rate / config gst_rate) ready")
     except Exception as e:
         print(f"  ⚠ ensure_customer_gst: {e}")
+    finally:
+        c.close()
+
+
+def ensure_bill_vendor_capture():
+    """Vendor-bill capture on supplier_bills so AP is backed by the REAL vendor invoice:
+      - expected_amount   : the system estimate at creation (from PO receipt / bill items),
+                            kept so we can flag variance against the actual vendor bill.
+      - attachment_filename: the scanned/photographed vendor invoice (stored on the volume).
+      - vendor_confirmed   : 1 once the real vendor bill has been captured & confirmed.
+    (supplier_ref already holds the vendor's invoice number.) Backfills expected_amount to the
+    current total_amount for existing bills (→ zero variance until a real bill is captured).
+    Idempotent."""
+    c = _conn()
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(supplier_bills)").fetchall()]
+        if cols and 'expected_amount' not in cols:
+            c.execute("ALTER TABLE supplier_bills ADD COLUMN expected_amount REAL")
+            c.execute("UPDATE supplier_bills SET expected_amount = total_amount WHERE expected_amount IS NULL")
+        if cols and 'attachment_filename' not in cols:
+            c.execute("ALTER TABLE supplier_bills ADD COLUMN attachment_filename TEXT DEFAULT ''")
+        if cols and 'vendor_confirmed' not in cols:
+            c.execute("ALTER TABLE supplier_bills ADD COLUMN vendor_confirmed INTEGER NOT NULL DEFAULT 0")
+        c.commit()
+        print("  ✓ supplier_bills vendor capture (expected_amount / attachment / vendor_confirmed) ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_bill_vendor_capture: {e}")
     finally:
         c.close()
 

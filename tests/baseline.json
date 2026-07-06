@@ -1,10 +1,10 @@
 {
-  "captured_at": "2026-07-05T18:14:14.501902",
+  "captured_at": "2026-07-05T22:32:00.929154",
   "summary": {
     "passed": 189,
     "failed": 0,
-    "skipped": 10,
-    "total": 199
+    "skipped": 11,
+    "total": 200
   },
   "modules": [
     {
@@ -122,10 +122,10 @@
     {
       "module": "phase0",
       "label": "Phase 0 \u2014 GST / Security / Guards",
-      "total": 9,
+      "total": 10,
       "passed": 8,
       "failed": 0,
-      "skipped": 1
+      "skipped": 2
     }
   ]
 }

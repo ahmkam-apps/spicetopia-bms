@@ -776,6 +776,26 @@ def run_backup() -> dict:
     except Exception as e:
         print(f"  ⚠ Recipe image backup skipped: {e}")
 
+    # Backup scanned vendor bills — these are financial records, don't lose them
+    try:
+        import zipfile as _zf
+        scan_dir = Path(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data')) / 'bill-scans'
+        if scan_dir.is_dir() and any(scan_dir.iterdir()):
+            scan_zip = BACKUP_PATH / f"bill_scans_{ts}.zip"
+            with _zf.ZipFile(scan_zip, 'w', _zf.ZIP_DEFLATED) as zf:
+                for sf in scan_dir.iterdir():
+                    if sf.is_file():
+                        zf.write(sf, sf.name)
+            for f in BACKUP_PATH.glob("bill_scans_*.zip"):
+                try:
+                    if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                        f.unlink()
+                except Exception:
+                    pass
+            print(f"  ✓ Bill scans backed up: {scan_zip.name}")
+    except Exception as e:
+        print(f"  ⚠ Bill scan backup skipped: {e}")
+
     return {'path': str(dest), 'filename': dest.name, 'size_kb': size_kb, 'ts': ts}
 
 
@@ -3180,6 +3200,33 @@ class Handler(BaseHTTPRequestHandler):
                                   'total': t, 'paid': p, 'balance': b, 'po_link': po_link})
                 return
 
+            # GET /api/bills/:id/attachment  (admin, accountant) — serve the scanned vendor invoice.
+            # Gated (bills are sensitive, unlike public recipe images) → frontend fetches with the
+            # bearer token and opens the blob.
+            if path.startswith('/api/bills/') and path.endswith('/attachment'):
+                _bsess = get_session(self, qs)
+                if not require(_bsess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                bill_id = int(path.split('/')[3])
+                brow = qry1("SELECT attachment_filename FROM supplier_bills WHERE id=?", (bill_id,))
+                fname = os.path.basename((brow or {}).get('attachment_filename') or '')
+                if not fname:
+                    send_error(self, "No attachment on this bill", 404); return
+                fpath = os.path.join(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data'), 'bill-scans', fname)
+                if not os.path.isfile(fpath):
+                    send_error(self, "Attachment file not found", 404); return
+                import mimetypes as _mt
+                mime = _mt.guess_type(fpath)[0] or 'application/octet-stream'
+                with open(fpath, 'rb') as _f:
+                    _body = _f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', mime)
+                self.send_header('Content-Length', str(len(_body)))
+                self.send_header('Cache-Control', 'private, max-age=3600')
+                self.end_headers()
+                self.wfile.write(_body)
+                return
+
             # GET /api/supplier-payments
             if path == '/api/supplier-payments':
                 sup_id = qs.get('supplierId', [None])[0]
@@ -4533,6 +4580,29 @@ class Handler(BaseHTTPRequestHandler):
                 bill_id = int(path.split('/')[3])
                 result  = adjust_bill(bill_id, data)
                 send_json(self, result, 201)
+                return
+
+            # POST /api/bills/:id/vendor-confirm  (admin, accountant) — capture the REAL vendor
+            # invoice: actual billed amount + vendor invoice # + optional scanned attachment.
+            if path.startswith('/api/bills/') and path.endswith('/vendor-confirm'):
+                if not require(sess, 'admin', 'accountant'):
+                    send_error(self, 'Permission denied', 403); return
+                bill_id = int(path.split('/')[3])
+                attach_name = None
+                if data.get('image_b64') and data.get('image_ext'):
+                    import base64, uuid as _uuid
+                    scan_dir = os.path.join(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '/data'), 'bill-scans')
+                    os.makedirs(scan_dir, exist_ok=True)
+                    ext = str(data['image_ext']).lower().lstrip('.')
+                    attach_name = _uuid.uuid4().hex + '.' + ext
+                    with open(os.path.join(scan_dir, attach_name), 'wb') as f:
+                        f.write(base64.b64decode(data['image_b64']))
+                result = confirm_vendor_bill(bill_id, {
+                    'actualAmount':       data.get('actualAmount'),
+                    'invoiceNo':          data.get('invoiceNo'),
+                    'attachmentFilename': attach_name,
+                })
+                send_json(self, result)
                 return
 
             # POST /api/supplier-payments  (admin, accountant)
@@ -6075,7 +6145,7 @@ if __name__ == '__main__':
         ensure_deactivate_spring_catalog, ensure_rep_zones, ensure_dedup_seed_suppliers,
         ensure_cost_lines, ensure_wo_produced_units, ensure_ingredient_target_grams,
         ensure_batch_stages, ensure_rep_app_access, ensure_customer_gst,
-        ensure_drop_qty_in_production,
+        ensure_drop_qty_in_production, ensure_bill_vendor_capture,
         backfill_customer_account_numbers,
     ):
         try:

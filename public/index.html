@@ -6791,6 +6791,38 @@ async function showBillDetail(billId) {
   _renderBillDetail(bill);
 }
 
+async function captureVendorBill(billId) {
+  const amtEl = document.getElementById('bill-vc-amt-' + billId);
+  const refEl = document.getElementById('bill-vc-ref-' + billId);
+  const fileEl = document.getElementById('bill-vc-file-' + billId);
+  const amt = parseFloat(amtEl && amtEl.value);
+  if (isNaN(amt) || amt < 0) { showMsg('bill-vc-msg-' + billId, 'Enter the actual amount the vendor billed.', 'error'); return; }
+  const payload = { actualAmount: amt, invoiceNo: (refEl ? refEl.value.trim() : '') };
+  const f = fileEl && fileEl.files && fileEl.files[0];
+  if (f) {
+    try {
+      const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+      payload.image_b64 = String(dataUrl).split(',')[1];
+      const m = /data:([^;]+)/.exec(String(dataUrl)); const mime = m ? m[1] : '';
+      payload.image_ext = (f.name.split('.').pop() || (mime.split('/')[1]) || 'jpg').toLowerCase();
+    } catch(e) { showMsg('bill-vc-msg-' + billId, 'Could not read the file.', 'error'); return; }
+  }
+  try {
+    await POST('/api/bills/' + billId + '/vendor-confirm', payload);
+    const bill = await GET('/api/bills/' + billId);
+    _renderBillDetail(bill);
+  } catch(e) { showMsg('bill-vc-msg-' + billId, e.message, 'error'); }
+}
+
+async function viewBillScan(billId) {
+  try {
+    const r = await fetch('/api/bills/' + billId + '/attachment', { headers: { 'Authorization': 'Bearer ' + authToken() } });
+    if (!r.ok) { alert('Could not load the scan.'); return; }
+    const blob = await r.blob();
+    window.open(URL.createObjectURL(blob), '_blank');
+  } catch(e) { alert(e.message); }
+}
+
 function _renderBillDetail(bill) {
   _lastBillData = bill;
   const billId = bill.id;
@@ -6814,6 +6846,37 @@ function _renderBillDetail(bill) {
         ${_canAdjustBill && bill.status !== 'VOID' ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px;font-size:11px" onclick="undoBillAllocation(${a.id},${billId})" title="Undo this allocation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo</button>` : ''}
       </td>
     </tr>`).join('');
+
+  // Vendor-invoice capture + variance (expected estimate vs the real vendor bill)
+  const _exp = (bill.expected_amount != null) ? Number(bill.expected_amount) : null;
+  let _varianceHtml = '';
+  if (bill.vendor_confirmed && _exp != null) {
+    const v = Number(bill.total_amount||0) - _exp;
+    const vpct = _exp ? (v/_exp*100) : 0;
+    const col = Math.abs(v) < 0.01 ? 'var(--cardamom)' : (v>0 ? 'var(--chili)' : '#b45309');
+    _varianceHtml = `<div style="font-size:12px;margin-bottom:8px">Expected <b>${fmtPKR(_exp)}</b> &nbsp;·&nbsp; Billed <b>${fmtPKR(bill.total_amount)}</b> &nbsp;·&nbsp; <span style="color:${col};font-weight:700">Variance ${v>=0?'+':''}${fmtPKR(v)} (${vpct>=0?'+':''}${vpct.toFixed(1)}%)</span></div>`;
+  } else if (_exp != null) {
+    _varianceHtml = `<div style="font-size:12px;margin-bottom:8px;color:var(--text-3)">Estimated ${fmtPKR(_exp)} from goods received — capture the vendor's actual invoice to confirm what you owe and flag any variance.</div>`;
+  }
+  const _vcDefault = bill.vendor_confirmed ? Number(bill.total_amount||0) : (_exp != null ? _exp : Number(bill.total||0));
+  const vendorPanel = (bill.status === 'VOID') ? '' : `
+    <div style="background:#f7f4ff;border:1px solid #ddd4f5;border-radius:6px;padding:14px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:13px;font-weight:600;color:#6b46c1">Vendor Invoice ${bill.vendor_confirmed ? '<span class="badge badge-ok" style="font-size:10px">Captured</span>' : '<span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px">Not captured</span>'}</div>
+        ${bill.attachment_filename ? `<button class="btn btn-outline btn-sm" onclick="viewBillScan(${billId})" style="font-size:12px">📎 View scan</button>` : ''}
+      </div>
+      ${_varianceHtml}
+      <div id="bill-vc-msg-${billId}"></div>
+      <div class="form-row" style="gap:8px;align-items:flex-end">
+        <div class="form-group"><label style="font-size:11px">Actual billed (PKR)</label>
+          <input id="bill-vc-amt-${billId}" type="number" min="0" step="0.01" value="${_vcDefault.toFixed(2)}" style="width:130px"></div>
+        <div class="form-group"><label style="font-size:11px">Vendor invoice #</label>
+          <input id="bill-vc-ref-${billId}" value="${(bill.supplier_ref||'').replace(/"/g,'&quot;')}" placeholder="e.g. INV-2231" style="width:150px"></div>
+        <div class="form-group" style="flex:1"><label style="font-size:11px">Scan / photo (optional)</label>
+          <input id="bill-vc-file-${billId}" type="file" accept="image/*,application/pdf" style="font-size:12px"></div>
+        <button class="btn btn-primary btn-sm" onclick="captureVendorBill(${billId})">Save vendor bill</button>
+      </div>
+    </div>`;
 
   document.getElementById('bill-detail-area').innerHTML = `
   <div class="card mb-16" style="border-left:4px solid var(--saffron)">
@@ -6862,6 +6925,8 @@ function _renderBillDetail(bill) {
         </tr>
       </tfoot>
     </table>
+
+    ${vendorPanel}
 
     <!-- Payments applied -->
     ${allocRows ? `

@@ -22,7 +22,7 @@ __all__ = [
     # AP aging
     'get_ap_aging',
     # Supplier bills
-    'create_supplier_bill', 'update_supplier_bill',
+    'create_supplier_bill', 'update_supplier_bill', 'confirm_vendor_bill',
     # AP payments & allocation
     'record_supplier_payment', 'allocate_supplier_payment',
     'pay_bill_direct', 'deallocate_supplier_payment', 'adjust_bill',
@@ -181,10 +181,10 @@ def create_supplier_bill(data):
 
         c.execute("""
             INSERT INTO supplier_bills
-                (bill_number, supplier_id, bill_date, due_date, status, notes, total_amount, supplier_ref)
-            VALUES (?,?,?,?,'UNPAID',?,?,?)
+                (bill_number, supplier_id, bill_date, due_date, status, notes, total_amount, supplier_ref, expected_amount)
+            VALUES (?,?,?,?,'UNPAID',?,?,?,?)
         """, (bill_num, sup['id'], bill_date, due_date,
-              data.get('notes', ''), computed_total, supplier_ref))
+              data.get('notes', ''), computed_total, supplier_ref, computed_total))
         bill_db_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         for item in items:
@@ -226,6 +226,59 @@ def create_supplier_bill(data):
         (bill_db_id,)
     )['t'])
     return {'billNumber': bill_num, 'billId': bill_db_id, 'total': total}
+
+
+def confirm_vendor_bill(bill_id, data):
+    """Capture the REAL vendor invoice against an existing (draft/expected) bill.
+    Sets the actual billed amount (drives AP), the vendor's invoice number, and the scanned
+    attachment filename; the prior estimate is kept as expected_amount for variance.
+    Does NOT touch inventory (goods-in was posted at receipt) — this is the AP/finance leg only.
+    data: {actualAmount, invoiceNo, attachmentFilename}
+    Returns the updated bill + variance (actual − expected)."""
+    bill = qry1("SELECT * FROM supplier_bills WHERE id=?", (bill_id,))
+    if not bill:
+        raise ValueError("Bill not found")
+    if bill.get('status') == 'VOID':
+        raise ValueError("Cannot capture a voided bill")
+
+    actual = data.get('actualAmount', None)
+    if actual is None or actual == '':
+        raise ValueError("Actual vendor amount is required")
+    actual = r2(float(actual))
+    if actual < 0:
+        raise ValueError("Amount cannot be negative")
+
+    invoice_no = (data.get('invoiceNo') or '').strip()
+    if invoice_no:
+        dup = qry1("""SELECT bill_number FROM supplier_bills
+                      WHERE supplier_id=? AND supplier_ref=? AND id<>?""",
+                   (bill['supplier_id'], invoice_no, bill_id))
+        if dup:
+            raise ValueError(f"Vendor invoice '{invoice_no}' already recorded as {dup['bill_number']}")
+
+    attach = (data.get('attachmentFilename') or '').strip()
+
+    # Preserve the original estimate as expected_amount if the column was never populated.
+    expected = bill.get('expected_amount')
+    if expected is None:
+        expected = r2(float(bill.get('total_amount') or 0))
+
+    sets   = ["total_amount=?", "expected_amount=?", "vendor_confirmed=1"]
+    params = [actual, r2(float(expected))]
+    if invoice_no:
+        sets.append("supplier_ref=?"); params.append(invoice_no)
+    if attach:
+        sets.append("attachment_filename=?"); params.append(attach)
+    params.append(bill_id)
+    run(f"UPDATE supplier_bills SET {', '.join(sets)} WHERE id=?", params)   # run() persists (save_db)
+
+    _sync_bill_status(bill_id)
+
+    updated  = qry1("SELECT * FROM supplier_bills WHERE id=?", (bill_id,))
+    exp      = float(updated.get('expected_amount') or 0)
+    variance = r2(actual - exp)
+    return {**updated, 'variance': variance,
+            'variancePct': round(variance / exp * 100, 1) if exp else None}
 
 
 def update_supplier_bill(bill_id, data):
@@ -734,10 +787,10 @@ def update_purchase_order_status(po_id, new_status, data=None):
                 c.execute("""
                     INSERT INTO supplier_bills
                         (bill_number, supplier_id, bill_date, due_date, status,
-                         notes, total_amount, po_id)
-                    VALUES (?,?,?,?,'UNPAID',?,?,?)
+                         notes, total_amount, po_id, expected_amount)
+                    VALUES (?,?,?,?,'UNPAID',?,?,?,?)
                 """, (bill_num, po['supplier_id'], bill_date, due_date,
-                      f"From PO {po['po_number']}", po_bill_total, po_id))
+                      f"From PO {po['po_number']}", po_bill_total, po_id, po_bill_total))
                 bill_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
 
                 for item in items_after:

@@ -155,6 +155,36 @@ def run():
     else:
         _skip("convert guard", "no product variant id available")
 
+    # ── PF-3: vendor bill capture — expected vs actual + variance ─────────────
+    sup = GET("/api/suppliers", token=tok).json()
+    ings = GET("/api/ingredients?all=1", token=tok).json()
+    if not (isinstance(ings, list) and ings):
+        ings = GET("/api/ingredients", token=tok).json()
+    sup_id = (sup[0].get("id") if isinstance(sup, list) and sup else None)
+    ing_id = (ings[0].get("id") if isinstance(ings, list) and ings else None)
+    if sup_id and ing_id:
+        cb = POST("/api/bills", {"supplierId": sup_id, "billDate": TODAY, "dueDate": FUTURE,
+                  "items": [{"ingredientId": ing_id, "quantityKg": 10, "unitCostKg": 100}]}, token=tok)
+        bill_id = cb.json().get("billId") if cb.status_code in (200, 201) else None
+        if bill_id:
+            det0 = GET(f"/api/bills/{bill_id}", token=tok).json()
+            _pass("new bill expected_amount = total") if _num(det0.get("expected_amount")) == _num(det0.get("total_amount")) \
+                else _fail("bill expected_amount seeded", f"exp={det0.get('expected_amount')} tot={det0.get('total_amount')}")
+            vc = POST(f"/api/bills/{bill_id}/vendor-confirm",
+                      {"actualAmount": 1080, "invoiceNo": f"VINV-{ts}"}, token=tok)
+            if vc.status_code == 200:
+                d = vc.json()
+                ok = _num(d.get("total_amount")) == 1080 and _num(d.get("expected_amount")) == 1000 \
+                    and _num(d.get("variance")) == 80 and d.get("vendor_confirmed") in (1, True)
+                _pass("vendor-confirm sets actual + variance (80)") if ok \
+                    else _fail("vendor bill variance", f"total={d.get('total_amount')} exp={d.get('expected_amount')} var={d.get('variance')}")
+            else:
+                _fail("vendor-confirm endpoint", f"got {vc.status_code}: {vc.text[:120]}")
+        else:
+            _skip("vendor bill capture", f"bill create failed {cb.status_code}")
+    else:
+        _skip("vendor bill capture", "no supplier or ingredient available")
+
     logout(tok)
     print_summary()
     return summary()
