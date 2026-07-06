@@ -84,6 +84,21 @@ def get_wo_reserved_stock_map(exclude_wo_id=None):
     """
     Return {ingredient_id: grams_reserved} for all planned/in_progress work orders.
 
+    Reserves RM only for units that STILL NEED it — i.e. neither already made nor
+    already committed to a live batch run:
+
+        reserved_units = MAX(qty_units − produced_units − active_run_units, 0)
+
+      • produced_units    — units made in earlier (verified) batches; their RM was
+        consumed at that time, so reserving it again would double-count.
+      • active_run_units  — units in an in_progress / awaiting_verification batch
+        run. start_batch_run() consumes their RM immediately (on-hand already
+        dropped), but produced_units is not bumped until verify — so without this
+        subtraction the WO reserves the full quantity against stock that is already
+        gone, producing false buy-list shortfalls mid-cycle (P0-5b).
+
+    Clamped at 0 so a fully-produced or fully-committed WO reserves nothing.
+
     Uses a single CTE JOIN to compute ingredient requirements via the active BOM
     for each open WO without N+1 queries.
 
@@ -97,11 +112,19 @@ def get_wo_reserved_stock_map(exclude_wo_id=None):
             FROM bom_versions
             WHERE active_flag = 1
             GROUP BY product_id
+        ),
+        active_runs AS (
+            SELECT wo_id, COALESCE(SUM(qty_units), 0) AS run_units
+            FROM batch_runs
+            WHERE status IN ('in_progress', 'awaiting_verification')
+            GROUP BY wo_id
         )
         SELECT bi.ingredient_id,
                ROUND(SUM(
                    bi.quantity_grams
-                   * (wo.qty_units * COALESCE(ps.grams, 0))
+                   * (MAX(wo.qty_units
+                          - COALESCE(wo.produced_units, 0)
+                          - COALESCE(ar.run_units, 0), 0) * COALESCE(ps.grams, 0))
                    / NULLIF(bv.batch_size_grams, 0)
                ), 2) AS reserved_grams
         FROM work_orders wo
@@ -110,6 +133,7 @@ def get_wo_reserved_stock_map(exclude_wo_id=None):
         JOIN active_boms ab       ON ab.product_id = pv.product_id
         JOIN bom_versions bv      ON bv.id  = ab.bom_id
         JOIN bom_items bi         ON bi.bom_version_id = bv.id
+        LEFT JOIN active_runs ar  ON ar.wo_id = wo.id
         WHERE wo.status IN ('planned', 'in_progress')
           {exclude_clause}
         GROUP BY bi.ingredient_id

@@ -1,10 +1,10 @@
 {
-  "captured_at": "2026-07-06T00:08:48.385876",
+  "captured_at": "2026-07-06T09:06:55.197917",
   "summary": {
-    "passed": 189,
+    "passed": 195,
     "failed": 0,
     "skipped": 11,
-    "total": 200
+    "total": 206
   },
   "modules": [
     {
@@ -126,6 +126,14 @@
       "passed": 8,
       "failed": 0,
       "skipped": 2
+    },
+    {
+      "module": "reservation",
+      "label": "Reservation \u2014 P0-5b RM reserve math",
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
     }
   ]
 }

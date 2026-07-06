@@ -53,6 +53,7 @@ MODULES = [
     ("business_rules", "test_business_rules",  "Business Rules"),
     ("planning",       "test_planning",        "Planning Input System"),
     ("phase0",         "test_phase0",          "Phase 0 — GST / Security / Guards"),
+    ("reservation",    "test_reservation",     "Reservation — P0-5b RM reserve math"),
 ]
 
 def _bar(char="─", n=60):
