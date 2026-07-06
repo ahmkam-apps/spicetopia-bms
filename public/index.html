@@ -695,15 +695,15 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('review-queue')" id="nav-review-queue"><span class="icon" data-icon="search"></span> Review Queue <span id="rq-badge" style="display:none;background:var(--chili);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:2px"></span></div>
       <div class="nav-item" onclick="nav('receipts-aging')" id="nav-receipts-aging"><span class="icon" data-icon="banknote"></span> Receipts &amp; AR</div>
 
-      <div class="nav-section">Procurement &amp; AP</div>
+      <div class="nav-section">Operations</div>
       <div class="nav-item" onclick="nav('purchase-orders')" id="nav-purchase-orders"><span class="icon" data-icon="shopping-cart"></span> Purchase Orders</div>
+      <div class="nav-item" onclick="nav('inventory')" id="nav-inventory"><span class="icon" data-icon="archive"></span> Inventory</div>
+      <div class="nav-item" onclick="nav('production')" id="nav-production"><span class="icon" data-icon="settings-2"></span> Production</div>
+
+      <div class="nav-section">Accounts Payable</div>
       <div class="nav-item" onclick="nav('bills')" id="nav-bills"><span class="icon" data-icon="receipt"></span> Supplier Bills</div>
       <div class="nav-item" onclick="nav('ap-payments')" id="nav-ap-payments"><span class="icon" data-icon="credit-card"></span> Payments</div>
       <div class="nav-item" onclick="nav('ap-aging')" id="nav-ap-aging"><span class="icon" data-icon="calendar"></span> AP Aging</div>
-
-      <div class="nav-section">Operations</div>
-      <div class="nav-item" onclick="nav('inventory')" id="nav-inventory"><span class="icon" data-icon="archive"></span> Inventory</div>
-      <div class="nav-item" onclick="nav('production')" id="nav-production"><span class="icon" data-icon="settings-2"></span> Production</div>
 
       <!-- ── DIVIDER: daily above / admin below ────────────────── -->
       <div class="nav-divider"></div>
@@ -851,12 +851,12 @@ const ALL_MODULES = [
   { id:'receipts-aging',   label:'Receipts & AR',      section:'Sales & AR' },
   { id:'field-orders',     label:'Field Orders',       section:'Sales & AR' },
   { id:'review-queue',     label:'Review Queue',       section:'Sales & AR' },
-  { id:'purchase-orders',  label:'Purchase Orders',    section:'Procurement' },
-  { id:'bills',            label:'Supplier Bills',     section:'Procurement' },
-  { id:'ap-payments',      label:'Payments',           section:'Procurement' },
-  { id:'ap-aging',         label:'AP Aging',           section:'Procurement' },
+  { id:'purchase-orders',  label:'Purchase Orders',    section:'Operations' },
   { id:'inventory',        label:'Inventory',          section:'Operations' },
   { id:'production',       label:'Production',         section:'Operations' },
+  { id:'bills',            label:'Supplier Bills',     section:'Accounts Payable' },
+  { id:'ap-payments',      label:'Payments',           section:'Accounts Payable' },
+  { id:'ap-aging',         label:'AP Aging',           section:'Accounts Payable' },
   { id:'pl-report',        label:'P&L Report',         section:'Reports' },
   { id:'margins',          label:'Margin Report',      section:'Reports' },
   { id:'planning',         label:'Planning & Forecast',section:'Reports' },
@@ -1703,15 +1703,15 @@ const SECTION_HUBS = {
     {id:'review-queue',    label:'Review Queue',      desc:'Approve or reject pending orders'},
     {id:'receipts-aging',  label:'Receipts & AR',     desc:'Record payments, track what is owed'},
   ]},
-  procurement: { title:'Procurement & AP', items:[
-    {id:'purchase-orders', label:'Purchase Orders', desc:'Order ingredients from suppliers'},
-    {id:'bills',           label:'Supplier Bills',  desc:'Record and track supplier invoices'},
+  operations: { title:'Operations', items:[
+    {id:'purchase-orders', label:'Purchase Orders', desc:'Order raw materials, receive into stock'},
+    {id:'inventory',  label:'Inventory',  desc:'Stock levels, adjustments, ledger'},
+    {id:'production', label:'Production',  desc:'Work orders, batches, buy-list'},
+  ]},
+  procurement: { title:'Accounts Payable', items:[
+    {id:'bills',           label:'Supplier Bills',  desc:'Capture vendor invoices, match & pay'},
     {id:'ap-payments',     label:'Payments',        desc:'Pay suppliers, allocate payments'},
     {id:'ap-aging',        label:'AP Aging',        desc:'What you owe, by age'},
-  ]},
-  operations: { title:'Operations', items:[
-    {id:'inventory',  label:'Inventory',  desc:'Stock levels, adjustments, ledger'},
-    {id:'production', label:'Production',  desc:'Work orders and batches'},
   ]},
   reports: { title:'Reports', items:[
     {id:'pl-report',       label:'P&L Report',      desc:'Profit and loss by period'},
@@ -5674,10 +5674,14 @@ async function renderPurchaseOrders() {
       <div class="form-row" style="gap:12px;flex-wrap:wrap">
         <div class="form-group" style="flex:2;min-width:180px">
           <label class="form-label">Supplier</label>
-          <select id="po-supplier" class="form-input">
-            <option value="">— Select supplier —</option>
-            ${supOptions}
-          </select>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="po-supplier" class="form-input" style="flex:1">
+              <option value="">— Select supplier —</option>
+              ${supOptions}
+            </select>
+            <button type="button" class="btn btn-outline btn-sm" onclick="_poNewSupplierForm()" style="white-space:nowrap" title="Add a supplier on the fly">+ New</button>
+          </div>
+          <div id="po-newsup-form" style="margin-top:8px"></div>
         </div>
         <div class="form-group" style="flex:0 0 140px">
           <label class="form-label">PO Date</label>
@@ -5799,6 +5803,39 @@ function clearPOCalc() {
 }
 
 // ── Mode A: BOM calculation ───────────────────────────────────
+// Add a supplier on the fly from the PO form (select from list OR create new).
+function _poNewSupplierForm() {
+  const box = document.getElementById('po-newsup-form');
+  if (!box) return;
+  if (box.innerHTML) { box.innerHTML = ''; return; }   // toggle closed
+  box.innerHTML = '<div class="card" style="padding:10px;background:var(--surface-2)"><div id="po-newsup-msg"></div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">'
+    + '<div class="form-group" style="margin:0"><label style="font-size:11px">Supplier name *</label><input id="po-newsup-name" class="form-input" style="width:170px" placeholder="e.g. Punjab Agri"></div>'
+    + '<div class="form-group" style="margin:0"><label style="font-size:11px">City</label><input id="po-newsup-city" class="form-input" style="width:110px"></div>'
+    + '<div class="form-group" style="margin:0"><label style="font-size:11px">Phone</label><input id="po-newsup-phone" class="form-input" style="width:120px"></div>'
+    + '<button type="button" class="btn btn-primary btn-sm" onclick="_poCreateSupplier()">Add supplier</button>'
+    + '<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById(\'po-newsup-form\').innerHTML=\'\'">Cancel</button>'
+    + '</div></div>';
+}
+async function _poCreateSupplier() {
+  const name  = (document.getElementById('po-newsup-name')?.value  || '').trim();
+  const city  = (document.getElementById('po-newsup-city')?.value  || '').trim();
+  const phone = (document.getElementById('po-newsup-phone')?.value || '').trim();
+  if (name.length < 2) { showMsg('po-newsup-msg', 'Enter a supplier name (2+ characters).', 'error'); return; }
+  try {
+    const sup = await POST('/api/suppliers', { name: name, city: city, phone: phone });
+    const sel = document.getElementById('po-supplier');
+    if (sel && sup && sup.id) {
+      const opt = document.createElement('option');
+      opt.value = sup.id; opt.textContent = sup.name + (sup.code ? ' (' + sup.code + ')' : '');
+      sel.appendChild(opt); sel.value = sup.id;
+    }
+    // keep it available to other screens this session without a full reload
+    if (state.ref && Array.isArray(state.ref.suppliers)) state.ref.suppliers.push(sup);
+    const box = document.getElementById('po-newsup-form'); if (box) box.innerHTML = '';
+  } catch(e) { showMsg('po-newsup-msg', e.message, 'error'); }
+}
+
 let _poCalcIngredients = []; // [{ingId, ingCode, neededKg, availableKg, toOrderKg, sufficient}]
 
 async function calcPOIngredients() {
@@ -5814,30 +5851,37 @@ async function calcPOIngredients() {
     const res = await GET(`/api/purchase-orders/bom-calculate?variantId=${varId}&qty=${qty}`);
     _poCalcIngredients = res.ingredients;
 
-    const rows = res.ingredients.map((ing, idx) => `
-      <tr style="border-top:1px solid var(--border);${ing.sufficient?'opacity:0.55':''}">
+    const rows = res.ingredients.map((ing, idx) => {
+      // Pre-fill unit cost from the ingredient master (the BOM-calc endpoint omits cost for IP
+      // reasons); editable. Always render a qty box — in-stock lines default to 0 (editable for
+      // restock) so an all-in-stock PO isn't blocked by "add at least one ingredient".
+      const _im   = ((state.ref && state.ref.ingredients) || []).find(x => x.id === ing.ingId || x.code === ing.ingCode);
+      const _cost = (_im && _im.cost_per_kg) ? _im.cost_per_kg : '';
+      const _qtyDefault = ing.sufficient ? '0' : fmt(ing.toOrderKg,3);
+      return `
+      <tr style="border-top:1px solid var(--border);${ing.sufficient?'opacity:0.7':''}">
         <td style="padding:7px 10px">
           <span style="font-weight:${ing.sufficient?'400':'600'};font-family:monospace">${ing.ingCode}</span>
         </td>
         <td style="padding:7px 10px;text-align:right">${fmt(ing.neededKg,3)} kg</td>
         <td style="padding:7px 10px;text-align:right;color:${ing.availableKg>0?'var(--cardamom)':'var(--text-3)'}">${fmt(ing.availableKg,3)} kg</td>
         <td style="padding:7px 10px;text-align:right;color:${ing.sufficient?'var(--cardamom)':'var(--chili);font-weight:600'}">
-          ${ing.sufficient ? '✓ Sufficient' : fmt(ing.toOrderKg,3)+' kg'}
+          ${ing.sufficient ? '✓ In stock' : fmt(ing.toOrderKg,3)+' kg short'}
         </td>
         <td style="padding:7px 10px;text-align:right">
-          ${ing.sufficient ? '—' :
-            `<input type="number" id="po-calc-qty-${idx}" class="form-input"
-              style="width:90px;padding:4px 6px;font-size:13px;text-align:right"
-              value="${fmt(ing.toOrderKg,3)}" min="0" step="0.001"
-              onchange="updatePOCalcTotal()">`}
+          <input type="number" id="po-calc-qty-${idx}" class="form-input"
+            style="width:90px;padding:4px 6px;font-size:13px;text-align:right"
+            value="${_qtyDefault}" min="0" step="0.001"
+            onchange="updatePOCalcTotal()">
         </td>
         <td style="padding:7px 10px;text-align:right">
           <input type="number" id="po-calc-cost-${idx}" class="form-input"
             style="width:90px;padding:4px 6px;font-size:13px;text-align:right"
-            value="0" min="0" step="0.01" placeholder="PKR/kg"
+            value="${_cost}" min="0" step="0.01" placeholder="PKR/kg"
             onchange="updatePOCalcTotal()">
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
 
     const hasShort = res.ingredients.some(i => !i.sufficient);
     const div = document.getElementById('po-calc-result');
@@ -6000,6 +6044,10 @@ async function onPOIngChange(lineId) {
       const lc = await GET(`/api/ingredients/${ingId}/last-cost`);
       if (lc && lc.unit_cost_kg > 0) {
         costEl.value = lc.unit_cost_kg.toFixed(2);
+      } else {
+        // No prior-PO history (e.g. pre-launch) → fall back to the ingredient master cost.
+        const _im = ((state.ref && state.ref.ingredients) || []).find(x => String(x.id) === String(ingId));
+        if (_im && _im.cost_per_kg > 0) costEl.value = Number(_im.cost_per_kg).toFixed(2);
       }
     }
   } catch(e) { /* silent */ }
@@ -8491,7 +8539,40 @@ function _monthPlanHtml(d) {
     + '<div style="font-size:11.5px;color:var(--text-3);margin-bottom:10px">Everything the month’s batches need, minus what’s in stock. Buy the amounts in the <b>Buy</b> column — once for the month.</div>'
     + '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:var(--text-3);font-size:11px">'
     + '<th style="text-align:left;padding:4px 8px">Ingredient</th><th style="text-align:right;padding:4px 8px">Need</th><th style="text-align:right;padding:4px 8px">In stock</th><th style="text-align:right;padding:4px 8px">Buy</th><th style="text-align:right;padding:4px 8px">Cost/kg</th><th style="text-align:right;padding:4px 8px">Est cost</th></tr></thead>'
-    + '<tbody style="font-size:12.5px">' + rows + '</tbody></table></div>';
+    + '<tbody style="font-size:12.5px">' + rows + '</tbody></table>'
+    + (d.toBuyCount > 0
+        ? '<div style="margin-top:12px;display:flex;justify-content:flex-end;align-items:center;gap:8px">'
+          + '<span style="font-size:11.5px;color:var(--text-3)">Turn the short lines into an order →</span>'
+          + '<button class="btn btn-sm btn-primary" onclick="_buylistShowPOForm(\'' + d.month + '\')">Create draft PO</button></div>'
+          + '<div id="buylist-po-form" style="margin-top:10px"></div>'
+        : '')
+    + '</div>';
+}
+async function _buylistShowPOForm(month) {
+  const box = document.getElementById('buylist-po-form');
+  if (!box) return;
+  let sups = [];
+  try { sups = await GET('/api/suppliers'); } catch(e) {}
+  const opts = (Array.isArray(sups) ? sups.filter(s => s.active_flag !== 0) : [])
+    .map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
+  if (!opts) { box.innerHTML = '<div class="alert alert-error">No suppliers found — add a supplier first.</div>'; return; }
+  box.innerHTML = '<div class="card" style="padding:12px;background:var(--surface-2)"><div id="buylist-po-msg"></div>'
+    + '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'
+    + '<div class="form-group"><label style="font-size:11px">Supplier for this PO</label><select id="buylist-po-sup" style="min-width:200px">' + opts + '</select></div>'
+    + '<button class="btn btn-sm btn-primary" onclick="_buylistCreatePO(\'' + month + '\')">Create draft PO</button>'
+    + '<button class="btn btn-sm btn-outline" onclick="document.getElementById(\'buylist-po-form\').innerHTML=\'\'">Cancel</button>'
+    + '</div><div style="font-size:11px;color:var(--text-3);margin-top:6px">Creates a draft PO with every “Buy” line for this supplier. Review &amp; send it from Purchase Orders; stock only moves when you receive it.</div></div>';
+}
+async function _buylistCreatePO(month) {
+  const sel = document.getElementById('buylist-po-sup');
+  const supplierId = sel ? parseInt(sel.value) : 0;
+  if (!supplierId) { showMsg('buylist-po-msg', 'Pick a supplier', 'error'); return; }
+  try {
+    const po = await POST('/api/production/material-plan/create-po', { month: month, supplierId: supplierId });
+    const poNum = po.po_number || po.poNumber || '';
+    showMsg('buylist-po-msg', '✓ Draft PO ' + poNum + ' created — opening Purchase Orders…', 'success');
+    setTimeout(() => { nav('purchase-orders'); }, 1100);
+  } catch(e) { showMsg('buylist-po-msg', e.message, 'error'); }
 }
 async function _loadMonthPlan() {
   const box = document.getElementById('month-plan');

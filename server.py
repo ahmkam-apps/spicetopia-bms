@@ -4632,6 +4632,16 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result, 201)
                 return
 
+            # POST /api/production/material-plan/create-po  — draft PO from the month's buy-list
+            # (exposes ingredient quantities → recipe-gated, same as the buy-list itself)
+            if path == '/api/production/material-plan/create-po':
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
+                result = create_po_from_buylist(
+                    data.get('month'), data.get('supplierId'), data.get('codes'))
+                send_json(self, result, 201)
+                return
+
             # POST /api/work-orders/:id/convert  (admin, warehouse)
             if path.startswith('/api/work-orders/') and path.endswith('/convert'):
                 if not require(sess, 'admin', 'warehouse'):

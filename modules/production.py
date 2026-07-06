@@ -48,7 +48,7 @@ __all__ = [
     'cancel_batch_run',
     'list_batch_runs',
     'get_batch_run',
-    'get_month_material_plan',
+    'get_month_material_plan', 'create_po_from_buylist',
 ]
 
 
@@ -1046,6 +1046,7 @@ def get_month_material_plan(month=None):
         line    = r2(buy_kg * cpk)
         total_cost += line
         materials.append({
+            'id': ing_id,
             'code': ing.get('code', ''), 'name': ing.get('name', ''),
             'needKg': r2(g / 1000), 'stockKg': r2(stock_g / 1000),
             'buyKg': buy_kg, 'costPerKg': cpk, 'lineCost': line,
@@ -1070,6 +1071,38 @@ def get_month_material_plan(month=None):
         'toBuyCount': sum(1 for m in materials if m['short']),
         'totalBuyCost': r2(total_cost),
     }
+
+
+def create_po_from_buylist(month, supplier_id, codes=None):
+    """Turn a month's buy-list into a DRAFT purchase order — the demand signal feeding the
+    procurement funnel. Includes every to-buy line (buyKg > 0), optionally filtered to the
+    ingredient `codes` selected by the operator, who also picks the supplier (ingredients have
+    no default supplier). Reuses create_purchase_order (draft; stock only moves on receive).
+    ⚠ Recipe-sensitive (quantities) — gate the endpoint with _can_recipe.
+    """
+    if not supplier_id:
+        raise ValueError("Pick a supplier for the purchase order.")
+    plan    = get_month_material_plan(month)
+    codeset = set(codes) if codes else None
+    items   = []
+    for m in plan.get('materials', []):
+        if (m.get('buyKg') or 0) <= 0:
+            continue
+        if codeset is not None and m.get('code') not in codeset:
+            continue
+        if not m.get('id'):
+            continue
+        items.append({'ingredientId': m['id'],
+                      'quantityKg':  m['buyKg'],
+                      'unitCostKg':  m.get('costPerKg') or 0})
+    if not items:
+        raise ValueError("Nothing to buy for this month (or no lines selected).")
+    from modules.purchasing import create_purchase_order
+    return create_purchase_order({
+        'supplierId': int(supplier_id),
+        'notes':      f"From {plan.get('month', month)} buy-list",
+        'items':      items,
+    })
 
 
 # ─────────────────────────────────────────────────────────────────
