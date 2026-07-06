@@ -5679,7 +5679,7 @@ async function renderPurchaseOrders() {
               <option value="">— Select supplier —</option>
               ${supOptions}
             </select>
-            <button type="button" class="btn btn-outline btn-sm" onclick="_poNewSupplierForm()" style="white-space:nowrap" title="Add a supplier on the fly">+ New</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="_newSupplierInline('po-newsup-form','po-supplier')" style="white-space:nowrap" title="Add a supplier on the fly">+ New</button>
           </div>
           <div id="po-newsup-form" style="margin-top:8px"></div>
         </div>
@@ -5803,28 +5803,31 @@ function clearPOCalc() {
 }
 
 // ── Mode A: BOM calculation ───────────────────────────────────
-// Add a supplier on the fly from the PO form (select from list OR create new).
-function _poNewSupplierForm() {
-  const box = document.getElementById('po-newsup-form');
+// Add a supplier on the fly from any form (PO, bill, receipt). Generic over the container id
+// (boxId) and the target <select> to populate/select (selectId).
+function _newSupplierInline(boxId, selectId) {
+  const box = document.getElementById(boxId);
   if (!box) return;
   if (box.innerHTML) { box.innerHTML = ''; return; }   // toggle closed
-  box.innerHTML = '<div class="card" style="padding:10px;background:var(--surface-2)"><div id="po-newsup-msg"></div>'
+  const p = boxId;
+  box.innerHTML = '<div class="card" style="padding:10px;background:var(--surface-2)"><div id="' + p + '-msg"></div>'
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">'
-    + '<div class="form-group" style="margin:0"><label style="font-size:11px">Supplier name *</label><input id="po-newsup-name" class="form-input" style="width:170px" placeholder="e.g. Punjab Agri"></div>'
-    + '<div class="form-group" style="margin:0"><label style="font-size:11px">City</label><input id="po-newsup-city" class="form-input" style="width:110px"></div>'
-    + '<div class="form-group" style="margin:0"><label style="font-size:11px">Phone</label><input id="po-newsup-phone" class="form-input" style="width:120px"></div>'
-    + '<button type="button" class="btn btn-primary btn-sm" onclick="_poCreateSupplier()">Add supplier</button>'
-    + '<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById(\'po-newsup-form\').innerHTML=\'\'">Cancel</button>'
+    + '<div class="form-group" style="margin:0"><label style="font-size:11px">Supplier name *</label><input id="' + p + '-name" class="form-input" style="width:170px" placeholder="e.g. Punjab Agri"></div>'
+    + '<div class="form-group" style="margin:0"><label style="font-size:11px">City</label><input id="' + p + '-city" class="form-input" style="width:110px"></div>'
+    + '<div class="form-group" style="margin:0"><label style="font-size:11px">Phone</label><input id="' + p + '-phone" class="form-input" style="width:120px"></div>'
+    + '<button type="button" class="btn btn-primary btn-sm" onclick="_createSupplierInline(\'' + boxId + '\',\'' + selectId + '\')">Add supplier</button>'
+    + '<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById(\'' + boxId + '\').innerHTML=\'\'">Cancel</button>'
     + '</div></div>';
 }
-async function _poCreateSupplier() {
-  const name  = (document.getElementById('po-newsup-name')?.value  || '').trim();
-  const city  = (document.getElementById('po-newsup-city')?.value  || '').trim();
-  const phone = (document.getElementById('po-newsup-phone')?.value || '').trim();
-  if (name.length < 2) { showMsg('po-newsup-msg', 'Enter a supplier name (2+ characters).', 'error'); return; }
+async function _createSupplierInline(boxId, selectId) {
+  const p = boxId;
+  const name  = (document.getElementById(p + '-name')?.value  || '').trim();
+  const city  = (document.getElementById(p + '-city')?.value  || '').trim();
+  const phone = (document.getElementById(p + '-phone')?.value || '').trim();
+  if (name.length < 2) { showMsg(p + '-msg', 'Enter a supplier name (2+ characters).', 'error'); return; }
   try {
     const sup = await POST('/api/suppliers', { name: name, city: city, phone: phone });
-    const sel = document.getElementById('po-supplier');
+    const sel = document.getElementById(selectId);
     if (sel && sup && sup.id) {
       const opt = document.createElement('option');
       opt.value = sup.id; opt.textContent = sup.name + (sup.code ? ' (' + sup.code + ')' : '');
@@ -5832,8 +5835,8 @@ async function _poCreateSupplier() {
     }
     // keep it available to other screens this session without a full reload
     if (state.ref && Array.isArray(state.ref.suppliers)) state.ref.suppliers.push(sup);
-    const box = document.getElementById('po-newsup-form'); if (box) box.innerHTML = '';
-  } catch(e) { showMsg('po-newsup-msg', e.message, 'error'); }
+    const box = document.getElementById(boxId); if (box) box.innerHTML = '';
+  } catch(e) { showMsg(p + '-msg', e.message, 'error'); }
 }
 
 let _poCalcIngredients = []; // [{ingId, ingCode, neededKg, availableKg, toOrderKg, sufficient}]
@@ -6634,7 +6637,13 @@ async function renderBills() {
     <div id="manual-bill-body" style="display:none;margin-top:14px">
       <div id="bill-msg"></div>
       <div class="form-row" style="margin-bottom:16px">
-        <div class="form-group"><label>Supplier *</label><select id="b-sup" style="min-width:200px"><option value="">— Select Supplier —</option>${supOptions || '<option disabled>No suppliers</option>'}</select></div>
+        <div class="form-group"><label>Supplier *</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="b-sup" style="min-width:200px"><option value="">— Select Supplier —</option>${supOptions || '<option disabled>No suppliers</option>'}</select>
+            <button type="button" class="btn btn-outline btn-sm" onclick="_newSupplierInline('bill-newsup-form','b-sup')" style="white-space:nowrap" title="Add a supplier on the fly">+ New</button>
+          </div>
+          <div id="bill-newsup-form" style="margin-top:8px"></div>
+        </div>
         <div class="form-group"><label>Bill Date</label><input id="b-date" type="date" value="${today()}"></div>
         <div class="form-group"><label>Due Date *</label><input id="b-due" type="date" value="${due30}" required></div>
         <div class="form-group"><label>Supplier Ref #</label><input id="b-ref" placeholder="Supplier's invoice number (optional, prevents duplicates)" style="min-width:200px"></div>
