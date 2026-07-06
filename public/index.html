@@ -13817,17 +13817,18 @@ async function resetForLaunch(btn) {
 }
 
 async function seedDemoData(btn) {
-  if (!await uiConfirm('Add demo data so the dashboard shows realistic numbers (about 6 months of orders, invoices, payments, batches). It uses your real customers and products, and only adds transactions. You can remove it any time with “Clear demo data”.')) return;
+  if (!await uiConfirm('This adds about 6 months of sample orders, invoices, payments and batches so the dashboard has something to show. It uses your real customers and products and only adds transactions — you can undo it any time with the Clear demo data button.',
+      { danger: false, okText: 'Seed demo data', title: 'Add demo data' })) return;
   const msg = document.getElementById('demo-msg');
-  if (btn) btn.disabled = true;
-  if (msg) { msg.textContent = 'Seeding demo data…'; msg.style.color = 'var(--text-3)'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Seeding…'; }
+  if (msg) { msg.textContent = 'Seeding demo data — this can take up to a minute, please wait…'; msg.style.color = 'var(--text-3)'; }
   try {
     const r = await POST('/api/admin/seed-demo', {});
-    if (btn) btn.disabled = false;
+    if (btn) { btn.disabled = false; btn.textContent = '🎬 Seed demo data'; }
     if (!r.ok) { if (msg) { msg.textContent = r.msg || 'Could not seed.'; msg.style.color = 'var(--chili)'; } return; }
-    if (msg) { msg.textContent = '✓ ' + (r.msg || 'Seeded.') + ' Open the Dashboard to see it.'; msg.style.color = 'var(--cardamom)'; }
+    if (msg) { msg.innerHTML = '✓ ' + esc(r.msg || 'Seeded.') + ' <a onclick="nav(\'dashboard\')" style="color:var(--saffron-deep);cursor:pointer;font-weight:600">Open the Dashboard →</a>'; msg.style.color = 'var(--cardamom)'; }
   } catch (e) {
-    if (btn) btn.disabled = false;
+    if (btn) { btn.disabled = false; btn.textContent = '🎬 Seed demo data'; }
     if (msg) { msg.textContent = 'Error: ' + e.message; msg.style.color = 'var(--chili)'; }
   }
 }
