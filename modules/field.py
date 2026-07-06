@@ -11,7 +11,7 @@ Exports (via __all__):
   list_reps, get_rep, create_rep, update_rep,
   assign_rep_route, unassign_rep_route,
   set_rep_target, record_advance, record_beat_visit,
-  create_field_order, get_field_order, list_field_orders, confirm_field_order,
+  get_field_order, list_field_orders,
   calculate_payroll, run_payroll, finalize_payroll, list_payroll_runs,
   get_rep_today_route, field_get_products,
   _is_out_of_route, _wa_notify_out_of_route,
@@ -48,8 +48,8 @@ __all__ = [
     'set_rep_target', 'record_advance', 'set_rep_zones', 'set_rep_app_access',
     # Beat visits
     'record_beat_visit',
-    # Field orders
-    'create_field_order', 'get_field_order', 'list_field_orders', 'confirm_field_order',
+    # Field orders (list/detail only — legacy create/confirm write path removed, P1-1)
+    'get_field_order', 'list_field_orders',
     # Payroll
     'calculate_payroll', 'run_payroll', 'finalize_payroll', 'list_payroll_runs',
     # Field app helpers
@@ -533,48 +533,10 @@ def record_beat_visit(data):
 #  FIELD ORDERS
 # ─────────────────────────────────────────────────────────────────
 
-def create_field_order(data):
-    """Create a legacy field order (rep-initiated, not via order.html portal).
-    Required: repId, customerId, items[{productVariantId, quantity, unitPrice}].
-    Optional: routeId, orderDate, notes, cashCollected.
-    """
-    rep_id        = data.get('repId')
-    route_id      = data.get('routeId')
-    cust_id       = data.get('customerId')
-    items         = data.get('items', [])
-    if not rep_id or not cust_id or not items:
-        raise ValueError("repId, customerId, items[] are required")
-    order_date     = data.get('orderDate', str(date.today()))
-    notes          = data.get('notes', '')
-    cash_collected = float(data.get('cashCollected', 0))
-    _sync_counter_to_max('field_order', 'field_orders', 'order_ref', 'SP-FO-')
-    order_ref = next_id('field_order', 'FO')
-    c = _conn()
-    try:
-        c.execute("""
-            INSERT INTO field_orders
-                (order_ref, rep_id, route_id, customer_id, order_date, status, notes, cash_collected)
-            VALUES (?,?,?,?,?,'pending',?,?)
-        """, (order_ref, int(rep_id),
-              int(route_id) if route_id else None,
-              int(cust_id), order_date, notes, cash_collected))
-        c.commit()
-        order_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
-        for item in items:
-            variant_id = item.get('productVariantId') or item.get('variantId')
-            qty        = float(item.get('quantity', item.get('qty', 0)))
-            unit_price = float(item.get('unitPrice', 0))
-            if qty <= 0 or not variant_id:
-                continue
-            c.execute("""
-                INSERT INTO field_order_items (order_id, product_variant_id, quantity, unit_price)
-                VALUES (?,?,?,?)
-            """, (order_id, int(variant_id), qty, unit_price))
-        c.commit()
-    finally:
-        c.close()
-    save_db()
-    return get_field_order(order_id)
+# create_field_order() REMOVED (P1-1, 2026-07-05): the legacy field_orders WRITE path was
+# AR-only (create_invoice, no FG decrement / no sales row / no COGS) and unused by the app,
+# which now books rep sales as rep_assisted customer_orders through the real invoice engine.
+# get_field_order()/list_field_orders() are KEPT — the admin Field Orders list still reads them.
 
 
 def get_field_order(order_id):
@@ -690,49 +652,10 @@ def list_field_orders(rep_id=None, status=None, date_from=None, date_to=None):
     return qry(union_sql, portal_params + legacy_params)
 
 
-def confirm_field_order(order_id, data=None):
-    """Confirm field order → create invoice automatically."""
-    from modules.invoices import create_invoice as _create_invoice
-
-    order = get_field_order(order_id)
-    if not order:
-        raise ValueError(f"Field order not found: {order_id}")
-    if order['status'] == 'confirmed':
-        raise ValueError("Order already confirmed")
-    if not order['items']:
-        raise ValueError("Cannot confirm an order with no items")
-
-    cust_row = qry1("SELECT * FROM customers WHERE id=?", (order['customer_id'],))
-    if not cust_row:
-        raise ValueError("Customer not found")
-
-    inv_data = {
-        'custCode':    cust_row['code'],
-        'invoiceDate': order['order_date'],
-        'notes':       f"Field order #{order_id}",
-        'items': [
-            {'skuCode': item['sku_code'], 'qty': item['quantity'], 'unitPrice': item['unit_price']}
-            for item in order['items']
-        ],
-    }
-    inv_result = _create_invoice(inv_data)
-
-    c = _conn()
-    try:
-        c.execute("UPDATE field_orders SET status='confirmed', confirmed_invoice_id=? WHERE id=?",
-                  (inv_result.get('id'), order_id))
-        cash = float((data or {}).get('cashCollected', 0))
-        if cash > 0:
-            c.execute("UPDATE field_orders SET cash_collected=? WHERE id=?", (cash, order_id))
-        c.commit()
-    finally:
-        c.close()
-    save_db()
-
-    result = get_field_order(order_id)
-    result['invoiceId']     = inv_result.get('id')
-    result['invoiceNumber'] = inv_result.get('invoiceNumber')
-    return result
+# confirm_field_order() REMOVED (P1-1, 2026-07-05): it created an AR-only invoice via
+# invoices.create_invoice — no FG-stock decrement, no sales row, no COGS — so a confirmed
+# legacy field order billed the customer but never moved inventory or hit the dashboard.
+# Rep sales now flow through orders.generate_invoice_from_order (the correct engine).
 
 
 # ─────────────────────────────────────────────────────────────────

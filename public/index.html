@@ -721,7 +721,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('products')" id="nav-products" style="display:none"><span class="icon" data-icon="package"></span> Products</div>
       <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon" data-icon="users"></span> Team</div>
       <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes" style="display:none"><span class="icon" data-icon="map"></span> Zones &amp; Routes</div>
-      <div class="nav-item" onclick="nav('recipes')" id="nav-recipes" style="display:none"><span class="icon" data-icon="book-open"></span> Website Recipes</div>
+      <div class="nav-item" onclick="nav('recipes')" id="nav-recipes" style="display:none"><span class="icon" data-icon="book-open"></span> Cooking Recipes</div>
 
       <div class="nav-section" id="nav-section-pricing" style="display:none">Pricing &amp; Costing</div>
       <div class="nav-item" onclick="nav('cost-tracking')" id="nav-cost-tracking" style="display:none"><span class="icon" data-icon="calendar"></span> Cost Tracking</div>
@@ -736,7 +736,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-section" id="nav-section-system" style="display:none">System</div>
       <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><span class="icon" data-icon="shield"></span> User Management</div>
       <div class="nav-item" onclick="nav('payroll')" id="nav-payroll" style="display:none"><span class="icon" data-icon="wallet"></span> Payroll</div>
-      <div class="nav-item" onclick="nav('master-data')" id="nav-master-data" style="display:none"><span class="icon" data-icon="database"></span> Master Data Import</div>
+      <div class="nav-item" onclick="nav('master-data')" id="nav-master-data" style="display:none"><span class="icon" data-icon="database"></span> Data Import</div>
       <div class="nav-item" onclick="nav('audit')" id="nav-audit" style="display:none"><span class="icon" data-icon="clipboard-list"></span> Audit Log</div>
       <div class="nav-item" onclick="nav('system')" id="nav-system" style="display:none"><span class="icon" data-icon="monitor"></span> System</div>
 
@@ -862,7 +862,7 @@ const ALL_MODULES = [
   { id:'planning',         label:'Planning & Forecast',section:'Reports' },
   { id:'costs',            label:'Prices & Costs',     section:'Admin / Owner' },
   { id:'recipe',           label:'BOM (Formula) — secret', section:'Recipe / IP' },
-  { id:'recipes',          label:'Website Recipes',    section:'Master Data' },
+  { id:'recipes',          label:'Cooking Recipes',    section:'Master Data' },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -1724,7 +1724,7 @@ const SECTION_HUBS = {
     {id:'products',      label:'Products',        desc:'Products and SKUs'},
     {id:'sales-reps',    label:'Team',      desc:'Phone-app staff — sales & production'},
     {id:'zones-routes',  label:'Zones & Routes',  desc:'Territories and beats'},
-    {id:'recipes',       label:'Website Recipes', desc:'Cooking recipes for the website'},
+    {id:'recipes',       label:'Cooking Recipes', desc:'Cooking recipes for the website'},
   ]},
   admin: { title:'Admin & System', items:[
     {id:'price-master',     label:'Price Master',      desc:'Manual price grid'},
@@ -1733,7 +1733,7 @@ const SECTION_HUBS = {
     {id:'bom',              label:'BOM (Formula)',     desc:'The secret recipe (gated)'},
     {id:'users',            label:'User Management',   desc:'Users and permissions'},
     {id:'payroll',          label:'Payroll',           desc:'Rep payroll runs'},
-    {id:'master-data',      label:'Master Data Import',desc:'Bulk CSV / XLSX import'},
+    {id:'master-data',      label:'Data Import',desc:'Bulk CSV / XLSX import'},
     {id:'audit',            label:'Audit Log',         desc:'Change history'},
     {id:'system',           label:'System',            desc:'Settings and backup'},
   ]},
@@ -10417,7 +10417,7 @@ async function renderRecipes() {
 
   return '<div class="card mb-16">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
-      '<div><h3 style="margin:0">Website Recipes</h3>' +
+      '<div><h3 style="margin:0">Cooking Recipes</h3>' +
       '<p style="color:var(--text-3);font-size:13px;margin:4px 0 0">Published recipes appear on chachamasala.com/recipes</p></div>' +
       '<button class="btn btn-primary" onclick="openNewRecipe()">＋ New Recipe</button>' +
     '</div>' +
@@ -12353,7 +12353,7 @@ function _rqSourceBadge(src) {
   const map = {
     consumer_website:     ['🛒 Website', '#EAF3FF', 'var(--mac-blue)'],
     retailer_self_service:['🏪 Retailer', '#F0FDF4', 'var(--cardamom)'],
-    field_rep:            ['👤 Sales Rep', '#FEF3E2', 'var(--saffron)'],
+    field_rep:            ['👤 Field Rep', '#FEF3E2', 'var(--saffron)'],
     internal:             ['🖥 Internal', '#F3F4F6', '#6b7280'],
   };
   const [label, bg, col] = map[src] || [src, '#F3F4F6', '#6b7280'];
@@ -12706,7 +12706,7 @@ async function renderUsers() {
     field_rep:  {bg:'#fff3e0',            fg:'#c06400'},
     user:       {bg:'var(--blue-pale)',    fg:'var(--mac-blue)'},
   };
-  const ROLE_LABELS = {super_user:'Owner',admin:'Admin',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
+  const ROLE_LABELS = {super_user:'Owner',admin:'Admin',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   const users = await GET('/api/users');
   let rows = users.map(u => {
     let perms = [];
@@ -12831,7 +12831,7 @@ function showNewUserForm() {
           <option value="sales">Sales</option>
           <option value="warehouse">Warehouse</option>
           <option value="accountant">Accountant</option>
-          <option value="field_rep">Sales Rep</option>
+          <option value="field_rep">Field Rep</option>
           <option value="admin">Administrator (full access)</option>
         </select>
       </div>
@@ -12861,7 +12861,7 @@ async function saveNewUser() {
   const role     = document.getElementById('nu-role').value;
   if (!username || !password) { showMsg('user-msg','Username and password are required','error'); return; }
   const perms = role !== 'admin' ? getPermGridValues('nu') : [];
-  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
+  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   try {
     const res = await POST('/api/users', {
       username,
@@ -12891,7 +12891,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
           <option value="sales" ${role==='sales'?'selected':''}>Sales</option>
           <option value="warehouse" ${role==='warehouse'?'selected':''}>Warehouse</option>
           <option value="accountant" ${role==='accountant'?'selected':''}>Accountant</option>
-          <option value="field_rep" ${role==='field_rep'?'selected':''}>Sales Rep</option>
+          <option value="field_rep" ${role==='field_rep'?'selected':''}>Field Rep</option>
           <option value="admin" ${role==='admin'?'selected':''}>Administrator (full access)</option>
         </select>
       </div>
@@ -12927,7 +12927,7 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
 async function saveEditUser(id) {
   const role  = document.getElementById('eu-role').value;
   const perms = role !== 'admin' ? getPermGridValues('eu') : [];
-  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Sales Rep',user:'Viewer'};
+  const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   try {
     await PUT('/api/users/' + id, {
       displayName: document.getElementById('eu-disp').value.trim(),
@@ -13921,27 +13921,18 @@ async function renderFieldOrders() {
 }
 
 async function confirmOrder(orderId, source) {
+  // All field orders are now rep-assisted customer_orders (the legacy field_orders write
+  // path is retired). `source` kept for call-site compatibility but no longer branches.
   if (!await uiConfirm('Confirm this order and create an invoice?')) return;
   try {
-    let res;
-    if (source === 'portal') {
-      // Portal orders live in customer_orders — confirm then auto-invoice
-      res = await POST(`/api/customer-orders/${orderId}/confirm`, {});
-      // Try to auto-generate invoice
-      try {
-        const invRes = await POST(`/api/customer-orders/${orderId}/invoice`, {invoiceDate: new Date().toISOString().slice(0,10)});
-        const invId = invRes.id || invRes.invoiceId;
-        const doPrint = invId && await uiConfirm(`✅ Order confirmed — Invoice ${invRes.invoiceNumber || ''} created.\n\nPrint the invoice now?`);
-        if (doPrint) await printInvoice(invId);
-      } catch(invErr) {
-        alert(`✅ Order confirmed.\n\nNote: Could not auto-create invoice: ${invErr.message}\nYou can invoice it from Orders & Invoices.`);
-      }
-    } else {
-      // Legacy field_orders
-      res = await POST(`/api/field-orders/${orderId}/confirm`, {});
-      const invId = res.invoiceId || res.invoice_id || res.id;
-      const doPrint = invId && await uiConfirm(`✅ Order confirmed — Invoice ${res.invoiceNumber || res.invoice_number || ''} created.\n\nPrint the invoice now?`);
+    await POST(`/api/customer-orders/${orderId}/confirm`, {});
+    try {
+      const invRes = await POST(`/api/customer-orders/${orderId}/invoice`, {invoiceDate: new Date().toISOString().slice(0,10)});
+      const invId = invRes.id || invRes.invoiceId;
+      const doPrint = invId && await uiConfirm(`✅ Order confirmed — Invoice ${invRes.invoiceNumber || ''} created.\n\nPrint the invoice now?`);
       if (doPrint) await printInvoice(invId);
+    } catch(invErr) {
+      alert(`✅ Order confirmed.\n\nNote: Could not auto-create invoice: ${invErr.message}\nYou can invoice it from Orders & Invoices.`);
     }
     nav('field-orders');
   } catch(e) { alert('Error: ' + e.message); }
@@ -14268,7 +14259,7 @@ function renderMasterData() {
 
   return `
     <div style="padding:24px;max-width:900px">
-      <h2 style="margin:0 0 6px;font-size:20px;font-weight:700">Master Data Import</h2>
+      <h2 style="margin:0 0 6px;font-size:20px;font-weight:700">Data Import</h2>
       <p style="color:var(--text-3);font-size:13px;margin-bottom:28px">
         Upload CSV or Excel (.xlsx) files to bulk-load master data. Existing records are matched by code and updated.
       </p>

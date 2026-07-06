@@ -4970,26 +4970,13 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, result, 201)
                 return
 
-            # ── FIELD ORDERS ───────────────────────────────────────────────
-            # POST /api/field-orders  (admin, sales, field_rep)
-            if path == '/api/field-orders':
-                if not require(sess, 'admin', 'sales', 'field_rep'):
-                    send_error(self, 'Permission denied', 403); return
-                # Inject repId from session if not provided (field app flow)
-                if not data.get('repId') and sess and sess.get('repId'):
-                    data['repId'] = sess['repId']
-                result = create_field_order(data)
-                send_json(self, result, 201)
-                return
-
-            # POST /api/field-orders/:id/confirm  (admin, sales)
-            if path.startswith('/api/field-orders/') and path.endswith('/confirm'):
-                if not require(sess, 'admin', 'sales'):
-                    send_error(self, 'Permission denied', 403); return
-                order_id = int(path.split('/')[3])
-                result   = confirm_field_order(order_id, data)
-                send_json(self, result)
-                return
+            # ── FIELD ORDERS (write path removed, P1-1) ─────────────────────
+            # POST /api/field-orders and /api/field-orders/:id/confirm were the legacy AR-only
+            # path (create_field_order / confirm_field_order) — they billed the customer but
+            # never decremented finished-goods stock, wrote a sales row, or computed COGS.
+            # Removed. Rep sales now book as rep_assisted customer_orders and invoice through
+            # orders.generate_invoice_from_order. GET /api/field-orders[/:id] (list/detail)
+            # remain below for the admin Field Orders screen.
 
             # ── PAYROLL ────────────────────────────────────────────────────
             # POST /api/payroll/run  (admin, accountant)
