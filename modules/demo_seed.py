@@ -73,7 +73,7 @@ def seed_demo_data():
     rng = random.Random(20260706)   # deterministic demo
     months = _recent_months(6)
     summary = {'ok': True, 'batches': 0, 'orders': 0, 'invoices': 0, 'payments': 0,
-               'workOrders': 0, 'lowStock': 0, 'opCostMonths': 0, 'errors': 0}
+               'workOrders': 0, 'inProgress': 0, 'bills': 0, 'lowStock': 0, 'opCostMonths': 0, 'errors': 0}
 
     # ── master data ──
     customers = qry("SELECT id, code, name FROM customers WHERE active=1 ORDER BY code")
@@ -107,7 +107,7 @@ def seed_demo_data():
     # ── 2) produce finished goods: 3 batches per product across the 6 months (800 units each) ──
     fg_made = {}
     for v in variants:
-        for mi in (0, 2, 4):   # every other month
+        for mi in (1, 3, 5):   # incl. the CURRENT month (index 5) so "made this month" isn't 0
             try:
                 create_production_batch({'productCode': v['pcode'], 'packSize': v['pack'],
                                          'qtyUnits': 800, 'batchDate': _day_in_month(months[mi], rng),
@@ -181,14 +181,44 @@ def seed_demo_data():
             except Exception:
                 summary['errors'] += 1
 
-    # ── 5) a couple of OPEN work orders → "to make" ──
+    # ── 5) open work orders → "to make", and start one staged run → "in progress" ──
+    from modules.production import create_work_order, start_batch_run
+    first_wo = None
     for v in variants:
         try:
-            create_work_order({'productVariantId': v['id'], 'qtyUnits': rng.choice([600, 800, 1000]),
-                               'notes': 'DEMO work order'})
+            w = create_work_order({'productVariantId': v['id'], 'qtyUnits': rng.choice([600, 800, 1000]),
+                                   'notes': 'DEMO work order'})
             summary['workOrders'] += 1
+            if first_wo is None:
+                first_wo = w.get('id')
         except Exception:
             summary['errors'] += 1
+    try:
+        if first_wo:
+            start_batch_run(first_wo, qty=None, user='demo')   # → one active run = "in progress"
+            summary['inProgress'] = 1
+    except Exception:
+        summary['errors'] += 1
+
+    # ── 5b) supplier bills → Accounts Payable (and purchasing history) ──
+    from modules.purchasing import create_supplier_bill
+    sups = qry("SELECT id FROM suppliers ORDER BY id LIMIT 4")
+    bom_list = list(bom_ings)
+    if sups and bom_list:
+        for k in range(4):
+            try:
+                bmonth = months[rng.randint(3, 5)]
+                bd = _day_in_month(bmonth, rng)
+                items = [{'ingredientId': bom_list[(k + j) % len(bom_list)]['id'],
+                          'quantityKg': rng.randint(20, 60),
+                          'unitCostKg': rng.choice([1800, 2400, 3000])}
+                         for j in range(rng.randint(1, 3))]
+                create_supplier_bill({'supplierId': sups[k % len(sups)]['id'],
+                                      'billDate': bd, 'dueDate': bd, 'supplierRef': 'DEMO-BILL-' + str(k + 1),
+                                      'notes': 'DEMO bill', 'items': items})
+                summary['bills'] += 1
+            except Exception:
+                summary['errors'] += 1
 
     # ── 6) knock 2 ingredients below their reorder level → low-stock tile ──
     #     (batches are already produced, so reducing stock now is safe)

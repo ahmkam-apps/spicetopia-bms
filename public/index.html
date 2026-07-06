@@ -684,9 +684,8 @@ input[type="radio"]    { accent-color: var(--saffron); }
 
       <div class="nav-collapse" onclick="toggleSidebar()" title="Collapse / expand sidebar"><span id="collapse-chev">«</span></div>
 
-      <!-- Home — Start Here landing -->
-      <div class="nav-item active" onclick="nav('home')" id="nav-home"><span class="icon" data-icon="home"></span> Home</div>
-      <div class="nav-item" onclick="nav('dashboard')" id="nav-dashboard"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
+      <!-- The single Executive Dashboard = the landing page (Home and Dashboard were the same screen) -->
+      <div class="nav-item active" onclick="nav('home')" id="nav-home"><span class="icon" data-icon="layout-dashboard"></span> Dashboard</div>
 
       <!-- ── DAILY USE ──────────────────────────────────────────── -->
       <div class="nav-section">Sales &amp; AR</div>
@@ -1136,7 +1135,20 @@ function fmt(n, d=2) {
   if (n == null) return '—';
   return Number(n).toLocaleString('en-PK', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
-function fmtPKR(n) { return 'PKR ' + fmt(n); }
+function fmtPKR(n) { return 'Rs. ' + fmt(n); }
+// Dashboard-only currency display: converts to US$ when the dashboard $ toggle is on
+// (owner-set rate). NEVER used for invoices/reports/accounting — those stay in Rs.
+let _dashCur = 'PKR', _dashUsdRate = 0;
+try { _dashCur = localStorage.getItem('erp_dash_cur') || 'PKR'; } catch (e) {}
+function dcur(n) {   // dashboard money: whole numbers, Rs. or $ per toggle
+  if (_dashCur === 'USD' && _dashUsdRate > 0) return '$ ' + fmt(Math.round((n || 0) / _dashUsdRate), 0);
+  return 'Rs. ' + fmt(n || 0, 0);
+}
+function _dashSetCur(c) { _dashCur = c; try { localStorage.setItem('erp_dash_cur', c); } catch (e) {} nav('home'); }
+async function _dashSaveRate(v) {
+  const r = parseFloat(v); if (!(r > 0)) return;
+  try { await PUT('/api/costing/config', { key: 'usd_rate', value: String(r) }); _dashUsdRate = r; nav('home'); } catch (e) { alert('Could not save rate: ' + e.message); }
+}
 function fmtDate(s) { if (!s) return '—'; try { return new Date(s).toLocaleDateString('en-GB'); } catch { return s; } }
 function fmtPayMode(m) {
   const map = { CASH:'Cash', BANK_TRANSFER:'Bank Transfer', CHEQUE:'Cheque', OTHER:'Other', ADJUSTMENT:'Adjustment' };
@@ -1559,6 +1571,7 @@ function nav(page, arg) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   // Map legacy page names to new nav IDs
   const navMap = {
+    'dashboard': 'home',
     'customer-orders': 'orders-invoices',
     'sales': 'orders-invoices',
     'invoices': 'orders-invoices',
@@ -1612,7 +1625,7 @@ async function render(page, arg) {
   try {
     switch(page) {
       case 'home':
-      case 'dashboard':   c.innerHTML = await renderHome();  if(typeof _dashSwitchView==='function') _dashSwitchView(_dashView);  break;   // Executive Dashboard — Owner/Operations views (2026-07-06)
+      case 'dashboard':   c.innerHTML = await renderHome();  if(typeof _dashSwitch4==='function') _dashSwitch4(_dashTab4);  break;   // Executive Dashboard — 4 workspace tabs (2026-07-06)
       case 'section-hub': c.innerHTML = renderSectionHub(state.hubKey); break;
       case 'customers':       c.innerHTML = await renderCustomers(); initCustomersTable(); break;
       case 'orders-invoices':
@@ -1798,181 +1811,307 @@ function _homeShiftMonth(delta) {
   _homeMonth = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
   nav('home');
 }
-// ── Executive Dashboard: two calm views (Owner = money, Operations = today's work) ──
-let _dashView = 'owner';
-try { const _v = localStorage.getItem('erp_dash_view'); if (_v) _dashView = _v; } catch (e) {}
-let _dashDetails = false;
-function _dashSwitchView(which) {
-  _dashView = which;
-  try { localStorage.setItem('erp_dash_view', which); } catch (e) {}
-  ['owner', 'operations'].forEach(t => {
-    const p = document.getElementById('dash-pane-' + t); if (p) p.style.display = (t === which) ? 'block' : 'none';
-    const b = document.getElementById('dash-tab-' + t);
-    if (b) { b.style.background = (t === which) ? 'var(--saffron)' : 'transparent'; b.style.color = (t === which) ? '#fff' : 'var(--text-2)'; b.style.fontWeight = (t === which) ? '700' : '500'; }
+// ══════════════════════════════════════════════════════════════════
+//  EXECUTIVE DASHBOARD — four workspace tabs (Quick Glance · Sales ·
+//  Operations · Financial). Inline-SVG charts (no external deps).
+//  Outcomes on Quick Glance; drivers on Sales/Operations; costs & P&L
+//  over time on Financial. Every widget drills into its source module.
+// ══════════════════════════════════════════════════════════════════
+let _dashTab4 = 'glance';
+try { _dashTab4 = localStorage.getItem('erp_dash_tab') || 'glance'; } catch (e) {}
+let _finMonth = new Date().toISOString().slice(0, 7);
+let _finYearView = false;
+
+function _dashSwitch4(which) {
+  _dashTab4 = which; try { localStorage.setItem('erp_dash_tab', which); } catch (e) {}
+  ['glance', 'sales', 'ops', 'fin'].forEach(t => {
+    const p = document.getElementById('d4-' + t); if (p) p.style.display = (t === which) ? 'block' : 'none';
+    const b = document.getElementById('d4tab-' + t);
+    if (b) { b.style.color = (t === which) ? '#fff' : 'var(--text-2)'; b.style.background = (t === which) ? 'var(--saffron)' : 'transparent'; b.style.fontWeight = (t === which) ? '700' : '600'; }
   });
+  if (which === 'fin' && typeof _finRender === 'function') _finRender();
 }
-function _dashToggleDetails() {
-  _dashDetails = !_dashDetails;
-  const d = document.getElementById('dash-details'); if (d) d.style.display = _dashDetails ? 'block' : 'none';
-  const t = document.getElementById('dash-details-toggle'); if (t) t.textContent = (_dashDetails ? '▾' : '▸') + ' Business detail — revenue trend, sales by product, top customers';
+
+// ── inline-SVG chart helpers ──────────────────────────────────────
+function _svgArea(vals, labels) {
+  const w = 640, h = 150, padL = 8, padB = 22, padT = 12;
+  const max = Math.max.apply(null, vals.concat([1])), n = vals.length;
+  const step = (w - padL * 2) / Math.max(1, n - 1);
+  const pts = vals.map((v, i) => [padL + i * step, h - padB - (v / max) * (h - padB - padT)]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const area = line + ' L' + pts[n - 1][0].toFixed(1) + ',' + (h - padB) + ' L' + pts[0][0].toFixed(1) + ',' + (h - padB) + ' Z';
+  let dots = '', xl = '';
+  pts.forEach((p, i) => {
+    dots += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3.4" fill="var(--saffron-deep)"><title>' + esc(labels[i] || '') + ': ' + dcur(vals[i]) + '</title></circle>';
+    xl += '<text x="' + p[0].toFixed(1) + '" y="' + (h - padB + 15) + '" text-anchor="middle" font-size="10" fill="var(--text-3)">' + esc(labels[i] || '') + '</text>';
+  });
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" height="' + h + '" preserveAspectRatio="none" style="display:block">'
+    + '<defs><linearGradient id="_dga" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--saffron)" stop-opacity="0.26"/><stop offset="100%" stop-color="var(--saffron)" stop-opacity="0"/></linearGradient></defs>'
+    + '<path d="' + area + '" fill="url(#_dga)"/><path d="' + line + '" fill="none" stroke="var(--saffron-deep)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>' + dots + xl + '</svg>';
+}
+function _svgSpark(vals) {
+  const w = 200, h = 32; const max = Math.max.apply(null, vals.concat([1])), min = Math.min.apply(null, vals);
+  const rng = (max - min) || 1, n = vals.length, step = w / Math.max(1, n - 1);
+  const pts = vals.map((v, i) => [i * step, (h - 3) - ((v - min) / rng) * (h - 8)]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" width="100%" height="32" style="display:block">'
+    + '<path d="' + line + ' L' + w + ',' + h + ' L0,' + h + ' Z" fill="rgba(201,123,60,.12)"/>'
+    + '<path d="' + line + '" fill="none" stroke="var(--saffron)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>';
+}
+function _svgDonut(segs, size) {
+  size = size || 120; const r = size / 2 - 9, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
+  const total = segs.reduce((a, s) => a + (s.v || 0), 0) || 1; let off = 0, arcs = '';
+  segs.forEach(s => {
+    const len = (s.v || 0) / total * C;
+    arcs += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + s.color + '" stroke-width="13" stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 ' + cx + ' ' + cy + ')"><title>' + esc(s.label) + ': ' + dcur(s.v) + '</title></circle>';
+    off += len;
+  });
+  return '<svg viewBox="0 0 ' + size + ' ' + size + '" width="' + size + '" height="' + size + '">' + arcs + '</svg>';
+}
+function _svgBars(vals, labels, hi, onclickName) {
+  const w = 300, h = 120, padB = 18; const max = Math.max.apply(null, vals.concat([1])), n = vals.length;
+  const slot = w / n, bw = slot * 0.5; let bars = '';
+  vals.forEach((v, i) => {
+    const bh = (v / max) * (h - padB - 6), x = i * slot + (slot - bw) / 2, y = h - padB - bh;
+    const col = (i === hi) ? 'var(--saffron-deep)' : (v > 0 ? 'var(--terra-soft)' : '#E7D6C6');
+    const clk = onclickName ? ' style="cursor:pointer" onclick="' + onclickName + '(' + i + ')"' : '';
+    bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(bh, 1).toFixed(1) + '" rx="3" fill="' + col + '"' + clk + '><title>' + esc(labels[i] || '') + ': ' + dcur(v) + '</title></rect>';
+    bars += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (h - 5) + '" text-anchor="middle" font-size="9" fill="var(--text-3)">' + esc(labels[i] || '') + '</text>';
+  });
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" height="' + h + '" preserveAspectRatio="xMidYMid meet">' + bars + '</svg>';
+}
+// gauge bar for low-stock
+function _gauge(pct, color) {
+  pct = Math.max(4, Math.min(100, pct));
+  return '<div style="height:8px;border-radius:5px;background:#F1ECE4;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:5px"></div></div>';
 }
 
 async function renderHome() {
   const u = state.currentUser || {};
   const canCostsU = (typeof canCosts === 'function') && canCosts();
+  const isAdmin = u.role === 'admin' || u.role === 'super_user';
   const hr = new Date().getHours();
   const greet = hr < 12 ? 'Good morning' : (hr < 17 ? 'Good afternoon' : 'Good evening');
   const name = u.name || u.username || '';
   const dateStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  let d = {}, oc = {}, lines = [];
+  let d = {}, oc = {}, pl = {};
   try { d = await GET('/api/dashboard'); } catch (e) {}
-  if (canCostsU) {
-    try { oc = await GET('/api/costing/operating-costs'); } catch (e) {}
-    try { lines = await GET('/api/costing/cost-lines'); } catch (e) {}
-  }
+  _dashUsdRate = d.usdRate || 0;
+  if (canCostsU) { try { oc = await GET('/api/costing/operating-costs'); } catch (e) {} }
+  try { pl = await GET('/api/reports/pl?year=' + new Date().getFullYear()); } catch (e) { pl = {}; }
+  window._finData = { pl: pl, oc: oc };
   state.dash = d;
 
   const sd = d.salesToday || {}, sm = d.salesMonth || {}, slm = d.salesLastMonth || {};
-  const oAR = d.overdueAR || {}, apOv = d.apOverdue || {}, apDue = d.apDueSoon || {};
-  const ar = d.ar || {}, ap = d.ap || {};
-  const gm  = sm.revenue > 0 ? Math.round(sm.grossProfit / sm.revenue * 100) : 0;
+  const oAR = d.overdueAR || {}, apOv = d.apOverdue || {}, apDue = d.apDueSoon || {}, ar = d.ar || {}, ap = d.ap || {};
+  const prod = d.production || {}, wos = d.openWorkOrders || [], low = d.lowStockAlerts || [], fg = d.finishedGoods || [];
+  const gm = sm.revenue > 0 ? Math.round(sm.grossProfit / sm.revenue * 100) : 0;
   const mom = slm.revenue > 0 ? Math.round(((sm.revenue || 0) - slm.revenue) / slm.revenue * 100) : null;
   const momUp = (sm.revenue || 0) >= (slm.revenue || 0);
   const cf = d.cashFlowMTD || 0;
-  const wos = d.openWorkOrders || [];
-  const low = d.lowStockAlerts || [];
-  const fg  = d.finishedGoods || [];
+  const trend = (d.revenueTrend || []);
+  const trendVals = trend.map(t => t.revenue), trendLabs = trend.map(t => (t.month || '').slice(5));
+  const sbp = d.salesByProduct || [], topC = d.topCustomers || [];
 
-  // ── shared building blocks ──
-  const secLbl = t => '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:700;margin:22px 0 8px">' + t + '</div>';
-  const kpi = (label, value, sub, subColor, target) =>
-    '<div onclick="nav(\'' + target + '\')" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;cursor:pointer;transition:box-shadow .15s,border-color .15s" onmouseenter="this.style.boxShadow=\'0 3px 12px rgba(0,0,0,.07)\';this.style.borderColor=\'var(--saffron)\'" onmouseleave="this.style.boxShadow=\'\';this.style.borderColor=\'var(--border)\'">'
-    + '<div style="font-size:12px;color:var(--text-3)">' + label + '</div>'
-    + '<div style="font-family:var(--font-serif);font-size:26px;font-weight:500;letter-spacing:-.3px;margin:2px 0">' + value + '</div>'
-    + '<div style="font-size:12px;color:' + (subColor || 'var(--text-3)') + '">' + sub + '</div></div>';
-  const actionRow = (color, title, sub, btnLabel, target) =>
-    '<div onclick="nav(\'' + target + '\')" style="display:flex;align-items:center;gap:12px;padding:12px 2px;border-top:1px solid var(--border);cursor:pointer">'
-    + '<span style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:' + color + '"></span>'
-    + '<div style="min-width:0"><div style="font-weight:600;font-size:14px">' + title + '</div><div style="font-size:12.5px;color:var(--text-3)">' + sub + '</div></div>'
-    + '<button onclick="event.stopPropagation();nav(\'' + target + '\')" style="margin-left:auto;font-size:12px;font-weight:600;border:1px solid var(--saffron);color:var(--saffron-deep);background:var(--surface);border-radius:8px;padding:6px 12px;cursor:pointer;white-space:nowrap">' + btnLabel + ' →</button>'
+  // sub-metric row helper
+  const R = (l, v, c) => '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--hair);font-size:13px"><span style="color:var(--text-3)">' + l + '</span><b' + (c ? ' style="color:' + c + '"' : '') + '>' + v + '</b></div>';
+  const sumHead = (title, target) => '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-weight:700;font-size:14.5px">' + title + '</div><span onclick="event.stopPropagation();nav(\'' + target + '\')" style="font-size:12px;font-weight:600;color:var(--saffron-deep);cursor:pointer">open →</span></div>';
+  const bestProd = sbp.filter(p => p.unitsMtd > 0).sort((a, b) => b.revenueMtd - a.revenueMtd)[0];
+
+  // ═══════════ QUICK GLANCE — three area summaries ═══════════
+  const finSum = '<div class="card" onclick="nav(\'pl-report\')" style="padding:16px 18px;cursor:pointer;transition:.15s" onmouseenter="this.style.boxShadow=\'0 14px 34px rgba(60,40,25,.12)\'" onmouseleave="this.style.boxShadow=\'\'">'
+    + sumHead('Financial', 'pl-report')
+    + '<div style="font-size:12px;color:var(--text-3)">Money in · this month</div>'
+    + '<div style="font-family:var(--font-serif);font-size:28px;font-weight:500;letter-spacing:-.5px;margin:2px 0">' + dcur(sm.revenue || 0) + '</div>'
+    + (mom !== null ? '<span style="font-size:12px;font-weight:600;color:' + (momUp ? 'var(--cardamom)' : 'var(--chili)') + '">' + (momUp ? '▲ ' : '▼ ') + Math.abs(mom) + '% vs last month</span>' : '<span style="font-size:12px;color:var(--text-3)">no prior month</span>')
+    + '<div style="margin:8px 0 2px">' + (trendVals.length ? _svgSpark(trendVals) : '') + '</div>'
+    + R('Net profit', dcur(d.netProfitMTD || 0), (d.netProfitMTD || 0) >= 0 ? 'var(--cardamom)' : 'var(--chili)')
+    + R('Margin', gm + '%', gm >= 30 ? 'var(--cardamom)' : 'var(--chili)')
+    + R('Cash flow · MTD', dcur(cf))
+    + R('Owed to you · AR', dcur(ar.outstanding || 0), oAR.count ? 'var(--chili)' : '')
     + '</div>';
-
-  // ═══════ OWNER VIEW ═══════
-  const ownerKpis = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'
-    + kpi('Money in · this month', fmtPKR(sm.revenue || 0), mom !== null ? ((momUp ? '▲ ' : '▼ ') + Math.abs(mom) + '% vs last month') : 'no prior month', mom === null ? 'var(--text-3)' : (momUp ? 'var(--cardamom)' : 'var(--chili)'), 'pl-report')
-    + kpi('Profit · this month', fmtPKR(d.netProfitMTD || 0), 'after all costs', (d.netProfitMTD || 0) >= 0 ? 'var(--text-3)' : 'var(--chili)', 'pl-report')
-    + kpi('Margin', gm + '%', gm >= 30 ? 'healthy · target 30%' : 'below target 30%', gm >= 30 ? 'var(--cardamom)' : 'var(--chili)', 'prices-costs')
-    + kpi('Cash flow · MTD', fmtPKR(cf), 'money in − out', cf >= 0 ? 'var(--text-3)' : 'var(--chili)', 'pl-report')
+  const salesSum = '<div class="card" onclick="nav(\'orders-invoices\')" style="padding:16px 18px;cursor:pointer;transition:.15s" onmouseenter="this.style.boxShadow=\'0 14px 34px rgba(60,40,25,.12)\'" onmouseleave="this.style.boxShadow=\'\'">'
+    + sumHead('Sales', 'orders-invoices')
+    + '<div style="font-size:12px;color:var(--text-3)">Sold today</div>'
+    + '<div style="font-family:var(--font-serif);font-size:28px;font-weight:500;letter-spacing:-.5px;margin:2px 0">' + dcur(sd.revenue || 0) + '</div>'
+    + '<span style="font-size:12px;color:var(--text-3)">' + (sd.count || 0) + ' sale' + ((sd.count || 0) === 1 ? '' : 's') + ' · ' + dcur(sm.revenue || 0) + ' this month</span>'
+    + '<div style="margin:8px 0 2px">' + (trendVals.length ? _svgSpark(trendVals) : '') + '</div>'
+    + R('Best product', bestProd ? esc(bestProd.product + ' ' + bestProd.packSize) : '—')
+    + R('Top customer', topC.length ? esc(topC[0].name) : '—')
+    + R('To collect · AR', dcur(ar.outstanding || 0), oAR.count ? 'var(--chili)' : '')
+    + '</div>';
+  const madeSub = prod.madeThisMonthBatches + ' done' + (prod.inProgressBatches ? ' · ' + prod.inProgressBatches + ' in progress' : '');
+  const prodSum = '<div class="card" onclick="nav(\'production\')" style="padding:16px 18px;cursor:pointer;transition:.15s" onmouseenter="this.style.boxShadow=\'0 14px 34px rgba(60,40,25,.12)\'" onmouseleave="this.style.boxShadow=\'\'">'
+    + sumHead('Production', 'production')
+    + '<div style="font-size:12px;color:var(--text-3)">Made this month</div>'
+    + '<div style="font-family:var(--font-serif);font-size:28px;font-weight:500;letter-spacing:-.5px;margin:2px 0">' + fmt(prod.madeThisMonthPacks || 0) + ' <span style="font-size:15px;color:var(--text-3)">packs</span></div>'
+    + '<span style="font-size:12px;font-weight:600;color:' + (prod.inProgressBatches ? 'var(--blue,#2E6BB0)' : 'var(--text-3)') + '">' + madeSub + '</span>'
+    + '<div style="height:32px;margin:8px 0 2px;display:flex;align-items:flex-end;gap:5px">'
+      + '<div style="flex:1;height:70%;background:linear-gradient(var(--saffron),var(--saffron-deep));border-radius:4px 4px 0 0"></div><div style="flex:1;height:42%;background:#E7D6C6;border-radius:4px 4px 0 0"></div><div style="flex:1;height:86%;background:linear-gradient(var(--saffron),var(--saffron-deep));border-radius:4px 4px 0 0"></div><div style="flex:1;height:30%;background:#E7D6C6;border-radius:4px 4px 0 0"></div></div>'
+    + R('Ready to sell', fmt(prod.readyToSellUnits || 0) + ' units')
+    + R('To make · open WOs', fmt(prod.toMakePacks || 0) + ' packs')
+    + R('Stock health', (low.length ? low.length + ' low' : 'all OK'), low.length ? 'var(--chili)' : 'var(--cardamom)')
     + '</div>';
 
   const acts = [];
-  if (oAR.count) acts.push(actionRow('var(--chili)', oAR.count + ' invoice' + (oAR.count > 1 ? 's' : '') + ' overdue · ' + fmtPKR(oAR.amount), 'oldest ' + (oAR.maxDaysOverdue || 0) + ' days — chase payment', 'Chase', 'ar-aging'));
-  if (low.length) acts.push(actionRow('var(--saffron-deep)', low.length + ' ingredient' + (low.length > 1 ? 's' : '') + ' low on stock', 'reorder before the next batch', 'Order', 'inventory'));
-  wos.slice(0, 3).forEach(w => acts.push(actionRow('#1a73e8', 'Work order to make · ' + (w.qty || 0) + ' packs', (w.woNumber || '') + ' · ' + (w.product || '') + ' ' + (w.packSize || ''), 'Make', 'production')));
-  if (apOv.count) acts.push(actionRow('var(--chili)', apOv.count + ' bill' + (apOv.count > 1 ? 's' : '') + ' overdue · ' + fmtPKR(apOv.amount), 'pay to keep suppliers happy', 'Pay', 'ap-aging'));
-  else if (apDue.count) acts.push(actionRow('var(--saffron-deep)', apDue.count + ' bill' + (apDue.count > 1 ? 's' : '') + ' due this week · ' + fmtPKR(apDue.amount), 'plan your outgoings', 'View', 'ap-aging'));
-  const needsCard = '<div class="card" style="padding:6px 18px 12px;border-left:4px solid var(--saffron)">'
-    + (acts.length ? acts.join('') : '<div style="color:var(--cardamom);font-size:14px;padding:14px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-3px;display:inline-block"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> Nothing needs your attention right now.</div>')
+  if (oAR.count) acts.push(['var(--chili)', '#FBEBE8', 'alert-triangle', oAR.count + ' invoice' + (oAR.count > 1 ? 's' : '') + ' overdue · ' + dcur(oAR.amount), 'oldest ' + (oAR.maxDaysOverdue || 0) + ' days — chase payment', 'Chase', 'ar-aging']);
+  if (low.length) acts.push(['var(--saffron-deep)', 'var(--saffron-pale)', 'archive', low.length + ' ingredient' + (low.length > 1 ? 's' : '') + ' low on stock', 'reorder before the next batch', 'Order', 'inventory']);
+  if (prod.toMakePacks) acts.push(['#2E6BB0', '#E9F1FA', 'settings-2', wos.length + ' work order' + (wos.length > 1 ? 's' : '') + ' to make · ' + fmt(prod.toMakePacks) + ' packs', wos.slice(0, 2).map(w => w.product + ' ' + w.qty).join(' · '), 'Make', 'production']);
+  if (apOv.count) acts.push(['var(--chili)', '#FBEBE8', 'alert-triangle', apOv.count + ' bill' + (apOv.count > 1 ? 's' : '') + ' overdue · ' + dcur(apOv.amount), 'pay to keep suppliers happy', 'Pay', 'ap-aging']);
+  else if (apDue.count) acts.push(['var(--saffron-deep)', 'var(--saffron-pale)', 'calendar', apDue.count + ' bill' + (apDue.count > 1 ? 's' : '') + ' due this week · ' + dcur(apDue.amount), 'plan your outgoings', 'View', 'ap-aging']);
+  const needs = '<div class="card" style="padding:6px 18px 10px;border-left:4px solid var(--saffron)">'
+    + (acts.length ? acts.map(a => '<div style="display:flex;align-items:center;gap:12px;padding:12px 2px;border-top:1px solid var(--hair)">'
+        + '<div style="width:34px;height:34px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:' + a[1] + ';color:' + a[0] + '">' + ic(a[2], 17) + '</div>'
+        + '<div style="min-width:0"><div style="font-weight:600;font-size:14px">' + a[3] + '</div><div style="font-size:12.5px;color:var(--text-3)">' + esc(a[4]) + '</div></div>'
+        + '<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="nav(\'' + a[6] + '\')">' + a[5] + ' →</button></div>').join('')
+      : '<div style="color:var(--cardamom);font-size:14px;padding:14px 0">' + ic('check-circle', 15) + ' Nothing needs your attention right now.</div>')
     + '</div>';
 
-  // details (collapsed): trend + sales-by-product + top customers + cost widget
-  const sbp = d.salesByProduct || [];
+  const glancePane = '<div id="d4-glance">'
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">' + finSum + salesSum + prodSum + '</div>'
+    + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:700;margin:22px 2px 10px">Needs you today</div>' + needs
+    + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:700;margin:22px 2px 10px">Revenue · last 6 months</div>'
+    + '<div class="card" style="padding:14px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><b style="font-size:14px">Revenue trend</b><span onclick="nav(\'pl-report\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">P&amp;L →</span></div>'
+      + (trendVals.length ? _svgArea(trendVals, trendLabs) : '<div style="color:var(--text-3);font-size:13px;padding:20px;text-align:center">No sales history yet.</div>') + '</div>'
+    + '</div>';
+
+  // ═══════════ SALES ═══════════
   const maxRev = Math.max.apply(null, sbp.map(p => p.revenueMtd).concat([1]));
-  const sbpRows = sbp.length ? sbp.map(p => {
-    const pct = Math.round(p.revenueMtd / maxRev * 100);
-    return '<div style="display:grid;grid-template-columns:1.6fr .8fr 1fr;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--border)">'
-      + '<div style="font-size:13px">' + esc(p.product) + ' ' + esc(p.packSize) + '<div style="height:4px;width:' + pct + '%;background:var(--saffron);border-radius:2px;margin-top:5px"></div></div>'
-      + '<div style="text-align:right;font-size:13px">' + (p.unitsMtd || 0) + ' pk</div>'
-      + '<div style="text-align:right;font-size:13px;font-weight:600">' + fmtPKR(p.revenueMtd) + '</div></div>';
-  }).join('') : '<div style="color:var(--text-3);font-size:13px;padding:12px 0">No sales yet this month.</div>';
-  const custRows = (d.topCustomers || []).length
-    ? d.topCustomers.map(c => '<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:13px">' + esc(c.name || '—') + '</span><span style="font-size:13px;color:var(--text-2)">' + fmtPKR(c.revenue) + '</span></div>').join('')
+  const sbpRows = sbp.filter(p => p.unitsMtd > 0).length ? sbp.filter(p => p.unitsMtd > 0).map(p =>
+    '<div onclick="nav(\'products\')" style="cursor:pointer;padding:6px 4px;border-radius:8px;margin-bottom:6px" onmouseover="this.style.background=\'var(--saffron-pale)\'" onmouseout="this.style.background=\'\'">'
+    + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span>' + esc(p.product + ' ' + p.packSize) + '</span><span style="color:var(--text-3)">' + (p.unitsMtd || 0) + ' pk · <b style="color:var(--text-1)">' + dcur(p.revenueMtd) + '</b></span></div>'
+    + '<div style="height:8px;border-radius:5px;background:#F1ECE4"><div style="height:100%;width:' + Math.round((p.revenueMtd / maxRev) * 100) + '%;background:linear-gradient(90deg,var(--saffron),var(--saffron-deep));border-radius:5px"></div></div></div>').join('')
+    : '<div style="color:var(--text-3);font-size:13px;padding:12px 0">No sales yet this month.</div>';
+  const custRows = topC.length ? topC.slice(0, 5).map((c, i) =>
+    '<div onclick="nav(\'customers\')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--hair);cursor:pointer;font-size:13px"><span style="width:22px;height:22px;border-radius:7px;background:#F4EBE0;color:var(--terra-dk);font-weight:700;font-size:11px;display:inline-flex;align-items:center;justify-content:center">' + (i + 1) + '</span><span>' + esc(c.name || '—') + '</span><span style="margin-left:auto;color:var(--text-2)">' + dcur(c.revenue) + '</span></div>').join('')
     : '<div style="color:var(--text-3);font-size:13px;padding:12px 0">No customer sales yet.</div>';
-  let costWidget = '';
-  if (canCostsU) {
-    const months = oc.months || [];
-    const cur = months.find(m => m.month === _homeMonth);
-    const cats = (cur && cur.categories) || {};
-    const bucketOf = {}; (lines || []).forEach(l => { bucketOf[(l.name || '').toLowerCase()] = l.bucket; });
-    let vSum = 0, fSum = 0, total = 0;
-    Object.keys(cats).forEach(k => { const amt = cats[k] || 0; total += amt; const b = bucketOf[k]; if (b === 'variable') vSum += amt; else if (b === 'fixed') fSum += amt; });
-    const parts = _homeMonth.split('-');
-    const mLabel = new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-    costWidget = '<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-      + '<span style="font-size:13px;font-weight:700">Cost tracking · ' + mLabel + '</span>'
-      + '<span style="display:flex;align-items:center;gap:6px"><button class="btn btn-xs btn-outline" onclick="_homeShiftMonth(-1)">‹</button><button class="btn btn-xs btn-outline" onclick="_homeShiftMonth(1)">›</button><button class="btn btn-xs btn-outline" onclick="nav(\'prices-costs\')" style="margin-left:4px">Open →</button></span></div>'
-      + (cur ? ('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'
-        + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Variable</div><div style="font-size:20px;font-weight:700">' + fmtPKR(vSum) + '</div></div>'
-        + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Fixed</div><div style="font-size:20px;font-weight:700">' + fmtPKR(fSum) + '</div></div>'
-        + '<div style="background:var(--saffron-pale);border-radius:8px;padding:12px"><div style="font-size:12px;color:var(--text-3)">Total spent</div><div style="font-size:20px;font-weight:700">' + fmtPKR(total) + '</div></div></div>')
-        : '<div style="color:var(--text-3);font-size:13px;padding:8px 0">No costs recorded for ' + mLabel + '. <a onclick="nav(\'prices-costs\')" style="color:var(--saffron);cursor:pointer">Add them →</a></div>')
-      + '</div>';
-  }
-  const details = '<div id="dash-details" style="display:none;margin-top:12px">'
-    + '<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:12px">'
-      + '<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px">Revenue · last 6 months</div>' + _dashTrendSvg(d.revenueTrend) + '</div>'
-      + '<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px">Top customers (month)</div>' + custRows + '</div>'
+  const salesPane = '<div id="d4-sales" style="display:none">'
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'
+      + _d4kpi('Sales today', dcur(sd.revenue || 0), (sd.count || 0) + ' sales', '', 'orders-invoices')
+      + _d4kpi('This month', dcur(sm.revenue || 0), mom !== null ? ((momUp ? '▲ ' : '▼ ') + Math.abs(mom) + '%') : 'first month', mom === null ? '' : (momUp ? 'var(--cardamom)' : 'var(--chili)'), 'orders-invoices')
+      + _d4kpi('To collect · AR', dcur(ar.outstanding || 0), oAR.count ? (dcur(oAR.amount) + ' overdue') : 'all current', oAR.count ? 'var(--chili)' : '', 'receipts-aging')
     + '</div>'
-    + '<div class="card" style="margin-top:12px"><div style="font-size:13px;font-weight:700;margin-bottom:8px">Sales by product · this month</div>'
-      + '<div style="display:grid;grid-template-columns:1.6fr .8fr 1fr;gap:8px;font-size:11px;color:var(--text-3);padding-bottom:4px;border-bottom:1px solid var(--border)"><span>Product</span><span style="text-align:right">Packs</span><span style="text-align:right">Revenue</span></div>' + sbpRows + '</div>'
-    + costWidget
-    + '</div>';
-  const ownerPane = '<div id="dash-pane-owner">'
-    + secLbl('How the business is') + ownerKpis
-    + secLbl('Needs you today') + needsCard
-    + '<div style="margin-top:16px"><button id="dash-details-toggle" onclick="_dashToggleDetails()" style="background:none;border:none;color:var(--saffron-deep);font-weight:600;font-size:13px;cursor:pointer;padding:6px 0">▸ Business detail — revenue trend, sales by product, top customers</button>' + details + '</div>'
-    + '</div>';
-
-  // ═══════ OPERATIONS VIEW ═══════
-  const opTile = (label, value, sub, subColor, target) =>
-    '<div onclick="nav(\'' + target + '\')" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;cursor:pointer" onmouseover="this.style.borderColor=\'var(--saffron)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
-    + '<div style="font-size:12px;color:var(--text-3)">' + label + '</div>'
-    + '<div style="font-family:var(--font-serif);font-size:26px;font-weight:500;margin:2px 0">' + value + '</div>'
-    + '<div style="font-size:12px;color:' + (subColor || 'var(--text-3)') + '">' + sub + '</div></div>';
-  const opsTiles = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'
-    + opTile('Sales today', fmtPKR(sd.revenue || 0), (sd.count || 0) + ' sale' + ((sd.count || 0) === 1 ? '' : 's'), 'var(--text-3)', 'orders-invoices')
-    + opTile('To collect', fmtPKR(ar.outstanding || 0), oAR.count ? (fmtPKR(oAR.amount) + ' overdue') : 'all current', oAR.count ? 'var(--chili)' : 'var(--text-3)', 'receipts-aging')
-    + opTile('To pay', fmtPKR(ap.outstanding || 0), apOv.count ? (fmtPKR(apOv.amount) + ' overdue') : (apDue.count ? (apDue.count + ' due this week') : 'nothing due soon'), apOv.count ? 'var(--chili)' : (apDue.count ? 'var(--saffron-deep)' : 'var(--text-3)'), 'ap-aging')
-    + '</div>';
-  const woRows = wos.length ? wos.map(w =>
-    '<div onclick="nav(\'production\')" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--border);cursor:pointer">'
-    + '<div><div style="font-size:13px;font-weight:600">' + esc(w.product || '—') + ' ' + esc(w.packSize || '') + '</div><div style="font-size:12px;color:var(--text-3)">' + esc(w.woNumber || '') + (w.targetDate ? ' · target ' + esc(w.targetDate) : '') + '</div></div>'
-    + '<div style="font-size:13px;font-weight:600">' + (w.qty || 0) + ' packs</div></div>').join('')
-    : '<div style="color:var(--cardamom);font-size:13px;padding:10px 0">Nothing waiting to be made.</div>';
-  const lowRows = low.length ? low.slice(0, 8).map(l =>
-    '<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:13px">' + esc(l.name || l.code || '—') + '</span><span style="font-size:12px;color:var(--chili);font-weight:600">low</span></div>').join('')
-    : '<div style="color:var(--cardamom);font-size:13px;padding:10px 0">All ingredients above reorder level.</div>';
-  const fgRows = fg.length ? fg.slice(0, 8).map(f =>
-    '<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:13px">' + esc(f.product || '—') + ' ' + esc(f.packSize || '') + '</span><span style="font-size:13px;font-weight:600">' + (f.units || 0) + ' units</span></div>').join('')
-    : '<div style="color:var(--text-3);font-size:13px;padding:10px 0">No finished stock yet.</div>';
-  const opsPane = '<div id="dash-pane-operations" style="display:none">'
-    + secLbl('Today') + opsTiles
-    + secLbl('To make') + '<div class="card" style="padding:6px 18px 12px;cursor:pointer" onclick="nav(\'production\')">' + woRows + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">'
-      + '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:13px;font-weight:700">Low stock — order these</span><a onclick="nav(\'inventory\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer">Inventory →</a></div>' + lowRows + '</div>'
-      + '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:13px;font-weight:700">Finished goods ready</span><a onclick="nav(\'inventory\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer">Inventory →</a></div>' + fgRows + '</div>'
+    + '<div style="display:grid;grid-template-columns:1.35fr 1fr;gap:14px;margin-top:14px">'
+      + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><b>Sales by product · this month</b><span onclick="nav(\'products\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Products →</span></div>' + sbpRows + '</div>'
+      + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><b>Top customers</b><span onclick="nav(\'customers\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Customers →</span></div>' + custRows + '</div>'
     + '</div></div>';
 
-  // ── header + view toggle ──
-  const tabBtn = (id, label) => '<button id="dash-tab-' + id + '" onclick="_dashSwitchView(\'' + id + '\')" style="border:none;border-radius:8px;padding:7px 18px;cursor:pointer;font-size:13px;background:transparent;color:var(--text-2);font-weight:500">' + label + '</button>';
-  const header = '<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
+  // ═══════════ OPERATIONS ═══════════
+  const woRows = wos.length ? wos.slice(0, 6).map(w => '<div onclick="nav(\'production\')" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--hair);cursor:pointer"><div><div style="font-size:13px;font-weight:600">' + esc(w.product || '—') + ' ' + esc(w.packSize || '') + '</div><div style="font-size:12px;color:var(--text-3)">' + esc(w.woNumber || '') + (w.targetDate ? ' · target ' + esc(w.targetDate) : '') + '</div></div><div style="font-weight:700">' + (w.qty || 0) + '</div></div>').join('') : '<div style="color:var(--cardamom);font-size:13px;padding:10px 0">Nothing waiting to be made.</div>';
+  const lowRows = low.length ? low.slice(0, 6).map(l => { const bal = (l.balance || 0) / 1000, ro = (l.reorder || 0) / 1000, pct = ro > 0 ? (bal / ro * 100) : 0; return '<div style="padding:8px 0;border-top:1px solid var(--hair)"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>' + esc(l.name || l.code || '—') + '</span><span style="color:var(--chili);font-weight:600">' + bal.toFixed(1) + ' kg</span></div>' + _gauge(pct, pct < 30 ? 'var(--chili)' : 'var(--saffron)') + '</div>'; }).join('') : '<div style="color:var(--cardamom);font-size:13px;padding:10px 0">All ingredients above reorder level.</div>';
+  const fgRows = fg.length ? fg.slice(0, 6).map(f => '<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--hair);font-size:13px"><span>' + esc(f.product || '—') + ' ' + esc(f.packSize || '') + '</span><b>' + fmt(f.units || 0) + ' units</b></div>').join('') : '<div style="color:var(--text-3);font-size:13px;padding:10px 0">No finished stock yet.</div>';
+  const opsPane = '<div id="d4-ops" style="display:none">'
+    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'
+      + _d4kpi('Made this month', fmt(prod.madeThisMonthPacks || 0), prod.madeThisMonthBatches + ' batches', '', 'production')
+      + _d4kpi('In progress', String(prod.inProgressBatches || 0), (prod.inProgressPacks || 0) + ' packs', prod.inProgressBatches ? 'var(--blue,#2E6BB0)' : '', 'production')
+      + _d4kpi('Ready to sell', fmt(prod.readyToSellUnits || 0), 'units', '', 'inventory')
+      + _d4kpi('Low stock', String(low.length), 'to reorder', low.length ? 'var(--chili)' : '', 'inventory')
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">'
+      + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><b>To make · open work orders</b><span onclick="nav(\'production\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Production →</span></div>' + woRows + '</div>'
+      + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><b>Low stock — order these</b><span onclick="nav(\'inventory\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Inventory →</span></div>' + lowRows + '</div>'
+    + '</div>'
+    + '<div class="card" style="padding:16px 18px;margin-top:14px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><b>Finished goods ready</b><span onclick="nav(\'inventory\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Inventory →</span></div>' + fgRows + '</div>'
+    + '</div>';
+
+  // ═══════════ FINANCIAL (rendered by _finRender) ═══════════
+  const finPane = '<div id="d4-fin" style="display:none"><div id="d4-fin-body"></div></div>';
+
+  // ── header + tabs + currency toggle ──
+  const rateSet = (_dashUsdRate > 0);
+  const curToggle = '<div style="display:inline-flex;align-items:center;gap:8px">'
+    + '<div style="display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px">'
+      + '<span onclick="_dashSetCur(\'PKR\')" style="padding:5px 11px;font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;' + (_dashCur === 'PKR' ? 'background:var(--surface);color:var(--terra-dk);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:var(--text-3)') + '">Rs.</span>'
+      + '<span onclick="' + (rateSet ? "_dashSetCur('USD')" : "alert('Set a Rs/$ rate first (the ✎ next to $).')") + '" style="padding:5px 11px;font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;' + (_dashCur === 'USD' ? 'background:var(--surface);color:var(--terra-dk);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:var(--text-3)') + '">$</span>'
+    + '</div>'
+    + (isAdmin ? '<span style="font-size:11px;color:var(--text-3)">' + (rateSet ? '@ Rs. ' + fmt(_dashUsdRate) + '/$' : 'no rate') + ' <span onclick="var r=prompt(\'Rs per US$\',\'' + (_dashUsdRate || 280) + '\'); if(r)_dashSaveRate(r);" style="color:var(--saffron-deep);cursor:pointer">✎</span></span>' : (rateSet && _dashCur === 'USD' ? '<span style="font-size:11px;color:var(--text-3)">@ Rs. ' + fmt(_dashUsdRate) + '/$</span>' : ''))
+    + '</div>';
+  const tabBtn = (id, label) => '<button id="d4tab-' + id + '" onclick="_dashSwitch4(\'' + id + '\')" style="border:none;background:transparent;color:var(--text-2);font-weight:600;font-size:13.5px;padding:9px 18px;border-radius:10px;cursor:pointer">' + label + '</button>';
+  const header = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
     + '<div><div style="font-size:13px;color:var(--text-2)">' + greet + (name ? ', ' + esc(name) : '') + '</div>'
     + '<h1 style="font-family:var(--font-serif);font-weight:500;font-size:28px;margin:2px 0 0">Dashboard</h1>'
     + '<div style="font-size:13px;color:var(--text-3)">' + dateStr + '</div></div>'
-    + '<div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" onclick="nav(\'orders-invoices\',\'new\')">+ New order</button>'
+    + '<div style="display:flex;gap:8px;align-items:center">' + curToggle + '<button class="btn btn-primary btn-sm" onclick="nav(\'orders-invoices\',\'new\')">+ New order</button>'
     + '<button class="btn btn-outline btn-sm" onclick="nav(\'receipts-aging\')">Record payment</button></div>'
     + '</div>'
-    + '<div style="display:inline-flex;gap:4px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:4px">'
-      + tabBtn('owner', 'Owner') + tabBtn('operations', 'Operations')
-    + '</div>';
+    + '<div style="display:inline-flex;gap:4px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:6px">'
+      + tabBtn('glance', 'Quick Glance') + tabBtn('sales', 'Sales') + tabBtn('ops', 'Operations') + tabBtn('fin', 'Financial') + '</div>';
 
-  return '<div style="max-width:1180px;margin:0 auto;padding-top:8px">' + header + ownerPane + opsPane + '</div>';
+  return '<div style="max-width:1180px;margin:0 auto;padding-top:8px">' + header + glancePane + salesPane + opsPane + finPane + '</div>';
 }
 
-// (renderHomeOld removed 2026-07-06 — dead twin, superseded by renderHome)
+function _d4kpi(label, value, sub, subColor, target) {
+  return '<div onclick="nav(\'' + target + '\')" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:15px 16px;cursor:pointer;transition:.15s" onmouseenter="this.style.boxShadow=\'0 6px 18px rgba(60,40,25,.09)\'" onmouseleave="this.style.boxShadow=\'\'">'
+    + '<div style="font-size:12px;color:var(--text-3)">' + label + '</div>'
+    + '<div style="font-family:var(--font-serif);font-size:24px;font-weight:500;margin:2px 0">' + value + '</div>'
+    + '<div style="font-size:12px;color:' + (subColor || 'var(--text-3)') + '">' + sub + '</div></div>';
+}
 
-// (_dashTab/_dashSwitchTab removed 2026-07-06 — only the old two-tab dashboard used them)
+// ── Financial tab: month stepper + cost donut/trend + P&L ──
+function _finStep(n) { const [y, m] = _finMonth.split('-').map(Number); const dt = new Date(y, m - 1 + n, 1); if (dt > new Date()) return; _finMonth = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0'); _finRender(); }
+function _finMode(yr) { _finYearView = yr; _finRender(); }
+function _finPick(i) { const ms = ((window._finData || {}).oc || {}).months || []; /* i indexes trend months */ const tm = _finTrendMonths(); if (tm[i]) { _finMonth = tm[i]; _finRender(); } }
+function _finTrendMonths() { const oc = ((window._finData || {}).oc || {}); return (oc.months || []).map(m => m.month); }
+function _finRender() {
+  const box = document.getElementById('d4-fin-body'); if (!box) return;
+  const data = window._finData || {}, pl = data.pl || {}, oc = data.oc || {};
+  const plMonths = pl.months || [], ocMonths = oc.months || [];
+  const CC = ['#9A4A24', '#C97B3C', '#E0B15A', '#E8D3A8', '#B79A82', '#8A7F72'];
+  const parts = _finMonth.split('-'); const mLabel = new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const ocM = ocMonths.find(m => m.month === _finMonth);
+  const cats = (ocM && ocM.categories) || {};
+  const catKeys = Object.keys(cats).filter(k => (cats[k] || 0) > 0);
+  const ctot = catKeys.reduce((a, k) => a + (cats[k] || 0), 0);
+  const donutSegs = catKeys.map((k, i) => ({ v: cats[k], color: CC[i % CC.length], label: k }));
+  const donut = catKeys.length ? _svgDonut(donutSegs, 128) : '<div style="width:128px;height:128px;border-radius:50%;border:13px solid #EFE6DA"></div>';
+  const catRows = catKeys.length ? catKeys.map((k, i) => '<div style="display:flex;align-items:center;padding:6px 0;border-top:1px solid var(--hair);font-size:13px"><span style="width:9px;height:9px;border-radius:3px;background:' + CC[i % CC.length] + '"></span><span style="margin-left:8px;text-transform:capitalize">' + esc(k) + '</span><b style="margin-left:auto;color:var(--text-2)">' + dcur(cats[k]) + '</b></div>').join('') : '<div style="color:var(--text-3);font-size:13px;padding:14px 0">No operating costs recorded for ' + mLabel + '. <span onclick="nav(\'prices-costs\')" style="color:var(--saffron-deep);cursor:pointer">Add them →</span></div>';
+  // cost trend (from oc months)
+  const tMonths = ocMonths.map(m => m.month), tVals = ocMonths.map(m => m.total || 0), tLabs = ocMonths.map(m => (m.month || '').slice(5));
+  const hi = tMonths.indexOf(_finMonth);
+  const costTrend = tVals.length ? _svgBars(tVals, tLabs, hi, '_finPick') : '<div style="color:var(--text-3);font-size:13px;padding:20px;text-align:center">No cost history yet.</div>';
+  // P&L: from pl months + oc opex
+  const plRow = plMonths.find(m => m.month === _finMonth) || {};
+  const opexM = ctot;
+  const rev = _finYearView ? (pl.ytd || {}).revenue || 0 : plRow.revenue || 0;
+  const cogs = _finYearView ? (pl.ytd || {}).cogs || 0 : plRow.cogs || 0;
+  const gp = _finYearView ? (pl.ytd || {}).gross_profit || 0 : plRow.gross_profit || 0;
+  const opex = _finYearView ? ocMonths.reduce((a, m) => a + (m.total || 0), 0) : opexM;
+  const net = gp - opex;
+  const ytdOpex = ocMonths.reduce((a, m) => a + (m.total || 0), 0);
+  const y = pl.ytd || {};
+  const plRowHtml = (lbl, mv, yv, kind) => {
+    const st = kind === 'net' ? 'font-family:var(--font-serif);font-size:15px' : (kind === 'gp' ? 'font-weight:600' : (kind === 'sub' ? 'color:var(--text-3)' : ''));
+    const cc = kind === 'net' ? ';color:' + (mv >= 0 ? 'var(--cardamom)' : 'var(--chili)') : '';
+    return '<tr><td style="text-align:left;padding:9px 6px;border-top:1px solid var(--hair);' + st + '">' + lbl + '</td><td style="text-align:right;padding:9px 6px;border-top:1px solid var(--hair);' + st + cc + '">' + dcur(mv) + '</td><td style="text-align:right;padding:9px 6px;border-top:1px solid var(--hair);' + st + cc + '">' + dcur(yv) + '</td></tr>';
+  };
+  const pnl = '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>'
+    + '<th style="text-align:left;padding:7px 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)"></th>'
+    + '<th style="text-align:right;padding:7px 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)">' + (_finYearView ? 'This year' : 'This month') + '</th>'
+    + '<th style="text-align:right;padding:7px 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)">Year to date</th></tr></thead><tbody>'
+    + plRowHtml('Revenue', rev, y.revenue || 0)
+    + plRowHtml('− Cost of goods', cogs, y.cogs || 0, 'sub')
+    + plRowHtml('Gross profit', gp, y.gross_profit || 0, 'gp')
+    + plRowHtml('− Operating costs', opex, ytdOpex, 'sub')
+    + plRowHtml('Net profit', net, (y.gross_profit || 0) - ytdOpex, 'net')
+    + '</tbody></table>';
+
+  box.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:4px">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+        + '<div style="display:inline-flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px"><button class="btn btn-xs btn-outline" style="border:none" onclick="_finStep(-1)">‹</button><span style="font-weight:600;min-width:120px;text-align:center;font-size:13.5px">' + mLabel + '</span><button class="btn btn-xs btn-outline" style="border:none" onclick="_finStep(1)">›</button></div>'
+        + '<div style="display:inline-flex;background:var(--surface-2);border-radius:9px;padding:3px"><span onclick="_finMode(false)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;' + (!_finYearView ? 'background:var(--surface);color:var(--terra-dk);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:var(--text-3)') + '">Month</span><span onclick="_finMode(true)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;' + (_finYearView ? 'background:var(--surface);color:var(--terra-dk);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:var(--text-3)') + '">Year</span></div>'
+      + '</div>'
+      + '<span onclick="nav(\'prices-costs\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Prices &amp; Costs →</span>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">'
+      + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><b>Operating costs</b><span style="font-size:12px;color:var(--text-3)">' + parts.join('-') + ' · ' + dcur(ctot) + '</span></div>'
+        + '<div style="display:flex;align-items:center;gap:18px"><div style="flex-shrink:0">' + donut + '</div><div style="flex:1">' + catRows + '</div></div></div>'
+      + '<div class="card" style="padding:16px 18px"><div style="margin-bottom:8px"><b>Monthly cost trend</b> <span style="font-size:11px;color:var(--text-3)">tap a bar</span></div>' + costTrend + '</div>'
+    + '</div>'
+    + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:700;margin:22px 2px 10px">Profit &amp; loss — ' + (_finYearView ? new Date().getFullYear() : mLabel) + '</div>'
+    + '<div class="card" style="padding:8px 18px 12px">' + pnl + '</div>';
+}
 function _kShort(v) {
   v = v || 0;
   if (Math.abs(v) >= 1000000) return (v/1000000).toFixed(1) + 'M';

@@ -1274,6 +1274,8 @@ def ensure_costing_config():
             ('fix_rent',         '0.00',  'Fixed — Rent (Rs/MONTH)'),
             ('fix_transport',    '0.00',  'Fixed — Transport, own vehicle (Rs/MONTH)'),
             ('fix_admin',        '0.00',  'Fixed — Admin (Rs/MONTH)'),
+            # Dashboard-only Rs→US$ display rate (owner-set). Never used in costing/invoices.
+            ('usd_rate',         '280',   'Rs per US$ (dashboard $ display; owner-set)'),
         ]
         for key, value, label in defaults:
             c.execute(

@@ -303,6 +303,34 @@ def get_dashboard():
         })
     sales_by_product.sort(key=lambda x: x['revenueMtd'], reverse=True)
 
+    # ── Production summary (Quick Glance / Operations) ─────────────
+    # "Made this month" = COMPLETED/verified batches (production_batches are verified FG only).
+    # "In progress" = active staged batch runs — work-in-progress, NOT yet made.
+    made_packs = made_batches = inprog_batches = inprog_packs = 0
+    try:
+        _mr = qry1("SELECT COALESCE(SUM(qty_units),0) AS packs, COUNT(*) AS n "
+                   "FROM production_batches WHERE strftime('%Y-%m', batch_date)=?", (month_key,)) or {}
+        made_packs, made_batches = int(_mr.get('packs') or 0), int(_mr.get('n') or 0)
+    except Exception:
+        pass
+    try:
+        _ir = qry1("SELECT COUNT(*) AS n, COALESCE(SUM(qty_units),0) AS packs "
+                   "FROM batch_runs WHERE status IN ('in_progress','awaiting_verification')") or {}
+        inprog_batches, inprog_packs = int(_ir.get('n') or 0), int(_ir.get('packs') or 0)
+    except Exception:
+        pass
+    ready_to_sell = int(sum(fg_stock.values())) if fg_stock else 0
+    to_make_packs = sum(int(w.get('qty') or 0) for w in open_wos)
+
+    # Owner-set Rs→$ display rate (dashboard convenience only; 0 = not set / feature off).
+    usd_rate = 0.0
+    try:
+        _u = qry1("SELECT value FROM costing_config WHERE key='usd_rate'")
+        if _u and _u.get('value'):
+            usd_rate = float(_u['value'])
+    except Exception:
+        usd_rate = 0.0
+
     return {
         'salesToday': {
             'count':       int(sales_today.get('cnt', 0)),
@@ -354,6 +382,15 @@ def get_dashboard():
         'topCustomers':     top_customers,
         'openWorkOrders':   open_wos,
         'salesByProduct':   sales_by_product,
+        'production': {
+            'madeThisMonthPacks':   made_packs,
+            'madeThisMonthBatches': made_batches,
+            'inProgressBatches':    inprog_batches,
+            'inProgressPacks':      inprog_packs,
+            'readyToSellUnits':     ready_to_sell,
+            'toMakePacks':          to_make_packs,
+        },
+        'usdRate': usd_rate,
     }
 
 
