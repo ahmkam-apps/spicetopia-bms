@@ -171,21 +171,36 @@ def create_supplier_bill(data):
 
     _sync_counter_to_max('bill', 'supplier_bills', 'bill_number', 'SP-BILL-')
     bill_num = next_id('bill', 'BILL')
+    # Funnel: a manual bill still flows through a PO. Pre-generate a PO number (IDs before txn).
+    _sync_counter_to_max('purchase_order', 'purchase_orders', 'po_number', 'SP-PO-')
+    po_num = next_id('purchase_order', 'PO')
 
     c = _conn()
     try:
+        from modules.inventory import post_movement
         computed_total = r2(sum(
             r2(float(item.get('quantityKg', 0)) * float(item.get('unitCostKg', 0)))
             for item in items
         ))
 
+        # Auto-create a 'received' PO so every PURCHASE_IN traces to a PO (AK: everything
+        # purchased flows through a PO, regardless of where it's entered).
+        c.execute("""
+            INSERT INTO purchase_orders (po_number, supplier_id, po_date, expected_date,
+                                         status, notes, payment_terms)
+            VALUES (?,?,?,?, 'received', ?, 'CREDIT')
+        """, (po_num, sup['id'], bill_date, bill_date, f"Auto — from manual bill {bill_num}"))
+        po_db_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
         c.execute("""
             INSERT INTO supplier_bills
-                (bill_number, supplier_id, bill_date, due_date, status, notes, total_amount, supplier_ref, expected_amount)
-            VALUES (?,?,?,?,'UNPAID',?,?,?,?)
+                (bill_number, supplier_id, bill_date, due_date, status, notes,
+                 total_amount, supplier_ref, expected_amount, po_id)
+            VALUES (?,?,?,?,'UNPAID',?,?,?,?,?)
         """, (bill_num, sup['id'], bill_date, due_date,
-              data.get('notes', ''), computed_total, supplier_ref, computed_total))
+              data.get('notes', ''), computed_total, supplier_ref, computed_total, po_db_id))
         bill_db_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        c.execute("UPDATE purchase_orders SET bill_id=? WHERE id=?", (bill_db_id, po_db_id))
 
         for item in items:
             ing = qry1("SELECT * FROM ingredients WHERE id=?", (item.get('ingredientId'),))
@@ -197,17 +212,19 @@ def create_supplier_bill(data):
             qty_grams  = r2(qty_kg * 1000)
 
             c.execute("""
+                INSERT INTO po_items (po_id, ingredient_id, quantity_kg, received_kg, unit_cost_kg)
+                VALUES (?,?,?,?,?)
+            """, (po_db_id, ing['id'], qty_kg, qty_kg, unit_cost))
+
+            c.execute("""
                 INSERT INTO supplier_bill_items
                     (bill_id, ingredient_id, quantity_kg, unit_cost_kg, line_total)
                 VALUES (?,?,?,?,?)
             """, (bill_db_id, ing['id'], qty_kg, unit_cost, line_total))
 
-            c.execute("""
-                INSERT INTO inventory_ledger
-                    (ingredient_id, movement_type, qty_grams, reference_id, notes)
-                VALUES (?,?,?,?,?)
-            """, (ing['id'], 'PURCHASE_IN', qty_grams, bill_num,
-                  f"Purchase from {sup['name']}"))
+            # PURCHASE_IN through the single emitter, linked to the auto-PO.
+            post_movement(c, ing['id'], 'PURCHASE_IN', qty_grams, reference_id=po_num,
+                          notes=f"Purchase from {sup['name']}", po_id=po_db_id)
 
         c.execute("""
             INSERT INTO change_log (table_name, record_id, action, new_value)
@@ -761,12 +778,11 @@ def update_purchase_order_status(po_id, new_status, data=None):
                     already_kg = r2((already_logged['g'] or 0) / 1000)
                     delta_kg   = r2(newly_received_kg - already_kg)
                     if delta_kg > 0:
-                        c.execute("""
-                            INSERT INTO inventory_ledger
-                                (ingredient_id, movement_type, qty_grams, reference_id, notes)
-                            VALUES (?,?,?,?,?)
-                        """, (item['ingredient_id'], 'PURCHASE_IN', r2(delta_kg * 1000),
-                              po['po_number'], f"Received via {po['po_number']}"))
+                        # Funnel: PURCHASE_IN goes through the single emitter and is linked to THIS PO.
+                        from modules.inventory import post_movement
+                        post_movement(c, item['ingredient_id'], 'PURCHASE_IN', delta_kg * 1000,
+                                      reference_id=po['po_number'],
+                                      notes=f"Received via {po['po_number']}", po_id=po_id)
 
             bill_id = po.get('bill_id')
             if not bill_id:

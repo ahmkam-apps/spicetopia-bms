@@ -59,6 +59,7 @@ __all__ = [
     'ensure_customer_gst',
     'ensure_drop_qty_in_production',
     'ensure_bill_vendor_capture',
+    'ensure_ledger_po_link',
 ]
 
 
@@ -1500,6 +1501,33 @@ def ensure_bill_vendor_capture():
         print("  ✓ supplier_bills vendor capture (expected_amount / attachment / vendor_confirmed) ready")
     except Exception as e:
         print(f"  ⚠ ensure_bill_vendor_capture: {e}")
+    finally:
+        c.close()
+
+
+def ensure_ledger_po_link():
+    """Procurement funnel foundation: link every raw-material PURCHASE_IN to its Purchase Order.
+    Adds inventory_ledger.po_id (nullable) and backfills it from the free-text reference_id where
+    it matches a known po_number. ADJUSTMENT / OPENING / PRODUCTION_USE keep po_id NULL — they are
+    deliberately outside the funnel (corrections, opening balances, production usage are not
+    purchases). Additive ADD COLUMN (movement_type CHECK unchanged, no table rebuild). Idempotent."""
+    c = _conn()
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(inventory_ledger)").fetchall()]
+        if cols and 'po_id' not in cols:
+            c.execute("ALTER TABLE inventory_ledger ADD COLUMN po_id INTEGER")
+            c.execute("""
+                UPDATE inventory_ledger
+                   SET po_id = (SELECT po.id FROM purchase_orders po
+                                WHERE po.po_number = inventory_ledger.reference_id)
+                 WHERE movement_type='PURCHASE_IN'
+                   AND po_id IS NULL
+                   AND reference_id IN (SELECT po_number FROM purchase_orders)
+            """)
+        c.commit()
+        print("  ✓ inventory_ledger.po_id (procurement funnel PO link) ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_ledger_po_link: {e}")
     finally:
         c.close()
 

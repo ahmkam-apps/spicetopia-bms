@@ -170,6 +170,10 @@ def run():
             det0 = GET(f"/api/bills/{bill_id}", token=tok).json()
             _pass("new bill expected_amount = total") if _num(det0.get("expected_amount")) == _num(det0.get("total_amount")) \
                 else _fail("bill expected_amount seeded", f"exp={det0.get('expected_amount')} tot={det0.get('total_amount')}")
+            # Funnel invariant (PF-1): a manual bill auto-creates its backing PO, so the bill links to one.
+            po_link = det0.get("po_link")
+            _pass("manual bill flows through an auto-PO (funnel)") if (po_link and po_link.get("po_number")) \
+                else _fail("manual bill should link to a PO", str(po_link))
             vc = POST(f"/api/bills/{bill_id}/vendor-confirm",
                       {"actualAmount": 1080, "invoiceNo": f"VINV-{ts}"}, token=tok)
             if vc.status_code == 200:

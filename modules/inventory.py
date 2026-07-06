@@ -14,6 +14,8 @@ from modules.db    import _conn, qry, qry1, run_many, save_db, audit_log
 from modules.utils import r2, today
 
 __all__ = [
+    # Ledger emitter (procurement funnel)
+    'post_movement',
     # Raw material stock
     'get_stock_map',
     'get_wo_reserved_stock_map',
@@ -41,6 +43,28 @@ __all__ = [
 # ── Callback wired at startup by server.py ────────────────────────────────────
 # import modules.inventory as _inv_mod; _inv_mod._refresh_ref = load_ref
 _refresh_ref = lambda: None
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  LEDGER EMITTER — the one place inventory_ledger rows are written
+# ═══════════════════════════════════════════════════════════════════
+
+def post_movement(c, ingredient_id, movement_type, qty_grams,
+                  reference_id='', notes='', po_id=None):
+    """Single emitter for an inventory_ledger row, on an already-open cursor `c`
+    (the caller owns the transaction — no commit/save here).
+
+    Procurement-funnel invariant: a **PURCHASE_IN must carry a po_id** — raw material only
+    enters stock through a Purchase Order. ADJUSTMENT / OPENING / PRODUCTION_USE are deliberately
+    NOT purchases, so they never require (and never set) a po_id.
+    """
+    if movement_type == 'PURCHASE_IN' and not po_id:
+        raise ValueError("PURCHASE_IN requires a purchase order (procurement funnel invariant).")
+    c.execute("""
+        INSERT INTO inventory_ledger
+            (ingredient_id, movement_type, qty_grams, reference_id, notes, po_id)
+        VALUES (?,?,?,?,?,?)
+    """, (ingredient_id, movement_type, r2(qty_grams), reference_id, notes, po_id))
 
 
 # ═══════════════════════════════════════════════════════════════════
