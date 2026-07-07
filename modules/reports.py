@@ -322,6 +322,33 @@ def get_dashboard():
     ready_to_sell = int(sum(fg_stock.values())) if fg_stock else 0
     to_make_packs = sum(int(w.get('qty') or 0) for w in open_wos)
 
+    # ── Raw-material tank levels (Operations tab, worst-first) ─────
+    # Fuel-gauge tanks like the Inventory screen: on-hand vs target ('full' tank),
+    # with the reorder line. Worst-first so the tanks that need buying surface.
+    raw_materials = []
+    try:
+        _rmrows = qry("SELECT id, code, name, COALESCE(reorder_level,0) AS reorder, "
+                      "COALESCE(target_grams,0) AS target FROM ingredients WHERE active=1")
+        for _r in _rmrows:
+            _bal = float(stock_map.get(_r['id'], 0) or 0)
+            _ro  = float(_r.get('reorder') or 0)
+            _tg  = float(_r.get('target') or 0)
+            # Skip catalog rows that are irrelevant to production glance:
+            # nothing in stock AND no reorder level AND no target set.
+            if _bal <= 0 and _ro <= 0 and _tg <= 0:
+                continue
+            raw_materials.append({
+                'name':    _r.get('name') or _r.get('code'),
+                'balance': int(_bal), 'reorder': int(_ro), 'target': int(_tg),
+            })
+        def _fill(t):
+            top = max(t['target'], t['balance'], t['reorder'] * 1.5, 1)
+            return (t['balance'] / top) if top else 1
+        raw_materials.sort(key=_fill)
+        raw_materials = raw_materials[:8]
+    except Exception:
+        raw_materials = []
+
     # Owner-set Rs→$ display rate (dashboard convenience only; 0 = not set / feature off).
     usd_rate = 0.0
     try:
@@ -390,6 +417,7 @@ def get_dashboard():
             'readyToSellUnits':     ready_to_sell,
             'toMakePacks':          to_make_packs,
         },
+        'rawMaterials': raw_materials,
         'usdRate': usd_rate,
     }
 

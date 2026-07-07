@@ -1886,6 +1886,28 @@ function _gauge(pct, color) {
   return '<div style="height:8px;border-radius:5px;background:#F1ECE4;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:5px"></div></div>';
 }
 
+// Vertical fuel-tank gauge for the dashboard Operations tab (mirrors the Inventory tanks).
+// t = {name, balance(grams), reorder(grams), target(grams)}
+function _dashTank(t) {
+  const onKg = Math.round((t.balance || 0) / 100) / 10;
+  const tgKg = Math.round((t.target  || 0) / 100) / 10;
+  const roKg = Math.round((t.reorder || 0) / 100) / 10;
+  const top  = Math.max(tgKg, onKg, roKg * 1.5, 1);
+  const fillPct = Math.max(3, Math.min(100, Math.round(onKg / top * 100)));
+  const roPct   = top > 0 ? Math.min(100, Math.round(roKg / top * 100)) : 0;
+  const out = onKg <= 0, low = !out && roKg > 0 && onKg <= roKg;
+  const fillColor = out ? 'var(--chili)' : (low ? 'var(--cinnamon)' : 'var(--cardamom)');
+  const valColor  = out ? 'var(--chili)' : (low ? 'var(--cinnamon)' : 'var(--text-1)');
+  return '<div style="text-align:center;width:66px" onclick="nav(\'inventory\')" title="Tap to open Inventory">'
+    + '<div style="position:relative;width:46px;height:104px;margin:0 auto 8px;border:2px solid var(--border);border-radius:10px;background:var(--surface-2);overflow:hidden;cursor:pointer">'
+    +   '<div style="position:absolute;left:0;right:0;bottom:0;height:' + fillPct + '%;background:' + fillColor + ';border-radius:0 0 7px 7px;transition:height .2s"></div>'
+    +   (roKg > 0 ? '<div style="position:absolute;left:-3px;right:-3px;bottom:' + roPct + '%;border-top:2px dashed var(--text-3);opacity:.7"></div>' : '')
+    + '</div>'
+    + '<div style="font-size:11.5px;color:var(--text-2);line-height:1.15;min-height:26px">' + esc(t.name || '—') + '</div>'
+    + '<div style="font-weight:700;font-size:13px;color:' + valColor + '">' + onKg + ' kg</div>'
+    + '</div>';
+}
+
 async function renderHome() {
   const u = state.currentUser || {};
   const canCostsU = (typeof canCosts === 'function') && canCosts();
@@ -1945,19 +1967,19 @@ async function renderHome() {
   const prodSum = '<div class="card" onclick="nav(\'production\')" style="padding:16px 18px;cursor:pointer;transition:.15s" onmouseenter="this.style.boxShadow=\'0 14px 34px rgba(60,40,25,.12)\'" onmouseleave="this.style.boxShadow=\'\'">'
     + sumHead('Production', 'production')
     + '<div style="font-size:12px;color:var(--text-3)">Made this month</div>'
-    + '<div style="font-family:var(--font-serif);font-size:28px;font-weight:500;letter-spacing:-.5px;margin:2px 0">' + fmt(prod.madeThisMonthPacks || 0) + ' <span style="font-size:15px;color:var(--text-3)">packs</span></div>'
+    + '<div style="font-family:var(--font-serif);font-size:28px;font-weight:500;letter-spacing:-.5px;margin:2px 0">' + fmt(prod.madeThisMonthPacks || 0, 0) + ' <span style="font-size:15px;color:var(--text-3)">packs</span></div>'
     + '<span style="font-size:12px;font-weight:600;color:' + (prod.inProgressBatches ? 'var(--blue,#2E6BB0)' : 'var(--text-3)') + '">' + madeSub + '</span>'
     + '<div style="height:32px;margin:8px 0 2px;display:flex;align-items:flex-end;gap:5px">'
       + '<div style="flex:1;height:70%;background:linear-gradient(var(--saffron),var(--saffron-deep));border-radius:4px 4px 0 0"></div><div style="flex:1;height:42%;background:#E7D6C6;border-radius:4px 4px 0 0"></div><div style="flex:1;height:86%;background:linear-gradient(var(--saffron),var(--saffron-deep));border-radius:4px 4px 0 0"></div><div style="flex:1;height:30%;background:#E7D6C6;border-radius:4px 4px 0 0"></div></div>'
-    + R('Ready to sell', fmt(prod.readyToSellUnits || 0) + ' units')
-    + R('To make · open WOs', fmt(prod.toMakePacks || 0) + ' packs')
+    + R('Ready to sell', fmt(prod.readyToSellUnits || 0, 0) + ' units')
+    + R('To make · open WOs', fmt(prod.toMakePacks || 0, 0) + ' packs')
     + R('Stock health', (low.length ? low.length + ' low' : 'all OK'), low.length ? 'var(--chili)' : 'var(--cardamom)')
     + '</div>';
 
   const acts = [];
   if (oAR.count) acts.push(['var(--chili)', '#FBEBE8', 'alert-triangle', oAR.count + ' invoice' + (oAR.count > 1 ? 's' : '') + ' overdue · ' + dcur(oAR.amount), 'oldest ' + (oAR.maxDaysOverdue || 0) + ' days — chase payment', 'Chase', 'ar-aging']);
   if (low.length) acts.push(['var(--saffron-deep)', 'var(--saffron-pale)', 'archive', low.length + ' ingredient' + (low.length > 1 ? 's' : '') + ' low on stock', 'reorder before the next batch', 'Order', 'inventory']);
-  if (prod.toMakePacks) acts.push(['#2E6BB0', '#E9F1FA', 'settings-2', wos.length + ' work order' + (wos.length > 1 ? 's' : '') + ' to make · ' + fmt(prod.toMakePacks) + ' packs', wos.slice(0, 2).map(w => w.product + ' ' + w.qty).join(' · '), 'Make', 'production']);
+  if (prod.toMakePacks) acts.push(['#2E6BB0', '#E9F1FA', 'settings-2', wos.length + ' work order' + (wos.length > 1 ? 's' : '') + ' to make · ' + fmt(prod.toMakePacks, 0) + ' packs', wos.slice(0, 2).map(w => w.product + ' ' + w.qty).join(' · '), 'Make', 'production']);
   if (apOv.count) acts.push(['var(--chili)', '#FBEBE8', 'alert-triangle', apOv.count + ' bill' + (apOv.count > 1 ? 's' : '') + ' overdue · ' + dcur(apOv.amount), 'pay to keep suppliers happy', 'Pay', 'ap-aging']);
   else if (apDue.count) acts.push(['var(--saffron-deep)', 'var(--saffron-pale)', 'calendar', apDue.count + ' bill' + (apDue.count > 1 ? 's' : '') + ' due this week · ' + dcur(apDue.amount), 'plan your outgoings', 'View', 'ap-aging']);
   const needs = '<div class="card" style="padding:6px 18px 10px;border-left:4px solid var(--saffron)">'
@@ -1999,20 +2021,25 @@ async function renderHome() {
 
   // ═══════════ OPERATIONS ═══════════
   const woRows = wos.length ? wos.slice(0, 6).map(w => '<div onclick="nav(\'production\')" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--hair);cursor:pointer"><div><div style="font-size:13px;font-weight:600">' + esc(w.product || '—') + ' ' + esc(w.packSize || '') + '</div><div style="font-size:12px;color:var(--text-3)">' + esc(w.woNumber || '') + (w.targetDate ? ' · target ' + esc(w.targetDate) : '') + '</div></div><div style="font-weight:700">' + (w.qty || 0) + '</div></div>').join('') : '<div style="color:var(--cardamom);font-size:13px;padding:10px 0">Nothing waiting to be made.</div>';
-  const lowRows = low.length ? low.slice(0, 6).map(l => { const bal = (l.balance || 0) / 1000, ro = (l.reorder || 0) / 1000, pct = ro > 0 ? (bal / ro * 100) : 0; return '<div style="padding:8px 0;border-top:1px solid var(--hair)"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>' + esc(l.name || l.code || '—') + '</span><span style="color:var(--chili);font-weight:600">' + bal.toFixed(1) + ' kg</span></div>' + _gauge(pct, pct < 30 ? 'var(--chili)' : 'var(--saffron)') + '</div>'; }).join('') : '<div style="color:var(--cardamom);font-size:13px;padding:10px 0">All ingredients above reorder level.</div>';
-  const fgRows = fg.length ? fg.slice(0, 6).map(f => '<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--hair);font-size:13px"><span>' + esc(f.product || '—') + ' ' + esc(f.packSize || '') + '</span><b>' + fmt(f.units || 0) + ' units</b></div>').join('') : '<div style="color:var(--text-3);font-size:13px;padding:10px 0">No finished stock yet.</div>';
+  const rm = (d.rawMaterials || []);
+  const tankHtml = rm.length ? '<div style="display:flex;gap:12px;flex-wrap:wrap">' + rm.map(_dashTank).join('') + '</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:12px">Dashed = reorder level · tap a tank to open it</div>'
+    : '<div style="color:var(--cardamom);font-size:13px;padding:10px 0">No raw-material levels set. Add stock and reorder levels in Inventory.</div>';
+  const fgRows = fg.length ? fg.slice(0, 6).map(f => '<div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--hair);font-size:13px"><span>' + esc(f.product || '—') + ' ' + esc(f.packSize || '') + '</span><b>' + fmt(f.units || 0, 0) + '</b></div>').join('') : '<div style="color:var(--text-3);font-size:13px;padding:10px 0">No finished stock yet.</div>';
   const opsPane = '<div id="d4-ops" style="display:none">'
     + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'
-      + _d4kpi('Made this month', fmt(prod.madeThisMonthPacks || 0), prod.madeThisMonthBatches + ' batches', '', 'production')
+      + _d4kpi('Made this month', fmt(prod.madeThisMonthPacks || 0, 0), 'packs · ' + (prod.madeThisMonthBatches || 0) + ' batches', '', 'production')
       + _d4kpi('In progress', String(prod.inProgressBatches || 0), (prod.inProgressPacks || 0) + ' packs', prod.inProgressBatches ? 'var(--blue,#2E6BB0)' : '', 'production')
-      + _d4kpi('Ready to sell', fmt(prod.readyToSellUnits || 0), 'units', '', 'inventory')
+      + _d4kpi('Ready to sell', fmt(prod.readyToSellUnits || 0, 0), 'units', '', 'inventory')
       + _d4kpi('Low stock', String(low.length), 'to reorder', low.length ? 'var(--chili)' : '', 'inventory')
     + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">'
-      + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><b>To make · open work orders</b><span onclick="nav(\'production\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Production →</span></div>' + woRows + '</div>'
-      + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><b>Low stock — order these</b><span onclick="nav(\'inventory\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Inventory →</span></div>' + lowRows + '</div>'
+    + '<div style="display:grid;grid-template-columns:1.15fr 1fr;gap:14px;margin-top:14px;align-items:start">'
+      + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:14px"><b>Raw material levels</b><span onclick="nav(\'inventory\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Inventory →</span></div>' + tankHtml + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:14px">'
+        + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><b>Work orders to make</b><span onclick="nav(\'production\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Production →</span></div>' + woRows + '</div>'
+        + '<div class="card" style="padding:16px 18px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><b>Finished goods ready</b><span onclick="nav(\'inventory\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Inventory →</span></div>' + fgRows + '</div>'
+      + '</div>'
     + '</div>'
-    + '<div class="card" style="padding:16px 18px;margin-top:14px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><b>Finished goods ready</b><span onclick="nav(\'inventory\')" style="font-size:12px;color:var(--saffron-deep);cursor:pointer;font-weight:600">Inventory →</span></div>' + fgRows + '</div>'
     + '</div>';
 
   // ═══════════ FINANCIAL (rendered by _finRender) ═══════════
@@ -2025,7 +2052,7 @@ async function renderHome() {
       + '<span onclick="_dashSetCur(\'PKR\')" style="padding:5px 11px;font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;' + (_dashCur === 'PKR' ? 'background:var(--surface);color:var(--terra-dk);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:var(--text-3)') + '">Rs.</span>'
       + '<span onclick="' + (rateSet ? "_dashSetCur('USD')" : "alert('Set a Rs/$ rate first (the ✎ next to $).')") + '" style="padding:5px 11px;font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;' + (_dashCur === 'USD' ? 'background:var(--surface);color:var(--terra-dk);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:var(--text-3)') + '">$</span>'
     + '</div>'
-    + (isAdmin ? '<span style="font-size:11px;color:var(--text-3)">' + (rateSet ? '@ Rs. ' + fmt(_dashUsdRate) + '/$' : 'no rate') + ' <span onclick="var r=prompt(\'Rs per US$\',\'' + (_dashUsdRate || 280) + '\'); if(r)_dashSaveRate(r);" style="color:var(--saffron-deep);cursor:pointer">✎</span></span>' : (rateSet && _dashCur === 'USD' ? '<span style="font-size:11px;color:var(--text-3)">@ Rs. ' + fmt(_dashUsdRate) + '/$</span>' : ''))
+    + (isAdmin ? '<span style="font-size:11px;color:var(--text-3)">' + (rateSet ? '@ Rs. ' + fmt(_dashUsdRate, 0) + '/$' : 'no rate') + ' <span onclick="var r=prompt(\'Rs per US$\',\'' + (_dashUsdRate || 280) + '\'); if(r)_dashSaveRate(r);" style="color:var(--saffron-deep);cursor:pointer">✎</span></span>' : (rateSet && _dashCur === 'USD' ? '<span style="font-size:11px;color:var(--text-3)">@ Rs. ' + fmt(_dashUsdRate) + '/$</span>' : ''))
     + '</div>';
   const tabBtn = (id, label) => '<button id="d4tab-' + id + '" onclick="_dashSwitch4(\'' + id + '\')" style="border:none;background:transparent;color:var(--text-2);font-weight:600;font-size:13.5px;padding:9px 18px;border-radius:10px;cursor:pointer">' + label + '</button>';
   const header = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
