@@ -461,9 +461,33 @@ def get_pl_report(year: str) -> dict:
     """, (year,))
     payment_map = {row['mo']: row['paid_out'] for row in payment_rows}
 
+    # Non-stock purchases (equipment/supplies/services/labour) → operating expenses on the P&L,
+    # kept SEPARATE from the manually-entered monthly operating costs (each cost lives in one place,
+    # no double-count). Capital (equipment) is summed apart so a one-off asset doesn't distort the
+    # month's expense line.
+    from modules.purchasing import category_nature, PURCHASE_CATEGORIES
+    _cat_label = {c['key']: c['label'] for c in PURCHASE_CATEGORIES}
+    exp_rows = qry("""
+        SELECT strftime('%m', sb.bill_date) AS mo, COALESCE(sbi.category,'') AS cat,
+               COALESCE(SUM(sbi.line_total), 0) AS amt
+        FROM supplier_bill_items sbi
+        JOIN supplier_bills sb ON sb.id = sbi.bill_id
+        WHERE sbi.line_type = 'other' AND sb.status != 'VOID'
+          AND strftime('%Y', sb.bill_date) = ?
+        GROUP BY mo, cat
+    """, (year,))
+    expense_map, capital_map, cat_totals = {}, {}, {}
+    for r in exp_rows:
+        mo = r['mo']; amt = float(r['amt'] or 0); cat = r['cat'] or ''
+        if category_nature(cat) == 'capital':
+            capital_map[mo] = capital_map.get(mo, 0) + amt
+        else:
+            expense_map[mo] = expense_map.get(mo, 0) + amt
+        cat_totals[cat] = cat_totals.get(cat, 0) + amt
+
     months = []
     ytd = {'revenue': 0, 'cogs': 0, 'gp': 0, 'tx_count': 0,
-           'receipts': 0, 'paid_out': 0}
+           'receipts': 0, 'paid_out': 0, 'expenses': 0, 'capital': 0}
 
     for m in range(1, 13):
         mo_str = f"{m:02d}"
@@ -474,8 +498,11 @@ def get_pl_report(year: str) -> dict:
         cnt  = int(s.get('tx_count',  0) or 0)
         rec  = float(receipt_map.get(mo_str, 0) or 0)
         out  = float(payment_map.get(mo_str, 0) or 0)
+        exp  = float(expense_map.get(mo_str, 0) or 0)
+        cap  = float(capital_map.get(mo_str, 0) or 0)
         gp_pct   = round(gp / rev * 100, 1) if rev > 0 else 0.0
         net_cash = r2(rec - out)
+        net_profit = r2(gp - exp)          # gross profit minus operating expenses (excludes capital)
 
         months.append({
             'month':        f"{year}-{mo_str}",
@@ -489,6 +516,9 @@ def get_pl_report(year: str) -> dict:
             'receipts':     r2(rec),
             'paid_out':     r2(out),
             'net_cash':     net_cash,
+            'expenses':     r2(exp),
+            'capital':      r2(cap),
+            'net_profit':   net_profit,
         })
         ytd['revenue']  += rev
         ytd['cogs']     += cogs
@@ -496,6 +526,8 @@ def get_pl_report(year: str) -> dict:
         ytd['tx_count'] += cnt
         ytd['receipts'] += rec
         ytd['paid_out'] += out
+        ytd['expenses'] += exp
+        ytd['capital']  += cap
 
     ytd_gp_pct = round(ytd['gp'] / ytd['revenue'] * 100, 1) if ytd['revenue'] > 0 else 0.0
 
@@ -511,7 +543,15 @@ def get_pl_report(year: str) -> dict:
             'receipts':     r2(ytd['receipts']),
             'paid_out':     r2(ytd['paid_out']),
             'net_cash':     r2(ytd['receipts'] - ytd['paid_out']),
+            'expenses':     r2(ytd['expenses']),
+            'capital':      r2(ytd['capital']),
+            'net_profit':   r2(ytd['gp'] - ytd['expenses']),
         },
+        'expensesByCategory': [
+            {'category': k, 'label': _cat_label.get(k, k or 'Other'),
+             'nature': category_nature(k), 'amount': r2(v)}
+            for k, v in sorted(cat_totals.items(), key=lambda kv: -kv[1]) if v
+        ],
         'available_years': [str(y) for y in sorted(set(
             int(r['yr']) for r in qry(
                 "SELECT DISTINCT strftime('%Y', sale_date) AS yr FROM sales WHERE yr IS NOT NULL", ()

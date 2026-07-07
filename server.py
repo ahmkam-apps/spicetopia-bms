@@ -3148,7 +3148,7 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, "Bill not found", 404); return
                 items = qry("""
                     SELECT sbi.*, i.code as ing_code, i.name as ing_name
-                    FROM supplier_bill_items sbi JOIN ingredients i ON i.id=sbi.ingredient_id
+                    FROM supplier_bill_items sbi LEFT JOIN ingredients i ON i.id=sbi.ingredient_id
                     WHERE sbi.bill_id=?
                 """, (bill_id,))
                 allocs = qry("""
@@ -3602,6 +3602,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # ── PURCHASE ORDERS ─────────────────────────────────────────────
+            # GET /api/purchase-categories — non-stock purchase categories (for PO/expense forms)
+            if path == '/api/purchase-categories':
+                send_json(self, get_purchase_categories())
+                return
+
             # GET /api/purchase-orders
             if path == '/api/purchase-orders':
                 status_f = qs.get('status', [None])[0]
@@ -6149,7 +6154,7 @@ if __name__ == '__main__':
         ensure_cost_lines, ensure_wo_produced_units, ensure_ingredient_target_grams,
         ensure_batch_stages, ensure_rep_app_access, ensure_customer_gst,
         ensure_drop_qty_in_production, ensure_bill_vendor_capture, ensure_ledger_po_link,
-        ensure_purchase_in_po_trigger,
+        ensure_purchase_in_po_trigger, ensure_po_line_types,
         backfill_customer_account_numbers,
     ):
         try:

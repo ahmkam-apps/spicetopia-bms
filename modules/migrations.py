@@ -61,6 +61,7 @@ __all__ = [
     'ensure_bill_vendor_capture',
     'ensure_ledger_po_link',
     'ensure_purchase_in_po_trigger',
+    'ensure_po_line_types',
 ]
 
 
@@ -1563,6 +1564,74 @@ def ensure_purchase_in_po_trigger():
         print(f"  ⚠ ensure_purchase_in_po_trigger: {e}")
     finally:
         c.close()
+
+
+def ensure_po_line_types():
+    """Generalize purchasing beyond ingredients. A PO/bill line is now either a STOCK line
+    (ingredient — receiving posts PURCHASE_IN to inventory, exactly as before) or a NON-STOCK
+    line (equipment / supplies / services / labour — never touches inventory; flows to AP + P&L).
+    Adds line_type ('ingredient'|'other'), category, description to po_items and
+    supplier_bill_items, and makes ingredient_id NULLABLE (non-stock lines have no ingredient).
+    SQLite can't drop NOT NULL via ALTER, so each table is rebuilt once (FK off, like the
+    supplier_bills VOID migration). quantity_kg / unit_cost_kg are REUSED as generic qty ×
+    unit-price for non-stock lines, so the existing line-total maths (quantity_kg*unit_cost_kg)
+    is unchanged. Idempotent: skips if line_type already present. Existing rows → 'ingredient'."""
+    c = _conn()
+    try:
+        c.execute("PRAGMA foreign_keys=OFF")
+        # ── po_items ──
+        pcols = [r[1] for r in c.execute("PRAGMA table_info(po_items)").fetchall()]
+        if pcols and 'line_type' not in pcols:
+            c.execute("""CREATE TABLE po_items_new (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                po_id         INTEGER NOT NULL REFERENCES purchase_orders(id),
+                ingredient_id INTEGER REFERENCES ingredients(id),
+                quantity_kg   REAL    NOT NULL,
+                received_kg   REAL    NOT NULL DEFAULT 0,
+                unit_cost_kg  REAL    NOT NULL DEFAULT 0,
+                notes         TEXT    DEFAULT '',
+                line_type     TEXT    NOT NULL DEFAULT 'ingredient',
+                category      TEXT    DEFAULT '',
+                description   TEXT    DEFAULT ''
+            )""")
+            c.execute("""INSERT INTO po_items_new
+                (id, po_id, ingredient_id, quantity_kg, received_kg, unit_cost_kg, notes)
+                SELECT id, po_id, ingredient_id, quantity_kg, received_kg, unit_cost_kg,
+                       COALESCE(notes,'') FROM po_items""")
+            c.execute("DROP TABLE po_items")
+            c.execute("ALTER TABLE po_items_new RENAME TO po_items")
+            print("  ✓ po_items: +line_type/category/description, ingredient_id now nullable")
+        # ── supplier_bill_items ──
+        bcols = [r[1] for r in c.execute("PRAGMA table_info(supplier_bill_items)").fetchall()]
+        if bcols and 'line_type' not in bcols:
+            c.execute("""CREATE TABLE supplier_bill_items_new (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                bill_id       INTEGER NOT NULL REFERENCES supplier_bills(id),
+                ingredient_id INTEGER REFERENCES ingredients(id),
+                quantity_kg   REAL    NOT NULL,
+                unit_cost_kg  REAL    NOT NULL,
+                line_total    REAL    NOT NULL,
+                line_type     TEXT    NOT NULL DEFAULT 'ingredient',
+                category      TEXT    DEFAULT '',
+                description   TEXT    DEFAULT ''
+            )""")
+            c.execute("""INSERT INTO supplier_bill_items_new
+                (id, bill_id, ingredient_id, quantity_kg, unit_cost_kg, line_total)
+                SELECT id, bill_id, ingredient_id, quantity_kg, unit_cost_kg, line_total
+                FROM supplier_bill_items""")
+            c.execute("DROP TABLE supplier_bill_items")
+            c.execute("ALTER TABLE supplier_bill_items_new RENAME TO supplier_bill_items")
+            print("  ✓ supplier_bill_items: +line_type/category/description, ingredient_id now nullable")
+        c.commit()
+    except Exception as e:
+        print(f"  ⚠ ensure_po_line_types: {e}")
+        try: c.rollback()
+        except Exception: pass
+    finally:
+        try: c.execute("PRAGMA foreign_keys=ON")
+        except Exception: pass
+        c.close()
+    save_db()
 
 
 def ensure_drop_qty_in_production():

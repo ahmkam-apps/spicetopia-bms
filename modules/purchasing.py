@@ -36,7 +36,35 @@ __all__ = [
     'bom_calculate_ingredients',
     # PDF
     'generate_po_pdf',
+    # General purchasing (non-stock lines)
+    'PURCHASE_CATEGORIES', 'get_purchase_categories', 'category_nature',
 ]
+
+
+# ── General-purchasing categories for NON-STOCK lines (equipment/supplies/services/labour) ──
+# `nature` drives the P&L: 'expense' categories feed operating expenses; 'capital' (equipment)
+# is recorded/paid but shown separately (no depreciation). Stored by key; UI shows the label.
+PURCHASE_CATEGORIES = [
+    {'key': 'packaging', 'label': 'Packaging supplies',    'nature': 'expense'},
+    {'key': 'repairs',   'label': 'Repairs & maintenance', 'nature': 'expense'},
+    {'key': 'freight',   'label': 'Freight & logistics',   'nature': 'expense'},
+    {'key': 'office',    'label': 'Office supplies',        'nature': 'expense'},
+    {'key': 'services',  'label': 'Professional services',  'nature': 'expense'},
+    {'key': 'labour',    'label': 'Labour / wages',         'nature': 'expense'},
+    {'key': 'marketing', 'label': 'Marketing',              'nature': 'expense'},
+    {'key': 'utilities', 'label': 'Utilities',              'nature': 'expense'},
+    {'key': 'other_exp', 'label': 'Other expense',          'nature': 'expense'},
+    {'key': 'equipment', 'label': 'Equipment / machinery',  'nature': 'capital'},
+]
+_CATEGORY_NATURE = {c['key']: c['nature'] for c in PURCHASE_CATEGORIES}
+
+def get_purchase_categories():
+    """The non-stock purchase categories (for the PO/expense form + reports)."""
+    return PURCHASE_CATEGORIES
+
+def category_nature(key):
+    """'expense' | 'capital' for a category key (unknown/blank → 'expense')."""
+    return _CATEGORY_NATURE.get(key or '', 'expense')
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -178,10 +206,30 @@ def create_supplier_bill(data):
     c = _conn()
     try:
         from modules.inventory import post_movement
-        computed_total = r2(sum(
-            r2(float(item.get('quantityKg', 0)) * float(item.get('unitCostKg', 0)))
-            for item in items
-        ))
+        # Parse each line as STOCK (ingredient → posts inventory) or NON-STOCK (equipment/
+        # supplies/services/labour → never touches inventory). A bill of only non-stock lines
+        # IS the "direct expense / no-real-PO" path: it still auto-creates a PO to hold the
+        # lines + linkage, but posts NO PURCHASE_IN, so the inventory ledger is untouched.
+        parsed = []
+        for item in items:
+            lt = (item.get('lineType') or ('ingredient' if item.get('ingredientId') else 'other'))
+            if lt == 'other':
+                desc = (item.get('description') or '').strip()
+                if not desc:
+                    raise ValueError("A non-stock line needs a description")
+                parsed.append({'type': 'other', 'ing': None,
+                               'qty':  r2(float(item.get('qty', item.get('quantityKg', 1)) or 1)),
+                               'cost': r2(float(item.get('unitCost', item.get('unitCostKg', 0)) or 0)),
+                               'category': (item.get('category') or '').strip(),
+                               'description': desc})
+            else:
+                ing = qry1("SELECT * FROM ingredients WHERE id=?", (item.get('ingredientId'),))
+                if not ing:
+                    raise ValueError(f"Ingredient not found: {item.get('ingredientId')}")
+                parsed.append({'type': 'ingredient', 'ing': ing,
+                               'qty': r2(item.get('quantityKg', 0)), 'cost': r2(item.get('unitCostKg', 0)),
+                               'category': '', 'description': ''})
+        computed_total = r2(sum(r2(p['qty'] * p['cost']) for p in parsed))
 
         # Auto-create a 'received' PO so every PURCHASE_IN traces to a PO (AK: everything
         # purchased flows through a PO, regardless of where it's entered).
@@ -202,29 +250,29 @@ def create_supplier_bill(data):
         bill_db_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
         c.execute("UPDATE purchase_orders SET bill_id=? WHERE id=?", (bill_db_id, po_db_id))
 
-        for item in items:
-            ing = qry1("SELECT * FROM ingredients WHERE id=?", (item.get('ingredientId'),))
-            if not ing:
-                raise ValueError(f"Ingredient not found: {item.get('ingredientId')}")
-            qty_kg     = r2(item.get('quantityKg', 0))
-            unit_cost  = r2(item.get('unitCostKg', 0))
+        for p in parsed:
+            qty_kg     = p['qty']
+            unit_cost  = p['cost']
             line_total = r2(qty_kg * unit_cost)
-            qty_grams  = r2(qty_kg * 1000)
+            ing_id     = p['ing']['id'] if p['ing'] else None
 
             c.execute("""
-                INSERT INTO po_items (po_id, ingredient_id, quantity_kg, received_kg, unit_cost_kg)
-                VALUES (?,?,?,?,?)
-            """, (po_db_id, ing['id'], qty_kg, qty_kg, unit_cost))
+                INSERT INTO po_items (po_id, ingredient_id, quantity_kg, received_kg, unit_cost_kg,
+                                      line_type, category, description)
+                VALUES (?,?,?,?,?,?,?,?)
+            """, (po_db_id, ing_id, qty_kg, qty_kg, unit_cost, p['type'], p['category'], p['description']))
 
             c.execute("""
                 INSERT INTO supplier_bill_items
-                    (bill_id, ingredient_id, quantity_kg, unit_cost_kg, line_total)
-                VALUES (?,?,?,?,?)
-            """, (bill_db_id, ing['id'], qty_kg, unit_cost, line_total))
+                    (bill_id, ingredient_id, quantity_kg, unit_cost_kg, line_total,
+                     line_type, category, description)
+                VALUES (?,?,?,?,?,?,?,?)
+            """, (bill_db_id, ing_id, qty_kg, unit_cost, line_total, p['type'], p['category'], p['description']))
 
-            # PURCHASE_IN through the single emitter, linked to the auto-PO.
-            post_movement(c, ing['id'], 'PURCHASE_IN', qty_grams, reference_id=po_num,
-                          notes=f"Purchase from {sup['name']}", po_id=po_db_id)
+            # Only STOCK lines move inventory (PURCHASE_IN via the single emitter, linked to the auto-PO).
+            if p['type'] == 'ingredient':
+                post_movement(c, ing_id, 'PURCHASE_IN', r2(qty_kg * 1000), reference_id=po_num,
+                              notes=f"Purchase from {sup['name']}", po_id=po_db_id)
 
         c.execute("""
             INSERT INTO change_log (table_name, record_id, action, new_value)
@@ -605,7 +653,7 @@ def get_purchase_order(po_id):
         raise ValueError("Purchase order not found")
     items = qry("""
         SELECT pi.*, i.code as ing_code, i.name as ing_name
-        FROM po_items pi JOIN ingredients i ON i.id=pi.ingredient_id
+        FROM po_items pi LEFT JOIN ingredients i ON i.id=pi.ingredient_id
         WHERE pi.po_id=? ORDER BY pi.id
     """, (po_id,))
     po = dict(po)
@@ -665,15 +713,32 @@ def create_purchase_order(data):
         po_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         for item in items:
-            ing = qry1("SELECT * FROM ingredients WHERE id=?", (item.get('ingredientId'),))
-            if not ing:
-                raise ValueError(f"Ingredient not found: {item.get('ingredientId')}")
-            qty_kg    = r2(float(item.get('quantityKg', 0)))
-            unit_cost = r2(float(item.get('unitCostKg', 0)))
-            c.execute("""
-                INSERT INTO po_items (po_id, ingredient_id, quantity_kg, unit_cost_kg)
-                VALUES (?,?,?,?)
-            """, (po_id, ing['id'], qty_kg, unit_cost))
+            # A line is a STOCK line (ingredient → posts inventory on receive) or a NON-STOCK
+            # line (equipment/supplies/services/labour → never touches inventory). quantity_kg /
+            # unit_cost_kg are reused as generic qty × unit-price for non-stock lines.
+            lt = (item.get('lineType') or ('ingredient' if item.get('ingredientId') else 'other'))
+            if lt == 'other':
+                desc = (item.get('description') or '').strip()
+                if not desc:
+                    raise ValueError("A non-stock line needs a description")
+                qty       = r2(float(item.get('qty', item.get('quantityKg', 1)) or 1))
+                unit_cost = r2(float(item.get('unitCost', item.get('unitCostKg', 0)) or 0))
+                cat       = (item.get('category') or '').strip()
+                c.execute("""
+                    INSERT INTO po_items
+                        (po_id, ingredient_id, quantity_kg, unit_cost_kg, line_type, category, description)
+                    VALUES (?, NULL, ?, ?, 'other', ?, ?)
+                """, (po_id, qty, unit_cost, cat, desc))
+            else:
+                ing = qry1("SELECT * FROM ingredients WHERE id=?", (item.get('ingredientId'),))
+                if not ing:
+                    raise ValueError(f"Ingredient not found: {item.get('ingredientId')}")
+                qty_kg    = r2(float(item.get('quantityKg', 0)))
+                unit_cost = r2(float(item.get('unitCostKg', 0)))
+                c.execute("""
+                    INSERT INTO po_items (po_id, ingredient_id, quantity_kg, unit_cost_kg, line_type)
+                    VALUES (?,?,?,?, 'ingredient')
+                """, (po_id, ing['id'], qty_kg, unit_cost))
 
         c.execute("""
             INSERT INTO change_log (table_name, record_id, action, new_value)
@@ -757,11 +822,13 @@ def update_purchase_order_status(po_id, new_status, data=None):
                         "UPDATE po_items SET received_kg=? WHERE id=? AND po_id=?",
                         (r2(float(ri.get('receivedKg', 0))), ri['id'], po_id))
 
-            items_after = qry("""
+            # Read via the OPEN cursor `c` (not qry, which uses a separate connection and would
+            # not see the received_kg UPDATE above until commit) so the auto-bill totals are right.
+            items_after = [dict(r) for r in c.execute("""
                 SELECT pi.*, i.code as ing_code
-                FROM po_items pi JOIN ingredients i ON i.id=pi.ingredient_id
+                FROM po_items pi LEFT JOIN ingredients i ON i.id=pi.ingredient_id
                 WHERE pi.po_id=?
-            """, (po_id,))
+            """, (po_id,)).fetchall()]
             fully_received = all(
                 r2(float(i['received_kg'])) >= r2(float(i['quantity_kg']))
                 for i in items_after
@@ -770,7 +837,8 @@ def update_purchase_order_status(po_id, new_status, data=None):
 
             for item in items_after:
                 newly_received_kg = r2(float(item['received_kg']))
-                if newly_received_kg > 0:
+                # Only STOCK (ingredient) lines move inventory; non-stock lines never post PURCHASE_IN.
+                if item['ingredient_id'] and newly_received_kg > 0:
                     already_logged = qry1("""
                         SELECT COALESCE(SUM(qty_grams),0) as g FROM inventory_ledger
                         WHERE reference_id=? AND ingredient_id=? AND movement_type='PURCHASE_IN'
@@ -816,9 +884,12 @@ def update_purchase_order_status(po_id, new_status, data=None):
                         line_total = r2(rcv * unit_cost)
                         c.execute("""
                             INSERT INTO supplier_bill_items
-                                (bill_id, ingredient_id, quantity_kg, unit_cost_kg, line_total)
-                            VALUES (?,?,?,?,?)
-                        """, (bill_id, item['ingredient_id'], rcv, unit_cost, line_total))
+                                (bill_id, ingredient_id, quantity_kg, unit_cost_kg, line_total,
+                                 line_type, category, description)
+                            VALUES (?,?,?,?,?,?,?,?)
+                        """, (bill_id, item['ingredient_id'], rcv, unit_cost, line_total,
+                              item['line_type'] if item['line_type'] else 'ingredient',
+                              item['category'] or '', item['description'] or ''))
 
                 c.execute("UPDATE purchase_orders SET bill_id=? WHERE id=?", (bill_id, po_id))
 

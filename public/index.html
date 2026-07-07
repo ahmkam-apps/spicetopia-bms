@@ -694,12 +694,12 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <div class="nav-item" onclick="nav('receipts-aging')" id="nav-receipts-aging"><span class="icon" data-icon="banknote"></span> Receipts &amp; AR</div>
 
       <div class="nav-section">Operations</div>
-      <div class="nav-item" onclick="nav('purchase-orders')" id="nav-purchase-orders"><span class="icon" data-icon="shopping-cart"></span> Purchase Orders</div>
+      <div class="nav-item" onclick="nav('purchase-orders')" id="nav-purchase-orders"><span class="icon" data-icon="shopping-cart"></span> Purchasing</div>
       <div class="nav-item" onclick="nav('inventory')" id="nav-inventory"><span class="icon" data-icon="archive"></span> Inventory</div>
       <div class="nav-item" onclick="nav('production')" id="nav-production"><span class="icon" data-icon="settings-2"></span> Production</div>
 
       <div class="nav-section">Accounts Payable</div>
-      <div class="nav-item" onclick="nav('bills')" id="nav-bills"><span class="icon" data-icon="receipt"></span> Supplier Bills</div>
+      <div class="nav-item" onclick="nav('bills')" id="nav-bills"><span class="icon" data-icon="receipt"></span> Vendor Bills</div>
       <div class="nav-item" onclick="nav('ap-payments')" id="nav-ap-payments"><span class="icon" data-icon="credit-card"></span> Payments</div>
       <div class="nav-item" onclick="nav('ap-aging')" id="nav-ap-aging"><span class="icon" data-icon="calendar"></span> AP Aging</div>
 
@@ -715,7 +715,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
       <!-- Admin / Owner — grouped, gated ──────────────────────── -->
       <div class="nav-section" id="nav-section-master" style="display:none">Master Data</div>
       <div class="nav-item" onclick="nav('customers')" id="nav-customers" style="display:none"><span class="icon" data-icon="users"></span> Customers</div>
-      <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers" style="display:none"><span class="icon" data-icon="factory"></span> Suppliers</div>
+      <div class="nav-item" onclick="nav('suppliers')" id="nav-suppliers" style="display:none"><span class="icon" data-icon="factory"></span> Vendors</div>
       <div class="nav-item" onclick="nav('products')" id="nav-products" style="display:none"><span class="icon" data-icon="package"></span> Products</div>
       <div class="nav-item" onclick="nav('sales-reps')" id="nav-sales-reps" style="display:none"><span class="icon" data-icon="users"></span> Team</div>
       <div class="nav-item" onclick="nav('zones-routes')" id="nav-zones-routes" style="display:none"><span class="icon" data-icon="map"></span> Zones &amp; Routes</div>
@@ -846,10 +846,10 @@ const ALL_MODULES = [
   { id:'receipts-aging',   label:'Receipts & AR',      section:'Sales & AR' },
   { id:'field-orders',     label:'Field Orders',       section:'Sales & AR' },
   { id:'review-queue',     label:'Review Queue',       section:'Sales & AR' },
-  { id:'purchase-orders',  label:'Purchase Orders',    section:'Operations' },
+  { id:'purchase-orders',  label:'Purchasing',         section:'Operations' },
   { id:'inventory',        label:'Inventory',          section:'Operations' },
   { id:'production',       label:'Production',         section:'Operations' },
-  { id:'bills',            label:'Supplier Bills',     section:'Accounts Payable' },
+  { id:'bills',            label:'Vendor Bills',       section:'Accounts Payable' },
   { id:'ap-payments',      label:'Payments',           section:'Accounts Payable' },
   { id:'ap-aging',         label:'AP Aging',           section:'Accounts Payable' },
   { id:'pl-report',        label:'P&L Report',         section:'Reports' },
@@ -1330,15 +1330,16 @@ const HELP = {
     { t:'Where it fits', b:'', flow:{ inn:['Batches you add on the Plan tab','Raw materials from Inventory (taken when a batch starts)'], out:['Verified batches → finished goods in Inventory','…which then fulfil customer Orders'] } }
   ],
   'purchase-orders': [
-    { t:'Purchase Orders — buying raw materials', b:'Order ingredients and materials from a supplier.' },
-    { t:'PO → Bill → Payment', b:'Raise a PO to a supplier. When the goods/invoice arrive it becomes a Supplier Bill; pay it via AP. Receiving the goods adds them to raw-material stock.' },
-    { t:'Where it fits', b:'', flow:{ inn:['Suppliers (master data)','Ingredient needs (e.g. a production shortfall or a plan)'], out:['Supplier Bill → AP Payment → AP aging','Received goods → raw-material Inventory'] } }
+    { t:'Purchasing — buy anything for the business', b:'Raise a purchase order to a vendor for whatever you need — not just ingredients.' },
+    { t:'Two kinds of line', b:'Each PO line is either a <b>Stock line</b> (an ingredient — receiving it adds to raw-material inventory, as always) or an <b>Other line</b> (equipment, supplies, freight, a service, labour). Pick the type per line; a PO can mix both.', list:['Stock → touches inventory','Other → never touches inventory; it just flows to what you owe (AP) and the P&L'] },
+    { t:'PO → Bill → Payment', b:'Raise the PO, mark it received when it arrives, and it becomes a Vendor Bill you pay via AP. Non-stock lines carry a category (Equipment, Packaging, Services, Labour…) so they land in the right place on the P&L.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Vendors (master data)','A need — ingredients, equipment, a service'], out:['Vendor Bill → AP Payment → AP aging','Stock lines → raw-material Inventory','Other lines → expenses on the P&L'] } }
   ],
   bills: [
-    { t:'Supplier Bills — money going out', b:'What you owe suppliers, and paying it down. Each bill is backed by the real vendor invoice.' },
-    { t:'Bill → Paid', b:'A bill usually comes from a Purchase Order (received goods). Capture the vendor invoice — expected vs billed shows any variance — then record AP payments against it. Status is derived from what’s paid; you never set “paid” by hand.' },
-    { t:'Capture the vendor invoice', b:'Open a bill and use the <b>Vendor Invoice</b> panel to enter the actual billed amount and attach a scan of the supplier’s invoice. This is what drives Accounts Payable.' },
-    { t:'Where it fits', b:'', flow:{ inn:['Purchase Orders (goods received)','A manual bill auto-creates its PO'], out:['AP Payments settle bills','AP Aging tracks what you owe'] } }
+    { t:'Vendor Bills & Expenses — money going out', b:'What you owe vendors, and paying it down. Bills come from a purchase order, or you can enter one directly.' },
+    { t:'Record an expense with no PO', b:'For a one-off — casual labour, a repair, a service — just enter a bill directly: add an <b>Other</b> line with a description and category, no purchase order needed. It flows straight to what you owe and the P&L. (Add <b>Stock</b> ingredient lines here too and they update inventory.)' },
+    { t:'Bill → Paid', b:'Capture the vendor invoice — expected vs billed shows any variance — then record AP payments against it. Status is derived from what’s paid; you never set “paid” by hand.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Purchase orders (goods received)','A direct expense you enter'], out:['AP Payments settle bills','AP Aging tracks what you owe','Non-stock lines → P&L expenses'] } }
   ],
   'field-orders': [
     { t:'Field Orders — orders from your reps', b:'Orders taken by reps on the phone app while visiting shops. This screen lists them so you can see field activity from the desktop.' },
@@ -1392,9 +1393,9 @@ const HELP = {
     { t:'Where it fits', b:'', flow:{ inn:['You add them here (or a rep adds a shop on the app)'], out:['Used by Orders, Invoices, Receipts & AR'] } }
   ],
   suppliers: [
-    { t:'Suppliers — who you buy from', b:'The vendors you buy raw materials and packaging from.' },
-    { t:'Add & manage', b:'Add a supplier with name and contact. You can also add one on the fly while raising a PO or entering a bill.' },
-    { t:'Where it fits', b:'', flow:{ inn:['You add them here'], out:['Used by Purchase Orders, Supplier Bills, Payments'] } }
+    { t:'Vendors — who you buy from', b:'Everyone you buy from — ingredient suppliers, an equipment seller, a service provider, a labour contractor.' },
+    { t:'Add & manage', b:'Add a vendor with name and contact. You can also add one on the fly while raising a purchase order or entering a bill.' },
+    { t:'Where it fits', b:'', flow:{ inn:['You add them here'], out:['Used by Purchasing, Vendor Bills, Payments'] } }
   ],
   'sales-reps': [
     { t:'Team — your phone-app staff', b:'The people who use the phone app: sales reps and production floor staff. This is about identity and access, not pay.' },
@@ -1514,12 +1515,16 @@ const HOWTO = [
     steps:['Open Review Queue.','Check the order details.','Click Approve to confirm it (or Reject) — approving moves it into the normal order flow.'] },
 
   // Buying
-  { cat:'Buying (suppliers)', q:'Buy ingredients from a supplier', nav:'purchase-orders', kw:'purchase order PO buy ingredients supplier procure',
-    steps:['Open Purchase Orders.','Create a new PO and choose the supplier.','Add the ingredients and quantities (in kg) and the agreed cost.','Save and send to the supplier.'] },
-  { cat:'Buying (suppliers)', q:'Record a supplier bill', nav:'bills', kw:'supplier bill invoice payable',
-    steps:['Open Supplier Bills.','Create a bill for the supplier with the amount and items.','Save — it now shows under what you owe (AP).'] },
-  { cat:'Buying (suppliers)', q:'Pay a supplier', nav:'ap-payments', kw:'pay supplier payment payable',
-    steps:['Open Payments (Procurement).','Pick the supplier and enter the amount.','Allocate it to their open bills, then Save.'] },
+  { cat:'Buying (vendors)', q:'Buy ingredients from a vendor', nav:'purchase-orders', kw:'purchase order PO buy ingredients supplier vendor procure',
+    steps:['Open Purchasing.','Create a new PO and choose the vendor.','Keep the line type on "Stock — ingredient", pick the ingredient and quantity (kg) and the agreed cost.','Save and send to the vendor.'] },
+  { cat:'Buying (vendors)', q:'Buy equipment, supplies or a service (not an ingredient)', nav:'purchase-orders', kw:'buy equipment machinery supplies service non stock other purchase anything freight packaging',
+    steps:['Open Purchasing and create a new PO for the vendor.','On the line, switch the type to "Other — equipment / supplies / service".','Type what it is, pick a category (Equipment, Packaging, Services, Freight…), and enter the quantity and unit cost.','Save. When it arrives, mark it received — it becomes a Vendor Bill to pay. It never touches inventory.'] },
+  { cat:'Buying (vendors)', q:'Record an expense (labour, repair, service) with no PO', nav:'bills', kw:'expense labour wages repair service direct bill no purchase order casual',
+    steps:['Open Vendor Bills & Expenses and open the manual bill form.','Pick the vendor (or add one), set the dates.','On the line, choose "Other", describe it, pick a category (e.g. Labour), and enter quantity × cost.','Save — it goes straight to what you owe (AP) and the P&L. No purchase order needed.','Tip: for production help that should be in your cost-to-make, record it under Operating costs instead.'] },
+  { cat:'Buying (vendors)', q:'Record a vendor bill', nav:'bills', kw:'supplier vendor bill invoice payable',
+    steps:['Open Vendor Bills & Expenses.','Create a bill for the vendor with the amount and items.','Save — it now shows under what you owe (AP).'] },
+  { cat:'Buying (vendors)', q:'Pay a vendor', nav:'ap-payments', kw:'pay supplier vendor payment payable',
+    steps:['Open Payments (Procurement).','Pick the vendor and enter the amount.','Allocate it to their open bills, then Save.'] },
 
   // Making
   { cat:'Making (production)', q:'Make a batch (start → run the stages)', nav:'production', kw:'produce batch work order manufacture make start stages phone',
@@ -1710,7 +1715,7 @@ function nav(page, arg) {
     'orders-invoices':'Orders & Invoices', 'customer-orders':'Orders & Invoices',
     'sales':'Orders & Invoices', invoices:'Orders & Invoices',
     'receipts-aging':'Receipts & AR', 'ar-payments':'Receipts & AR', 'ar-aging':'Receipts & AR',
-    suppliers:'Suppliers', 'purchase-orders':'Purchase Orders', bills:'Supplier Bills', 'ap-payments':'Supplier Payments', 'ap-aging':'AP Aging',
+    suppliers:'Vendors', 'purchase-orders':'Purchasing', bills:'Vendor Bills', 'ap-payments':'Supplier Payments', 'ap-aging':'AP Aging',
     'review-queue':'Review Queue',
     inventory:'Inventory', production:'Production',
     products:'Products & SKUs', prices:'Price Management',
@@ -1837,12 +1842,12 @@ const SECTION_HUBS = {
     {id:'receipts-aging',  label:'Receipts & AR',     desc:'Record payments, track what is owed'},
   ]},
   operations: { title:'Operations', items:[
-    {id:'purchase-orders', label:'Purchase Orders', desc:'Order raw materials, receive into stock'},
+    {id:'purchase-orders', label:'Purchasing', desc:'Buy anything — ingredients, equipment, supplies & services'},
     {id:'inventory',  label:'Inventory',  desc:'Stock levels, adjustments, ledger'},
     {id:'production', label:'Production',  desc:'Work orders, batches, buy-list'},
   ]},
   procurement: { title:'Accounts Payable', items:[
-    {id:'bills',           label:'Supplier Bills',  desc:'Capture vendor invoices, match & pay'},
+    {id:'bills',           label:'Vendor Bills',    desc:'Capture vendor invoices & expenses, match & pay'},
     {id:'ap-payments',     label:'Payments',        desc:'Pay suppliers, allocate payments'},
     {id:'ap-aging',        label:'AP Aging',        desc:'What you owe, by age'},
   ]},
@@ -1853,7 +1858,7 @@ const SECTION_HUBS = {
   ]},
   master: { title:'Master Data', items:[
     {id:'customers',     label:'Customers',       desc:'Customer accounts'},
-    {id:'suppliers',     label:'Suppliers',       desc:'Supplier accounts'},
+    {id:'suppliers',     label:'Vendors',         desc:'Vendor accounts — who you buy from'},
     {id:'products',      label:'Products',        desc:'Products and SKUs'},
     {id:'sales-reps',    label:'Team',      desc:'Phone-app staff — sales & production'},
     {id:'zones-routes',  label:'Zones & Routes',  desc:'Territories and beats'},
@@ -5421,7 +5426,7 @@ async function renderSuppliers() {
     </tr>`).join('');
 
   return `
-  <div class="section-header"><h2>Suppliers</h2>
+  <div class="section-header"><h2>Vendors</h2>
     <div style="display:flex;gap:8px">
       <button class="btn btn-secondary" onclick="downloadCSV('/api/suppliers/export','suppliers')" style="font-size:13px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Export CSV</button>
       <button class="btn btn-primary" onclick="showNewSupplierForm()">+ New Supplier</button>
@@ -5525,7 +5530,7 @@ async function saveNewSupplier() {
 // ── Bill line item state ──────────────────────────────────────────
 let _billLines = [];
 let _billLinesNextId = 1;
-function _billLineDefault() { return { id: _billLinesNextId++, ingId: '', qty: 1, unitCost: '' }; }
+function _billLineDefault() { return { id: _billLinesNextId++, type: 'ingredient', ingId: '', desc: '', cat: '', qty: 1, unitCost: '' }; }
 
 // ═══════════════════════════════════════════════════════════════
 //  PURCHASE ORDERS
@@ -5577,6 +5582,7 @@ function clearPOFilters() {
 }
 
 async function renderPurchaseOrders() {
+  await _loadPurchaseCats();
   const [pos, suppliers, ref] = await Promise.all([
     GET('/api/purchase-orders'),
     GET('/api/suppliers'),
@@ -5593,7 +5599,7 @@ async function renderPurchaseOrders() {
   const ingOptions = (ref.ingredients||[]).map(i => `<option value="${i.id}">${i.code}</option>`).join('');
 
   return `
-  <div class="section-header"><h2>Purchase Orders</h2></div>
+  <div class="section-header"><h2>Purchasing</h2></div>
 
   <!-- NEW PO CARD -->
   <div class="card mb-16">
@@ -5949,20 +5955,57 @@ function updatePOCalcTotal() {
 let _poIngLines   = [];
 let _poIngNextId  = 1;
 
-function _poIngRowHTML(lineId) {
+// ── General-purchasing categories (non-stock lines) ──────────────
+let _purchaseCats = null;
+async function _loadPurchaseCats() {
+  if (_purchaseCats) return _purchaseCats;
+  try { _purchaseCats = await GET('/api/purchase-categories'); } catch(e) { _purchaseCats = []; }
+  return _purchaseCats;
+}
+function _catOptions(sel) {
+  return (_purchaseCats || []).map(c =>
+    `<option value="${c.key}" ${c.key === sel ? 'selected' : ''}>${esc(c.label)}${c.nature === 'capital' ? ' (asset)' : ''}</option>`
+  ).join('');
+}
+function _poLine(lineId) { return _poIngLines.find(l => l.id === lineId) || {}; }
+
+// The first cell's inner content depends on the line type: a STOCK line picks an ingredient;
+// an OTHER line takes a free-text description + a category.
+function _poItemCellHTML(lineId) {
+  const line = _poLine(lineId);
+  if (line.type === 'other') {
+    return `<input id="po-ing-desc-${lineId}" class="form-input" style="width:100%" placeholder="What is it? e.g. Grinder machine, Casual labour">
+      <select id="po-ing-cat-${lineId}" class="form-input" style="width:100%;margin-top:4px"><option value="">— Category —</option>${_catOptions('')}</select>`;
+  }
   const ingOptions = (state.ref?.ingredients || [])
     .map(i => `<option value="${i.id}">${i.name} (${i.code})</option>`).join('');
+  return `<select id="po-ing-id-${lineId}" class="form-input" style="width:100%" onchange="onPOIngChange(${lineId})">
+      <option value="">— Select ingredient —</option>${ingOptions}</select>`;
+}
+function _poSetLineType(lineId, type) {
+  const line = _poLine(lineId);
+  line.type = type;
+  const cell = document.getElementById(`po-item-${lineId}`);
+  if (cell) cell.innerHTML = _poItemCellHTML(lineId);
+  const stockEl = document.getElementById(`po-ing-stock-${lineId}`);
+  if (stockEl) stockEl.textContent = type === 'other' ? 'n/a' : '—';
+  updatePOGrandTotal();
+}
+
+function _poIngRowHTML(lineId) {
+  const line = _poLine(lineId);
+  const isOther = line.type === 'other';
   return `
     <tr id="po-ing-row-${lineId}">
-      <td style="padding:6px 8px;width:220px">
-        <select id="po-ing-id-${lineId}" class="form-input" style="width:100%"
-          onchange="onPOIngChange(${lineId})">
-          <option value="">— Select ingredient —</option>
-          ${ingOptions}
+      <td style="padding:6px 8px;width:250px">
+        <select class="form-input" style="width:100%;margin-bottom:4px;font-size:12px" onchange="_poSetLineType(${lineId}, this.value)">
+          <option value="ingredient" ${!isOther ? 'selected' : ''}>Stock — ingredient</option>
+          <option value="other" ${isOther ? 'selected' : ''}>Other — equipment / supplies / service</option>
         </select>
+        <div id="po-item-${lineId}">${_poItemCellHTML(lineId)}</div>
       </td>
       <td style="padding:6px 8px;width:100px;text-align:right;font-size:12px;color:var(--text-3);white-space:nowrap"
-          id="po-ing-stock-${lineId}">—</td>
+          id="po-ing-stock-${lineId}">${isOther ? 'n/a' : '—'}</td>
       <td style="padding:6px 8px;width:110px">
         <input type="number" id="po-ing-qty-${lineId}" class="form-input"
           style="width:100%;text-align:right" value="1" min="0" step="0.001"
@@ -5991,7 +6034,7 @@ function _refreshRemoveButtons() {
 
 function addPOIngLine() {
   const newId = _poIngNextId++;
-  _poIngLines.push({ id: newId });
+  _poIngLines.push({ id: newId, type: 'ingredient' });
   const body = document.getElementById('po-ing-body');
   if (body) {
     const tr = document.createElement('tbody');
@@ -6097,16 +6140,22 @@ async function submitPO() {
       if (qty > 0) items.push({ ingredientId: ing.ingId, quantityKg: qty, unitCostKg: cost });
     });
   } else {
-    // Collect from ingredient lines
+    // Collect from the line rows — each is a STOCK (ingredient) or OTHER (non-stock) line.
     for (const line of _poIngLines) {
-      const ingId = parseInt(document.getElementById(`po-ing-id-${line.id}`)?.value || '0');
-      const qty   = parseFloat(document.getElementById(`po-ing-qty-${line.id}`)?.value || '0');
-      const cost  = parseFloat(document.getElementById(`po-ing-cost-${line.id}`)?.value || '0');
-      if (ingId && qty > 0) items.push({ ingredientId: ingId, quantityKg: qty, unitCostKg: cost });
+      const qty  = parseFloat(document.getElementById(`po-ing-qty-${line.id}`)?.value || '0');
+      const cost = parseFloat(document.getElementById(`po-ing-cost-${line.id}`)?.value || '0');
+      if (line.type === 'other') {
+        const desc = (document.getElementById(`po-ing-desc-${line.id}`)?.value || '').trim();
+        const cat  = document.getElementById(`po-ing-cat-${line.id}`)?.value || '';
+        if (desc && qty > 0) items.push({ lineType: 'other', description: desc, category: cat, qty, unitCost: cost });
+      } else {
+        const ingId = parseInt(document.getElementById(`po-ing-id-${line.id}`)?.value || '0');
+        if (ingId && qty > 0) items.push({ ingredientId: ingId, quantityKg: qty, unitCostKg: cost });
+      }
     }
   }
 
-  if (!items.length) { showMsg('po-footer-msg', 'Add at least one ingredient with a quantity', 'error'); return; }
+  if (!items.length) { showMsg('po-footer-msg', 'Add at least one line (an ingredient, or an item with a description) and a quantity', 'error'); return; }
 
   const btn = document.querySelector('[onclick="submitPO()"]');
   btn.disabled = true; btn.textContent = 'Creating…';
@@ -6138,19 +6187,26 @@ function _renderPODetail(po) {
     return `<span class="badge badge-${map[s]||'secondary'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
   };
 
-  const itemRows = po.items.map(item => `
+  const _catLabel = k => { const c = (_purchaseCats || []).find(x => x.key === k); return c ? c.label : (k || 'Other'); };
+  const itemRows = po.items.map(item => {
+    const other = item.line_type === 'other';
+    const c1 = other
+      ? `<span class="badge badge-secondary" style="font-size:10px">${esc(_catLabel(item.category))}</span>`
+      : (item.ing_code || '');
+    const c2 = other ? esc(item.description || '') : (item.ing_name || '');
+    const qtyDisp = other ? fmt(item.quantity_kg, 0) : fmt(item.quantity_kg, 3) + ' kg';
+    const rcvDisp = (po.status !== 'draft' && po.status !== 'sent')
+      ? (other ? fmt(item.received_kg, 0) : fmt(item.received_kg, 3) + ' kg') : '—';
+    const unitDisp = item.unit_cost_kg > 0 ? fmtPKR(item.unit_cost_kg) + (other ? ' each' : '/kg') : '—';
+    return `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${item.ing_code}</td>
-      <td style="padding:7px 10px;font-size:12px;color:var(--text-2)">${item.ing_name||''}</td>
-      <td style="padding:7px 10px;text-align:right">${fmt(item.quantity_kg,3)} kg</td>
-      <td style="padding:7px 10px;text-align:right;color:${item.received_kg>0?'var(--cardamom)':'var(--text-3)'}">
-        ${po.status !== 'draft' && po.status !== 'sent'
-          ? fmt(item.received_kg,3)+' kg'
-          : '—'}
-      </td>
-      <td style="padding:7px 10px;text-align:right">${item.unit_cost_kg > 0 ? fmtPKR(item.unit_cost_kg)+'/kg' : '—'}</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${c1}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--text-2)">${c2}</td>
+      <td style="padding:7px 10px;text-align:right">${qtyDisp}</td>
+      <td style="padding:7px 10px;text-align:right;color:${item.received_kg>0?'var(--cardamom)':'var(--text-3)'}">${rcvDisp}</td>
+      <td style="padding:7px 10px;text-align:right">${unitDisp}</td>
       <td style="padding:7px 10px;text-align:right;font-weight:600">${item.unit_cost_kg > 0 ? fmtPKR(item.quantity_kg * item.unit_cost_kg) : '—'}</td>
-    </tr>`).join('');
+    </tr>`; }).join('');
 
   // Action buttons per status
   const canSend     = po.status === 'draft';
@@ -6158,21 +6214,27 @@ function _renderPODetail(po) {
   const canCancel   = po.status === 'draft' || po.status === 'sent';
 
   // Receipt form for received items
-  const receiptRows = po.items.map(item => `
+  const receiptRows = po.items.map(item => {
+    const other = item.line_type === 'other';
+    const label = other
+      ? `${esc(item.description || 'Item')}<br><span style="font-family:sans-serif;color:var(--text-2);font-size:11px">${esc(_catLabel(item.category))}</span>`
+      : `${item.ing_code}${item.ing_name ? `<br><span style="font-family:sans-serif;color:var(--text-2);font-size:11px">${item.ing_name}</span>` : ''}`;
+    const qtyLabel = other ? fmt(item.quantity_kg, 0) : fmt(item.quantity_kg, 3) + ' kg';
+    return `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${item.ing_code}${item.ing_name ? `<br><span style="font-family:sans-serif;color:var(--text-2);font-size:11px">${item.ing_name}</span>` : ''}</td>
-      <td style="padding:7px 10px;text-align:right">${fmt(item.quantity_kg,3)} kg</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${label}</td>
+      <td style="padding:7px 10px;text-align:right">${qtyLabel}</td>
       <td style="padding:7px 10px;text-align:right">
         <input type="number" id="rcv-qty-${item.id}" class="form-input"
           style="width:90px;text-align:right;padding:4px 6px"
-          value="${fmt(item.quantity_kg,3)}" min="0" step="0.001" max="${fmt(item.quantity_kg,3)}">
+          value="${fmt(item.quantity_kg, other ? 0 : 3)}" min="0" step="${other ? '1' : '0.001'}" max="${fmt(item.quantity_kg, other ? 0 : 3)}">
       </td>
       <td style="padding:7px 10px;text-align:right">
         <input type="number" id="rcv-cost-${item.id}" class="form-input"
           style="width:100px;text-align:right;padding:4px 6px"
           value="${item.unit_cost_kg > 0 ? fmt(item.unit_cost_kg,2) : ''}" min="0" step="0.01" placeholder="0.00">
       </td>
-    </tr>`).join('');
+    </tr>`; }).join('');
 
   document.getElementById('po-detail-area').innerHTML = `
   <div class="card mb-16" style="border-left:4px solid var(--saffron)">
@@ -6605,6 +6667,7 @@ function clearBillFilters() {
 }
 
 async function renderBills() {
+  await _loadPurchaseCats();
   const bills = await GET('/api/bills');
   state._allBills = bills;
   _billLines = [_billLineDefault()];
@@ -6616,7 +6679,7 @@ async function renderBills() {
   const due30 = new Date(Date.now() + 30*86400000).toISOString().slice(0,10);
 
   return `
-  <div class="section-header"><h2>Supplier Bills</h2></div>
+  <div class="section-header"><h2>Vendor Bills &amp; Expenses</h2></div>
 
   <!-- ── INFO BANNER ──────────────────────────────────────────── -->
   <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1e40af;display:flex;align-items:center;gap:12px">
@@ -6624,7 +6687,7 @@ async function renderBills() {
     <span>
       Bills are automatically created when goods are received against a
       <a href="#" onclick="nav('purchase-orders');return false;" style="color:#1d4ed8;font-weight:600;text-decoration:underline">Purchase Order</a>.
-      To order ingredients, go to <strong>Purchase Orders</strong>.
+      To raise a purchase order, go to <strong>Purchasing</strong>.
     </span>
   </div>
 
@@ -6671,7 +6734,7 @@ async function renderBills() {
         </div>
       </div>
       <div style="display:flex;gap:10px">
-        <button class="btn btn-primary" onclick="saveBill()">✓ Save Bill &amp; Update Inventory</button>
+        <button class="btn btn-primary" onclick="saveBill()">✓ Save Bill / Expense</button>
       </div>
     </div>
   </div>
@@ -6736,14 +6799,26 @@ function renderBillLines() {
   const ingOpts = (state.ref.ingredients||[]).map(i =>
     `<option value="${i.id}">${i.name} (${i.code})</option>`).join('');
 
-  body.innerHTML = _billLines.map((line, idx) => `
+  body.innerHTML = _billLines.map((line, idx) => {
+    const other = line.type === 'other';
+    const itemCell = other
+      ? `<input type="text" value="${esc(line.desc||'')}" placeholder="What is it? e.g. Grinder, Casual labour" style="width:100%;min-width:180px"
+             onchange="updateBillLine(${line.id},'desc',this.value)">
+         <select style="width:100%;margin-top:4px" onchange="updateBillLine(${line.id},'cat',this.value)">
+           <option value="">— Category —</option>${_catOptions(line.cat)}</select>`
+      : `<select style="width:100%;min-width:180px" onchange="updateBillLine(${line.id},'ingId',this.value)">
+           <option value="">— Select ingredient —</option>
+           ${ingOpts.replace('value="'+line.ingId+'"', 'value="'+line.ingId+'" selected')}
+         </select>`;
+    return `
     <tr style="border-top:1px solid var(--border)">
       <td style="padding:8px 10px;color:var(--text-3);font-size:13px">${idx+1}</td>
       <td style="padding:6px 10px">
-        <select style="width:100%;min-width:180px" onchange="updateBillLine(${line.id},'ingId',this.value)">
-          <option value="">— Select ingredient —</option>
-          ${ingOpts.replace('value="'+line.ingId+'"', 'value="'+line.ingId+'" selected')}
+        <select style="width:100%;margin-bottom:4px;font-size:12px" onchange="updateBillLine(${line.id},'type',this.value)">
+          <option value="ingredient" ${!other?'selected':''}>Stock — ingredient</option>
+          <option value="other" ${other?'selected':''}>Other — equipment / supplies / service</option>
         </select>
+        ${itemCell}
       </td>
       <td style="padding:6px 10px">
         <input type="number" min="0" step="0.001" value="${line.qty}" style="width:85px;text-align:right"
@@ -6754,14 +6829,14 @@ function renderBillLines() {
           onchange="updateBillLine(${line.id},'unitCost',this.value)">
       </td>
       <td style="padding:6px 10px;text-align:right;font-weight:600;color:var(--text-1)" id="bill-line-total-${line.id}">
-        ${line.ingId && line.qty && line.unitCost ? fmtPKR(line.qty * parseFloat(line.unitCost)) : '—'}
+        ${line.qty && line.unitCost ? fmtPKR(line.qty * parseFloat(line.unitCost)) : '—'}
       </td>
       <td style="padding:6px 6px;text-align:center">
         ${_billLines.length > 1
           ? `<button class="btn btn-xs btn-outline" style="color:var(--chili);padding:2px 6px" onclick="removeBillLine(${line.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>`
           : ''}
       </td>
-    </tr>`).join('');
+    </tr>`; }).join('');
 
   updateBillGrandTotal();
 }
@@ -6782,19 +6857,18 @@ function updateBillLine(id, field, value) {
   if (field === 'qty') line.qty = parseFloat(value) || 0;
   else if (field === 'unitCost') line.unitCost = value;
   else line[field] = value;
+  if (field === 'type') { renderBillLines(); return; }   // swap ingredient ↔ description cell
   const el = document.getElementById('bill-line-total-' + id);
   if (el) {
-    el.textContent = (line.ingId && line.qty && line.unitCost)
+    el.textContent = (line.qty && line.unitCost)
       ? fmtPKR(line.qty * parseFloat(line.unitCost)) : '—';
   }
   updateBillGrandTotal();
 }
 
 function updateBillGrandTotal() {
-  const total = _billLines.reduce((sum, l) => {
-    if (l.ingId && l.qty && l.unitCost) return sum + (l.qty * parseFloat(l.unitCost));
-    return sum;
-  }, 0);
+  const total = _billLines.reduce((sum, l) =>
+    (l.qty && l.unitCost) ? sum + (l.qty * parseFloat(l.unitCost)) : sum, 0);
   const el = document.getElementById('bill-grand-total');
   if (el) el.textContent = fmtPKR(total);
 }
@@ -6804,13 +6878,13 @@ async function saveBill() {
   if (!supId) { showMsg('bill-msg','Please select a supplier','error'); return; }
   const dueDate = document.getElementById('b-due').value;
   if (!dueDate) { showMsg('bill-msg','Due date is required','error'); return; }
-  const validLines = _billLines.filter(l => l.ingId && l.qty > 0 && parseFloat(l.unitCost||0) >= 0);
-  if (!validLines.length) { showMsg('bill-msg','Add at least one ingredient with quantity and cost','error'); return; }
-  const items = validLines.map(l => ({
-    ingredientId: parseInt(l.ingId),
-    quantityKg:   l.qty,
-    unitCostKg:   parseFloat(l.unitCost),
-  }));
+  const validLines = _billLines.filter(l =>
+    (l.type === 'other' ? (l.desc || '').trim() : l.ingId) && l.qty > 0 && parseFloat(l.unitCost || 0) >= 0);
+  if (!validLines.length) { showMsg('bill-msg','Add at least one line (an ingredient, or a described item) with a quantity and cost','error'); return; }
+  const items = validLines.map(l => l.type === 'other'
+    ? { lineType: 'other', description: (l.desc || '').trim(), category: l.cat || '', qty: l.qty, unitCost: parseFloat(l.unitCost) }
+    : { ingredientId: parseInt(l.ingId), quantityKg: l.qty, unitCostKg: parseFloat(l.unitCost) });
+  const hasStock = items.some(i => !i.lineType);
   try {
     const res = await POST('/api/bills', {
       supplierId:  parseInt(supId),
@@ -6820,7 +6894,7 @@ async function saveBill() {
       notes:       document.getElementById('b-notes').value,
       items,
     });
-    showMsg('bill-msg', `✓ Bill ${res.billNumber} saved — ${items.length} ingredient(s) — Total: ${fmtPKR(res.total)}. Inventory updated.`, 'success');
+    showMsg('bill-msg', `✓ Bill ${res.billNumber} saved — ${items.length} line(s) — Total: ${fmtPKR(res.total)}.${hasStock ? ' Inventory updated for stock items.' : ''}`, 'success');
     await refreshAll();
     setTimeout(() => nav('bills'), 1600);
   } catch(e) { showMsg('bill-msg', e.message, 'error'); }
@@ -6884,14 +6958,21 @@ function _renderBillDetail(bill) {
   _lastBillData = bill;
   const billId = bill.id;
   const _canAdjustBill = state.currentUser && (isAdminRole() || state.currentUser.role === 'accountant');
-  const itemRows = (bill.items||[]).map(i => `
+  const _billCatLabel = k => { const c = (_purchaseCats || []).find(x => x.key === k); return c ? c.label : (k || 'Other'); };
+  const itemRows = (bill.items||[]).map(i => {
+    const other = i.line_type === 'other';
+    const c1 = other ? `<span class="badge badge-secondary" style="font-size:10px">${esc(_billCatLabel(i.category))}</span>` : (i.ing_code || '');
+    const c2 = other ? esc(i.description || '') : (i.ing_name || '');
+    const qtyDisp = other ? fmt(i.quantity_kg, 0) : fmt(i.quantity_kg, 3) + ' kg';
+    const unitDisp = fmtPKR(i.unit_cost_kg) + (other ? ' each' : '/kg');
+    return `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${i.ing_code}</td>
-      <td style="padding:7px 10px;font-size:12px;color:var(--text-2)">${i.ing_name||''}</td>
-      <td style="padding:7px 10px;text-align:right">${fmt(i.quantity_kg,3)} kg</td>
-      <td style="padding:7px 10px;text-align:right">${fmtPKR(i.unit_cost_kg)}/kg</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${c1}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--text-2)">${c2}</td>
+      <td style="padding:7px 10px;text-align:right">${qtyDisp}</td>
+      <td style="padding:7px 10px;text-align:right">${unitDisp}</td>
       <td style="padding:7px 10px;text-align:right;font-weight:600">${fmtPKR(i.line_total)}</td>
-    </tr>`).join('');
+    </tr>`; }).join('');
 
   const allocRows = (bill.allocations||[]).map(a => `
     <tr style="border-top:1px solid var(--border)">
@@ -11803,11 +11884,31 @@ async function renderPLReport(year) {
         ${hasData ? `<span style="display:inline-block;min-width:48px;background:${gpColor};color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:700">${m.gp_pct}%</span>` : '—'}
       </td>
       <td class="num text-right" style="color:var(--text-3)">${hasData ? m.tx_count : '—'}</td>
+      <td class="num text-right" style="color:var(--chili)">${(hasData || m.expenses > 0) ? fmtPKR(m.expenses) : '—'}</td>
+      <td class="num text-right" style="color:${(m.net_profit||0)>=0?'var(--cardamom)':'var(--chili)'};font-weight:600">${(hasData || m.expenses > 0) ? fmtPKR(m.net_profit) : '—'}</td>
       <td class="num text-right" style="color:var(--mac-blue)">${hasData ? fmtPKR(m.receipts) : '—'}</td>
       <td class="num text-right" style="color:var(--chili)">${hasData || m.paid_out > 0 ? fmtPKR(m.paid_out) : '—'}</td>
       <td class="num text-right" style="color:${cashColor};font-weight:600">${hasData || m.net_cash !== 0 ? fmtPKR(m.net_cash) : '—'}</td>
     </tr>`;
   }).join('');
+
+  // Purchases & expenses by category (non-stock vendor bills) — expenses vs capital.
+  const cats = data.expensesByCategory || [];
+  const expList = cats.filter(c => c.nature !== 'capital');
+  const capList = cats.filter(c => c.nature === 'capital');
+  const catRow = c => `<tr style="border-top:1px solid var(--hair)">
+      <td style="padding:6px 10px">${esc(c.label)}${c.nature === 'capital' ? ' <span class="badge badge-secondary" style="font-size:9px">asset</span>' : ''}</td>
+      <td class="num text-right" style="padding:6px 10px;font-weight:600">${fmtPKR(c.amount)}</td></tr>`;
+  const catCard = cats.length ? `
+  <div class="card" style="margin-top:16px">
+    <h3 style="margin-bottom:6px">Purchases &amp; expenses by category — ${year}</h3>
+    <div style="font-size:11px;color:var(--text-3);margin-bottom:12px">From non-stock vendor bills (equipment, supplies, services, labour). Kept separate from the monthly operating costs you enter by hand — record a cost in one place only, so nothing is double-counted.</div>
+    <div class="table-wrap"><table><tbody>
+      ${expList.map(catRow).join('')}
+      ${expList.length ? `<tr style="background:var(--surface-2);font-weight:700"><td style="padding:6px 10px">Operating expenses</td><td class="num text-right" style="padding:6px 10px;color:var(--chili)">${fmtPKR(ytd.expenses||0)}</td></tr>` : ''}
+      ${capList.length ? capList.map(catRow).join('') + `<tr style="background:var(--surface-2);font-weight:700"><td style="padding:6px 10px">Capital purchases (assets)</td><td class="num text-right" style="padding:6px 10px">${fmtPKR(ytd.capital||0)}</td></tr>` : ''}
+    </tbody></table></div>
+  </div>` : '';
 
   return `
   <div class="section-header">
@@ -11821,11 +11922,16 @@ async function renderPLReport(year) {
   </div>
 
   <!-- YTD Summary tiles -->
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px">
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px">
     <div class="card" style="border-top:3px solid var(--saffron)">
       <div style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">YTD Revenue</div>
       <div style="font-size:18px;font-weight:700;color:var(--saffron);margin:6px 0 2px">${fmtPKR(ytd.revenue||0)}</div>
       <div style="font-size:11px;color:var(--text-3)">${ytd.tx_count||0} sales</div>
+    </div>
+    <div class="card" style="border-top:3px solid ${(ytd.net_profit||0)>=0?'var(--cardamom)':'var(--chili)'}">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">YTD Net Profit</div>
+      <div style="font-size:18px;font-weight:700;color:${(ytd.net_profit||0)>=0?'var(--cardamom)':'var(--chili)'};margin:6px 0 2px">${fmtPKR(ytd.net_profit||0)}</div>
+      <div style="font-size:11px;color:var(--text-3)">Gross profit − expenses</div>
     </div>
     <div class="card" style="border-top:3px solid var(--text-3)">
       <div style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">YTD COGS</div>
@@ -11862,6 +11968,8 @@ async function renderPLReport(year) {
             <th class="text-right">Gross Profit</th>
             <th class="text-right">GP %</th>
             <th class="text-right">Sales #</th>
+            <th class="text-right">Expenses</th>
+            <th class="text-right">Net Profit</th>
             <th class="text-right">Receipts</th>
             <th class="text-right">Sup. Paid</th>
             <th class="text-right">Net Cash</th>
@@ -11880,6 +11988,8 @@ async function renderPLReport(year) {
               <span style="display:inline-block;min-width:48px;background:${gpColor};color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:700">${ytd.gp_pct||0}%</span>
             </td>
             <td class="num text-right">${ytd.tx_count||0}</td>
+            <td class="num text-right" style="color:var(--chili)">${fmtPKR(ytd.expenses||0)}</td>
+            <td class="num text-right" style="color:${(ytd.net_profit||0)>=0?'var(--cardamom)':'var(--chili)'}">${fmtPKR(ytd.net_profit||0)}</td>
             <td class="num text-right" style="color:var(--mac-blue)">${fmtPKR(ytd.receipts||0)}</td>
             <td class="num text-right" style="color:var(--chili)">${fmtPKR(ytd.paid_out||0)}</td>
             <td class="num text-right" style="color:${cashColor}">${fmtPKR(ytd.net_cash||0)}</td>
@@ -11888,9 +11998,10 @@ async function renderPLReport(year) {
       </table>
     </div>
     <div style="margin-top:10px;font-size:11px;color:var(--text-3)">
-      Revenue and COGS are from posted sales. Receipts and Supplier Paid are actual cash movements. GP% = Gross Profit ÷ Revenue.
+      Revenue and COGS are from posted sales. <b>Expenses</b> are non-stock vendor bills (equipment, supplies, services, labour). <b>Net Profit = Gross Profit − Expenses</b> (capital purchases like equipment are shown separately below, not in this line). Receipts and Supplier Paid are actual cash movements. GP% = Gross Profit ÷ Revenue.
     </div>
-  </div>`;
+  </div>
+  ${catCard}`;
 }
 
 // ═══════════════════════════════════════════════════════════════
