@@ -34,8 +34,6 @@ __all__ = [
     'bulk_update_ingredient_costs',
     'deactivate_ingredient',
     'reactivate_ingredient',
-    # Data quality
-    'find_duplicate_ingredients',
     # Bulk import
     'import_ingredients_master',
 ]
@@ -501,100 +499,6 @@ def reactivate_ingredient(code):
     save_db()
     _refresh_ref()
     return {'ok': True, 'reactivated': code}
-
-
-# ═══════════════════════════════════════════════════════════════════
-#  DATA QUALITY — duplicate detection (read-only)
-# ═══════════════════════════════════════════════════════════════════
-
-def find_duplicate_ingredients():
-    """Find ingredients that are likely the SAME item under different codes
-    (e.g. ING-001SP vs SP-ING001). Groups by normalised name; for each record
-    returns code, cost/kg, stock, active flag, and how many recipes / movements /
-    bills / price-history rows reference it — so we can see which code the recipes
-    use and which holds the right cost before merging. READ-ONLY and defensive:
-    a few aggregate queries only (never per-row), never raises."""
-    import re as _re
-    print("  [dup] enter", flush=True)
-    try:
-        rows = qry("SELECT id, code, name, COALESCE(cost_per_kg,0) AS cost_per_kg, "
-                   "COALESCE(active,1) AS active FROM ingredients")
-    except Exception as _e:
-        print("  [dup] ingredients query failed:", _e, flush=True)
-        return []
-    print(f"  [dup] {len(rows)} ingredients loaded", flush=True)
-
-    def _norm(n):
-        return _re.sub(r'[^a-z0-9]', '', (n or '').lower())
-
-    groups = {}
-    for r in rows:
-        k = _norm(r['name'])
-        if k:
-            groups.setdefault(k, []).append(r)
-    dup_groups = {k: v for k, v in groups.items() if len(v) >= 2}
-    print(f"  [dup] {len(dup_groups)} duplicate group(s)", flush=True)
-    if not dup_groups:
-        return []
-
-    dup_ids = [r['id'] for items in dup_groups.values() for r in items]
-    idlist  = ','.join(str(int(i)) for i in dup_ids)   # ints only — safe to inline
-
-    # Stock (one query, balance per ingredient).
-    try:
-        stock = get_stock_map()
-    except Exception as _e:
-        print("  [dup] get_stock_map failed:", _e, flush=True)
-        stock = {}
-    print("  [dup] stock loaded; discovering ref tables", flush=True)
-
-    # The known tables that carry an ingredient_id, filtered to those that exist.
-    # (Plain queries only — no pragma_table_info table-valued joins.)
-    try:
-        existing = {r['name'] for r in qry("SELECT name FROM sqlite_master WHERE type='table'")}
-    except Exception:
-        existing = set()
-    ref_tables = [t for t in ('bom_items', 'inventory_ledger', 'supplier_bill_items',
-                              'ingredient_price_history') if t in existing]
-    print(f"  [dup] ref tables: {ref_tables}", flush=True)
-
-    LABELS = {'bom_items': 'recipes', 'inventory_ledger': 'movements',
-              'supplier_bill_items': 'bills', 'ingredient_price_history': 'price_history'}
-
-    # One aggregate COUNT per referencing table, limited to the duplicate ids.
-    counts = {}  # {ingredient_id: {label: n}}
-    for t in ref_tables:
-        label = LABELS.get(t, t)
-        try:
-            for r in qry('SELECT ingredient_id AS iid, COUNT(*) AS n FROM "%s" '
-                         'WHERE ingredient_id IN (%s) GROUP BY ingredient_id' % (t, idlist)):
-                counts.setdefault(r['iid'], {})[label] = r['n']
-            print(f"  [dup] counted {t}", flush=True)
-        except Exception as _e:
-            print(f"  [dup] count {t} failed: {_e}", flush=True)
-            continue
-
-    out = []
-    for items in dup_groups.values():
-        detail = []
-        for r in items:
-            rc = counts.get(r['id'], {})
-            code = r['code'] or ''
-            detail.append({
-                'id': r['id'], 'code': r['code'], 'name': r['name'],
-                'cost_per_kg': r['cost_per_kg'], 'active': r['active'],
-                'stock_grams': round(stock.get(r['id'], 0), 2),
-                'recipes': rc.get('recipes', 0),
-                'movements': rc.get('movements', 0),
-                'bills': rc.get('bills', 0),
-                'price_history': rc.get('price_history', 0),
-                'refs': rc,
-                'canonical': code.startswith('ING-') and code.endswith('SP'),
-            })
-        detail.sort(key=lambda d: (not d['canonical'], -d['recipes']))
-        out.append({'name': items[0]['name'], 'count': len(items), 'ingredients': detail})
-    out.sort(key=lambda g: (g['name'] or '').lower())
-    return out
 
 
 # ═══════════════════════════════════════════════════════════════════

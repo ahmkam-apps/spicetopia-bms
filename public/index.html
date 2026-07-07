@@ -7559,100 +7559,6 @@ function rmAdjHint(id) {
   el.textContent = (isNaN(v) || v === 0) ? '' : ('= ' + (v>0?'+':'') + Math.round(v*1000).toLocaleString() + ' g');
 }
 
-async function findIngredientDuplicates() {
-  const panel = document.getElementById('dup-panel'); if (!panel) return;
-  panel.innerHTML = '<div class="card" style="padding:14px;color:var(--text-3)">Scanning ingredients…</div>';
-  try {
-    const groups = await GET('/api/ingredients/duplicates');
-    if (!groups.length) {
-      panel.innerHTML = '<div class="card" style="padding:14px;border-left:3px solid var(--cardamom)">✓ No duplicate ingredient names found.</div>';
-      return;
-    }
-    let h = '<div class="card" style="padding:16px;border-left:3px solid var(--chili)">'
-      + '<div style="font-weight:700;margin-bottom:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> ' + groups.length + ' duplicate ingredient' + (groups.length===1?'':'s') + ' found</div>'
-      + '<div style="font-size:12px;color:var(--text-3);margin-bottom:12px">Same ingredient under different codes. <strong>ING-NNNSP</strong> is the canonical format; <strong>in recipes</strong> marks the one driving cost. Review, then tell me the keeper for each and I\'ll merge after a backup.</div>';
-    groups.forEach(g => {
-      h += '<div style="margin-bottom:14px"><div style="font-weight:600;margin-bottom:4px">' + esc(g.name) + '</div>'
-        + '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="color:var(--text-3);text-align:left">'
-        + '<th style="padding:3px 6px">Code</th><th style="padding:3px 6px;text-align:right">Cost/kg</th>'
-        + '<th style="padding:3px 6px;text-align:right">Stock</th><th style="padding:3px 6px;text-align:right">Recipes</th>'
-        + '<th style="padding:3px 6px;text-align:right">Bills</th><th style="padding:3px 6px;text-align:right">Moves</th>'
-        + '<th style="padding:3px 6px">Flags</th></tr></thead><tbody>';
-      g.ingredients.forEach(r => {
-        const flags = (r.canonical ? '<span class="badge badge-ok" style="font-size:10px">canonical</span> ' : '<span class="badge" style="font-size:10px;background:#eee;color:#666">legacy code</span> ')
-          + (r.recipes > 0 ? '<span class="badge" style="font-size:10px;background:var(--saffron-pale);color:var(--saffron)">in recipes</span> ' : '')
-          + (r.active ? '' : '<span style="color:var(--text-3);font-size:10px">(inactive)</span>');
-        h += '<tr style="border-top:1px solid var(--border)">'
-          + '<td style="padding:4px 6px;font-family:monospace">' + esc(r.code) + '</td>'
-          + '<td style="padding:4px 6px;text-align:right">' + fmtPKR(r.cost_per_kg) + '</td>'
-          + '<td style="padding:4px 6px;text-align:right">' + fmt(r.stock_grams/1000,3) + ' kg</td>'
-          + '<td style="padding:4px 6px;text-align:right">' + r.recipes + '</td>'
-          + '<td style="padding:4px 6px;text-align:right">' + r.bills + '</td>'
-          + '<td style="padding:4px 6px;text-align:right">' + r.movements + '</td>'
-          + '<td style="padding:4px 6px">' + flags + '</td></tr>';
-      });
-      h += '</tbody></table></div>';
-    });
-    h += '</div>';
-    panel.innerHTML = h;
-  } catch(e) {
-    panel.innerHTML = '<div class="card" style="padding:14px;color:var(--chili)">Error: ' + esc(e.message) + '</div>';
-  }
-}
-
-async function findArchiveCandidates() {
-  const panel = document.getElementById('dup-panel'); if (!panel) return;
-  panel.innerHTML = '<div class="card" style="padding:14px;color:var(--text-3)">Scanning ingredients…</div>';
-  try {
-    // Computed entirely from endpoints the app already loads reliably (no heavy server scan).
-    const ings = await GET('/api/ingredients');                 // active ingredients + stock
-    const recipeCodes = new Set();
-    try {
-      const costs = await GET('/api/costing/standard-costs');   // which codes are used in a BOM
-      (costs || []).forEach(c => (c.ingredients || []).forEach(g => recipeCodes.add((g.code || '').toUpperCase())));
-    } catch(e) { /* best-effort — if costing unavailable, fall back to stock-only */ }
-
-    const scheme = code =>
-      (code.startsWith('ING-') && code.endsWith('SP')) ? 'ING-…SP'
-      : (code.toUpperCase().startsWith('SP-ING') ? 'SP-ING…' : 'other');
-
-    const active = (ings || []).filter(i => i.active !== 0);
-    const cands  = active.filter(i => (i.balanceGrams || 0) === 0 && !recipeCodes.has((i.code || '').toUpperCase()));
-
-    const intro = '<div style="font-size:12px;color:var(--text-3);margin-bottom:12px">'
-      + 'Read-only — nothing is changed. ' + active.length + ' active · '
-      + '<strong>' + cands.length + ' look unused</strong> (zero stock AND not in any recipe)'
-      + (recipeCodes.size ? '' : ' · <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> recipe data unavailable, showing zero-stock only') + '.</div>';
-
-    if (!cands.length) {
-      panel.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--cardamom)">'
-        + '<div style="font-weight:700;margin-bottom:4px">✓ Nothing safe to archive</div>' + intro + '</div>';
-      return;
-    }
-    let h = '<div class="card" style="padding:16px;border-left:3px solid var(--saffron)">'
-      + '<div style="font-weight:700;margin-bottom:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> ' + cands.length + ' ingredient' + (cands.length===1?'':'s') + ' look unused</div>'
-      + intro
-      + '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="color:var(--text-3);text-align:left">'
-      + '<th style="padding:3px 6px">Code</th><th style="padding:3px 6px">Name</th><th style="padding:3px 6px">Scheme</th>'
-      + '<th style="padding:3px 6px;text-align:right">Cost/kg</th><th style="padding:3px 6px;text-align:right">Stock</th>'
-      + '<th style="padding:3px 6px">In recipe?</th></tr></thead><tbody>';
-    cands.sort((a,b) => (a.code||'').localeCompare(b.code||'')).forEach(r => {
-      h += '<tr style="border-top:1px solid var(--border)">'
-        + '<td style="padding:4px 6px;font-family:monospace">' + esc(r.code) + '</td>'
-        + '<td style="padding:4px 6px">' + esc(r.name || '—') + '</td>'
-        + '<td style="padding:4px 6px;color:var(--text-3)">' + esc(scheme(r.code || '')) + '</td>'
-        + '<td style="padding:4px 6px;text-align:right">' + fmtPKR(r.cost_per_kg) + '</td>'
-        + '<td style="padding:4px 6px;text-align:right">0 kg</td>'
-        + '<td style="padding:4px 6px;color:var(--cardamom)">no</td></tr>';
-    });
-    h += '</tbody></table>'
-      + '<div style="font-size:11px;color:var(--text-3);margin-top:10px">Report only. To deactivate these, say the word and I\'ll add a one-click archive (reversible, after a backup).</div></div>';
-    panel.innerHTML = h;
-  } catch(e) {
-    panel.innerHTML = '<div class="card" style="padding:14px;color:var(--chili)">Error: ' + esc(e.message) + '</div>';
-  }
-}
-
 async function renderInventory() {
   const ings    = await GET('/api/ingredients');
   const isAdmin = isAdminRole();
@@ -7943,12 +7849,9 @@ async function renderInventory() {
     + (isAdmin ? '<div style="display:flex;gap:8px">'
         + '<button class="btn btn-outline btn-sm" onclick="helpOpen(\'inventory\')" title="How Inventory works">' + ic('message',13) + ' Guide</button>'
         + '<button class="btn btn-primary btn-sm" onclick="nav(\'bulk-stock\')" title="Load or update raw-material stock in bulk with tank sliders">' + ic('barrel') + ' Bulk update stock</button>'
-        + '<button class="btn btn-outline btn-sm" onclick="findIngredientDuplicates()" title="Find ingredients entered twice under different codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Find duplicates</button>'
-        + '<button class="btn btn-outline btn-sm" onclick="findArchiveCandidates()" title="Report: active ingredients safe to archive (zero stock, no recipe/movement/bill)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> Archive candidates</button>'
         + '<button class="btn btn-outline btn-sm" onclick="const c=document.getElementById(\'ing-add-card\');if(c)c.style.display=c.style.display===\'none\'?\'\':\'none\';switchInvTab(\'rm\')">＋ Ingredient</button>'
         + '</div>' : '')
     + '</div>'
-    + '<div id="dup-panel" style="margin-bottom:12px"></div>'
     + tabBar
 
     // ── Raw Materials pane ─────────────────────────────────────────
