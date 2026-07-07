@@ -664,8 +664,7 @@ input[type="radio"]    { accent-color: var(--saffron); }
   <!-- Right: controls -->
   <div class="topbar-right" style="justify-content:flex-end">
     <span id="topbar-status" style="display:none"></span>
-    <button class="btn btn-primary btn-sm" onclick="howToOpen()" title="Step-by-step guidance for common tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg> How do I…?</button>
-    <button class="btn btn-outline btn-sm" onclick="helpOpen(state.page)" title="How this screen works + where it fits">? Help</button>
+    <button class="btn btn-primary btn-sm" onclick="helpOpen(state.page)" title="How this screen works + step-by-step tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg> Help</button>
     <button class="btn btn-outline btn-sm" onclick="refreshAll()">↻ Refresh</button>
     <div class="user-chip">
       <div class="avatar" id="topbar-avatar">A</div>
@@ -1573,63 +1572,21 @@ const HOWTO = [
     steps:['Open Planning.','Create a plan, enter your sales forecast by product, and review the projected production, cost and cash.','Approve it to release work orders to manufacturing.'] },
 ];
 
-function howToOpen() {
-  let ov = document.getElementById('erp-howto');
-  if (!ov) {
-    ov = document.createElement('div'); ov.id = 'erp-howto';
-    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-start;justify-content:center;z-index:3000;padding:48px 16px';
-    ov.addEventListener('click', e => { if (e.target === ov) howToClose(); });
-    document.body.appendChild(ov);
-  }
-  ov.style.display = 'flex';
-  ov.innerHTML = '<div style="background:var(--surface,#fff);max-width:640px;width:100%;max-height:84vh;display:flex;flex-direction:column;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">'
-    + '<div style="padding:16px 20px;border-bottom:1px solid var(--border,#eee);display:flex;justify-content:space-between;align-items:center">'
-    + '<strong style="font-size:16px">How do I…?</strong>'
-    + '<button class="btn btn-outline btn-xs" onclick="howToClose()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;display:inline-block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>'
-    + '<div style="padding:14px 20px 0"><input id="howto-search" class="form-input" style="width:100%" placeholder="Search… e.g. payment, MRP, batch, markup" oninput="_howToFilter()"></div>'
-    + '<div id="howto-list" style="padding:12px 20px 20px;overflow:auto">' + _howToListHtml() + '</div>'
-    + '</div>';
-  setTimeout(() => { const i = document.getElementById('howto-search'); if (i) i.focus(); }, 50);
-}
-function howToClose() { const ov = document.getElementById('erp-howto'); if (ov) ov.style.display = 'none'; }
+// Old standalone "How do I…?" overlay was merged into the unified Help overlay (two tabs).
+// Kept only the shared HTML-escape helper; howToOpen() is now an alias defined below.
 function _howToEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function _howToListHtml() {
-  const cats = [...new Set(HOWTO.map(h => h.cat))];
-  let html = '';
-  cats.forEach(cat => {
-    const items = HOWTO.filter(h => h.cat === cat && (!h.nav || canAccess(h.nav)));
-    if (!items.length) return;
-    html += '<div class="howto-group"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);text-transform:uppercase;margin:10px 0 4px">' + _howToEsc(cat) + '</div>';
-    items.forEach(h => {
-      const dataText = _howToEsc((h.q + ' ' + (h.kw || '') + ' ' + h.cat).toLowerCase());
-      const steps = '<ol style="margin:8px 0 6px 18px;padding:0;font-size:13px;line-height:1.7">' + h.steps.map(s => '<li>' + _howToEsc(s) + '</li>').join('') + '</ol>';
-      const goBtn = h.nav ? '<button class="btn btn-primary btn-xs" onclick="howToClose();nav(\'' + h.nav + '\')">Take me there →</button>' : '';
-      html += '<details class="howto-item" data-text="' + dataText + '" style="border:1px solid var(--border,#eee);border-radius:8px;padding:8px 12px;margin-bottom:6px">'
-        + '<summary style="cursor:pointer;font-weight:600;font-size:14px">' + _howToEsc(h.q) + '</summary>'
-        + steps + goBtn + '</details>';
-    });
-    html += '</div>';
-  });
-  return html;
-}
-function _howToFilter() {
-  const term = (document.getElementById('howto-search').value || '').trim().toLowerCase();
-  document.querySelectorAll('#erp-howto .howto-item').forEach(el => {
-    el.style.display = (!term || (el.getAttribute('data-text') || '').includes(term)) ? '' : 'none';
-  });
-  // hide group headers with no visible items
-  document.querySelectorAll('#erp-howto .howto-group').forEach(g => {
-    const any = [...g.querySelectorAll('.howto-item')].some(el => el.style.display !== 'none');
-    g.style.display = any ? '' : 'none';
-  });
-}
 
-let _helpKey = '_overview', _helpI = 0;
-function helpOpen(moduleId) {
-  if (moduleId === 'home') moduleId = 'dashboard';   // landing page id is 'home'; deck is 'dashboard'
-  if (moduleId === 'costs') moduleId = 'prices-costs';
-  _helpKey = (moduleId && HELP[moduleId]) ? moduleId : '_overview';
+const HELP_TITLES = { dashboard:'Dashboard', 'orders-invoices':'Orders & Invoices', 'receipts-aging':'Receipts & AR', 'field-orders':'Field Orders', 'review-queue':'Review Queue', inventory:'Inventory', production:'Production', 'purchase-orders':'Purchase Orders', bills:'Supplier Bills', 'ap-payments':'Payments', 'ap-aging':'AP Aging', 'pl-report':'P&L Report', margins:'Margin Report', 'rep-performance':'Rep Performance', 'prices-costs':'Prices & Costs', products:'Products', customers:'Customers', suppliers:'Suppliers', 'sales-reps':'Team', 'zones-routes':'Zones & Routes', 'ingredients-admin':'Ingredients', bom:'BOM (Formula)', users:'User Management', payroll:'Payroll', 'master-data':'Data Import', recipes:'Cooking Recipes', audit:'Audit Log', system:'System' };
+function _helpResolve(id) { if (id === 'home') return 'dashboard'; if (id === 'costs') return 'prices-costs'; return id; }
+
+let _helpKey = '_overview', _helpI = 0, _helpTab = 'about', _helpHowScope = 'screen', _helpPage = 'dashboard';
+// Unified Help: ONE overlay, two tabs — "About this screen" (concept deck) + "How do I…?" (task steps).
+function helpOpen(moduleId, tab) {
+  _helpPage = _helpResolve(moduleId || 'dashboard');
+  _helpKey = HELP[_helpPage] ? _helpPage : '_overview';
   _helpI = 0;
+  _helpTab = (tab === 'howto') ? 'howto' : 'about';
+  _helpHowScope = 'screen';
   let ov = document.getElementById('erp-help');
   if (!ov) {
     ov = document.createElement('div'); ov.id = 'erp-help';
@@ -1638,43 +1595,96 @@ function helpOpen(moduleId) {
   }
   ov.style.display = 'flex';
   helpRender();
+  if (_helpTab === 'howto') setTimeout(() => { const i = document.getElementById('help-howto-search'); if (i) i.focus(); }, 40);
 }
+function howToOpen() { helpOpen((typeof state !== 'undefined' && state.page) || 'dashboard', 'howto'); }  // alias → merged overlay, How-do-I tab
 function helpClose() {
   const ov = document.getElementById('erp-help'); if (ov) ov.style.display = 'none';
   localStorage.setItem('erp_help_seen', '1');
 }
+function _helpSwitchTab(t) {
+  _helpTab = t; if (t === 'about') _helpI = 0;
+  helpRender();
+  if (t === 'howto') setTimeout(() => { const i = document.getElementById('help-howto-search'); if (i) i.focus(); }, 40);
+}
+function _helpSetScope(s) { _helpHowScope = s; helpRender(); setTimeout(() => { const i = document.getElementById('help-howto-search'); if (i) i.focus(); }, 40); }
 function helpGo(i) { const n = HELP[_helpKey].length; _helpI = Math.max(0, Math.min(n - 1, i)); helpRender(); }
 function helpNext() { if (_helpI >= HELP[_helpKey].length - 1) { helpClose(); return; } helpGo(_helpI + 1); }
 function helpPrev() { helpGo(_helpI - 1); }
+
+function _helpHowtoItem(h) {
+  const dataText = _howToEsc((h.q + ' ' + (h.kw || '') + ' ' + h.cat).toLowerCase());
+  const steps = '<ol style="margin:8px 0 6px 18px;padding:0;font-size:13px;line-height:1.7">' + h.steps.map(s => '<li>' + _howToEsc(s) + '</li>').join('') + '</ol>';
+  const goBtn = h.nav ? '<button class="btn btn-primary btn-xs" onclick="helpClose();nav(\'' + h.nav + '\')">Take me there →</button>' : '';
+  return '<details class="howto-item" data-text="' + dataText + '" style="border:1px solid var(--border,#eee);border-radius:8px;padding:8px 12px;margin-bottom:6px">'
+    + '<summary style="cursor:pointer;font-weight:600;font-size:14px">' + _howToEsc(h.q) + '</summary>' + steps + goBtn + '</details>';
+}
+function _helpHowtoHtml(onlyNav) {
+  if (onlyNav) {
+    const items = HOWTO.filter(h => h.nav === onlyNav && (!h.nav || canAccess(h.nav)));
+    if (!items.length) return '<div style="color:var(--text-3);font-size:13px;padding:8px 0">No quick tasks for this screen — try “All areas”.</div>';
+    return '<div class="howto-group">' + items.map(_helpHowtoItem).join('') + '</div>';
+  }
+  const cats = [...new Set(HOWTO.map(h => h.cat))];
+  let html = '';
+  cats.forEach(cat => {
+    const items = HOWTO.filter(h => h.cat === cat && (!h.nav || canAccess(h.nav)));
+    if (!items.length) return;
+    html += '<div class="howto-group"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);text-transform:uppercase;margin:10px 0 4px">' + _howToEsc(cat) + '</div>' + items.map(_helpHowtoItem).join('') + '</div>';
+  });
+  return html;
+}
+function _helpHowtoFilter() {
+  const el0 = document.getElementById('help-howto-search'); if (!el0) return;
+  const term = (el0.value || '').trim().toLowerCase();
+  document.querySelectorAll('#erp-help .howto-item').forEach(el => { el.style.display = (!term || (el.getAttribute('data-text') || '').includes(term)) ? '' : 'none'; });
+  document.querySelectorAll('#erp-help .howto-group').forEach(g => { const any = [...g.querySelectorAll('.howto-item')].some(el => el.style.display !== 'none'); g.style.display = any ? '' : 'none'; });
+}
 function helpRender() {
   const ov = document.getElementById('erp-help'); if (!ov) return;
-  const deck = HELP[_helpKey], s = deck[_helpI];
-  const dots = deck.map((_, i) => '<span class="eh-dot' + (i === _helpI ? ' on' : '') + '"></span>').join('');
-  const last = _helpI === deck.length - 1;
-  const list = s.list ? '<ul class="eh-list">' + s.list.map(x => '<li>' + x + '</li>').join('') + '</ul>' : '';
-  let flow = '';
-  if (s.flow) {
-    const colIn = '<div class="col"><div class="ch">Feeds in ←</div><ul>' + (s.flow.inn || []).map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
-    const colOut = '<div class="col"><div class="ch">Feeds out →</div><ul>' + (s.flow.out || []).map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
-    flow = '<div class="eh-flow">' + colIn + colOut + '</div>';
+  const label = _helpKey === '_overview' ? 'How it all connects' : (HELP_TITLES[_helpKey] || _helpKey);
+  const tabBtn = (id, lbl) => '<button onclick="_helpSwitchTab(\'' + id + '\')" style="border:none;background:' + (_helpTab === id ? 'var(--saffron,#C67A3E)' : 'transparent') + ';color:' + (_helpTab === id ? '#fff' : 'var(--text-2)') + ';font-weight:600;font-size:12.5px;padding:7px 15px;border-radius:8px;cursor:pointer">' + lbl + '</button>';
+  const tabs = '<div style="display:inline-flex;gap:3px;background:var(--surface-2,#f3ece3);border:1px solid var(--border);border-radius:10px;padding:3px;margin-bottom:16px">' + tabBtn('about', 'About this screen') + tabBtn('howto', 'How do I…?') + '</div>';
+
+  let body;
+  if (_helpTab === 'about') {
+    const deck = HELP[_helpKey], s = deck[_helpI];
+    const dots = deck.map((_, i) => '<span class="eh-dot' + (i === _helpI ? ' on' : '') + '"></span>').join('');
+    const last = _helpI === deck.length - 1;
+    const list = s.list ? '<ul class="eh-list">' + s.list.map(x => '<li>' + x + '</li>').join('') + '</ul>' : '';
+    let flow = '';
+    if (s.flow) {
+      const colIn = '<div class="col"><div class="ch">Feeds in ←</div><ul>' + (s.flow.inn || []).map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
+      const colOut = '<div class="col"><div class="ch">Feeds out →</div><ul>' + (s.flow.out || []).map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
+      flow = '<div class="eh-flow">' + colIn + colOut + '</div>';
+    }
+    body = '<div class="eh-kick">' + label + ' · ' + (_helpI + 1) + ' of ' + deck.length + '</div>'
+      + '<h3>' + s.t + '</h3>' + (s.b ? '<p>' + s.b + '</p>' : '') + list + flow
+      + '<div class="eh-foot"><div class="eh-dots">' + dots + '</div><div class="right">'
+      + (_helpI > 0 ? '<button class="btn btn-outline btn-sm" onclick="helpPrev()">Back</button>' : '')
+      + '<button class="btn btn-outline btn-sm" onclick="helpClose()">Close</button>'
+      + '<button class="btn btn-primary btn-sm" onclick="helpNext()">' + (last ? 'Done' : 'Next →') + '</button>'
+      + '</div>';
+  } else {
+    const screenLbl = (HELP_TITLES[_helpPage] || 'This screen');
+    const hasScreen = HOWTO.some(h => h.nav === _helpPage && (!h.nav || canAccess(h.nav)));
+    const scope = (_helpHowScope === 'screen' && hasScreen) ? 'screen' : 'all';
+    const scBtn = (id, lbl) => '<button onclick="_helpSetScope(\'' + id + '\')" style="border:1px solid var(--border);background:' + (scope === id ? 'var(--saffron-pale,#f6ead9)' : 'transparent') + ';color:' + (scope === id ? 'var(--saffron-deep,#9A4A24)' : 'var(--text-3)') + ';font-weight:600;font-size:11.5px;padding:4px 11px;border-radius:20px;cursor:pointer">' + lbl + '</button>';
+    const scopeToggle = hasScreen ? '<div style="display:flex;gap:6px;margin-bottom:2px">' + scBtn('screen', screenLbl) + scBtn('all', 'All areas') + '</div>' : '';
+    body = '<div class="eh-kick">How do I…?</div>'
+      + scopeToggle
+      + '<input id="help-howto-search" class="form-input" style="width:100%;margin:10px 0" placeholder="Search… e.g. payment, MRP, batch, markup" oninput="_helpHowtoFilter()">'
+      + '<div id="help-howto-list" style="overflow:auto;max-height:46vh">' + _helpHowtoHtml(scope === 'screen' ? _helpPage : null) + '</div>'
+      + '<div class="eh-foot"><div></div><div class="right"><button class="btn btn-outline btn-sm" onclick="helpClose()">Close</button></div>';
   }
-  const HT = { dashboard:'Dashboard', 'orders-invoices':'Orders & Invoices', 'receipts-aging':'Receipts & AR', 'field-orders':'Field Orders', 'review-queue':'Review Queue', inventory:'Inventory', production:'Production', 'purchase-orders':'Purchase Orders', bills:'Supplier Bills', 'ap-payments':'Payments', 'ap-aging':'AP Aging', 'pl-report':'P&L Report', margins:'Margin Report', 'rep-performance':'Rep Performance', 'prices-costs':'Prices & Costs', products:'Products', customers:'Customers', suppliers:'Suppliers', 'sales-reps':'Team', 'zones-routes':'Zones & Routes', 'ingredients-admin':'Ingredients', bom:'BOM (Formula)', users:'User Management', payroll:'Payroll', 'master-data':'Data Import', recipes:'Cooking Recipes', audit:'Audit Log', system:'System' };
-  const label = _helpKey === '_overview' ? 'How it all connects' : (HT[_helpKey] || _helpKey);
-  ov.innerHTML = '<div class="eh-box">'
-    + '<div class="eh-kick">' + label + ' · ' + (_helpI + 1) + ' of ' + deck.length + '</div>'
-    + '<h3>' + s.t + '</h3>' + (s.b ? '<p>' + s.b + '</p>' : '') + list + flow
-    + '<div class="eh-foot"><div class="eh-dots">' + dots + '</div><div class="right">'
-    + (_helpI > 0 ? '<button class="btn btn-outline btn-sm" onclick="helpPrev()">Back</button>' : '')
-    + '<button class="btn btn-outline btn-sm" onclick="helpClose()">Close</button>'
-    + '<button class="btn btn-primary btn-sm" onclick="helpNext()">' + (last ? 'Done' : 'Next →') + '</button>'
-    + '</div></div></div>';
+  ov.innerHTML = '<div class="eh-box" style="max-width:' + (_helpTab === 'howto' ? '600px' : '560px') + '">' + tabs + body + '</div></div>';
 }
 document.addEventListener('keydown', function (e) {
   const ov = document.getElementById('erp-help');
   if (ov && ov.style.display === 'flex') {
     if (e.key === 'Escape') helpClose();
-    else if (e.key === 'ArrowRight') helpNext();
-    else if (e.key === 'ArrowLeft') helpPrev();
+    else if (_helpTab === 'about' && e.key === 'ArrowRight') helpNext();   // arrows drive the deck only on the About tab
+    else if (_helpTab === 'about' && e.key === 'ArrowLeft') helpPrev();
   }
 });
 
