@@ -62,6 +62,7 @@ __all__ = [
     'ensure_ledger_po_link',
     'ensure_purchase_in_po_trigger',
     'ensure_po_line_types',
+    'ensure_shop_geo',
 ]
 
 
@@ -1630,6 +1631,39 @@ def ensure_po_line_types():
     finally:
         try: c.execute("PRAGMA foreign_keys=ON")
         except Exception: pass
+        c.close()
+    save_db()
+
+
+def ensure_shop_geo():
+    """Shop-location capture from day one (Track B / B1). Adds nullable geo columns so
+    every shop can carry a coordinate and every visit/order can be geo-stamped — the base
+    the future Rep Day Log (B3.5) clusters into visits. No geocoding service: the rep's
+    phone captures the coordinate in the shop (one browser permission prompt).
+      - customers.lat/lng/geo_accuracy_m/geo_captured_at → the durable shop location.
+      - beat_visits.lat/lng/geo_accuracy_m               → where a visit was logged.
+      - customer_orders.lat/lng/geo_accuracy_m           → where an order was taken.
+    All nullable, additive, PRAGMA-guarded, idempotent (adds only missing columns)."""
+    c = _conn()
+    try:
+        specs = {
+            'customers':       [('lat', 'REAL'), ('lng', 'REAL'),
+                                ('geo_accuracy_m', 'REAL'), ('geo_captured_at', 'TEXT')],
+            'beat_visits':     [('lat', 'REAL'), ('lng', 'REAL'), ('geo_accuracy_m', 'REAL')],
+            'customer_orders': [('lat', 'REAL'), ('lng', 'REAL'), ('geo_accuracy_m', 'REAL')],
+        }
+        for table, cols in specs.items():
+            existing = [r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()]
+            if not existing:
+                continue  # table not present on this DB — skip
+            for name, typ in cols:
+                if name not in existing:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {typ}")
+        c.commit()
+        print("  ✓ shop geo (customers/beat_visits/customer_orders lat/lng/accuracy) ready")
+    except Exception as e:
+        print(f"  ⚠ ensure_shop_geo: {e}")
+    finally:
         c.close()
     save_db()
 

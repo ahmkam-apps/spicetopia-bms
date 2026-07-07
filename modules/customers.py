@@ -26,6 +26,8 @@ __all__ = [
     'assign_customer_route', 'list_route_customers',
     # Field portal
     'field_lookup_customers', 'field_create_customer',
+    # Geo (Track B / B1)
+    'set_shop_location',
 ]
 
 # ── Callback wired at startup by server.py ────────────────────────────────────
@@ -272,3 +274,34 @@ def field_lookup_customers(query, rep_id):
 def field_create_customer(data, rep_id):
     """Create a customer from the B2B field portal. Delegates to create_customer()."""
     return create_customer(data)
+
+
+def set_shop_location(customer_id, lat, lng, accuracy_m=None, force=False):
+    """Save a shop's GPS coordinate (Track B / B1). The rep taps '📍 Save this shop's
+    location' while standing in the shop — one capture, no geocoding service.
+    By default this is a first-time set (won't overwrite an existing coordinate unless
+    force=True) so an accidental re-tap somewhere else can't move a shop's pin.
+    Returns {ok, updated, lat, lng}. Raises ValueError on bad input / missing shop."""
+    try:
+        lat = float(lat); lng = float(lng)
+    except (TypeError, ValueError):
+        raise ValueError("Valid latitude and longitude are required")
+    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        raise ValueError("Coordinates out of range")
+    acc = None
+    if accuracy_m not in (None, ''):
+        try: acc = float(accuracy_m)
+        except (TypeError, ValueError): acc = None
+
+    cust = qry1("SELECT id, lat, lng FROM customers WHERE id=?", (int(customer_id),))
+    if not cust:
+        raise ValueError(f"Shop not found: {customer_id}")
+    already = cust.get('lat') is not None and cust.get('lng') is not None
+    if already and not force:
+        return {'ok': True, 'updated': False, 'lat': cust['lat'], 'lng': cust['lng'],
+                'message': 'Location already on file'}
+    run("""UPDATE customers
+           SET lat=?, lng=?, geo_accuracy_m=?, geo_captured_at=datetime('now')
+           WHERE id=?""", (lat, lng, acc, int(customer_id)))
+    save_db()
+    return {'ok': True, 'updated': True, 'lat': lat, 'lng': lng}

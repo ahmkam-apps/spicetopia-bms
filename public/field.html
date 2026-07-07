@@ -135,6 +135,21 @@ textarea.form-input{resize:vertical;}
 .tour-dot.on{background:var(--terra);}
 
 .badge{display:inline-block;background:var(--surface-2);color:var(--text-2);font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;}
+
+/* geo / shop location */
+.geo-row{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap;}
+.geo-btn{background:var(--cardamom-pale);color:var(--cardamom);border:1px solid #cdd8b6;border-radius:20px;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer;font-family:var(--font);}
+.geo-btn:active{background:#dbe3c6;}
+.geo-saved{font-size:12px;color:var(--cardamom);font-weight:600;display:inline-flex;align-items:center;gap:4px;}
+.geo-off{font-size:11px;color:var(--text-3);}
+
+/* toast */
+#toast-wrap{position:fixed;left:0;right:0;bottom:82px;display:flex;flex-direction:column;align-items:center;gap:8px;z-index:300;pointer-events:none;padding:0 16px;}
+.toast{max-width:440px;width:100%;background:var(--ink);color:#fff;font-size:13px;font-weight:500;padding:12px 15px;border-radius:var(--r);box-shadow:var(--sh-lg);line-height:1.4;animation:toastin .18s ease;}
+.toast.err{background:var(--chili);}
+.toast.ok{background:var(--cardamom);}
+@keyframes toastin{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
 .hidden{display:none!important;}
 </style>
 </head>
@@ -214,9 +229,8 @@ textarea.form-input{resize:vertical;}
       <div class="coach-steps">
         <div class="coach-step"><span class="coach-n">1</span><span>Pick the shop</span></div>
         <div class="coach-step"><span class="coach-n">2</span><span>Add products</span></div>
-        <div class="coach-step"><span class="coach-n">3</span><span>Submit the order</span></div>
-        <div class="coach-step"><span class="coach-n">4</span><span>Generate invoice</span></div>
-        <div class="coach-step"><span class="coach-n">5</span><span>Send on WhatsApp</span></div>
+        <div class="coach-step"><span class="coach-n">3</span><span>Submit &amp; invoice</span></div>
+        <div class="coach-step"><span class="coach-n">4</span><span>Send on WhatsApp</span></div>
       </div>
     </div>
 
@@ -224,6 +238,7 @@ textarea.form-input{resize:vertical;}
       <div class="card-t">Shop</div>
       <select class="form-input" id="order-customer" onchange="onCustomerChange()"><option value="">Select a shop…</option></select>
       <div id="cust-info" style="margin-top:8px;font-size:12px;color:var(--text-2);display:none"></div>
+      <div id="geo-row" class="geo-row" style="display:none"></div>
       <button class="link-btn" id="newshop-toggle" onclick="openNewShop()">＋ New shop</button>
       <div id="newshop-form" class="subform" style="display:none">
         <input class="form-input" id="ns-name" placeholder="Shop name">
@@ -258,8 +273,9 @@ textarea.form-input{resize:vertical;}
 
     <textarea class="form-input" id="order-notes" placeholder="Notes (optional)" rows="2" style="margin-bottom:12px"></textarea>
 
-    <button class="btn btn-primary" id="order-submit-btn" onclick="placeOrder()">Submit order</button>
-    <button class="btn btn-secondary" onclick="clearOrder()">Clear</button>
+    <button class="btn btn-primary" id="order-submit-btn" onclick="submitAndInvoice()">Submit &amp; invoice</button>
+    <button class="btn btn-secondary" id="order-book-btn" onclick="placeOrder()">Save as order (invoice later)</button>
+    <button class="link-btn" style="width:100%;text-align:center" onclick="clearOrder()">Clear</button>
     <div class="card" id="order-result" style="display:none;margin-top:14px"></div>
   </div>
 
@@ -304,6 +320,9 @@ textarea.form-input{resize:vertical;}
     <button class="nav-tab" id="tab-profile" onclick="switchTab('profile')"><span class="icon">◔</span><span class="label">Profile</span></button>
   </nav>
 
+  <!-- TOASTS -->
+  <div id="toast-wrap"></div>
+
   <!-- FIRST-RUN TOUR -->
   <div class="tour-bg hidden" id="tour">
     <div class="tour">
@@ -322,7 +341,57 @@ const state = {
   repName:    sessionStorage.getItem('field_rep_name') || '',
   routes:[], customers:[], products:[], productsByType:{},
   selectedCustType:'RETAIL', orderItems:[], todayVisits:[], todayOrders:[],
+  geo:null, geoDenied:false,
 };
+
+// ── TOAST ──
+function toast(msg, type){
+  const wrap=document.getElementById('toast-wrap'); if(!wrap) return;
+  const el=document.createElement('div'); el.className='toast'+(type?(' '+type):'');
+  el.textContent=msg; wrap.appendChild(el);
+  setTimeout(()=>{ el.style.transition='opacity .3s'; el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, type==='err'?4200:2600);
+}
+
+// ── FETCH WRAPPER (global 401 → session expired) ──
+async function apiFetch(url, opts){
+  opts=opts||{}; opts.credentials='same-origin';
+  const r=await fetch(url, opts);
+  if (r.status===401 && state.repId){ sessionExpired(); const e=new Error('Session expired'); e._handled=true; throw e; }
+  let d=null; try{ d=await r.json(); }catch(_){}
+  return { ok:r.ok, status:r.status, data:d||{} };
+}
+function sessionExpired(){
+  state.repId=0; state.repName=''; sessionStorage.clear();
+  document.cookie='field_token=; Max-Age=0; Path=/;';
+  const app=document.getElementById('app'); if(app) app.style.display='none';
+  switchToPin();
+  const ls=document.getElementById('login-screen'); if(ls) ls.style.display='flex';
+  showError('Your session expired. Please sign in again.');
+}
+
+// ── GEOLOCATION (Track B / B1) ──
+// Capture the phone's coordinate for shop-location + geo-stamping visits/orders.
+// One browser permission prompt; silent, non-blocking — the app works without it.
+function captureGeo(){
+  return new Promise(resolve=>{
+    if (!('geolocation' in navigator)){ state.geoDenied=true; resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos=>{ state.geo={ lat:pos.coords.latitude, lng:pos.coords.longitude,
+        accuracy:pos.coords.accuracy, ts:Date.now() }; state.geoDenied=false; resolve(state.geo); },
+      err=>{ if(err && err.code===1) state.geoDenied=true; resolve(null); },
+      { enableHighAccuracy:true, timeout:8000, maximumAge:60000 });
+  });
+}
+// Fresh coordinate if we don't have a recent one (≤2 min); returns state.geo or null.
+async function freshGeo(){
+  if (state.geo && (Date.now()-state.geo.ts) < 120000) return state.geo;
+  return await captureGeo();
+}
+// Attach lat/lng/accuracy to a payload if we have a coordinate.
+function withGeo(payload){
+  if (state.geo){ payload.lat=state.geo.lat; payload.lng=state.geo.lng; payload.accuracy=state.geo.accuracy; }
+  return payload;
+}
 
 async function _checkSession() {
   try {
@@ -411,6 +480,7 @@ async function showApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('topbar-name').textContent = state.repName || 'Sales Rep';
+  captureGeo();  // fire the location permission prompt once, non-blocking
   await loadAppData();
   renderRoute();
   if (!localStorage.getItem('field_tour_seen')) { openTour(); localStorage.setItem('field_tour_seen','1'); }
@@ -419,12 +489,14 @@ async function loadAppData(){
   const opts = { credentials:'same-origin' };
   try {
     const [routesR, custsR] = await Promise.all([ fetch('/api/field/my-routes',opts), fetch('/api/customers?all=1',opts) ]);
+    if (routesR.status===401 || custsR.status===401){ sessionExpired(); return; }
     state.routes    = routesR.ok ? await routesR.json() : [];
     state.customers = custsR.ok  ? await custsR.json()  : [];
     await loadProducts('RETAIL');
     await loadTodayData();
     populateDropdowns();
-  } catch(e){ console.error('loadAppData', e); }
+    state._loadFailed=false;
+  } catch(e){ console.error('loadAppData', e); state._loadFailed=true; }
 }
 async function loadProducts(custType){
   custType = (custType||'RETAIL').toUpperCase();
@@ -465,16 +537,53 @@ function populateProductDropdown(){
 }
 async function onCustomerChange(){
   const sel=document.getElementById('order-customer'); const custId=sel.value; const infoEl=document.getElementById('cust-info');
-  if (!custId){ infoEl.style.display='none'; return; }
+  const geoRow=document.getElementById('geo-row');
+  if (!custId){ infoEl.style.display='none'; if(geoRow) geoRow.style.display='none'; return; }
   const cust = state.customers.find(c=>c.id==custId);
-  if (!cust){ infoEl.style.display='none'; return; }
+  if (!cust){ infoEl.style.display='none'; if(geoRow) geoRow.style.display='none'; return; }
   const typeLabel={RETAIL:'Retail',DIRECT:'Direct',WHOLESALE:'Wholesale'};
   infoEl.innerHTML='<span class="badge">'+escH(typeLabel[cust.customer_type]||cust.customer_type||'Retail')+'</span>';
   infoEl.style.display='block';
+  _renderGeoRow(cust);
+  freshGeo();  // warm up a coordinate for this shop (non-blocking)
   const newType=(cust.customer_type||'RETAIL').toUpperCase();
   if (newType!==state.selectedCustType){ state.selectedCustType=newType;
     if (state.orderItems.length>0){ state.orderItems=[]; renderOrderItems(); }
     await loadProducts(newType); }
+}
+function _hasLoc(cust){ return cust && cust.lat!=null && cust.lng!=null && cust.lat!=='' && cust.lng!==''; }
+function _renderGeoRow(cust){
+  const geoRow=document.getElementById('geo-row'); if(!geoRow) return;
+  let html;
+  if (_hasLoc(cust)){
+    html='<span class="geo-saved">📍 Location on file</span>'
+        +'<button class="link-btn" style="padding:0;font-size:12px" onclick="saveShopLocation(true)">Update</button>';
+  } else if (state.geoDenied){
+    html='<span class="geo-off">📍 Turn on location to save this shop’s spot</span>';
+  } else {
+    html='<button class="geo-btn" onclick="saveShopLocation(false)">📍 Save this shop’s location</button>';
+  }
+  geoRow.innerHTML=html; geoRow.style.display='flex';
+}
+async function saveShopLocation(force){
+  const custId=document.getElementById('order-customer').value;
+  if (!custId){ toast('Pick a shop first','err'); return; }
+  const geoRow=document.getElementById('geo-row');
+  if(geoRow) geoRow.innerHTML='<span class="geo-off">📍 Getting location…</span>';
+  const g=await captureGeo();
+  if (!g){ state.geoDenied=true; toast('Couldn’t get your location. Enable location access and try again.','err');
+    const cust=state.customers.find(c=>c.id==custId); _renderGeoRow(cust||{}); return; }
+  try {
+    const {ok,data}=await apiFetch('/api/field/shop-location',{ method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ customerId:parseInt(custId), lat:g.lat, lng:g.lng, accuracy:g.accuracy, force:!!force }) });
+    if (!ok){ toast('Could not save location: '+(data.error||'try again'),'err');
+      const cust=state.customers.find(c=>c.id==custId); _renderGeoRow(cust||{}); return; }
+    const cust=state.customers.find(c=>c.id==custId);
+    if (cust){ cust.lat=data.lat; cust.lng=data.lng; }
+    _renderGeoRow(cust||{});
+    toast(data.updated===false ? 'Location already on file' : '📍 Shop location saved','ok');
+  } catch(e){ if(!e._handled) toast('Network error saving location','err'); }
 }
 
 // ── NEW SHOP ──
@@ -501,25 +610,37 @@ async function createShop(){
   const city=document.getElementById('ns-city').value;
   const type=document.getElementById('ns-type').value;
   const zoneId=document.getElementById('ns-zone').value;
-  if (!name) return alert('Shop name is required');
+  if (!name){ toast('Shop name is required','err'); return; }
   const payload={ name, city, customerType:type, phone };
   if (zoneId) payload.zoneId=parseInt(zoneId);
   try {
-    const r = await fetch('/api/field/customers', { method:'POST', credentials:'same-origin',
+    const {ok,data} = await apiFetch('/api/field/customers', { method:'POST',
       headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    const d = await r.json();
-    if (!r.ok){ alert('Error: '+(d.error||'Could not create shop')); return; }
-    state.customers.push({ id:d.id, name:d.name||name, code:d.code||'', customer_type:d.customer_type||type });
+    if (!ok){ toast(data.error||'Could not create shop','err'); return; }
+    state.customers.push({ id:data.id, name:data.name||name, code:data.code||'', customer_type:data.customer_type||type });
     populateDropdowns();
-    document.getElementById('order-customer').value=d.id;
+    document.getElementById('order-customer').value=data.id;
     cancelNewShop();
     onCustomerChange();
-  } catch(e){ alert('Network error: '+e.message); }
+    toast('Shop added','ok');
+  } catch(e){ if(!e._handled) toast('Network error. Try again.','err'); }
 }
 
 // ── ROUTE ──
+async function retryLoad(){
+  const container=document.getElementById('route-list');
+  if(container) container.innerHTML='<div class="card"><div style="text-align:center;color:var(--text-2);padding:22px">Loading…</div></div>';
+  await loadAppData(); renderRoute();
+}
 function renderRoute(){
   const container=document.getElementById('route-list');
+  if (state._loadFailed && !state.routes.length && !state.customers.length){
+    container.innerHTML='<div class="card"><div style="text-align:center;padding:28px;color:var(--text-2)">'
+      +'<div style="font-size:30px;margin-bottom:8px">⚠</div><div style="font-weight:600">Couldn’t load your data</div>'
+      +'<div style="font-size:12px;margin:6px 0 14px">Check your connection and try again.</div>'
+      +'<button class="btn btn-primary btn-sm" style="width:auto" onclick="retryLoad()">Retry</button></div></div>';
+    updateKPIs(0,0,0,0); return;
+  }
   if (!state.routes.length){
     container.innerHTML='<div class="card"><div style="text-align:center;padding:30px;color:var(--text-2)">'
       +'<div style="font-size:34px;margin-bottom:10px">◎</div><div style="font-weight:600">No route assigned yet</div>'
@@ -582,49 +703,82 @@ function updateItemPrice(idx,val){ state.orderItems[idx].unitPrice=parseFloat(va
 function removeItem(idx){ state.orderItems.splice(idx,1); renderOrderItems(); }
 function recalcTotal(){ const t=state.orderItems.reduce((s,i)=>s+i.qty*i.unitPrice,0); document.getElementById('order-total').textContent='PKR '+t.toLocaleString(); }
 
-// ── PLACE ORDER (step 1) ──
-async function placeOrder(){
+// Validate the order form → {custId, total} or null (with a toast on failure).
+function _validateOrder(){
   const custId=document.getElementById('order-customer').value;
-  if (!custId) return alert('Please select a shop');
-  if (!state.orderItems.length) return alert('Add at least one product');
-  if (state.orderItems.filter(i=>i.unitPrice<=0).length) return alert('Enter a price for all items');
-  const total=state.orderItems.reduce((s,i)=>s+i.qty*i.unitPrice,0);
-  const payload={ order_source:'rep_assisted', customerId:parseInt(custId),
+  if (!custId){ toast('Please select a shop','err'); return null; }
+  if (!state.orderItems.length){ toast('Add at least one product','err'); return null; }
+  if (state.orderItems.filter(i=>i.unitPrice<=0).length){ toast('Enter a price for all items','err'); return null; }
+  return { custId, total: state.orderItems.reduce((s,i)=>s+i.qty*i.unitPrice,0) };
+}
+function _orderPayload(custId){
+  return withGeo({ order_source:'rep_assisted', customerId:parseInt(custId),
     notes:document.getElementById('order-notes').value.trim(),
     idempotency_key:'FLD-'+state.repId+'-'+Date.now(),
-    items:state.orderItems.map(i=>({variantId:i.variantId, qty:i.qty, unitPrice:i.unitPrice})) };
-  const btn=document.getElementById('order-submit-btn');
-  if (btn){ btn.disabled=true; btn.textContent='Placing…'; }
-  try {
-    const r=await fetch('/api/field/place-order',{ method:'POST', credentials:'same-origin',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    const d=await r.json();
-    if (!r.ok){ alert('Error: '+(d.error||'unknown')); return; }
-    state.todayOrders.push({id:d.orderId, total});
-    showOrderPlaced(d,total); clearOrder();
-  } catch(e){ alert('Network error: '+e.message); }
-  finally { if(btn){ btn.disabled=false; btn.textContent='Submit order'; } }
+    items:state.orderItems.map(i=>({variantId:i.variantId, qty:i.qty, unitPrice:i.unitPrice})) });
 }
-// ── GENERATE INVOICE (step 2) ──
+function _busy(id, on, label){ const b=document.getElementById(id); if(b){ b.disabled=on; b.textContent=label; } }
+
+// ── ONE-TAP: SUBMIT & INVOICE (the default) ──
+async function submitAndInvoice(){
+  const v=_validateOrder(); if(!v) return;
+  await freshGeo();
+  const payload=_orderPayload(v.custId);
+  _busy('order-submit-btn', true, 'Submitting…'); _busy('order-book-btn', true, 'Save as order (invoice later)');
+  try {
+    const {ok,data}=await apiFetch('/api/field/place-invoice',{ method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    if (!ok){ toast(data.error||'Could not submit the order','err'); return; }
+    state.todayOrders.push({id:data.orderId, total:v.total});
+    if (data.invoiced===false){
+      // Order saved but not invoiced (stock short / credit) — degrade to a booking.
+      showOrderPlaced(data, v.total, data.invoiceError||'Stock not available yet');
+    } else {
+      showInvoiceResult(data);
+    }
+    clearOrder();
+  } catch(e){ if(!e._handled) toast('Network error. Try again.','err'); }
+  finally { _busy('order-submit-btn', false, 'Submit & invoice'); _busy('order-book-btn', false, 'Save as order (invoice later)'); }
+}
+
+// ── SAVE AS ORDER ONLY (booking; invoice later) ──
+async function placeOrder(){
+  const v=_validateOrder(); if(!v) return;
+  await freshGeo();
+  const payload=_orderPayload(v.custId);
+  _busy('order-book-btn', true, 'Saving…'); _busy('order-submit-btn', true, 'Submit & invoice');
+  try {
+    const {ok,data}=await apiFetch('/api/field/place-order',{ method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    if (!ok){ toast(data.error||'Could not save the order','err'); return; }
+    state.todayOrders.push({id:data.orderId, total:v.total});
+    showOrderPlaced(data, v.total); clearOrder();
+  } catch(e){ if(!e._handled) toast('Network error. Try again.','err'); }
+  finally { _busy('order-book-btn', false, 'Save as order (invoice later)'); _busy('order-submit-btn', false, 'Submit & invoice'); }
+}
+
+// ── GENERATE INVOICE (from a saved booking) ──
 async function generateInvoice(orderId, btnEl){
   if (btnEl){ btnEl.disabled=true; btnEl.textContent='Generating…'; }
   try {
-    const r=await fetch('/api/field/orders/'+orderId+'/invoice',{ method:'POST', credentials:'same-origin',
+    const {ok,data}=await apiFetch('/api/field/orders/'+orderId+'/invoice',{ method:'POST',
       headers:{'Content-Type':'application/json'}, body:'{}' });
-    const d=await r.json();
-    if (!r.ok){ alert('Could not invoice: '+(d.error||'unknown')+'\n\nThe order is saved — you can invoice it once stock is available.');
+    if (!ok){ toast('Could not invoice: '+(data.error||'stock not available yet')+' — the order is saved, try again later.','err');
       if(btnEl){ btnEl.disabled=false; btnEl.textContent='🧾 Generate invoice'; } return; }
-    showInvoiceResult(d);
-  } catch(e){ alert('Network error: '+e.message); if(btnEl){ btnEl.disabled=false; btnEl.textContent='🧾 Generate invoice'; } }
+    showInvoiceResult(data);
+  } catch(e){ if(!e._handled){ toast('Network error. Try again.','err'); if(btnEl){ btnEl.disabled=false; btnEl.textContent='🧾 Generate invoice'; } } }
 }
-function showOrderPlaced(d,total){
+function showOrderPlaced(d,total,stockNote){
   const box=document.getElementById('order-result'); if(!box) return;
   const ordNum=d.orderNumber||('Order #'+d.orderId);
   const oor=d.outOfRoute?'<div style="color:var(--chili);font-size:11.5px;margin-top:7px">⚠ Out of your route — flagged for the office.</div>':'';
+  const note=stockNote
+    ? '<div class="success-hint" style="color:var(--chili)">'+escH(stockNote)+' — order saved. Invoice it once stock is ready.</div>'
+    : '<div class="success-hint">Order saved. Generate the invoice when you’re ready.</div>';
   box.className='card success-card'; box.style.border='2px solid var(--terra)'; box.style.display='block';
   box.innerHTML='<div class="success-check" style="background:var(--terra)">✓</div>'
     +'<div class="success-inv">'+escH(ordNum)+'</div><div class="success-total">PKR '+Number(total).toLocaleString()+'</div>'
-    +'<div class="success-hint">Order saved. Generate the invoice when you’re ready.</div>'+oor
+    +note+oor
     +'<button class="btn btn-success" style="margin-top:16px" onclick="generateInvoice('+d.orderId+', this)">🧾 Generate invoice</button>'
     +'<button class="btn btn-secondary" onclick="hideOrderResult()">New order</button>';
   box.scrollIntoView({behavior:'smooth', block:'center'});
@@ -644,13 +798,14 @@ function hideOrderResult(){ const box=document.getElementById('order-result'); i
 async function shareInvoicePdf(invId, invNum){
   try {
     const r=await fetch('/api/invoices/'+invId+'/pdf', { credentials:'same-origin' });
-    if (!r.ok){ alert('Could not fetch the invoice PDF.'); return; }
+    if (r.status===401){ sessionExpired(); return; }
+    if (!r.ok){ toast('Could not fetch the invoice PDF','err'); return; }
     const blob=await r.blob(); const fname=(invNum||('invoice-'+invId))+'.pdf';
     const file=new File([blob], fname, {type:'application/pdf'});
     if (navigator.canShare && navigator.canShare({files:[file]})) { await navigator.share({files:[file], title:fname, text:'Your Spicetopia invoice'}); }
     else { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=fname;
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); }
-  } catch(e){ if(e && e.name!=='AbortError') alert('Share error: '+e.message); }
+  } catch(e){ if(e && e.name!=='AbortError') toast('Share error: '+e.message,'err'); }
 }
 function clearOrder(){
   state.orderItems=[]; state.selectedCustType='RETAIL';
@@ -658,6 +813,7 @@ function clearOrder(){
   document.getElementById('order-notes').value='';
   document.getElementById('order-product').value='';
   document.getElementById('cust-info').style.display='none';
+  const gr=document.getElementById('geo-row'); if(gr) gr.style.display='none';
   renderOrderItems();
 }
 
@@ -666,17 +822,20 @@ async function submitVisit(){
   const custId=document.getElementById('visit-customer').value;
   const outcome=document.getElementById('visit-outcome').value;
   const notes=document.getElementById('visit-notes').value.trim();
-  if (!custId) return alert('Please select a shop');
-  const payload={ repId:state.repId, routeId:state.routes[0]?.id||null, customerId:parseInt(custId), outcome, notes };
+  if (!custId){ toast('Please select a shop','err'); return; }
+  await freshGeo();
+  const payload=withGeo({ repId:state.repId, routeId:state.routes[0]?.id||null, customerId:parseInt(custId), outcome, notes });
   try {
-    const r=await fetch('/api/beat-visits',{ method:'POST', credentials:'same-origin',
+    const {ok,data}=await apiFetch('/api/beat-visits',{ method:'POST',
       headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    const d=await r.json();
-    if (!r.ok){ alert('Error: '+(d.error||'unknown')); return; }
+    if (!ok){ toast(data.error||'Could not log the visit','err'); return; }
     state.todayVisits.push({customer_id:parseInt(custId), outcome});
+    // A geo-stamped visit sets the shop's pin if it had none — reflect it locally.
+    if (state.geo){ const cu=state.customers.find(c=>c.id==custId); if(cu && !_hasLoc(cu)){ cu.lat=state.geo.lat; cu.lng=state.geo.lng; } }
     document.getElementById('visit-customer').value=''; document.getElementById('visit-notes').value='';
     renderVisitLog(); renderRoute();
-  } catch(e){ alert('Network error: '+e.message); }
+    toast('Visit logged','ok');
+  } catch(e){ if(!e._handled) toast('Network error. Try again.','err'); }
 }
 function renderVisitLog(){
   const container=document.getElementById('visit-log-list');
@@ -700,12 +859,13 @@ async function loadProfile(){
 }
 async function changePin(){
   const pin=document.getElementById('new-pin').value.trim();
-  if (pin.length!==4 || !/^\d+$/.test(pin)) return alert('PIN must be exactly 4 digits');
-  const r=await fetch('/api/reps/'+state.repId,{ method:'PUT', credentials:'same-origin',
-    headers:{'Content-Type':'application/json'}, body:JSON.stringify({pin}) });
-  const d=await r.json();
-  if (!r.ok) return alert('Error: '+(d.error||'unknown'));
-  document.getElementById('new-pin').value=''; alert('PIN updated');
+  if (pin.length!==4 || !/^\d+$/.test(pin)){ toast('PIN must be exactly 4 digits','err'); return; }
+  try {
+    const {ok,data}=await apiFetch('/api/reps/'+state.repId,{ method:'PUT',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({pin}) });
+    if (!ok){ toast(data.error||'Could not update PIN','err'); return; }
+    document.getElementById('new-pin').value=''; toast('PIN updated','ok');
+  } catch(e){ if(!e._handled) toast('Network error. Try again.','err'); }
 }
 
 // ── NAV ──
@@ -716,15 +876,16 @@ function switchTab(tab){
   document.getElementById('tab-'+tab).classList.add('active');
   if (tab==='profile') loadProfile();
   if (tab==='log') renderVisitLog();
-  if (tab==='order' && !state.orderItems.length) renderOrderItems();
+  if (tab==='order'){ if(!state.orderItems.length) renderOrderItems(); freshGeo(); }
   window.scrollTo(0,0);
 }
 
 // ── FIRST-RUN TOUR ──
 const TOUR=[
-  {ic:'👋', h:'Welcome', p:'Take an order in a few taps: pick the shop, add products, submit, then make the invoice and send it on WhatsApp.'},
+  {ic:'👋', h:'Welcome', p:'Take an order in a few taps: pick the shop, add products, then tap “Submit & invoice”. The invoice is made on the spot.'},
   {ic:'🏪', h:'New shop on the spot', p:'Shop not in the list? Tap “＋ New shop” to add it right away, then keep taking the order.'},
-  {ic:'📄', h:'Invoice & WhatsApp', p:'After you submit, tap “Generate invoice”, then “Send on WhatsApp” to share the bill with the shop.'},
+  {ic:'📍', h:'Save the shop’s spot', p:'Standing in the shop? Tap “Save this shop’s location” once so the office knows where it is. Allow location when your phone asks.'},
+  {ic:'📄', h:'Invoice & WhatsApp', p:'After “Submit & invoice”, tap “Send on WhatsApp” to share the bill. No stock yet? Use “Save as order” and invoice later.'},
 ];
 let _tourI=0;
 function openTour(){ _tourI=0; renderTour(); document.getElementById('tour').classList.remove('hidden'); }

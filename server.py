@@ -3850,6 +3850,23 @@ class Handler(BaseHTTPRequestHandler):
                     send_error(self, str(e), 400)
                 return
 
+            # ── FIELD APP — POST /api/field/shop-location  (field rep session) ──
+            # Capture a shop's GPS coordinate (Track B / B1). Body: {customerId, lat, lng, accuracy?}.
+            if path == '/api/field/shop-location':
+                fsess = _get_field_session(self, qs)
+                if not fsess:
+                    send_json(self, {'error': 'Field rep session required'}, 401); return
+                try:
+                    result = set_shop_location(
+                        int(data.get('customerId') or 0),
+                        data.get('lat'), data.get('lng'),
+                        data.get('accuracy') if data.get('accuracy') is not None else data.get('geo_accuracy_m'),
+                        force=bool(data.get('force')))
+                    send_json(self, result)
+                except ValueError as e:
+                    send_error(self, str(e), 400)
+                return
+
             # ── FIELD APP — POST /api/field/place-invoice  (field rep session) ──
             # One-tap: create rep_assisted order → confirm → invoice via the standard
             # engine (inventory + sales/dashboard COGS + AR all update). No review queue.
@@ -6154,7 +6171,7 @@ if __name__ == '__main__':
         ensure_cost_lines, ensure_wo_produced_units, ensure_ingredient_target_grams,
         ensure_batch_stages, ensure_rep_app_access, ensure_customer_gst,
         ensure_drop_qty_in_production, ensure_bill_vendor_capture, ensure_ledger_po_link,
-        ensure_purchase_in_po_trigger, ensure_po_line_types,
+        ensure_purchase_in_po_trigger, ensure_po_line_types, ensure_shop_geo,
         backfill_customer_account_numbers,
     ):
         try:

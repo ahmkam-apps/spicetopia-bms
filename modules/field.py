@@ -502,11 +502,30 @@ def record_advance(rep_id, data):
 #  BEAT VISITS
 # ─────────────────────────────────────────────────────────────────
 
+def _coerce_geo(data):
+    """Pull optional lat/lng/accuracy from a request payload → (lat, lng, acc) floats
+    or (None, None, None) if absent/invalid. Used to geo-stamp visits and orders."""
+    def _f(v):
+        if v in (None, ''):
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+    lat = _f(data.get('lat'))
+    lng = _f(data.get('lng'))
+    acc = _f(data.get('accuracy') if data.get('accuracy') is not None else data.get('geo_accuracy_m'))
+    if lat is None or lng is None or not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        return None, None, None
+    return lat, lng, acc
+
+
 def record_beat_visit(data):
     """Log a beat visit. Required: repId, customerId. routeId OPTIONAL — a rep can
     log a visit to any shop even if it isn't on a formal route (route_id 0 = none).
-    Optional: visitDate (YYYY-MM-DD, default today), outcome (default 'visited'), notes.
-    """
+    Optional: visitDate (YYYY-MM-DD, default today), outcome (default 'visited'), notes,
+    and lat/lng/accuracy (geo-stamp — Track B). If the shop has no coordinate yet, the
+    first geo-stamped visit also sets the shop's location (first visit = the pin)."""
     rep_id     = data.get('repId')
     route_id   = data.get('routeId') or 0
     cust_id    = data.get('customerId')
@@ -515,16 +534,33 @@ def record_beat_visit(data):
     notes      = data.get('notes', '')
     if not rep_id or not cust_id:
         raise ValueError("repId and customerId are required")
+    lat, lng, acc = _coerce_geo(data)
     c = _conn()
     try:
-        c.execute("""
-            INSERT INTO beat_visits (rep_id, route_id, customer_id, visit_date, outcome, payment_collected, notes)
-            VALUES (?,?,?,?,?,?,?)
-        """, (int(rep_id), int(route_id), int(cust_id), visit_date, outcome, 0, notes))
+        cols = [r[1] for r in c.execute("PRAGMA table_info(beat_visits)").fetchall()]
+        if 'lat' in cols:
+            c.execute("""
+                INSERT INTO beat_visits (rep_id, route_id, customer_id, visit_date, outcome,
+                                         payment_collected, notes, lat, lng, geo_accuracy_m)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+            """, (int(rep_id), int(route_id), int(cust_id), visit_date, outcome, 0, notes,
+                  lat, lng, acc))
+        else:
+            c.execute("""
+                INSERT INTO beat_visits (rep_id, route_id, customer_id, visit_date, outcome, payment_collected, notes)
+                VALUES (?,?,?,?,?,?,?)
+            """, (int(rep_id), int(route_id), int(cust_id), visit_date, outcome, 0, notes))
         c.commit()
         visit_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         c.close()
+    # Opportunistic: first geo-stamped visit sets the shop's location if it has none.
+    if lat is not None:
+        try:
+            from modules.customers import set_shop_location
+            set_shop_location(int(cust_id), lat, lng, acc, force=False)
+        except Exception:
+            pass
     save_db()
     return qry1("SELECT * FROM beat_visits WHERE id=?", (visit_id,))
 
@@ -1277,9 +1313,33 @@ def verify_field_otp(phone, code):
 #  FIELD REP: ONE-TAP ORDER → INVOICE (on-the-spot, no review queue)
 # ─────────────────────────────────────────────────────────────────
 
+def _stamp_order_geo(order_id, data):
+    """Geo-stamp a customer_order from a field payload (Track B) and, if the shop has no
+    coordinate yet, set the shop location from where the order was taken. Best-effort:
+    never raises (a geo failure must not fail an order)."""
+    lat, lng, acc = _coerce_geo(data)
+    if lat is None:
+        return
+    try:
+        cols = [r['name'] for r in qry("PRAGMA table_info(customer_orders)")]
+        if 'lat' in cols:
+            run("UPDATE customer_orders SET lat=?, lng=?, geo_accuracy_m=? WHERE id=?",
+                (lat, lng, acc, order_id))
+    except Exception:
+        pass
+    try:
+        cust = qry1("SELECT customer_id FROM customer_orders WHERE id=?", (order_id,))
+        if cust and cust.get('customer_id'):
+            from modules.customers import set_shop_location
+            set_shop_location(int(cust['customer_id']), lat, lng, acc, force=False)
+    except Exception:
+        pass
+
+
 def field_place_and_invoice(data, rep_id):
-    """Field-rep one-tap: create a rep_assisted customer order, confirm it, and
-    invoice ALL lines through the standard engine (orders.generate_invoice_from_order).
+    """Field-rep one-tap (the DEFAULT action): create a rep_assisted customer order,
+    confirm it, and invoice ALL lines through the standard engine
+    (orders.generate_invoice_from_order).
 
     This routes field-app sales through the SAME pipe as the B2B portal, so a single
     action correctly updates: finished-goods inventory (decremented), the sales table
@@ -1288,8 +1348,11 @@ def field_place_and_invoice(data, rep_id):
     finished-goods availability (blocks overselling) and the customer credit limit, so
     removing human review does NOT remove those guards.
 
-    Returns invoice refs so the app can download the PDF. Lazy imports from
-    modules.orders avoid a circular import at module load."""
+    Graceful fallback: if invoicing fails (e.g. finished goods short), the ORDER is
+    preserved and this returns {invoiced: False, orderId, ...} instead of raising, so
+    the one-tap button degrades to a saved booking the rep can invoice later once stock
+    is made — no lost order, no scary error. Lazy imports from modules.orders avoid a
+    circular import at module load."""
     from modules.orders import (create_customer_order_external,
                                  confirm_customer_order,
                                  generate_invoice_from_order)
@@ -1302,25 +1365,40 @@ def field_place_and_invoice(data, rep_id):
     order_id = order.get('orderId') or order.get('id')
     if not order_id:
         raise ValueError("Order creation failed")
+    _stamp_order_geo(order_id, payload)
 
-    confirm_customer_order(order_id)
+    order_number = order.get('orderNumber') or order.get('order_number')
+    out_of_route = bool(order.get('outOfRoute', False))
 
-    items = qry("SELECT id, qty_ordered FROM customer_order_items WHERE order_id=?", (order_id,))
-    lines = [{'orderItemId': it['id'], 'qty': it['qty_ordered']} for it in items]
-    if not lines:
-        raise ValueError("Order has no items to invoice")
+    try:
+        confirm_customer_order(order_id)
+        items = qry("SELECT id, qty_ordered FROM customer_order_items WHERE order_id=?", (order_id,))
+        lines = [{'orderItemId': it['id'], 'qty': it['qty_ordered']} for it in items]
+        if not lines:
+            raise ValueError("Order has no items to invoice")
+        inv = generate_invoice_from_order(order_id, {
+            'lines':       lines,
+            'invoiceDate': payload.get('orderDate') or str(date.today()),
+        })
+    except ValueError as e:
+        # Booking succeeded, invoicing did not (usually FG short / credit) → keep the
+        # order, tell the app it can invoice later. NOT an error the rep should fear.
+        return {
+            'orderId':      order_id,
+            'orderNumber':  order_number,
+            'invoiced':     False,
+            'invoiceError': str(e),
+            'outOfRoute':   out_of_route,
+        }
 
-    inv = generate_invoice_from_order(order_id, {
-        'lines':       lines,
-        'invoiceDate': payload.get('orderDate') or str(date.today()),
-    })
     return {
         'orderId':       order_id,
-        'orderNumber':   order.get('orderNumber') or order.get('order_number'),
+        'orderNumber':   order_number,
+        'invoiced':      True,
         'invoiceId':     inv.get('invoiceId'),
         'invoiceNumber': inv.get('invoiceNumber'),
         'total':         inv.get('total'),
-        'outOfRoute':    bool(order.get('outOfRoute', False)),
+        'outOfRoute':    out_of_route,
     }
 
 
@@ -1328,7 +1406,7 @@ def field_place_order(data, rep_id):
     """Field-rep: PLACE an order only (a booking) — creates a rep_assisted customer
     order and stops. Does NOT confirm, invoice, or touch inventory, so it always
     succeeds even when finished-goods stock is zero. Invoice it afterwards via
-    field_invoice_order (or later in the ERP)."""
+    field_invoice_order (or later in the ERP). Geo-stamps the order if coords are sent."""
     from modules.orders import create_customer_order_external
     payload = dict(data or {})
     payload['order_source'] = 'rep_assisted'
@@ -1338,6 +1416,7 @@ def field_place_order(data, rep_id):
     order_id = order.get('orderId') or order.get('id')
     if not order_id:
         raise ValueError("Order creation failed")
+    _stamp_order_geo(order_id, payload)
     return {
         'orderId':     order_id,
         'orderNumber': order.get('orderNumber') or order.get('order_number'),
