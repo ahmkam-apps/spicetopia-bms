@@ -1293,9 +1293,12 @@ const HELP = {
     { t:'Finding your way', b:'On any screen, click <b>? Help</b> (top right) for a quick tour of just that module and where it sits in this chain. Press <b>⌘/Ctrl + K</b> anywhere to jump to any screen.' }
   ],
   dashboard: [
-    { t:'Dashboard — your daily pulse', b:'A live snapshot of the business: sales today, money owed to you (AR), low/out-of-stock alerts, and orders waiting to be reviewed.' },
-    { t:'Use it to triage', b:'Start your day here. Anything flagged — orders to review, low stock, overdue money — is your to-do list. Click through to the relevant screen to act.' },
-    { t:'Where it fits', b:'The Dashboard is a read-only mirror — you act in the underlying modules, and it reflects the result.', flow:{ inn:['Reads from Sales, Receipts & AR, Inventory, Review queue'], out:['Links you into each module to take action'] } }
+    { t:'Dashboard — your command center', b:'The one landing page after you log in. A live snapshot of the whole business, organised into four tabs so you can read it at a glance.' },
+    { t:'The four tabs', b:'', list:['<b>Quick Glance</b> — three area summaries (Financial · Sales · Production) plus “Needs you today” and a revenue trend','<b>Sales</b> — today & this month, top products, top customers','<b>Operations</b> — what’s made, what’s in progress, raw-material tanks, work orders, finished goods','<b>Financial</b> — revenue, profit, costs and a P&L, by month or year'] },
+    { t:'Read the tanks & tiles', b:'On <b>Operations</b>, each raw material is a fuel tank — green good, amber low, red below reorder — worst first. Tiles and charts everywhere are clickable: tap through to the module to act.' },
+    { t:'Show money in Rs. or $', b:'Use the <b>Rs. / $</b> toggle (top right) to view dashboard figures in dollars. This is display-only — it never changes invoices, prices or accounting. Set the rate once with the ✎ next to $.' },
+    { t:'Empty before launch? Add demo data', b:'Pre-launch there are no sales yet, so the dashboard looks empty. In <b>System</b>, use <b>Seed demo data</b> to fill it with realistic activity so you can see how it looks — then <b>Clear demo data</b> (or the Launch Reset) before you go live.' },
+    { t:'Where it fits', b:'The Dashboard is a read-only mirror — you act in the underlying modules and it reflects the result.', flow:{ inn:['Reads from Sales, Receipts & AR, Inventory, Production, Purchasing'], out:['Links you into each module to take action'] } }
   ],
   'orders-invoices': [
     { t:'Orders & Invoices — the sales desk', b:'Take customer orders and turn them into invoices. The Orders tab is the pipeline; the Invoices tab is what has been billed.' },
@@ -1333,9 +1336,117 @@ const HELP = {
     { t:'Where it fits', b:'', flow:{ inn:['Suppliers (master data)','Ingredient needs (e.g. a production shortfall or a plan)'], out:['Supplier Bill → AP Payment → AP aging','Received goods → raw-material Inventory'] } }
   ],
   bills: [
-    { t:'Supplier Bills — money going out', b:'What you owe suppliers, and paying it down.' },
-    { t:'Bill → Paid', b:'A bill usually comes from a Purchase Order. Record AP payments against it; status is derived from what’s paid, and AP aging shows what’s outstanding.' },
-    { t:'Where it fits', b:'', flow:{ inn:['Purchase Orders'], out:['AP Payments settle bills','AP aging tracks what you owe'] } }
+    { t:'Supplier Bills — money going out', b:'What you owe suppliers, and paying it down. Each bill is backed by the real vendor invoice.' },
+    { t:'Bill → Paid', b:'A bill usually comes from a Purchase Order (received goods). Capture the vendor invoice — expected vs billed shows any variance — then record AP payments against it. Status is derived from what’s paid; you never set “paid” by hand.' },
+    { t:'Capture the vendor invoice', b:'Open a bill and use the <b>Vendor Invoice</b> panel to enter the actual billed amount and attach a scan of the supplier’s invoice. This is what drives Accounts Payable.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Purchase Orders (goods received)','A manual bill auto-creates its PO'], out:['AP Payments settle bills','AP Aging tracks what you owe'] } }
+  ],
+  'field-orders': [
+    { t:'Field Orders — orders from your reps', b:'Orders taken by reps on the phone app while visiting shops. This screen lists them so you can see field activity from the desktop.' },
+    { t:'How a field order flows', b:'The rep places the order in the phone app and can raise the invoice on the spot. It uses the same engine as B2B orders — reserving stock, drawing down finished goods and posting the sale — so it shows up in Inventory and the Dashboard like any other sale.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Reps on the /app phone app','Customers (shops) they visit'], out:['Invoice → Receipts & AR','Draws down finished-goods Inventory'] } }
+  ],
+  'review-queue': [
+    { t:'Review Queue — approve incoming orders', b:'Orders that arrive from the website (and some rep channels) land here first, holding stock softly, until you approve or reject them.' },
+    { t:'Approve or reject', b:'Open an order, check the customer, items and quantities. <b>Approve</b> moves it into the normal order flow (ready to invoice); <b>Reject</b> releases the held stock. You can also approve with edited quantities.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Website / consumer orders','Rep-submitted orders needing a check'], out:['Approved → Orders & Invoices','Rejected → stock released'] } }
+  ],
+  'ap-payments': [
+    { t:'Payments — paying suppliers', b:'Record what you pay suppliers and allocate it against their open bills.' },
+    { t:'Record & allocate', b:'Pick the supplier, enter the amount and method, then allocate it across their unpaid bills. Bill status updates automatically from what’s paid.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Supplier Bills'], out:['Settled bills clear from AP Aging'] } }
+  ],
+  'ap-aging': [
+    { t:'AP Aging — what you owe, by age', b:'A prioritised list of unpaid supplier bills, grouped by how overdue they are.' },
+    { t:'Use it to plan payments', b:'Oldest first is usually your priority. Click through to record a payment against a bill.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Unpaid Supplier Bills'], out:['Pay via Payments → bills clear'] } }
+  ],
+  'pl-report': [
+    { t:'P&L Report — profit and loss', b:'Revenue, cost of goods sold, gross profit and operating costs over a period, so you can see whether the business made money.' },
+    { t:'Reading it', b:'Gross profit = Revenue − COGS. Net profit also subtracts operating costs (the monthly labour/utilities/overhead you record). Pick the period to compare months.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Sales (revenue & COGS)','Operating costs you record'], out:['A read-only report — no actions taken here'] } }
+  ],
+  margins: [
+    { t:'Margin Report — gross margin by product', b:'How much profit each product earns as a percentage, so you can spot thin or losing lines.' },
+    { t:'Reading it', b:'Margin % = (selling price − cost to make) ÷ selling price. A low or negative margin means raise the price or lower the cost — do it in Prices & Costs.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Selling prices & cost to make (Prices & Costs)'], out:['Guides pricing decisions'] } }
+  ],
+  'rep-performance': [
+    { t:'Rep Performance — sales by rep', b:'How much each rep has sold over a period — volume and revenue.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Sales linked to the rep who took the order'], out:['Informs coaching, territory and (later) payroll'] } }
+  ],
+  'prices-costs': [
+    { t:'Prices & Costs — one place for money', b:'You land on the <b>Overview</b>: a 🟢/🔴 verdict per product (making money or margin too low), with cost, price and what you keep. Deeper detail lives under tabs.' },
+    { t:'Set up your costs', b:'In the Overview editor, enter cost as ₨ per pack (packaging, making cost, overhead) and markups as plain %. A live example shows the resulting price and margin before you save.' },
+    { t:'Cost to make', b:'Cost to make a pack = Ingredients (from the recipe × today’s ingredient prices, usually ~80%) + Packaging + Making cost + Overhead. Update an ingredient’s price and every product using it recalculates.' },
+    { t:'Prices vs. cost', b:'Costing tells you the margin; selling prices are set by the market in the price book. The Overview verdict measures against your <b>actual</b> selling price, not a theoretical one.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Recipe (BOM) + ingredient prices','Operating costs (for making/overhead rates)'], out:['Margins report','Cost feeds COGS on the Dashboard & P&L'] } }
+  ],
+  products: [
+    { t:'Products — your catalogue', b:'Your products and their pack sizes (SKUs), e.g. Chaat Masala 50g / 100g.' },
+    { t:'Add & manage', b:'Create a product with a code and name, then add each size as a variant. Toggle a SKU <b>Live</b> to show it on the website/phone app.' },
+    { t:'Where it fits', b:'Products are master data — orders, invoices, recipes and pricing all reference them.', flow:{ inn:['You set them up here'], out:['Used by Orders, Production, Prices & Costs'] } }
+  ],
+  customers: [
+    { t:'Customers — who you sell to', b:'Shops and accounts you sell to, their contact details, terms, and whether GST applies.' },
+    { t:'Add & manage', b:'New customer → name, phone, city, type (Retail/Wholesale/Direct). Tick “Charge GST” for GST-registered customers (it’s off by default).' },
+    { t:'Where it fits', b:'', flow:{ inn:['You add them here (or a rep adds a shop on the app)'], out:['Used by Orders, Invoices, Receipts & AR'] } }
+  ],
+  suppliers: [
+    { t:'Suppliers — who you buy from', b:'The vendors you buy raw materials and packaging from.' },
+    { t:'Add & manage', b:'Add a supplier with name and contact. You can also add one on the fly while raising a PO or entering a bill.' },
+    { t:'Where it fits', b:'', flow:{ inn:['You add them here'], out:['Used by Purchase Orders, Supplier Bills, Payments'] } }
+  ],
+  'sales-reps': [
+    { t:'Team — your phone-app staff', b:'The people who use the phone app: sales reps and production floor staff. This is about identity and access, not pay.' },
+    { t:'Add a team member', b:'Add them with a name, phone and PIN — that’s their login for the /app phone launcher.' },
+    { t:'Grant app access', b:'On each person’s row, turn on 🛍 <b>Sales</b> (take orders in the field) and/or 🏭 <b>Production</b> (run batches on the floor). One phone + PIN, the tiles they see depend on these toggles.' },
+    { t:'Where it fits', b:'Pay & commission are handled separately (Payroll, post-launch).', flow:{ inn:['You set up people & access here'], out:['They log in at /app → Sales and/or Production'] } }
+  ],
+  'zones-routes': [
+    { t:'Zones & Routes — your territory', b:'Zones are areas (e.g. a part of Karachi); routes are the beats within them. Customers and reps are mapped to zones.' },
+    { t:'Why it matters', b:'Zones drive rep coverage and forecasting. A rep can cover more than one zone; an order to a shop outside a rep’s zones is flagged as out-of-route.' },
+    { t:'Where it fits', b:'', flow:{ inn:['You define areas here'], out:['Used by Customers, Team (reps), Planning forecasts'] } }
+  ],
+  'ingredients-admin': [
+    { t:'Ingredients — the raw-material master', b:'The list of spices and materials, each with a code, name and cost per kg. Stock lives in Inventory; this is the master record and price.' },
+    { t:'Editing prices', b:'Update an ingredient’s cost per kg here (or from Prices & Costs) — all product costs that use it recalculate. Cost is always per kg.' },
+    { t:'Where it fits', b:'', flow:{ inn:['You maintain the list & prices'], out:['Recipes (BOM) reference these','Cost to make reads their prices'] } }
+  ],
+  bom: [
+    { t:'BOM (Formula) — the secret recipe', b:'The Bill of Materials: exactly how many grams of each ingredient go into a batch of each product. This is confidential and access-gated.' },
+    { t:'Setting it up', b:'Pick the product, set the batch size, and enter each ingredient and grams per batch. Costing and the buy-list calculations use this — but the quantities are never shown to floor staff or on the phone app.' },
+    { t:'Where it fits', b:'Keep this gated — it’s the core IP.', flow:{ inn:['Ingredients (master)'], out:['Cost to make','Production buy-list & consumption'] } }
+  ],
+  users: [
+    { t:'User Management — back-office logins', b:'The people who log into the desktop ERP with a username and password (owner, admin, accountant, etc.). Different from the phone-app Team.' },
+    { t:'Roles & permissions', b:'Give a user a role, or tick exactly which areas they can use (e.g. Costing, Planning, Recipe). Grant only what they need.' },
+    { t:'Access takes effect next login', b:'Permission and role changes apply the next time that person logs in — not instantly.' },
+    { t:'Where it fits', b:'', flow:{ inn:['You create logins & grant access here'], out:['Controls what each person can open across the ERP'] } }
+  ],
+  payroll: [
+    { t:'Payroll — paying your staff', b:'Runs payroll for your team. (Pay is deliberately kept out of the Team/access screen.)' },
+    { t:'Where it fits', b:'A fuller Payroll/HR module comes when you hire beyond family. For now it records pay runs.', flow:{ inn:['Team members'], out:['Pay records'] } }
+  ],
+  'master-data': [
+    { t:'Data Import — bulk load', b:'Load lots of records at once from a CSV/XLSX file — e.g. a customer list or an ingredient price update — instead of typing them one by one.' },
+    { t:'Use with care', b:'Match your file’s columns to the template. Imports upsert by code (update if it exists, add if new). Take a backup first for big loads.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Your prepared CSV/XLSX'], out:['Creates/updates Customers, Ingredients, Prices, etc.'] } }
+  ],
+  recipes: [
+    { t:'Cooking Recipes — website content', b:'Cooking recipes shown on your consumer website (how to use the masala) — marketing content, NOT the secret formula.' },
+    { t:'Add & manage', b:'Create a recipe with steps, ingredients and a photo, then publish it. It appears on the public recipes page.' },
+    { t:'Where it fits', b:'', flow:{ inn:['You write them here'], out:['Published to the consumer website'] } }
+  ],
+  audit: [
+    { t:'Audit Log — the change history', b:'A record of who changed what and when across the system — a trail you can review if a number looks wrong.' },
+    { t:'Where it fits', b:'', flow:{ inn:['Actions across every module'], out:['Read-only history for review'] } }
+  ],
+  system: [
+    { t:'System — settings & data safety', b:'Housekeeping: settings, backups, demo data, and the launch reset.' },
+    { t:'Demo data & launch reset', b:'Use <b>Seed demo data</b> to fill the Dashboard with realistic activity before launch, and <b>Clear demo data</b> to undo it. The <b>Launch Reset</b> wipes all test transactions so you start clean on day one — take a backup first.' },
+    { t:'Backups', b:'The system keeps rolling backups. Download a copy regularly and keep it off the server (e.g. OneDrive) so you always have an off-site copy.' },
+    { t:'Where it fits', b:'', flow:{ inn:['The whole database'], out:['Backups, demo data, a clean launch state'] } }
   ]
 };
 // ── Ask assistant (AI help guide) ──────────────────────────────
@@ -1515,6 +1626,8 @@ function _howToFilter() {
 
 let _helpKey = '_overview', _helpI = 0;
 function helpOpen(moduleId) {
+  if (moduleId === 'home') moduleId = 'dashboard';   // landing page id is 'home'; deck is 'dashboard'
+  if (moduleId === 'costs') moduleId = 'prices-costs';
   _helpKey = (moduleId && HELP[moduleId]) ? moduleId : '_overview';
   _helpI = 0;
   let ov = document.getElementById('erp-help');
@@ -1545,7 +1658,7 @@ function helpRender() {
     const colOut = '<div class="col"><div class="ch">Feeds out →</div><ul>' + (s.flow.out || []).map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
     flow = '<div class="eh-flow">' + colIn + colOut + '</div>';
   }
-  const HT = { dashboard:'Dashboard', 'orders-invoices':'Orders & Invoices', 'receipts-aging':'Receipts & AR', inventory:'Inventory', production:'Production', 'purchase-orders':'Purchase Orders', bills:'Supplier Bills' };
+  const HT = { dashboard:'Dashboard', 'orders-invoices':'Orders & Invoices', 'receipts-aging':'Receipts & AR', 'field-orders':'Field Orders', 'review-queue':'Review Queue', inventory:'Inventory', production:'Production', 'purchase-orders':'Purchase Orders', bills:'Supplier Bills', 'ap-payments':'Payments', 'ap-aging':'AP Aging', 'pl-report':'P&L Report', margins:'Margin Report', 'rep-performance':'Rep Performance', 'prices-costs':'Prices & Costs', products:'Products', customers:'Customers', suppliers:'Suppliers', 'sales-reps':'Team', 'zones-routes':'Zones & Routes', 'ingredients-admin':'Ingredients', bom:'BOM (Formula)', users:'User Management', payroll:'Payroll', 'master-data':'Data Import', recipes:'Cooking Recipes', audit:'Audit Log', system:'System' };
   const label = _helpKey === '_overview' ? 'How it all connects' : (HT[_helpKey] || _helpKey);
   ov.innerHTML = '<div class="eh-box">'
     + '<div class="eh-kick">' + label + ' · ' + (_helpI + 1) + ' of ' + deck.length + '</div>'
