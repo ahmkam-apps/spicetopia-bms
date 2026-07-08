@@ -1373,6 +1373,7 @@ const HELP = {
   ],
   'rep-performance': [
     { t:'Rep Performance — sales by rep', b:'How much each rep has sold over a period — volume and revenue.' },
+    { t:'Per-rep activity', b:'Click a rep’s name to drill into their month: stores visited (with a 📍 map link to where they were), products sold, orders & revenue vs target, route coverage, out-of-route flags, and a day-by-day log. Locations fill in as reps use the phone app.' },
     { t:'Where it fits', b:'', flow:{ inn:['Sales linked to the rep who took the order'], out:['Informs coaching, territory and (later) payroll'] } }
   ],
   'prices-costs': [
@@ -12089,7 +12090,7 @@ async function renderRepPerformance(period) {
 
     return `
       <tr>
-        <td><strong>${r.name}</strong><br><small style="color:#888">${r.employeeId || ''} · ${r.designation || 'Rep'}</small></td>
+        <td><a onclick="viewRepActivity(${r.repId},'${defaultPeriod}')" style="cursor:pointer;color:var(--saffron-deep,#B5532A);font-weight:700;text-decoration:underline">${r.name}</a><br><small style="color:#888">${r.employeeId || ''} · ${r.designation || 'Rep'}</small></td>
         <td style="text-align:center">
           <strong>${r.routeCoveragePct}%</strong>
           <small style="display:block;color:#888">${r.visitedCustomers}/${r.totalStops} stops</small>
@@ -12151,7 +12152,68 @@ async function renderRepPerformance(period) {
         </thead>
         <tbody>${repRows}</tbody>
       </table>
-    </div>`}`;
+      <div style="font-size:11px;color:var(--text-3);margin-top:8px">Tip: click a rep's name for their stores visited, products sold, and day-by-day activity.</div>
+    </div>`}
+    <div id="rep-activity" style="margin-top:20px"></div>`;
+}
+
+// ─── Rep activity drill-down (stores visited + location, products sold, days) ───
+function _mapsLink(lat, lng) {
+  if (lat == null || lng == null || lat === '' || lng === '') return '<span style="color:var(--text-3)">—</span>';
+  return `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener" style="color:var(--saffron-deep,#B5532A);font-weight:600;white-space:nowrap">📍 Map</a>`;
+}
+async function viewRepActivity(repId, period) {
+  const box = document.getElementById('rep-activity'); if (!box) return;
+  box.innerHTML = '<div class="card" style="padding:24px;color:var(--text-3)">Loading activity…</div>';
+  box.scrollIntoView({ behavior:'smooth', block:'start' });
+  let d;
+  try { d = await GET(`/api/reports/rep-activity?repId=${repId}&period=${period}`); }
+  catch(e) { box.innerHTML = `<div class="card" style="padding:16px;color:var(--chili)">Couldn't load activity: ${e.message}</div>`; return; }
+  const fmt = v => new Intl.NumberFormat('en-PK',{maximumFractionDigits:0}).format(v||0);
+  const s = d.summary || {};
+  const outc = { visited:'Order taken', no_order:'No order', closed:'Closed' };
+  const chips = [
+    ['Stores visited', s.storesVisited||0],
+    ['Visits', s.visits||0],
+    ['Orders', s.ordersCount||0],
+    ['Revenue', 'Rs '+fmt(s.revenue)],
+    ['vs Target', s.vsTargetPct==null?'—':s.vsTargetPct+'%'],
+    ['Coverage', (s.coveragePct||0)+'% ('+(s.storesVisited||0)+'/'+(s.totalStops||0)+')'],
+    ['Out-of-route', s.outOfRoute||0],
+  ].map(([l,v]) => `<div class="kpi-card" style="padding:10px 14px"><div class="kpi-value" style="font-size:18px">${v}</div><div class="kpi-label">${l}</div></div>`).join('');
+  const stores = (d.storesVisited||[]).map(st => `
+    <tr><td><strong>${escQ(st.name)}</strong> <small style="color:#888">${escQ(st.code||'')}</small></td>
+    <td style="text-align:center">${st.visits}</td>
+    <td>${escQ(outc[st.lastOutcome]||st.lastOutcome||'')}</td>
+    <td style="text-align:center">${st.lastVisit||''}</td>
+    <td style="text-align:center">${_mapsLink(st.lat,st.lng)}</td></tr>`).join('')
+    || '<tr><td colspan="5" style="color:var(--text-3);text-align:center">No visits logged this month</td></tr>';
+  const prods = (d.productsSold||[]).map(p => `
+    <tr><td>${escQ(p.product_name||p.product_code||'')} <small style="color:#888">${escQ(p.pack_size||'')}</small></td>
+    <td style="text-align:center">${fmt(p.qty)}</td>
+    <td style="text-align:right">Rs ${fmt(p.revenue)}</td></tr>`).join('')
+    || '<tr><td colspan="3" style="color:var(--text-3);text-align:center">No products sold this month</td></tr>';
+  const days = (d.days||[]).map(day => {
+    const vis = (day.visits||[]).map(v => `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px"><span style="color:#888;width:44px">${v.time||''}</span><span style="flex:1">${escQ(v.name)} <small style="color:#888">— ${escQ(outc[v.outcome]||v.outcome||'')}</small></span>${_mapsLink(v.lat,v.lng)}</div>`).join('');
+    const ords = (day.orders||[]).map(o => `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px"><span style="width:44px">🧾</span><span style="flex:1">${escQ(o.orderNumber||'')} · ${escQ(o.name)} · <strong>Rs ${fmt(o.total)}</strong>${o.outOfRoute?' <span style="color:var(--chili);font-size:11px">out-of-route</span>':''}</span>${_mapsLink(o.lat,o.lng)}</div>`).join('');
+    return `<div class="card" style="padding:12px 14px;margin-bottom:10px"><div style="font-weight:700;font-size:13px;margin-bottom:6px">${day.date}</div>${vis}${ords}</div>`;
+  }).join('') || '<div style="color:var(--text-3);padding:10px">No activity recorded this month.</div>';
+  box.innerHTML = `
+  <div class="card" style="padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 style="margin:0">${escQ(d.name)} — activity <small style="color:#888;font-weight:400">${d.period}</small></h3>
+      <button class="btn btn-outline" style="font-size:12px" onclick="document.getElementById('rep-activity').innerHTML=''">Close</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px;margin-bottom:18px">${chips}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-bottom:18px">
+      <div><h4 style="margin:0 0 8px;font-size:13px">Stores visited</h4>
+        <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Shop</th><th style="text-align:center">Visits</th><th>Last outcome</th><th style="text-align:center">Last visit</th><th style="text-align:center">Location</th></tr></thead><tbody>${stores}</tbody></table></div></div>
+      <div><h4 style="margin:0 0 8px;font-size:13px">Products sold</h4>
+        <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Product</th><th style="text-align:center">Qty</th><th style="text-align:right">Revenue</th></tr></thead><tbody>${prods}</tbody></table></div></div>
+    </div>
+    <h4 style="margin:0 0 8px;font-size:13px">Day-by-day</h4>
+    ${days}
+  </div>`;
 }
 
 

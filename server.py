@@ -3340,6 +3340,21 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, get_rep_performance_report(period))
                 return
 
+            # GET /api/reports/rep-activity?repId=X&period=YYYY-MM  — per-rep drill-down
+            if path == '/api/reports/rep-activity':
+                if not require(sess, 'admin', 'sales'):
+                    send_error(self, 'Permission denied', 403); return
+                try:
+                    rid = int(qs.get('repId', [0])[0])
+                except (TypeError, ValueError):
+                    rid = 0
+                period = qs.get('period', [None])[0]
+                try:
+                    send_json(self, get_rep_activity_detail(rid, period))
+                except ValueError as e:
+                    send_error(self, str(e), 404)
+                return
+
             # GET /api/costing/operating-costs  (admin or 'costs')
             if path == '/api/costing/operating-costs':
                 if not _can_costs(sess):

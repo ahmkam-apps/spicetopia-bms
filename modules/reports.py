@@ -24,7 +24,7 @@ from modules.db    import *   # qry, qry1
 __all__ = [
     'get_dashboard',
     'get_pl_report',
-    'get_rep_performance_report',
+    'get_rep_performance_report', 'get_rep_activity_detail',
     'get_margin_report',
     'reset_for_launch',
 ]
@@ -656,6 +656,129 @@ def get_rep_performance_report(period=None):
         })
 
     return {'period': period, 'reps': result}
+
+
+def get_rep_activity_detail(rep_id, period=None):
+    """Per-rep activity drill-down for a month (YYYY-MM): stores visited (+ their saved
+    GPS location), products sold, orders/revenue vs target, coverage & out-of-route, and
+    a day-by-day breakdown. Powers the Rep Performance drill-down. Shop location comes
+    from customers.lat/lng (set by the field app 'Save this shop's location' button or the
+    first geo-stamped visit — Track B); older DBs without geo columns degrade gracefully."""
+    if not period:
+        period = date.today().strftime('%Y-%m')
+    rep = qry1("SELECT id, employee_id, name, designation FROM sales_reps WHERE id=?", (rep_id,))
+    if not rep:
+        raise ValueError("Rep not found")
+
+    def _cols(t):
+        return [r['name'] for r in qry(f"PRAGMA table_info({t})")]
+    cust_geo = 'lat' in _cols('customers')
+    bv_geo   = 'lat' in _cols('beat_visits')
+    co_geo   = 'lat' in _cols('customer_orders')
+    C_LAT, C_LNG = ('c.lat', 'c.lng') if cust_geo else ('NULL', 'NULL')
+    BV_LAT = f"COALESCE(bv.lat, {C_LAT})" if bv_geo else C_LAT
+    BV_LNG = f"COALESCE(bv.lng, {C_LNG})" if bv_geo else C_LNG
+    CO_LAT = f"COALESCE(co.lat, {C_LAT})" if co_geo else C_LAT
+    CO_LNG = f"COALESCE(co.lng, {C_LNG})" if co_geo else C_LNG
+
+    # Individual visits (for the day breakdown + the deduped store list)
+    visits = qry(f"""
+        SELECT bv.id, bv.customer_id, c.name AS customer_name, c.code AS customer_code,
+               bv.visit_date, bv.outcome, bv.notes, bv.created_at,
+               {BV_LAT} AS lat, {BV_LNG} AS lng
+        FROM beat_visits bv
+        JOIN customers c ON c.id = bv.customer_id
+        WHERE bv.rep_id=? AND strftime('%Y-%m', bv.visit_date)=?
+        ORDER BY bv.visit_date DESC, bv.id DESC
+    """, (rep_id, period))
+
+    stores = {}
+    for v in visits:
+        s = stores.get(v['customer_id'])
+        if not s:
+            stores[v['customer_id']] = {
+                'customerId': v['customer_id'], 'name': v['customer_name'],
+                'code': v['customer_code'], 'visits': 1,
+                'lastVisit': v['visit_date'], 'lastOutcome': v['outcome'],
+                'lat': v['lat'], 'lng': v['lng'],
+            }
+        else:
+            s['visits'] += 1
+            if s['lat'] is None and v['lat'] is not None:
+                s['lat'] = v['lat']; s['lng'] = v['lng']
+
+    products = qry("""
+        SELECT s.product_code, s.product_name, s.pack_size,
+               SUM(s.qty) AS qty, SUM(s.total) AS revenue
+        FROM sales s
+        JOIN invoices inv       ON inv.id = s.invoice_id
+        JOIN customer_orders co ON co.id = inv.customer_order_id
+        WHERE co.created_by_rep_id=? AND COALESCE(s.voided,0)=0
+          AND strftime('%Y-%m', s.sale_date)=?
+        GROUP BY s.product_code, s.pack_size
+        ORDER BY revenue DESC
+    """, (rep_id, period))
+
+    orders = qry(f"""
+        SELECT co.id, co.order_number, co.order_date, co.customer_id,
+               c.name AS customer_name, COALESCE(co.out_of_route,0) AS out_of_route,
+               {CO_LAT} AS lat, {CO_LNG} AS lng,
+               COALESCE((SELECT SUM(coi.qty_ordered*coi.unit_price)
+                         FROM customer_order_items coi WHERE coi.order_id=co.id),0) AS order_total
+        FROM customer_orders co
+        JOIN customers c ON c.id = co.customer_id
+        WHERE co.created_by_rep_id=? AND co.order_source='rep_assisted'
+          AND strftime('%Y-%m', co.order_date)=?
+        ORDER BY co.order_date DESC, co.id DESC
+    """, (rep_id, period))
+
+    rev_actual = qry1("""
+        SELECT COALESCE(SUM(s.total),0) AS total
+        FROM sales s JOIN invoices inv ON inv.id=s.invoice_id
+        JOIN customer_orders co ON co.id=inv.customer_order_id
+        WHERE co.created_by_rep_id=? AND COALESCE(s.voided,0)=0
+          AND strftime('%Y-%m', s.sale_date)=?
+    """, (rep_id, period))['total'] or 0.0
+    tgt = qry1("SELECT revenue_target FROM rep_targets WHERE rep_id=? AND month=?", (rep_id, period))
+    rev_target = tgt['revenue_target'] if tgt else 0.0
+    vs_target  = round(rev_actual / rev_target * 100, 1) if rev_target else None
+
+    total_stops = qry1("""
+        SELECT COUNT(rc.id) AS cnt FROM rep_routes rr
+        JOIN route_customers rc ON rc.route_id = rr.route_id
+        WHERE rr.rep_id=? AND rr.assigned_to IS NULL
+    """, (rep_id,))['cnt'] or 0
+    visited_distinct = len(stores)
+    coverage_pct = round(visited_distinct / total_stops * 100, 1) if total_stops else 0.0
+    out_of_route = sum(1 for o in orders if o['out_of_route'])
+
+    days_map = {}
+    for v in visits:
+        d = days_map.setdefault(v['visit_date'], {'date': v['visit_date'], 'visits': [], 'orders': []})
+        d['visits'].append({'name': v['customer_name'], 'code': v['customer_code'],
+                            'outcome': v['outcome'], 'lat': v['lat'], 'lng': v['lng'],
+                            'time': (v['created_at'] or '')[11:16]})
+    for o in orders:
+        d = days_map.setdefault(o['order_date'], {'date': o['order_date'], 'visits': [], 'orders': []})
+        d['orders'].append({'orderNumber': o['order_number'], 'name': o['customer_name'],
+                           'total': o['order_total'], 'outOfRoute': bool(o['out_of_route']),
+                           'lat': o['lat'], 'lng': o['lng']})
+    days = sorted(days_map.values(), key=lambda x: x['date'], reverse=True)
+
+    return {
+        'repId': rep_id, 'name': rep['name'], 'employeeId': rep['employee_id'],
+        'designation': rep['designation'], 'period': period,
+        'summary': {
+            'visits': len(visits), 'storesVisited': visited_distinct,
+            'ordersCount': len(orders), 'revenue': rev_actual,
+            'target': rev_target, 'vsTargetPct': vs_target,
+            'totalStops': total_stops, 'coveragePct': coverage_pct,
+            'outOfRoute': out_of_route,
+        },
+        'storesVisited': list(stores.values()),
+        'productsSold':  [dict(p) for p in products],
+        'days':          days,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────
