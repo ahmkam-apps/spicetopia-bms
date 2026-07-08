@@ -6844,7 +6844,7 @@ async function renderBills() {
   <!-- ── MANUAL BILL FORM (collapsed by default) ──────────────── -->
   <div class="card mb-16" id="bill-form-card">
     <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleManualBillForm()">
-      <span style="font-size:13px;font-weight:600;color:var(--text-2)">Manual Bill Entry <span style="font-size:11px;color:var(--text-3)">(advanced — use only for supplier invoices without a PO)</span></span>
+      <span style="font-size:13px;font-weight:600;color:var(--text-2)">Manual Bill Entry <span style="font-size:11px;color:var(--text-3)">(advanced — for an <b>ingredient</b> invoice that arrived without a PO. For equipment, supplies or services use Purchasing → Other purchases.)</span></span>
       <span id="manual-bill-toggle-icon" style="color:var(--text-3);font-size:16px">▼</span>
     </div>
     <div id="manual-bill-body" style="display:none;margin-top:14px">
@@ -6964,10 +6964,6 @@ function renderBillLines() {
     <tr style="border-top:1px solid var(--border)">
       <td style="padding:8px 10px;color:var(--text-3);font-size:13px">${idx+1}</td>
       <td style="padding:6px 10px">
-        <select style="width:100%;margin-bottom:4px;font-size:12px" onchange="updateBillLine(${line.id},'type',this.value)">
-          <option value="ingredient" ${!other?'selected':''}>Stock — ingredient</option>
-          <option value="other" ${other?'selected':''}>Other — equipment / supplies / service</option>
-        </select>
         ${itemCell}
       </td>
       <td style="padding:6px 10px">
@@ -7030,7 +7026,7 @@ async function saveBill() {
   if (!dueDate) { showMsg('bill-msg','Due date is required','error'); return; }
   const validLines = _billLines.filter(l =>
     (l.type === 'other' ? (l.desc || '').trim() : l.ingId) && l.qty > 0 && parseFloat(l.unitCost || 0) >= 0);
-  if (!validLines.length) { showMsg('bill-msg','Add at least one line (an ingredient, or a described item) with a quantity and cost','error'); return; }
+  if (!validLines.length) { showMsg('bill-msg','Add at least one ingredient line with a quantity and cost','error'); return; }
   const items = validLines.map(l => l.type === 'other'
     ? { lineType: 'other', description: (l.desc || '').trim(), category: l.cat || '', qty: l.qty, unitCost: parseFloat(l.unitCost) }
     : { ingredientId: parseInt(l.ingId), quantityKg: l.qty, unitCostKg: parseFloat(l.unitCost) });
