@@ -1330,9 +1330,10 @@ const HELP = {
     { t:'Where it fits', b:'', flow:{ inn:['Batches you add on the Plan tab','Raw materials from Inventory (taken when a batch starts)'], out:['Verified batches → finished goods in Inventory','…which then fulfil customer Orders'] } }
   ],
   'purchase-orders': [
-    { t:'Purchasing — buy anything for the business', b:'Raise a purchase order to a vendor for whatever you need — not just ingredients.' },
-    { t:'Two kinds of line', b:'Each PO line is either a <b>Stock line</b> (an ingredient — receiving it adds to raw-material inventory, as always) or an <b>Other line</b> (equipment, supplies, freight, a service, labour). Pick the type per line; a PO can mix both.', list:['Stock → touches inventory','Other → never touches inventory; it just flows to what you owe (AP) and the P&L'] },
-    { t:'PO → Bill → Payment', b:'Raise the PO, mark it received when it arrives, and it becomes a Vendor Bill you pay via AP. Non-stock lines carry a category (Equipment, Packaging, Services, Labour…) so they land in the right place on the P&L.' },
+    { t:'Purchasing — buy anything for the business', b:'Buy masala ingredients or anything else — equipment, supplies, services. The tabs keep the two separate so it stays clear.' },
+    { t:'Three tabs', b:'The first two are for <b>masala ingredients</b> and update raw-material inventory when received; the third is for everything else and never touches inventory.', list:['<b>By Product</b> — pick what you’ll make, it works out the ingredients to buy','<b>By Ingredient</b> — order specific ingredients directly','<b>Other purchases</b> — equipment, packaging, freight, services, labour → AP + P&L by category'] },
+    { t:'Ingredient PO → Bill → Payment', b:'Raise an ingredient PO, mark it received when it arrives, and it becomes a Vendor Bill you pay via AP. Receiving adds the kilos to inventory.' },
+    { t:'Other purchases: record or order-ahead', b:'On the Other purchases tab, <b>Record purchase</b> books it straight to what you owe (AP) + the P&L with no delivery step — right for a grinder or a repair. <b>Raise purchase order instead</b> is for when you order ahead and want to mark it received later. Either way it carries a category (Equipment, Packaging, Services, Labour…) so it lands in the right place on the P&L, and never touches inventory.' },
     { t:'Where it fits', b:'', flow:{ inn:['Vendors (master data)','A need — ingredients, equipment, a service'], out:['Vendor Bill → AP Payment → AP aging','Stock lines → raw-material Inventory','Other lines → expenses on the P&L'] } }
   ],
   bills: [
@@ -1517,11 +1518,11 @@ const HOWTO = [
 
   // Buying
   { cat:'Buying (vendors)', q:'Buy ingredients from a vendor', nav:'purchase-orders', kw:'purchase order PO buy ingredients supplier vendor procure',
-    steps:['Open Purchasing.','Create a new PO and choose the vendor.','Keep the line type on "Stock — ingredient", pick the ingredient and quantity (kg) and the agreed cost.','Save and send to the vendor.'] },
-  { cat:'Buying (vendors)', q:'Buy equipment, supplies or a service (not an ingredient)', nav:'purchase-orders', kw:'buy equipment machinery supplies service non stock other purchase anything freight packaging',
-    steps:['Open Purchasing and create a new PO for the vendor.','On the line, switch the type to "Other — equipment / supplies / service".','Type what it is, pick a category (Equipment, Packaging, Services, Freight…), and enter the quantity and unit cost.','Save. When it arrives, mark it received — it becomes a Vendor Bill to pay. It never touches inventory.'] },
-  { cat:'Buying (vendors)', q:'Record an expense (labour, repair, service) with no PO', nav:'bills', kw:'expense labour wages repair service direct bill no purchase order casual',
-    steps:['Open Vendor Bills & Expenses and open the manual bill form.','Pick the vendor (or add one), set the dates.','On the line, choose "Other", describe it, pick a category (e.g. Labour), and enter quantity × cost.','Save — it goes straight to what you owe (AP) and the P&L. No purchase order needed.','Tip: for production help that should be in your cost-to-make, record it under Operating costs instead.'] },
+    steps:['Open Purchasing.','Use the By Product or By Ingredient tab.','Pick the ingredient and quantity (kg) and the agreed cost.','Save and send to the vendor.'] },
+  { cat:'Buying (vendors)', q:'Buy equipment, supplies or a service (not an ingredient)', nav:'purchase-orders', kw:'buy equipment machinery supplies service non stock other purchase anything freight packaging expense',
+    steps:['Open Purchasing and click the "Other purchases" tab.','Add a line: type what it is, pick a category (Equipment, Packaging, Services, Freight…), and enter quantity × unit cost.','Pick the vendor and date.','Click "Record purchase" — it goes straight to what you owe (AP) and the P&L. (Or "Raise purchase order instead" if you order ahead and want to mark it received later.)','It never touches inventory.'] },
+  { cat:'Buying (vendors)', q:'Record an expense (labour, repair, service) with no PO', nav:'purchase-orders', kw:'expense labour wages repair service direct bill no purchase order casual other',
+    steps:['Open Purchasing → the "Other purchases" tab.','Add a line, describe it, pick a category (e.g. Labour), enter quantity × cost.','Pick the vendor, then click "Record purchase" — straight to what you owe (AP) and the P&L. No purchase order needed.','Tip: for production help that should be in your cost-to-make, record it under Operating costs instead.'] },
   { cat:'Buying (vendors)', q:'Record a vendor bill', nav:'bills', kw:'supplier vendor bill invoice payable',
     steps:['Open Vendor Bills & Expenses.','Create a bill for the vendor with the amount and items.','Save — it now shows under what you owe (AP).'] },
   { cat:'Buying (vendors)', q:'Pay a vendor', nav:'ap-payments', kw:'pay supplier vendor payment payable',
@@ -5616,7 +5617,13 @@ async function renderPurchaseOrders() {
         style="padding:8px 20px;font-size:13px;font-weight:600;background:var(--surface-2);color:var(--text-2);border:none;border-radius:4px 4px 0 0;cursor:pointer;margin-left:4px">
         🧂 By Ingredient
       </button>
+      <button id="po-tab-other" onclick="switchPOTab('other')"
+        style="padding:8px 20px;font-size:13px;font-weight:600;background:var(--surface-2);color:var(--text-2);border:none;border-radius:4px 4px 0 0;cursor:pointer;margin-left:4px"
+        title="Equipment, packaging, supplies, freight, services, casual labour — anything that isn't a masala ingredient">
+        🧾 Other purchases
+      </button>
     </div>
+    <div style="font-size:11px;color:var(--text-3);margin:-12px 0 14px">By Product / By Ingredient are for <b>masala ingredients</b> (they update inventory). <b>Other purchases</b> is for everything else — equipment, supplies, services.</div>
 
     <!-- MODE A: Product-driven -->
     <div id="po-mode-product">
@@ -5673,6 +5680,62 @@ async function renderPurchaseOrders() {
         <tbody id="po-ing-body"></tbody>
       </table>
       <button class="btn btn-outline btn-sm" onclick="addPOIngLine()">+ Add Ingredient</button>
+    </div>
+
+    <!-- MODE C: Other (non-ingredient) purchases — equipment / supplies / services -->
+    <div id="po-mode-other" style="display:none">
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">
+        Buy anything that isn't a masala ingredient — equipment, packaging, supplies, freight, services, casual labour.
+        These never touch inventory; they go to what you owe (AP) and show on the P&amp;L by category.
+      </div>
+      <div id="opur-msg"></div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:10px;table-layout:fixed">
+        <colgroup><col style="width:260px"><col style="width:170px"><col style="width:80px"><col style="width:120px"><col style="width:110px"><col style="width:36px"></colgroup>
+        <thead><tr style="background:var(--surface-2);font-size:12px;color:var(--text-2)">
+          <th style="padding:7px 10px;text-align:left">What is it?</th>
+          <th style="padding:7px 10px;text-align:left">Category</th>
+          <th style="padding:7px 10px;text-align:right">Qty</th>
+          <th style="padding:7px 10px;text-align:right">Unit cost (PKR)</th>
+          <th style="padding:7px 10px;text-align:right">Line total</th>
+          <th style="padding:7px 10px"></th>
+        </tr></thead>
+        <tbody id="opur-body"></tbody>
+      </table>
+      <button class="btn btn-outline btn-sm" onclick="addOtherLine()">+ Add line</button>
+
+      <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+        <div class="form-row" style="gap:12px;flex-wrap:wrap">
+          <div class="form-group" style="flex:2;min-width:180px">
+            <label class="form-label">Vendor</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select id="opur-vendor" class="form-input" style="flex:1"><option value="">— Select vendor —</option>${supOptions}</select>
+              <button type="button" class="btn btn-outline btn-sm" onclick="_newSupplierInline('opur-newsup-form','opur-vendor')" style="white-space:nowrap" title="Add a vendor on the fly">+ New</button>
+            </div>
+            <div id="opur-newsup-form" style="margin-top:8px"></div>
+          </div>
+          <div class="form-group" style="flex:0 0 140px">
+            <label class="form-label">Date</label>
+            <input type="date" id="opur-date" class="form-input" value="${todayVal()}">
+          </div>
+          <div class="form-group" style="flex:0 0 180px">
+            <label class="form-label">Terms</label>
+            <select id="opur-terms" class="form-input">
+              <option value="CREDIT">Credit (due in 30 days)</option>
+              <option value="COD">Cash / paid now</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Notes</label>
+          <input type="text" id="opur-notes" class="form-input" placeholder="Optional — what it's for, invoice #, etc." style="max-width:500px">
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="submitOtherPurchase('expense')">✓ Record purchase</button>
+          <button class="btn btn-outline" onclick="submitOtherPurchase('po')">Raise purchase order instead</button>
+          <span id="opur-grand-total" style="font-size:15px;font-weight:700;color:var(--saffron-deep);margin-left:8px"></span>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:8px">“Record purchase” books it straight to what you owe (AP) + the P&amp;L — no delivery step. “Raise purchase order” is for when you order ahead and want to mark it received later.</div>
+      </div>
     </div>
 
     <!-- Common PO footer (supplier, dates, notes, submit) — hidden until calc done or ing added -->
@@ -5783,24 +5846,114 @@ function expectedDateDefault() {
 
 function switchPOTab(mode) {
   _poStockCache = null; // reset stock cache on tab switch so it re-fetches fresh data
-  const isProduct = mode === 'product';
-  document.getElementById('po-mode-product').style.display    = isProduct ? '' : 'none';
-  document.getElementById('po-mode-ingredient').style.display = isProduct ? 'none' : '';
-  document.getElementById('po-tab-product').style.background    = isProduct ? 'var(--saffron)' : 'var(--surface-2)';
-  document.getElementById('po-tab-product').style.color         = isProduct ? '#fff' : 'var(--text-2)';
-  document.getElementById('po-tab-ingredient').style.background = isProduct ? 'var(--surface-2)' : 'var(--saffron)';
-  document.getElementById('po-tab-ingredient').style.color      = isProduct ? 'var(--text-2)' : '#fff';
-  // In ingredient mode: show footer so they can add lines and submit
-  if (!isProduct) {
-    _poIngLines = [];
-    _poIngNextId = 1;
+  ['product','ingredient','other'].forEach(m => {
+    const pane = document.getElementById('po-mode-' + m);
+    if (pane) pane.style.display = (m === mode) ? '' : 'none';
+    const tab = document.getElementById('po-tab-' + m);
+    if (tab) {
+      tab.style.background = (m === mode) ? 'var(--saffron)' : 'var(--surface-2)';
+      tab.style.color      = (m === mode) ? '#fff' : 'var(--text-2)';
+    }
+  });
+  // The shared footer (supplier/dates/submit) belongs only to the ingredient PO flow;
+  // product reveals it after Calculate, and Other purchases has its own footer.
+  const footer = document.getElementById('po-footer');
+  if (mode === 'ingredient') {
+    _poIngLines = []; _poIngNextId = 1;
     renderPOIngLines();
     addPOIngLine();
-    document.getElementById('po-footer').style.display = '';
+    if (footer) footer.style.display = '';
     updatePOGrandTotal();
-  } else {
-    document.getElementById('po-footer').style.display = 'none';
+  } else if (footer) {
+    footer.style.display = 'none';
   }
+  if (mode === 'other') {
+    _otherLines = []; _otherNextId = 1;
+    renderOtherLines();
+    addOtherLine();
+    updateOtherTotal();
+  }
+}
+
+// ── Other (non-ingredient) purchases: equipment / supplies / services ──
+// Every line is a non-stock 'other' line (description + category). Submits either as a
+// direct expense bill (→ AP + P&L, no delivery step) or a purchase order (order-ahead).
+let _otherLines = [];
+let _otherNextId = 1;
+function _otherRowHTML(id) {
+  return `
+    <tr id="opur-row-${id}">
+      <td style="padding:6px 8px"><input id="opur-desc-${id}" class="form-input" style="width:100%" placeholder="e.g. Grinder machine, Cartons, Repair"></td>
+      <td style="padding:6px 8px"><select id="opur-cat-${id}" class="form-input" style="width:100%"><option value="">— Category —</option>${_catOptions('')}</select></td>
+      <td style="padding:6px 8px"><input type="number" id="opur-qty-${id}" class="form-input" style="width:100%;text-align:right" value="1" min="0" step="0.01" oninput="updateOtherTotal()"></td>
+      <td style="padding:6px 8px"><input type="number" id="opur-cost-${id}" class="form-input" style="width:100%;text-align:right" value="" min="0" step="0.01" placeholder="PKR" oninput="updateOtherTotal()"></td>
+      <td style="padding:6px 8px;text-align:right;font-weight:600;white-space:nowrap" id="opur-line-${id}">—</td>
+      <td style="padding:6px 8px;text-align:center"><button class="btn btn-xs" style="color:var(--chili)" onclick="removeOtherLine(${id})">✕</button></td>
+    </tr>`;
+}
+function addOtherLine() {
+  const id = _otherNextId++;
+  _otherLines.push({ id });
+  const body = document.getElementById('opur-body');
+  if (body) { const t = document.createElement('tbody'); t.innerHTML = _otherRowHTML(id); body.appendChild(t.firstElementChild); }
+  updateOtherTotal();
+}
+function removeOtherLine(id) {
+  _otherLines = _otherLines.filter(l => l.id !== id);
+  const row = document.getElementById('opur-row-' + id);
+  if (row) row.remove();
+  if (_otherLines.length === 0) addOtherLine();  // always keep one line
+  updateOtherTotal();
+}
+function renderOtherLines() {
+  const body = document.getElementById('opur-body');
+  if (body) body.innerHTML = _otherLines.map(l => _otherRowHTML(l.id)).join('');
+}
+function _collectOtherLines() {
+  const items = [];
+  for (const l of _otherLines) {
+    const desc = (document.getElementById('opur-desc-' + l.id)?.value || '').trim();
+    const cat  = document.getElementById('opur-cat-' + l.id)?.value || '';
+    const qty  = parseFloat(document.getElementById('opur-qty-' + l.id)?.value || '0');
+    const cost = parseFloat(document.getElementById('opur-cost-' + l.id)?.value || '0');
+    if (desc && qty > 0) items.push({ lineType: 'other', description: desc, category: cat, qty, unitCost: cost });
+  }
+  return items;
+}
+function updateOtherTotal() {
+  let total = 0;
+  for (const l of _otherLines) {
+    const qty  = parseFloat(document.getElementById('opur-qty-' + l.id)?.value || '0');
+    const cost = parseFloat(document.getElementById('opur-cost-' + l.id)?.value || '0');
+    const line = (qty > 0 && cost >= 0) ? qty * cost : 0;
+    total += line;
+    const cell = document.getElementById('opur-line-' + l.id);
+    if (cell) cell.textContent = (qty > 0) ? fmtPKR(line) : '—';
+  }
+  const el = document.getElementById('opur-grand-total');
+  if (el) el.textContent = total ? ('Total: ' + fmtPKR(total)) : '';
+}
+async function submitOtherPurchase(mode) {
+  const vendor = parseInt(document.getElementById('opur-vendor')?.value || '0');
+  if (!vendor) { showMsg('opur-msg', 'Please select a vendor', 'error'); return; }
+  const items = _collectOtherLines();
+  if (!items.length) { showMsg('opur-msg', 'Add at least one line with a description and quantity', 'error'); return; }
+  const date  = document.getElementById('opur-date')?.value || todayVal();
+  const terms = document.getElementById('opur-terms')?.value || 'CREDIT';
+  const notes = document.getElementById('opur-notes')?.value || '';
+  try {
+    if (mode === 'po') {
+      const po = await POST('/api/purchase-orders', { supplierId: vendor, poDate: date, expectedDate: date, notes, paymentTerms: terms, items });
+      showMsg('opur-msg', `✓ Purchase order ${po.po_number} created — mark it received when it arrives.`, 'success');
+      setTimeout(() => nav('purchase-orders'), 1300);
+    } else {
+      const due = new Date(date); if (terms === 'CREDIT') due.setDate(due.getDate() + 30);
+      const dueStr = due.toISOString().slice(0, 10);
+      const res = await POST('/api/bills', { supplierId: vendor, billDate: date, dueDate: dueStr, supplierRef: '', notes, items });
+      showMsg('opur-msg', `✓ Purchase recorded — bill ${res.billNumber}, ${fmtPKR(res.total)}. It's in what you owe (AP) and on the P&L.`, 'success');
+      setTimeout(() => nav('bills'), 1600);
+    }
+  } catch(e) { showMsg('opur-msg', 'Error: ' + e.message, 'error'); }
 }
 
 function clearPOCalc() {
@@ -5999,10 +6152,6 @@ function _poIngRowHTML(lineId) {
   return `
     <tr id="po-ing-row-${lineId}">
       <td style="padding:6px 8px;width:250px">
-        <select class="form-input" style="width:100%;margin-bottom:4px;font-size:12px" onchange="_poSetLineType(${lineId}, this.value)">
-          <option value="ingredient" ${!isOther ? 'selected' : ''}>Stock — ingredient</option>
-          <option value="other" ${isOther ? 'selected' : ''}>Other — equipment / supplies / service</option>
-        </select>
         <div id="po-item-${lineId}">${_poItemCellHTML(lineId)}</div>
       </td>
       <td style="padding:6px 8px;width:100px;text-align:right;font-size:12px;color:var(--text-3);white-space:nowrap"
