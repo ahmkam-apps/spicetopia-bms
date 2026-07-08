@@ -12539,19 +12539,23 @@ async function renderAudit() {
 // ═══════════════════════════════════════════════════════════════
 //  USERS (admin only)
 // ═══════════════════════════════════════════════════════════════
+// Permissions an ADMIN does NOT inherit automatically — they stay gated even for
+// admins and must be ticked explicitly (the recipe/BOM quantities are the core IP).
+const STRICT_ADMIN_GRANTS = ['recipe'];
+
 // ─── Render module permissions checkbox grid ───────────────────
 function renderPermGrid(currentPerms, prefix) {
   const permsSet = new Set(currentPerms || []);
   const sections = [...new Set(ALL_MODULES.map(m => m.section))];
-  return sections.map(sec => {
+  return sections.map((sec, si) => {
     const mods = ALL_MODULES.filter(m => m.section === sec);
     const checks = mods.map(m => `
-      <label style="display:inline-flex;align-items:center;gap:5px;margin:4px 10px 4px 0;font-size:13px;font-weight:normal;cursor:pointer">
+      <label id="${prefix}-permrow-${m.id}" style="display:inline-flex;align-items:center;gap:5px;margin:4px 10px 4px 0;font-size:13px;font-weight:normal;cursor:pointer">
         <input type="checkbox" id="${prefix}-perm-${m.id}" value="${m.id}" ${permsSet.has(m.id)?'checked':''}>
         ${m.label}
       </label>`).join('');
     return `
-      <div style="margin-bottom:10px">
+      <div id="${prefix}-permgrp-${si}" data-permsec="1" style="margin-bottom:10px">
         <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-3);text-transform:uppercase;margin-bottom:4px">${sec}</div>
         <div>${checks}</div>
       </div>`;
@@ -12585,9 +12589,36 @@ const _ROLE_DEFAULTS = {
 function _pmRoleChange(prefix, role) {
   const section = document.getElementById(prefix + '-perm-section');
   if (!section) return;
-  if (role === 'admin' || role === 'super_user') { section.style.display = 'none'; return; }
+  const ctrls = document.getElementById(prefix + '-perm-controls');
+  const note  = document.getElementById(prefix + '-perm-note');
+  const setRow = (id, show) => { const r = document.getElementById(prefix + '-permrow-' + id); if (r) r.style.display = show ? 'inline-flex' : 'none'; };
+  const showGroupsWithVisibleRows = () => {
+    section.querySelectorAll('[data-permsec]').forEach(g => {
+      const anyVisible = Array.from(g.querySelectorAll('label')).some(l => l.style.display !== 'none');
+      g.style.display = anyVisible ? '' : 'none';
+    });
+  };
+  // Reset: every row + group visible
+  ALL_MODULES.forEach(m => setRow(m.id, true));
+  section.querySelectorAll('[data-permsec]').forEach(g => g.style.display = '');
+
+  if (role === 'super_user') { section.style.display = 'none'; return; }
+
+  if (role === 'admin') {
+    // Admin has full module access already — expose ONLY the strict grants an admin
+    // does NOT inherit (recipe/BOM IP), so it can be ticked per-admin.
+    section.style.display = '';
+    if (ctrls) ctrls.style.display = 'none';   // Select-All would grab hidden perms
+    if (note)  note.style.display = '';
+    ALL_MODULES.forEach(m => setRow(m.id, STRICT_ADMIN_GRANTS.includes(m.id)));
+    showGroupsWithVisibleRows();
+    return;
+  }
+
+  // Normal roles: full grid
   section.style.display = '';
-  // Pre-check role defaults only if no boxes are currently checked
+  if (ctrls) ctrls.style.display = '';
+  if (note)  note.style.display = 'none';
   const anyChecked = ALL_MODULES.some(function(m) {
     const el = document.getElementById(prefix + '-perm-' + m.id);
     return el && el.checked;
@@ -12747,11 +12778,12 @@ function showNewUserForm() {
     <div id="nu-perm-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <strong style="font-size:13px">Module Access</strong>
-        <div style="display:flex;gap:8px">
+        <div id="nu-perm-controls" style="display:flex;gap:8px">
           <button type="button" class="btn btn-outline btn-xs" onclick="selectAllPerms('nu',true)">Select All</button>
           <button type="button" class="btn btn-outline-red btn-xs" onclick="selectAllPerms('nu',false)">Clear All</button>
         </div>
       </div>
+      <div id="nu-perm-note" style="display:none;font-size:12px;color:var(--text-2);margin-bottom:10px">Admins already have full module access. Tick only the extra IP-gated areas below that admins do <b>not</b> get automatically (e.g. the recipe/BOM buy-list quantities).</div>
       <div style="background:var(--surface-2);border-radius:var(--radius);padding:14px 16px">
         ${renderPermGrid([], 'nu')}
       </div>
@@ -12761,6 +12793,7 @@ function showNewUserForm() {
       <button class="btn btn-outline" onclick="document.getElementById('user-form-area').innerHTML=''">Cancel</button>
     </div>
   </div>`;
+  const _nuRole = document.getElementById('nu-role'); if (_nuRole) _pmRoleChange('nu', _nuRole.value);
 }
 
 async function saveNewUser() {
@@ -12768,7 +12801,9 @@ async function saveNewUser() {
   const password = document.getElementById('nu-pw').value;
   const role     = document.getElementById('nu-role').value;
   if (!username || !password) { showMsg('user-msg','Username and password are required','error'); return; }
-  const perms = role !== 'admin' ? getPermGridValues('nu') : [];
+  const perms = role === 'super_user' ? []
+    : role === 'admin' ? getPermGridValues('nu').filter(p => STRICT_ADMIN_GRANTS.includes(p))
+    : getPermGridValues('nu');
   const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   try {
     const res = await POST('/api/users', {
@@ -12810,14 +12845,15 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
         </select>
       </div>
     </div>
-    <div id="eu-perm-section" ${role==='admin'?'style="display:none"':''}>
+    <div id="eu-perm-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <strong style="font-size:13px">Module Access</strong>
-        <div style="display:flex;gap:8px">
+        <div id="eu-perm-controls" style="display:flex;gap:8px">
           <button type="button" class="btn btn-outline btn-xs" onclick="selectAllPerms('eu',true)">Select All</button>
           <button type="button" class="btn btn-outline-red btn-xs" onclick="selectAllPerms('eu',false)">Clear All</button>
         </div>
       </div>
+      <div id="eu-perm-note" style="display:none;font-size:12px;color:var(--text-2);margin-bottom:10px">Admins already have full module access. Tick only the extra IP-gated areas below that admins do <b>not</b> get automatically (e.g. the recipe/BOM buy-list quantities).</div>
       <div style="background:var(--surface-2);border-radius:var(--radius);padding:14px 16px">
         ${renderPermGrid(currentPerms, 'eu')}
       </div>
@@ -12828,13 +12864,16 @@ function showEditUserForm(id, username, displayName, role, active, permissionsRa
     </div>
   </div>`;
   document.getElementById('user-form-area').scrollIntoView({ behavior:'smooth', block:'start' });
-  // Apply role defaults if user has no permissions set yet (fires _pmRoleChange which checks anyChecked)
-  if (role !== 'admin') _pmRoleChange('eu', role);
+  // Initialise the permission section for the current role (admin → shows only the
+  // strict IP grants; normal roles → full grid + defaults; owner → hidden).
+  _pmRoleChange('eu', role);
 }
 
 async function saveEditUser(id) {
   const role  = document.getElementById('eu-role').value;
-  const perms = role !== 'admin' ? getPermGridValues('eu') : [];
+  const perms = role === 'super_user' ? []
+    : role === 'admin' ? getPermGridValues('eu').filter(p => STRICT_ADMIN_GRANTS.includes(p))
+    : getPermGridValues('eu');
   const ROLE_LABELS = {admin:'Administrator',sales:'Sales',warehouse:'Warehouse',accountant:'Accountant',field_rep:'Field Rep',user:'Viewer'};
   try {
     await PUT('/api/users/' + id, {
