@@ -2643,6 +2643,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # GET /api/ingredients + stock
+            # GET /api/ingredients/code-key — recipe-gated code↔name lookup (the legend)
+            if path == '/api/ingredients/code-key':
+                if not _can_recipe(sess):
+                    send_error(self, 'Recipe access required', 403); return
+                send_json(self, qry("SELECT code, name FROM ingredients WHERE active=1 ORDER BY code"))
+                return
+
             if path == '/api/ingredients':
                 stock_map    = get_stock_map()
                 reserved_map = get_wo_reserved_stock_map()

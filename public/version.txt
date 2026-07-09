@@ -1,1 +1,1 @@
-build: 2026-07-07 purchasing-other-tab
+build: 2026-07-07 ingredient-code-lookup
